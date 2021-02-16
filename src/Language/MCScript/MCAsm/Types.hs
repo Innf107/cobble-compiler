@@ -2,7 +2,8 @@
 {-# LANGUAGE GADTs, LambdaCase, StandaloneDeriving, DataKinds, ConstraintKinds #-}
 module Language.MCScript.MCAsm.Types where
 
-import Relude
+import Language.MCScript.Prelude
+
 import Polysemy
 import qualified Polysemy.State as P
 import qualified Polysemy.Reader as P
@@ -75,8 +76,8 @@ data Instruction =
     deriving (Show, Eq)
 
 data IntermediateResult = InterModule Name [IntermediateResult]
-              | InterInstructions Text
-              deriving (Show, Eq)
+                        | InterInstructions Text
+                        deriving (Show, Eq)
 
 data CompiledModule = CompiledModule {
         compModName :: Name

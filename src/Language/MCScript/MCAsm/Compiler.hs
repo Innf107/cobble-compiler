@@ -2,7 +2,7 @@
 {-# LANGUAGE NamedFieldPuns, ScopedTypeVariables #-}
 module Language.MCScript.MCAsm.Compiler where
 
-import Relude hiding (asks, init)
+import Language.MCScript.Prelude
 
 import qualified Data.Text as T
 
