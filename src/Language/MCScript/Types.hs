@@ -1,66 +1,40 @@
-{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE NoImplicitPrelude, DataKinds, TypeFamilies #-}
 module Language.MCScript.Types where
 
 import Language.MCScript.Prelude
 
+import qualified Data.Kind as K
+
 type Name = Text
 
 -- Top level module. 
-data Module = Module Name [Statement] deriving (Show, Eq)
+data Module (t :: Typing) = Module Name [Statement t] --deriving (Show, Eq)
 
--- typecheck:
--- typecheck (Call name exprs) = if length(exprs) /= length(lookupArgs name) && sameTypes expr (lookupArgs name)
---                               then typeError: Wrong arg types
---                               else pass
--- typecheck (Deffun name args stmnts lastexpr type) = traverse_ typecheck stmnts
---                                         >> if type(lastexpr) == type
---                                            then pass
---                                            else typeerror: wrong return type
--- typecheck (Decl name type expr) = if type(expr) == type then pass else: typeError: wrong assignment type
--- typecheck (Assign name expr) = type(expr) == lookupReturnType name
--- typecheck (While init cond inc stmnts) = traverse_ type [init, cond, inc] >> traverse_ typecheck stmnts
--- typecheck (DefStruct name fields = pass
-data Statement = CallVoid Name [Expr]
-               | CallFun Name [Expr]
-               | DefVoid Name [(Name, Type)] [Statement]
-               | DefFun Name [(Name, Type)] [Statement] Expr Type
+data Typing = Typed | Untyped
+
+type family TypingData (t :: Typing) (a :: K.Type) where
+    TypingData 'Typed a = (a, Type)
+    TypingData 'Untyped a = a
+    
+
+data Statement (t::Typing) = CallVoid Name [(TypingData t (Expr t))]
+               | CallFun Name [(TypingData t (Expr t))]
+               | DefVoid Name [(Name, Type)] [Statement t]
+               | DefFun Name [(Name, Type)] [Statement t] (TypingData t (Expr t)) Type
 --                                                      ^ last expr
-               | Decl Name Type Expr
-               | Assign Name Expr
-               | While Expr [Statement]
+               | Decl Name Type (TypingData t (Expr t))
+               | Assign Name (TypingData t (Expr t))
+               | While (TypingData t (Expr t)) [Statement t]
               --  | Return Expr   -- potentially very hard to implement?
                | DefStruct Name [(Name, Type)]
-               deriving (Show, Eq)
+               --deriving (Show, Eq)
 
-data TypedStatement = TCallVoid Name [TypedExpr]
-                    | TCallFun Name [TypedExpr]
-                    | TDefVoid Name [(Name, Type)] [TypedStatement]
-                    | TDefFun Name [(Name, Type)] [TypedStatement] TypedExpr Type
-                    | TDecl Name Type Expr
-                    | TAssign Name TypedExpr Type
-                    | TWhile TypedExpr [TypedStatement]
-                    | TDefStruct Name [(Name, Type)]
-                    deriving (Show, Eq)
-
--- typecheck:
--- type(IntLit _) = IntT
--- type(FloatLit _) = FloatT
--- type(FCall name exprs) = if length(exprs) /= length(lookupArgs name) && sameTypes expr (lookupArgs name)
---                          then typeError: Wrong arg types
---                          else lookupReturnType name
-
-data Expr = FCall Name [Expr]
+data Expr (t :: Typing) = FCall Name [TypingData t (Expr t)]
           | IntLit Int
           | FloatLit Double
           | BoolLit Bool
           | Var Name
-          deriving (Show, Eq)
+          --deriving (Show, Eq)
 
-data TypedExpr = TFCall Name [TypedExpr] Type
-               | TIntLit Int
-               | TFloatLit Double
-               | TBoolLit Bool
-               | TVar Name Type
-               deriving (Show, Eq)
 
 data Type = IntT | FloatT | BoolT | EntityT | StructT Name [Type] deriving (Show, Eq)

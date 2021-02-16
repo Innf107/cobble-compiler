@@ -1,4 +1,4 @@
-{-#LANGUAGE NoImplicitPrelude, ScopedTypeVariables, OverloadedStrings#-}
+{-#LANGUAGE NoImplicitPrelude, ScopedTypeVariables, OverloadedStrings, DataKinds#-}
 
 import Language.MCScript.Prelude
 
@@ -41,10 +41,10 @@ data TCResult = TCError TypeError
               | Successful
               deriving (Show, Eq)
 
-testTypecheck :: Text -> [Statement] -> TCResult -> IO ()
+testTypecheck :: Text -> [Statement 'Untyped] -> TCResult -> IO ()
 testTypecheck = testTypecheck' (TCState mempty mempty mempty)
 
-testTypecheck' :: TCState -> Text -> [Statement] -> TCResult -> IO ()
+testTypecheck' :: TCState -> Text -> [Statement 'Untyped] -> TCResult -> IO ()
 testTypecheck' tcstate name stmnts expected = do
     let res :: Either TypeError TCState = run $  runError $ execState tcstate $ traverse typecheck stmnts
     let successful = case (expected, res) of

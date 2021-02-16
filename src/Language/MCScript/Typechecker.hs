@@ -1,4 +1,4 @@
-{-#LANGUAGE NoImplicitPrelude, ConstraintKinds, DataKinds, LambdaCase#-}
+{-#LANGUAGE NoImplicitPrelude, ConstraintKinds, DataKinds, LambdaCase, TupleSections#-}
 module Language.MCScript.Typechecker where
 
 import Language.MCScript.Prelude
@@ -55,53 +55,63 @@ insertFunReturnType funName t = void $ modify (\s -> s{varTypes=funReturnTypes s
 insertVarType :: (TypecheckC r) => Name -> Type -> Sem r ()
 insertVarType varName t = void $ modify (\s -> s{varTypes=varTypes s & insert varName t})
 
-typecheckModule :: (TypecheckC r) => Module -> Sem r ()
-typecheckModule (Module _ instrs) = traverse_ typecheck instrs 
+typecheckModule :: (TypecheckC r) => Module Untyped -> Sem r (Module Typed)
+typecheckModule (Module mname instrs) = Module mname <$> traverse typecheck instrs
 
-typecheck :: (TypecheckC r) => Statement -> Sem r ()
+typecheck :: (TypecheckC r) => Statement Untyped -> Sem r (Statement Typed)
 typecheck = \case
     CallVoid fname exprs -> do
        fargs <- getFunArgs fname
-       exprTypes <- traverse typeOf exprs
+       exprs' <- traverse typeOf exprs
+       let exprTypes = map snd exprs'
        when (exprTypes /= fargs) $ P.throw $ MisMatchedFunArgs fname fargs exprTypes
-    CallFun fname exprs -> void $ typeOf (FCall fname exprs)
+       pure (CallVoid fname exprs')
+    CallFun fname exprs -> do
+        fc' <- typeOf (FCall fname exprs)
+        let (FCall _ exprs', _) = fc'
+        pure (CallFun fname exprs')
     DefVoid fname args stmnts -> do
         insertFunArgs fname (map snd args)
         for_ args (uncurry insertVarType)
-        traverse_ typecheck stmnts
+        stmnts' <- traverse typecheck stmnts
+        pure (DefVoid fname args stmnts')
     DefFun fname args stmnts lastexpr t -> do
         insertFunArgs fname (map snd args)
         for_ args (uncurry insertVarType)
-        traverse_ typecheck stmnts
-        retType <- typeOf lastexpr
-        if (retType == t)
-        then insertFunReturnType fname t
-        else P.throw (MisMatchedReturnType fname t retType)
+        stmnts' <- traverse typecheck stmnts
+        lastexpr' <- typeOf lastexpr
+        if (snd lastexpr' == t)
+        then insertFunReturnType fname t >> pure (DefFun fname args stmnts' lastexpr' t)
+        else P.throw (MisMatchedReturnType fname t (snd lastexpr'))
     Decl vname t expr -> do
-        exprT <- typeOf expr
-        if (exprT == t)
-        then insertVarType vname t
-        else P.throw (WrongDeclType vname t exprT)
+        expr' <- typeOf expr
+        if (snd expr' == t)
+        then insertVarType vname t >> pure (Decl vname t expr')
+        else P.throw (WrongDeclType vname t (snd expr'))
     Assign vname expr -> do
         varT <- getVarType vname
-        exprT <- typeOf expr
-        when (varT /= exprT) $ P.throw (WrongAssignType vname varT exprT)
+        expr' <- typeOf expr
+        if (varT == snd expr')
+        then pure (Assign vname expr') 
+        else P.throw (WrongAssignType vname varT (snd expr'))
     While cond stmnts -> do
-        void $ typeOf cond
-        traverse_ typecheck stmnts
-    DefStruct name fields -> pass -- TODO: Add to state map
+        cond' <- typeOf cond
+        stmnts' <- traverse typecheck stmnts
+        pure (While cond' stmnts')
+    DefStruct name fields -> pure $ DefStruct name fields -- TODO: Add to state map
 
-typeOf :: (TypecheckC r) => Expr -> Sem r Type
+typeOf :: (TypecheckC r) => Expr 'Untyped -> Sem r (Expr 'Typed, Type)
 typeOf = \case
-    IntLit _ -> pure IntT
-    FloatLit _ -> pure FloatT
-    BoolLit _ -> pure BoolT
+    IntLit x -> pure (IntLit x, IntT)
+    FloatLit x -> pure (FloatLit x, FloatT)
+    BoolLit x -> pure (BoolLit x, BoolT)
     FCall fname exprs -> do
         fargs <- getFunArgs fname
-        exprTypes <- traverse typeOf exprs
+        exprs' <- traverse typeOf exprs
+        let exprTypes = map snd exprs' 
         if (exprTypes == fargs)
-        then getFunReturnType fname
+        then (FCall fname exprs',) <$> getFunReturnType fname
         else P.throw $ MisMatchedFunArgs fname fargs exprTypes
-    Var vname -> getVarType vname
+    Var vname -> (Var vname,) <$> getVarType vname
 
 
