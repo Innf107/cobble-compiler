@@ -63,18 +63,6 @@ compileInstr i = asks nameSpace >>= \ns ->
     AddReg reg1 reg2 -> instr [ "scoreboard players operation " <> renderReg reg1 <> " REGS += " <> renderReg reg2 <> "REGS"]
     SubLit reg lit -> opLit "-=" reg lit
     DivLit reg lit -> opLit "/=" reg lit
-    PushLit lit -> instr [
-          "execute positioned 0 0 0 at @e[tag=STACK, limit=1, sort=furthest] run summon armor_stand ~1 ~ ~ {Marker:1, Invisible:1, Tags:[\"STACK\"]}"
-        , "execute positioned 0 0 0 as @e[tag=STACK, limit=1, sort=furthest] run scoreboard players set @s REGS " <> show lit
-        ]
-    PushReg reg -> instr [
-          "execute positioned 0 0 0 at @e[tag=STACK, limit=1, sort=furthest] run summon armor_stand ~1 ~ ~ {Marker:1, Invisible:1, Tags:[\"STACK\"]}"
-        , "execute positioned 0 0 0 as @e[tag=STACK, limit=1, sort=furthest] run scoreboard players operation @s REGS = " <> renderReg reg <> " REGS"
-        ]
-    PopNum reg -> instr [
-          "execute positioned 0 0 0 as @e[tag=STACK, limit=1, sort=furthest] run scoreboard players operation " <> renderReg reg <> " REGS = @s REGS"
-        , "execute positioned 0 0 0 as @e[tag=STACK, limit=1, sort=furthest] run kill @s"
-        ]
     Section name instrs -> pure . InterModule name . concat <$> (mapM (compileInstr) instrs)
     Call section -> instr [call section]
     CallEq reg1 reg2 section -> instr [
@@ -87,14 +75,6 @@ compileInstr i = asks nameSpace >>= \ns ->
     Then -> instr ["scoreboard players set ELSE REGS 0"]
     GetCommandResult reg command -> instr [
           "execute store result score " <> renderReg reg <> " REGS run " <> command
-        ]
-    PushE reg -> instr [
-          "execute positioned 0 0 0 at @e[tag=STACK, limit=1, sort=furthest] run summon armor_stand ~1 ~ ~ {Marker:1, Invisible:1, Tags:[\"STACK\"]}"
-        , "execute positioned 0 0 0 as @e[tag=STACK, limit=1, sort=furthest] run scoreboard players operation @s EPTR = " <> renderReg reg <> " EPTR"
-        ]
-    PopE reg -> instr [
-          "execute positioned 0 0 0 as @e[tag=STACK, limit=1, sort=furthest] run scoreboard players operation " <> renderReg reg <> " EPTR = @s EPTR"
-        , "execute positioned 0 0 0 as @e[tag=STACK, limit=1, sort=furthest] run kill @s"
         ]
     GetBySelector reg selector -> instr [
           "execute as @e if score @s EPTR = " <> renderReg reg <> " EPTR run scoreboard players reset @s EPTR"

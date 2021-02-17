@@ -24,11 +24,11 @@ prog = Module "prog"
 
     , AddLit (NumReg 1) 1
 
-    , PushLit 111
-    , PushLit 222
-
-    , PopNum (NumReg 2)
-    , PopNum (NumReg 3)
+    --, PushLit 111
+    --, PushLit 222
+--
+    --, PopNum (NumReg 2)
+    --, PopNum (NumReg 3)
 
     , Section "test" [
           AddLit (NumReg 1) 100

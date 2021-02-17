@@ -19,6 +19,7 @@ data Register a where
     NumReg :: Int -> Register Number
     EntityReg :: Int -> Register Entity
     ArrayReg :: Int -> Register Array
+    CustomReg :: Text -> Register a
 
 deriving instance Show (Register a)
 deriving instance Eq (Register a)
@@ -28,6 +29,7 @@ renderReg = \case
     NumReg    i -> "R" <> show i
     EntityReg i -> "E" <> show i
     ArrayReg  i -> "A" <> show i
+    CustomReg name -> name
 
 data Module = Module {
       moduleName::Text
@@ -37,15 +39,12 @@ data Module = Module {
 data Instruction =
       MoveNumReg (Register Number) (Register Number)
     | MoveNumLit (Register Number) Int
+    | MoveArray (Register Array) (Register Array)
 
     | AddReg (Register Number) (Register Number)
     | AddLit (Register Number) Int
     | SubLit (Register Number) Int
     | DivLit (Register Number) Int
-
-    | PushReg (Register Number)
-    | PushLit Int
-    | PopNum (Register Number)
 
     | Section Name [Instruction]
     | Call Name
@@ -55,8 +54,6 @@ data Instruction =
 
     | GetCommandResult (Register Number) Text
 
-    | PushE (Register Entity)
-    | PopE (Register Entity)
     | GetBySelector (Register Entity) Text
     
     | RunCommandAsEntity Text (Register Entity)
@@ -67,9 +64,13 @@ data Instruction =
     --              ^final register   ^array           ^index
     | GetEntityInArray (Register Entity) (Register Array) (Register Number)
     --                 ^final register   ^array           ^index
+    | GetArrayInArray (Register Array) (Register  Array) (Register Number)
+    --                ^final register   ^array           ^index
     | SetNumInArray (Register Array) (Register Number) (Register Number)
     --              ^array           ^index            ^writing register
     | SetEntityInArray (Register Array) (Register Number) (Register Entity)
+    --                 ^array           ^index            ^writing register
+    | SetArrayInArray (Register Array) (Register Number) (Register Array)
     --                 ^array           ^index            ^writing register
     deriving (Show, Eq)
 
