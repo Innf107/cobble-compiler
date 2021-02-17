@@ -5,6 +5,7 @@ module Language.MCScript.Prelude (
     , module Polysemy.State
     , module Polysemy.Error
     , module Polysemy.Reader
+    , module Control.Lens
     ) where
 
 import Relude hiding (
@@ -25,10 +26,28 @@ import Relude hiding (
     , Reader
     , local
     , runReader
+    , uncons
+    , (??)
     )
-import Relude.Extra
+import Relude.Extra hiding (
+      last1
+    , head1
+    , under
+    , un
+    , view
+    , set
+    , over
+    , (^.)
+    , (.~)
+    , (%~)
+    , universe
+    , lens
+    , Lens'
+    )
 
-import Polysemy
+import Polysemy hiding (transform, rewrite)
 import Polysemy.State
 import Polysemy.Error
 import Polysemy.Reader
+
+import Control.Lens

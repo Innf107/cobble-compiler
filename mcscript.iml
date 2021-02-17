@@ -55,5 +55,29 @@
     <orderEntry type="library" name="hpc-0.6.1.0" level="project" />
     <orderEntry type="library" name="process-1.6.9.0" level="project" />
     <orderEntry type="library" name="terminfo-0.4.1.4" level="project" />
+    <orderEntry type="library" name="lens-4.19.2" level="project" />
+    <orderEntry type="library" name="base-orphans-0.8.4" level="project" />
+    <orderEntry type="library" name="bifunctors-5.5.10" level="project" />
+    <orderEntry type="library" name="call-stack-0.2.0" level="project" />
+    <orderEntry type="library" name="comonad-5.0.8" level="project" />
+    <orderEntry type="library" name="contravariant-1.5.3" level="project" />
+    <orderEntry type="library" name="distributive-0.6.2.1" level="project" />
+    <orderEntry type="library" name="exceptions-0.10.4" level="project" />
+    <orderEntry type="library" name="free-5.1.5" level="project" />
+    <orderEntry type="library" name="kan-extensions-5.2.1" level="project" />
+    <orderEntry type="library" name="parallel-3.2.2.0" level="project" />
+    <orderEntry type="library" name="profunctors-5.5.2" level="project" />
+    <orderEntry type="library" name="reflection-2.1.6" level="project" />
+    <orderEntry type="library" name="semigroupoids-5.3.5" level="project" />
+    <orderEntry type="library" name="tagged-0.8.6.1" level="project" />
+    <orderEntry type="library" name="transformers-compat-0.6.6" level="project" />
+    <orderEntry type="library" name="vector-0.12.1.2" level="project" />
+    <orderEntry type="library" name="indexed-traversable-0.1.1" level="project" />
+    <orderEntry type="library" name="StateVar-1.2.1" level="project" />
+    <orderEntry type="library" name="transformers-base-0.4.5.2" level="project" />
+    <orderEntry type="library" name="adjunctions-4.4" level="project" />
+    <orderEntry type="library" name="invariant-0.5.4" level="project" />
+    <orderEntry type="library" name="semigroups-0.19.1" level="project" />
+    <orderEntry type="library" name="void-0.7.3" level="project" />
   </component>
 </module>

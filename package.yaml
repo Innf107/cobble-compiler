@@ -24,6 +24,7 @@ dependencies:
 - relude
 - directory
 - text
+- lens
 - parsec
 - polysemy
 - polysemy-plugin
@@ -33,6 +34,7 @@ library:
   ghc-options:
   - -fplugin=Polysemy.Plugin
   - -Wall
+  - -Wno-unused-imports
 
 executables:
   mcscript-exe:

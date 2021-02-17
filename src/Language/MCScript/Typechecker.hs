@@ -4,9 +4,6 @@ module Language.MCScript.Typechecker where
 import Language.MCScript.Prelude
 import Language.MCScript.Types
 
-import Polysemy
-import Polysemy.State as P
-import Polysemy.Error as P
 
 data TypeError = VarDoesNotExist Name
                | FunctionDoesNotExist Name
@@ -29,21 +26,21 @@ data TCState = TCState {
     } deriving (Show, Eq)
 
 
-type TypecheckC r = Members [P.State TCState, P.Error TypeError] r
+type TypecheckC r = Members [State TCState, Error TypeError] r
 
 getVarType :: (TypecheckC r) => Name -> Sem r Type
 getVarType varName = gets varTypes <&> lookup varName >>= \case
-    Nothing -> P.throw (VarDoesNotExist varName)
+    Nothing -> throw (VarDoesNotExist varName)
     Just t -> pure t
 
 getFunReturnType :: (TypecheckC r) => Name -> Sem r Type
 getFunReturnType funName = gets funReturnTypes <&> lookup funName >>= \case
-    Nothing -> P.throw (FunctionDoesNotExist funName)
+    Nothing -> throw (FunctionDoesNotExist funName)
     Just t -> pure t
 
 getFunArgs :: (TypecheckC r) => Name -> Sem r [Type]
 getFunArgs funName = gets funArgs <&> lookup funName >>= \case
-    Nothing -> P.throw (FunctionDoesNotExist funName)
+    Nothing -> throw (FunctionDoesNotExist funName)
     Just as -> pure as
 
 insertFunArgs :: (TypecheckC r) => Name -> [Type] -> Sem r ()
@@ -55,16 +52,16 @@ insertFunReturnType funName t = void $ modify (\s -> s{varTypes=funReturnTypes s
 insertVarType :: (TypecheckC r) => Name -> Type -> Sem r ()
 insertVarType varName t = void $ modify (\s -> s{varTypes=varTypes s & insert varName t})
 
-typecheckModule :: (TypecheckC r) => Module Untyped -> Sem r (Module Typed)
+typecheckModule :: (TypecheckC r) => Module 'Untyped -> Sem r (Module 'Typed)
 typecheckModule (Module mname instrs) = Module mname <$> traverse typecheck instrs
 
-typecheck :: (TypecheckC r) => Statement Untyped -> Sem r (Statement Typed)
+typecheck :: (TypecheckC r) => Statement 'Untyped -> Sem r (Statement 'Typed)
 typecheck = \case
     CallVoid fname exprs -> do
        fargs <- getFunArgs fname
        exprs' <- traverse typeOf exprs
        let exprTypes = map snd exprs'
-       when (exprTypes /= fargs) $ P.throw $ MisMatchedFunArgs fname fargs exprTypes
+       when (exprTypes /= fargs) $ throw $ MisMatchedFunArgs fname fargs exprTypes
        pure (CallVoid fname exprs')
     CallFun fname exprs -> do
         fc' <- typeOf (FCall fname exprs)
@@ -82,18 +79,18 @@ typecheck = \case
         lastexpr' <- typeOf lastexpr
         if (snd lastexpr' == t)
         then insertFunReturnType fname t >> pure (DefFun fname args stmnts' lastexpr' t)
-        else P.throw (MisMatchedReturnType fname t (snd lastexpr'))
+        else throw (MisMatchedReturnType fname t (snd lastexpr'))
     Decl vname t expr -> do
         expr' <- typeOf expr
         if (snd expr' == t)
         then insertVarType vname t >> pure (Decl vname t expr')
-        else P.throw (WrongDeclType vname t (snd expr'))
+        else throw (WrongDeclType vname t (snd expr'))
     Assign vname expr -> do
         varT <- getVarType vname
         expr' <- typeOf expr
         if (varT == snd expr')
         then pure (Assign vname expr') 
-        else P.throw (WrongAssignType vname varT (snd expr'))
+        else throw (WrongAssignType vname varT (snd expr'))
     While cond stmnts -> do
         cond' <- typeOf cond
         stmnts' <- traverse typecheck stmnts
@@ -103,7 +100,7 @@ typecheck = \case
 typeOf :: (TypecheckC r) => Expr 'Untyped -> Sem r (Expr 'Typed, Type)
 typeOf = \case
     IntLit x -> pure (IntLit x, IntT)
-    FloatLit x -> pure (FloatLit x, FloatT)
+    -- FloatLit x -> pure (FloatLit x, FloatT)
     BoolLit x -> pure (BoolLit x, BoolT)
     FCall fname exprs -> do
         fargs <- getFunArgs fname
@@ -111,7 +108,7 @@ typeOf = \case
         let exprTypes = map snd exprs' 
         if (exprTypes == fargs)
         then (FCall fname exprs',) <$> getFunReturnType fname
-        else P.throw $ MisMatchedFunArgs fname fargs exprTypes
+        else throw $ MisMatchedFunArgs fname fargs exprTypes
     Var vname -> (Var vname,) <$> getVarType vname
 
 

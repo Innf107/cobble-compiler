@@ -6,10 +6,6 @@ import Language.MCScript.Prelude
 
 import qualified Data.Text as T
 
-import Polysemy as P
-import qualified Polysemy.State as P
-import Polysemy.Reader as P
-
 import Language.MCScript.MCAsm.Types
 
 initialize :: (CompC r) => Sem r IntermediateResult
@@ -80,6 +76,7 @@ compileInstr i = asks nameSpace >>= \ns ->
         , "execute positioned 0 0 0 as @e[tag=STACK, limit=1, sort=furthest] run kill @s"
         ]
     Section name instrs -> pure . InterModule name . concat <$> (mapM (compileInstr) instrs)
+    Call section -> instr [call section]
     CallEq reg1 reg2 section -> instr [
           "scoreboard players set ELSE REGS 1"
         , "execute if score " <> renderReg reg1 <> " REGS = " <> renderReg reg2 <> " REGS run " <> call section
@@ -126,36 +123,36 @@ compileInstr i = asks nameSpace >>= \ns ->
               , "execute if score ARRAYCOUNTER REGS matches 1.. run" <> call modName
               ]
             ]
-    GetNumInArray reg arr ix -> instr [
+    GetNumInArray reg arr aix -> instr [
           "execute as @e[tag=ARRAY] if score @s APTR = " <> renderReg arr <> " APTR if score @s IX = "
-            <> renderReg ix <> " IX run scoreboard players operation " <> renderReg reg <> " REGS = @s REGS"
+            <> renderReg aix <> " IX run scoreboard players operation " <> renderReg reg <> " REGS = @s REGS"
         ]
 
-    GetEntityInArray reg arr ix -> instr [
+    GetEntityInArray reg arr aix -> instr [
         "execute as @e[tag=ARRAY] if score @s APTR = " <> renderReg arr <> " APTR if score @s IX = "
-            <> renderReg ix <> " IX run scoreboard players operation " <> renderReg reg <> " EPTR = @s EPTR"
+            <> renderReg aix <> " IX run scoreboard players operation " <> renderReg reg <> " EPTR = @s EPTR"
         ]
 
-    SetNumInArray arr ix reg -> instr [
+    SetNumInArray arr aix reg -> instr [
           "execute as @e[tag=ARRAY] if score @s APTR = " <> renderReg arr <> " APTR if score @s IX = "
-            <> renderReg ix <> " IX run scoreboard players operation @s REGS = " <> renderReg reg <> " REGS"
+            <> renderReg aix <> " IX run scoreboard players operation @s REGS = " <> renderReg reg <> " REGS"
         ]
 
-    SetEntityInArray arr ix reg -> instr [
+    SetEntityInArray arr aix reg -> instr [
           "execute as @e[tag=ARRAY] if score @s APTR = " <> renderReg arr <> " APTR if score @s IX = "
-            <> renderReg ix <> " IX run scoreboard players operation @s EPTR = " <> renderReg reg <> " EPTR"
+            <> renderReg aix <> " IX run scoreboard players operation @s EPTR = " <> renderReg reg <> " EPTR"
         ]
 
     where
         instr :: (Applicative f) => [Text] -> f [IntermediateResult]
         instr = pure . pure . InterInstructions . T.unlines
         opLit :: (Applicative f) => Text -> (Register Number) -> Int -> f [IntermediateResult]
-        opLit op reg lit = instr $  [ "scoreboard players set CONST REGS " <> show lit
-                    , "scoreboard players operation " <> renderReg reg <> " REGS " <> op <> " CONST REGS"]
+        opLit operator reg lit = instr $  [ "scoreboard players set CONST REGS " <> show lit
+                    , "scoreboard players operation " <> renderReg reg <> " REGS " <> operator <> " CONST REGS"]
         incrementUID :: Text
         incrementUID = "scoreboard players add UID UID 1"
         incrementCompUID :: CompC r => Sem r Int
-        incrementCompUID = P.gets compUID <* P.modify (\s -> s{compUID = compUID s + 1})
+        incrementCompUID = gets compUID <* modify (\s -> s{compUID = compUID s + 1})
 
 summonASWithTags :: [Text] -> Text
 summonASWithTags = summonASAtWithTags "0" "0" "0"

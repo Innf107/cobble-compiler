@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5cbccbb7ff3767a69129c15b802186afd1d8ad1d7c75e3f69d04dffeba7237d1
+-- hash: 5486e700b1a2b10a9c0e0240073e0d248f8597400e6b55808b9e201e7399a400
 
 name:           mcscript
 version:        0.1.0.0
@@ -38,10 +38,11 @@ library
       Paths_mcscript
   hs-source-dirs:
       src
-  ghc-options: -fplugin=Polysemy.Plugin -Wall
+  ghc-options: -fplugin=Polysemy.Plugin -Wall -Wno-unused-imports
   build-depends:
       base >=4.7 && <5
     , directory
+    , lens
     , parsec
     , polysemy
     , polysemy-plugin
@@ -59,6 +60,7 @@ executable mcscript-exe
   build-depends:
       base >=4.7 && <5
     , directory
+    , lens
     , mcscript
     , parsec
     , polysemy
@@ -78,6 +80,7 @@ test-suite mcscript-test
   build-depends:
       base >=4.7 && <5
     , directory
+    , lens
     , mcscript
     , parsec
     , polysemy

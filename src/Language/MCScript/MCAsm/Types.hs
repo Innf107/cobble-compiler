@@ -4,9 +4,6 @@ module Language.MCScript.MCAsm.Types where
 
 import Language.MCScript.Prelude
 
-import Polysemy
-import qualified Polysemy.State as P
-import qualified Polysemy.Reader as P
 
 -- Can use an unlimited amount of Registers
 
@@ -51,6 +48,7 @@ data Instruction =
     | PopNum (Register Number)
 
     | Section Name [Instruction]
+    | Call Name
     | CallEq (Register Number) (Register Number) Name
     | CallElse Name
     | Then
@@ -93,7 +91,7 @@ data CompEnv = CompEnv {
   , nameSpace::Text
 }
 
-type CompC r = Members '[P.Reader CompEnv, P.State CompState] r
+type CompC r = Members '[Reader CompEnv, State CompState] r
 
 
 {-
