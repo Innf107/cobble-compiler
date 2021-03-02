@@ -1,5 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude, OverloadedStrings, RankNTypes, ExistentialQuantification, TypeFamilies #-}
-{-# LANGUAGE GADTs, LambdaCase, StandaloneDeriving, DataKinds, ConstraintKinds #-}
+{-# LANGUAGE GADTs, LambdaCase, StandaloneDeriving, DataKinds, ConstraintKinds, FlexibleContexts #-}
 module Language.MCScript.MCAsm.Types where
 
 import Language.MCScript.Prelude
@@ -14,6 +14,38 @@ data Number
 data Entity
 
 data Array
+
+data McAsmError = RegisterCastError Text deriving (Show, Eq)
+
+data SomeReg where
+    SomeReg :: FromSomeReg a => Register a -> SomeReg
+
+deriving instance Show SomeReg
+
+class FromSomeReg a where
+    fromSomeReg :: (Member (Error McAsmError) r) => SomeReg -> Sem r (Register a)
+
+castReg :: (Member (Error McAsmError) r, FromSomeReg a, FromSomeReg b) => Register a -> Sem r (Register b)
+castReg = fromSomeReg . SomeReg
+
+instance FromSomeReg Number where
+    fromSomeReg = \case
+        SomeReg (NumReg i) -> pure $ NumReg i
+        SomeReg (CustomReg t) -> pure $ CustomReg t
+        _ -> throw $ RegisterCastError "Number"
+
+instance FromSomeReg Entity where
+    fromSomeReg = \case
+        SomeReg (EntityReg i) -> pure $ EntityReg i
+        SomeReg (CustomReg t) -> pure $ CustomReg t
+        _ -> throw $ RegisterCastError "Number"
+
+instance FromSomeReg Array where
+    fromSomeReg = \case
+        SomeReg (ArrayReg i) -> pure $ ArrayReg i
+        SomeReg (CustomReg t) -> pure $ CustomReg t
+        _ -> throw $ RegisterCastError "Number"
+
 
 data Register a where
     NumReg :: Int -> Register Number

@@ -1,3 +1,6 @@
+{-# LANGUAGE FlexibleInstances, NoImplicitPrelude, MultiParamTypeClasses, BlockArguments, LambdaCase#-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module Language.MCScript.Prelude (
       module Relude
     , module Relude.Extra
@@ -5,7 +8,9 @@ module Language.MCScript.Prelude (
     , module Polysemy.State
     , module Polysemy.Error
     , module Polysemy.Reader
+    , module Polysemy.Writer
     , module Control.Lens
+    , (|:)
     ) where
 
 import Relude hiding (
@@ -49,5 +54,10 @@ import Polysemy hiding (transform, rewrite)
 import Polysemy.State
 import Polysemy.Error
 import Polysemy.Reader
+import Polysemy.Writer hiding (pass)
 
 import Control.Lens
+
+(|:) :: a -> NonEmpty a -> NonEmpty a
+a |: (x :| xs) = a :| (x : xs)
+
