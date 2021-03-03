@@ -57,13 +57,14 @@ typecheckModule (Module mname instrs) = Module mname <$> traverse typecheck inst
 
 typecheck :: (TypecheckC r) => Statement 'Untyped -> Sem r (Statement 'Typed)
 typecheck = \case
-    CallVoid fname exprs -> do
-        fargs <- getFunArgs fname
-        exprs' <- traverse typeOf exprs
-        let exprTypes = map snd exprs'
-        if (exprTypes /= fargs)
-            then throw $ MisMatchedFunArgs fname fargs exprTypes
-            else pure (CallVoid fname exprs')
+    --CallVoid fname exprs -> do
+    --    fargs <- getFunArgs fname
+    --    exprs' <- traverse typeOf exprs
+    --    let exprTypes = map snd exprs'
+    --    if (exprTypes /= fargs)
+    --        then throw $ MisMatchedFunArgs fname fargs exprTypes
+    --        else pure (CallVoid fname exprs')
+    -- TODO: Handle void functions
     CallFun fname exprs -> do
         fc' <- typeOf (FCall fname exprs)
         let (FCall _ exprs', _) = fc'

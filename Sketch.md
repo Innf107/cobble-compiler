@@ -1,6 +1,6 @@
 # Sketches
 
-## This contains (possibly unfinished) early sketches of new features
+## This contains (possibly unfinished) early sketches of potential new features
 
 ----------------------
 

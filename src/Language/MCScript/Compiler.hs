@@ -74,7 +74,7 @@ newRegForType = \case
     BoolT -> castReg . NumReg =<< newReg
     StructT _ -> castReg . ArrayReg =<< newReg
   
-compileStatement :: (Member (Writer [Instruction]) r, CompileC r) => S.Statement 'Typed -> Sem r ()
+compileStatement :: forall r. (Member (Writer [Instruction]) r, CompileC r) => S.Statement 'Typed -> Sem r ()
 compileStatement = \case
     Decl name t (typedExprContent @'Typed -> expr) -> void $ pushVarToStack name (expr, t)
 
@@ -91,6 +91,9 @@ compileStatement = \case
                     , MoveNumLit varIxReg varIx
                     , SetNumInArray frameReg varIxReg exprReg
                     ]
+    CallFun name args -> get <&> (^? functions . ix name . returnType . _Just) >>= \case
+        Nothing -> undefined
+        Just rt -> void $ (compileExprToReg rt (FCall name args) :: Sem r (Register Number)) -- TODO: Can we just ignore the type here? (Probably not?)
 
 pushVarToStack :: (Member (Writer [Instruction]) r, CompileC r) => Text -> TypedExpr 'Typed -> Sem r Int
 pushVarToStack name ex = do
@@ -104,10 +107,11 @@ pushVarToStack name ex = do
 compileExprToReg :: (Member (Writer [Instruction]) r, CompileC r, FromSomeReg a) => Type -> Expr 'Typed -> Sem r (Register a)
 compileExprToReg type_ expression = case (type_, expression) of
     (IntT, IntLit i) -> newRegForType IntT >>= \reg -> tell [MoveNumLit reg i] >> castReg reg
-    (IntT, Var n) -> get <&> join . (^? frames . head1 . varIndices . at n) >>= \case
+    (BoolT, BoolLit b) -> newRegForType BoolT >>= \reg -> tell [MoveNumLit reg (bool 0 1 b)] >> castReg reg
+    (t, Var n) -> get <&> join . (^? frames . head1 . varIndices . at n) >>= \case
         Nothing -> panicVarNotFoundTooLate n
         Just vIx -> do
-            reg <- newRegForType IntT
+            reg <- newRegForType t
             frameReg <- ArrayReg <$> newReg
             varIxReg <- NumReg <$> newReg
             tell [
@@ -117,7 +121,7 @@ compileExprToReg type_ expression = case (type_, expression) of
                 ]
             castReg reg
     -- (FloatT, FloatLit i) -> pure [MoveNumReg (NumReg reg)]
-    (IntT, FCall fname args) -> do
+    (_, FCall fname args) -> do
         get <&> (^. functions . at fname) >>= \case
             Nothing -> panic' "Function not found" [show fname]
             Just f -> do

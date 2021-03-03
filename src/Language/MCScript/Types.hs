@@ -26,8 +26,7 @@ instance TypedExprContent 'Untyped where typedExprContent = id
 instance TypedExprContent 'Typed where typedExprContent = fst
 
 data Statement (t::Typing) =
-      CallVoid Name [TypedExpr t]
-    | CallFun Name [TypedExpr t] 
+      CallFun Name [TypedExpr t]
     | DefVoid Name [(Name, Type)] [Statement t]
     | DefFun Name [(Name, Type)] [Statement t] (TypedExpr t) Type
 --                                                       ^ last expr

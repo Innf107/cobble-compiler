@@ -25,6 +25,11 @@ deriving instance Show SomeReg
 class FromSomeReg a where
     fromSomeReg :: (Member (Error McAsmError) r) => SomeReg -> Sem r (Register a)
 
+-- | Dangerous!
+-- castReg . fromSomeReg == id iff the types are unchanged.
+-- castReg . fromSomeReg :: Register a -> Register b is only safe if a ~ b, i.e.
+-- if the type is known to not change and this function is only used because Haskell's
+-- type system is getting in the way.
 castReg :: (Member (Error McAsmError) r, FromSomeReg a, FromSomeReg b) => Register a -> Sem r (Register b)
 castReg = fromSomeReg . SomeReg
 
