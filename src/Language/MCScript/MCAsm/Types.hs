@@ -18,7 +18,7 @@ data Array
 data McAsmError = RegisterCastError Text deriving (Show, Eq)
 
 data SomeReg where
-    SomeReg :: FromSomeReg a => Register a -> SomeReg
+    SomeReg :: Register a -> SomeReg
 
 deriving instance Show SomeReg
 
