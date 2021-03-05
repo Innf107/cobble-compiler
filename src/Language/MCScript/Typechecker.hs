@@ -59,10 +59,10 @@ insertFunReturnType funName t = void $ modify (\s -> s{varTypes=funReturnTypes s
 insertVarType :: (TypecheckC r) => Name -> Type -> Sem r ()
 insertVarType varName t = void $ modify (\s -> s{varTypes=varTypes s & insert varName t})
 
-typecheckModule :: (TypecheckC r) => Module 'Untyped -> Sem r (Module 'Typed)
+typecheckModule :: (TypecheckC r) => Module 'Unaltered -> Sem r (Module 'Typed)
 typecheckModule (Module mname instrs) = Module mname <$> traverse typecheck instrs
 
-typecheck :: (TypecheckC r) => Statement 'Untyped -> Sem r (Statement 'Typed)
+typecheck :: (TypecheckC r) => Statement 'Unaltered -> Sem r (Statement 'Typed)
 typecheck = \case
     --CallVoid fname exprs -> do
     --    fargs <- getFunArgs fname
@@ -72,52 +72,60 @@ typecheck = \case
     --        then throw $ MisMatchedFunArgs fname fargs exprTypes
     --        else pure (CallVoid fname exprs')
     -- TODO: Handle void functions
-    CallFun fname exprs -> do
-        fc' <- typeOf (FCall fname exprs)
-        let (FCall _ exprs', _) = fc'
-        pure (CallFun fname exprs')
-    DefVoid fname args stmnts -> do
+    CallFunU fname exprs -> do
+        fargs <- getFunArgs fname
+        exprs' <- traverse typeOf exprs
+        
+        let exprTypes = map exprType exprs'
+        
+        if (exprTypes /= fargs)
+            then throw $ WrongFunArgs fname fargs exprTypes
+            else pure (CallFun void_ fname exprs')
+    DefVoidU fname args stmnts -> do
         insertFunArgs fname (map snd args)
         for_ args (uncurry insertVarType)
         stmnts' <- traverse typecheck stmnts
-        pure (DefVoid fname args stmnts')
-    DefFun fname args stmnts lastexpr t -> do
+        pure (DefVoid void_ fname args stmnts')
+    DefFunU fname args stmnts lastexpr t -> do
         insertFunArgs fname (map snd args)
         for_ args (uncurry insertVarType)
         stmnts' <- traverse typecheck stmnts
         lastexpr' <- typeOf lastexpr
-        if (snd lastexpr' == t)
-        then insertFunReturnType fname t >> pure (DefFun fname args stmnts' lastexpr' t)
-        else throw (WrongReturnType fname t (snd lastexpr'))
-    Decl vname t expr -> do
+        if (exprType lastexpr' == t)
+        then insertFunReturnType fname t >> pure (DefFun void_ fname args stmnts' lastexpr' t)
+        else throw (WrongReturnType fname t (exprType lastexpr'))
+    DeclU vname (Just t) expr -> do
         expr' <- typeOf expr
-        if (snd expr' == t)
-        then insertVarType vname t >> pure (Decl vname t expr')
-        else throw (WrongDeclType vname t (snd expr'))
-    Assign vname expr -> do
+        if (exprType expr' == t)
+        then insertVarType vname t >> pure (Decl void_ vname (Just t) expr')
+        else throw (WrongDeclType vname t (exprType expr'))
+    DeclU vname Nothing expr -> do
+        expr' <- typeOf expr
+        insertVarType vname (exprType expr') >> pure (Decl void_ vname Nothing expr')        
+    AssignU vname expr -> do
         varT <- getVarType vname
         expr' <- typeOf expr
-        if (varT == snd expr')
-        then pure (Assign vname expr') 
-        else throw (WrongAssignType vname varT (snd expr'))
-    While cond stmnts -> do
+        if (varT == exprType expr')
+        then pure (Assign void_ vname expr') 
+        else throw (WrongAssignType vname varT (exprType expr'))
+    WhileU cond stmnts -> do
         cond' <- typeOf cond
         stmnts' <- traverse typecheck stmnts
-        pure (While cond' stmnts')
-    DefStruct name fields -> pure $ DefStruct name fields -- TODO: Add to state map
+        pure (While void_ cond' stmnts')
+    DefStructU name fields -> pure $ DefStructT name fields -- TODO: Add to state map
 
-typeOf :: (TypecheckC r) => Expr 'Untyped -> Sem r (Expr 'Typed, Type)
+typeOf :: (TypecheckC r) => Expr 'Unaltered -> Sem r (Expr 'Typed)
 typeOf = \case
-    IntLit x -> pure (IntLit x, IntT)
+    IntLit _ x -> pure $ IntLit void_ x
     -- FloatLit x -> pure (FloatLit x, FloatT)
-    BoolLit x -> pure (BoolLit x, BoolT)
-    FCall fname exprs -> do
+    BoolLit _ x -> pure $ BoolLit void_ x
+    FCall _ fname exprs -> do
         fargs <- getFunArgs fname
         exprs' <- traverse typeOf exprs
-        let exprTypes = map snd exprs' 
+        let exprTypes = map exprType exprs' 
         if (exprTypes == fargs)
-        then (FCall fname exprs',) <$> getFunReturnType fname
+        then (\x -> FCall x fname exprs') <$> getFunReturnType fname
         else throw $ WrongFunArgs fname fargs exprTypes
-    Var vname -> (Var vname,) <$> getVarType vname
+    Var _ vname -> (\x -> Var x vname) <$> getVarType vname
 
 

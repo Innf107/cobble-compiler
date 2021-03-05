@@ -34,7 +34,7 @@ main = do
     when tc $ hspec Spec.spec
     when server $ Server.test
 
-
+{-
 tcTests :: IO ()
 tcTests = do
     testTypecheck "DeclCorrectPrim" [Decl "x" IntT (IntLit 5)] Successful
@@ -61,15 +61,15 @@ tcTests = do
     testTypecheck' (TCState mempty (fromList [("<", BoolT), ("+", IntT)]) (fromList [("<", [IntT, IntT]), ("+", [IntT, IntT])])) "WhileCorrect" 
         [Decl "i" IntT (IntLit 0), While (FCall "<" [Var "i", IntLit 10]) [Assign "i" (FCall "+" [Var "i", IntLit 1])]] Successful
     putTextLn "ToTest: CallVoid, CallFun, typeOf(Expr)"
-
+-}
 data TCResult = TCError TypeError
               | Successful
               deriving (Show, Eq)
 
-testTypecheck :: Text -> [Statement 'Untyped] -> TCResult -> IO ()
+testTypecheck :: Text -> [Statement 'Unaltered] -> TCResult -> IO ()
 testTypecheck = testTypecheck' (TCState mempty mempty mempty)
 
-testTypecheck' :: TCState -> Text -> [Statement 'Untyped] -> TCResult -> IO ()
+testTypecheck' :: TCState -> Text -> [Statement 'Unaltered] -> TCResult -> IO ()
 testTypecheck' tcstate name stmnts expected = do
     let res :: Either TypeError TCState = run $  runError $ execState tcstate $ traverse typecheck stmnts
     let successful = case (expected, res) of

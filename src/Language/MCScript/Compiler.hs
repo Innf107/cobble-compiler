@@ -90,46 +90,46 @@ newRegForType = \case
 
 compileStatement :: forall r. (Member (Writer [Instruction]) r, CompileC r) => S.Statement 'Typed -> Sem r ()
 compileStatement = \case
-    Decl name t (typedExprContent @'Typed -> expr) -> void $ pushVarToStack name (expr, t)
+    Decl _ name _ expr -> void $ pushVarToStack name expr
 
-    Assign name (expr, t) -> do
+    Assign _ name expr -> do
         varIxReg <- NumReg <$> newReg
         frameReg <- ArrayReg <$> newReg
         mvarIx <- get <&> join . (^? frames . head1 . varIndices . at name)
         case mvarIx of   
             Nothing -> panicVarNotFoundTooLate name
             Just varIx -> do
-                exprReg <- fromSomeReg =<< compileExprToReg t expr
+                exprReg <- fromSomeReg =<< compileExprToReg expr
                 tell [
                       GetArrayInArray frameReg stackReg stackPTRReg
                     , MoveNumLit varIxReg varIx
                     , SetNumInArray frameReg varIxReg exprReg
                     ]
-    CallFun name args -> get <&> (^? functions . ix name . returnType . _Just) >>= \case
+    CallFun _ name args -> get <&> (^? functions . ix name . returnType . _Just) >>= \case
         Nothing -> panicFunNotFoundTooLate name
-        Just rt -> void $ compileExprToReg rt (FCall name args)
+        Just rt -> void $ compileExprToReg (FCall rt name args)
 
-    DefVoid name pars body -> do
+    DefVoid _ name pars body -> do
         modify (& functions . at name ?~ Function {_params=pars, _returnType=Nothing})
         tell . pure . A.Section name . fst =<< runWriterAssocR do
             modify (& frames . head1 . varIndices .~ fromList (zip (map fst pars) [0..]))
             modify (& frames . head1 . varCount .~ length pars)
             traverse_ compileStatement body
 
-pushVarToStack :: (Member (Writer [Instruction]) r, CompileC r) => Text -> TypedExpr 'Typed -> Sem r Int
+pushVarToStack :: (Member (Writer [Instruction]) r, CompileC r) => Text -> Expr 'Typed -> Sem r Int
 pushVarToStack name ex = do
     varIx <- get <&> (^. frames . head1 . varCount)
     modify (& frames . head1 . varCount +~ 1)
     modify (& frames . head1 . varIndices . at name ?~ varIx)
 
-    compileStatement (Assign name ex)
+    compileStatement (Assign void_ name ex)
     pure varIx
 
-compileExprToReg :: (Member (Writer [Instruction]) r, CompileC r) => Type -> Expr 'Typed -> Sem r SomeReg
-compileExprToReg type_ expression = case (type_, expression) of
-    (IntT, IntLit i) -> newRegForType IntT >>= \reg -> tell [MoveNumLit reg i] $> SomeReg reg
-    (BoolT, BoolLit b) -> newRegForType BoolT >>= \reg -> tell [MoveNumLit reg (bool 0 1 b)] $> SomeReg reg
-    (t, Var n) -> get <&> join . (^? frames . head1 . varIndices . at n) >>= \case
+compileExprToReg :: (Member (Writer [Instruction]) r, CompileC r) => Expr 'Typed -> Sem r SomeReg
+compileExprToReg = \case
+    (IntLit _ i) -> newRegForType IntT >>= \reg -> tell [MoveNumLit reg i] $> SomeReg reg
+    (BoolLit _ b) -> newRegForType BoolT >>= \reg -> tell [MoveNumLit reg (bool 0 1 b)] $> SomeReg reg
+    (Var t n) -> get <&> join . (^? frames . head1 . varIndices . at n) >>= \case
         Nothing -> panicVarNotFoundTooLate n
         Just vIx -> do
             reg <- newRegForType t
@@ -142,7 +142,7 @@ compileExprToReg type_ expression = case (type_, expression) of
                 ]
             pure $ SomeReg reg
     -- (FloatT, FloatLit i) -> pure [MoveNumReg (NumReg reg)]
-    (_, FCall fname args) -> do
+    (FCall t fname args) -> do
         get <&> (^. functions . at fname) >>= \case
             Nothing -> panicFunNotFoundTooLate fname
             Just f -> do
@@ -152,8 +152,7 @@ compileExprToReg type_ expression = case (type_, expression) of
                 case (f ^. returnType) of
                     Nothing -> panic' "Called a void function as an expression" [show fname]
                     Just _ -> pure $ SomeReg returnReg -- TODO: Is this okay or does this get overriden by recursion?
-                                                       -- TODO: (If it is, the entire case should be removed)
-
-    (ty, ex) -> panic' "Expression not compilable as Type" ["Type: " <> show ty, "Expr: " <> show ex]
-        
+                                                       -- TODO: (If it is, the entire case should be removed)    
+                                                       -- TODO: PROBABLY BROKEN!! (returnReg is polymorphic, but
+                                                       -- TODO registers for different types are implemented differently)
 

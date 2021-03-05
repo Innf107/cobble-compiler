@@ -21,16 +21,16 @@ test = do
 
 type Query = Text
 
-testWithServer :: [Module 'Untyped] -> [(Text, Query, Expectation)] -> IO ()
+testWithServer :: [Module 'Unaltered] -> [(Text, Query, Expectation)] -> IO ()
 testWithServer program tests = do
     cwd <- getCurrentDirectory <&> (</> "test/Server")
-    
+
     removeDirectoryRecursive $ cwd </> "world"
     copyFileOrDirectory True (cwd </> "worldTEMPLATE") (cwd </> "world")
-    
+
     mapFromLeft (fail . toString . (("Compilation failed: "::Text) <>) . show) $
         compileToFunctionsAtPath (cwd </> "world/datapacks/Test/data/") "Test" True program
-    
+
     merrors <- runWithServer \sin sout -> forM tests \(desc, query, expectation) -> do
         whenM (hReady sout) $ waitUntil (hGetChar sout >> not <$> (hReady sout))
         hPutStrLn sout (toString query)
