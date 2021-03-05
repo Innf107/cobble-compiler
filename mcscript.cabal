@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 25b1d00ed8b4a5739b4828f12c7cc50054081c3e608ef1cace88f196e9a5ce8d
+-- hash: 247aca75332db12770a250e29aae7ea3d31d263beb9bdbaadae0f66fe2c7385e
 
 name:           mcscript
 version:        0.1.0.0
@@ -34,6 +34,7 @@ library
       Language.MCScript.Prelude
       Language.MCScript.Typechecker
       Language.MCScript.Types
+      Language.MCScript.Types.TH
       Lib
   other-modules:
       Paths_mcscript
@@ -49,6 +50,7 @@ library
     , polysemy
     , polysemy-plugin
     , relude
+    , template-haskell
     , text
   default-language: Haskell2010
 
@@ -69,6 +71,7 @@ executable mcscript-exe
     , polysemy
     , polysemy-plugin
     , relude
+    , template-haskell
     , text
   default-language: Haskell2010
 
@@ -100,5 +103,6 @@ test-suite mcscript-test
     , polysemy-plugin
     , process
     , relude
+    , template-haskell
     , text
   default-language: Haskell2010

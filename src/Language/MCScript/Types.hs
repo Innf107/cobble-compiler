@@ -1,17 +1,19 @@
 {-# LANGUAGE NoImplicitPrelude, DataKinds, TypeFamilies, StandaloneDeriving, FlexibleInstances #-}
-{-# LANGUAGE GADTs, RankNTypes, PatternSynonyms#-}
+{-# LANGUAGE GADTs, RankNTypes, PatternSynonyms, TemplateHaskell#-}
 {-# LANGUAGE LambdaCase, OverloadedStrings #-}
 module Language.MCScript.Types where
 
 import Language.MCScript.Prelude
+
+import Language.MCScript.Types.TH
 
 type Name = Text
 
 -- Top level module. 
 data Module (t :: Pass) = Module Name [Statement t] --deriving (Show, Eq)
 
--- | A data kind representing Compiler passes. 
-data Pass = Unaltered 
+-- | A data kind representing Compiler passes.
+data Pass = Unaltered
           | Typed
           deriving (Show, Eq)
 
@@ -26,7 +28,7 @@ data Statement (p :: Pass) =
     | While (XWhile p) (Expr p) [Statement p]
     | DefStruct (XDefStruct p) Name [(Name, Type)]
     | StatementX (XStatement p)
-               
+
 type family XCallFun (p :: Pass)
 type family XDefVoid (p :: Pass)
 type family XDefFun (p :: Pass)
@@ -36,7 +38,7 @@ type family XWhile (p :: Pass)
 type family XDefStruct (p :: Pass)
 type family XStatement (p :: Pass)
 
-               
+
 deriving instance Show (Statement 'Typed)
 deriving instance Show (Statement 'Unaltered)
 deriving instance Eq (Statement 'Typed)
@@ -79,98 +81,11 @@ type instance XIntLit 'Unaltered = Void
 type instance XBoolLit 'Unaltered = Void
 type instance XVar 'Unaltered = Void
 
-pattern CallFunU :: Name -> [Expr 'Unaltered] -> Statement 'Unaltered
-pattern CallFunU n es <- CallFun _ n es 
-    where
-        CallFunU n es = CallFun void_ n es
+makeSynonyms 'Unaltered ''Statement "U"
 
-pattern DefVoidU :: Name -> [(Name, Type)] -> [Statement 'Unaltered] -> Statement 'Unaltered
-pattern DefVoidU n ps body <- DefVoid _ n ps body 
-    where
-        DefVoidU n ps body = DefVoid void_ n ps body
+makeSynonyms 'Unaltered ''Expr "U"
 
-pattern DefFunU :: Name -> [(Name, Type)] -> [Statement 'Unaltered] -> Expr 'Unaltered -> Type -> Statement 'Unaltered
-pattern DefFunU n ps body le t <- DefFun _ n ps body le t 
-    where
-        DefFunU n ps body le t = DefFun void_ n ps body le t
-
-pattern DeclU :: Name -> (Maybe Type) -> (Expr 'Unaltered) -> Statement 'Unaltered
-pattern DeclU n t e <- Decl _ n t e
-    where
-        DeclU n t e = Decl void_ n t e
-
-pattern AssignU :: Name -> (Expr 'Unaltered) -> Statement 'Unaltered
-pattern AssignU n e <- Assign _ n e
-    where
-        AssignU n e = Assign void_ n e
-
-pattern WhileU :: Expr 'Unaltered -> [Statement 'Unaltered] -> Statement 'Unaltered
-pattern WhileU c b <- While _ c b
-    where
-        WhileU c b = While void_ c b
-
-pattern DefStructU :: Name -> [(Name, Type)] -> Statement 'Unaltered
-pattern DefStructU n ps <- DefStruct _ n ps
-    where
-        DefStructU n ps = DefStruct void_ n ps
-
-
-pattern FCallU :: Name -> [Expr 'Unaltered] -> Expr 'Unaltered
-pattern FCallU n ps <- FCall _ n ps
-    where
-        FCallU n ps = FCall void_ n ps
-
-pattern IntLitU :: Int -> Expr 'Unaltered
-pattern IntLitU i <- IntLit _ i
-    where
-        IntLitU i = IntLit void_ i
-
-pattern BoolLitU :: Bool -> Expr 'Unaltered
-pattern BoolLitU b <- BoolLit _ b
-    where
-        BoolLitU b = BoolLit void_ b
-
-pattern VarU :: Name -> Expr 'Unaltered
-pattern VarU v <- Var _ v
-    where
-        VarU v = Var void_ v
-
-
-pattern CallFunT :: Name -> [Expr 'Typed] -> Statement 'Typed
-pattern CallFunT n es <- CallFun _ n es 
-    where
-        CallFunT n es = CallFun void_ n es
-
-pattern DefVoidT :: Name -> [(Name, Type)] -> [Statement 'Typed] -> Statement 'Typed
-pattern DefVoidT n ps body <- DefVoid _ n ps body 
-    where
-        DefVoidT n ps body = DefVoid void_ n ps body
-
-pattern DefFunT :: Name -> [(Name, Type)] -> [Statement 'Typed] -> Expr 'Typed -> Type -> Statement 'Typed
-pattern DefFunT n ps body le t <- DefFun _ n ps body le t 
-    where
-        DefFunT n ps body le t = DefFun void_ n ps body le t
-
-pattern DeclT :: Name -> (Maybe Type) -> (Expr 'Typed) -> Statement 'Typed
-pattern DeclT n t e <- Decl _ n t e
-    where
-        DeclT n t e = Decl void_ n t e
-
-pattern AssignT :: Name -> (Expr 'Typed) -> Statement 'Typed
-pattern AssignT n e <- Assign _ n e
-    where
-        AssignT n e = Assign void_ n e
-
-pattern WhileT :: Expr 'Typed -> [Statement 'Typed] -> Statement 'Typed
-pattern WhileT c b <- While _ c b
-    where
-        WhileT c b = While void_ c b
-
-pattern DefStructT :: Name -> [(Name, Type)] -> Statement 'Typed
-pattern DefStructT n ps <- DefStruct _ n ps
-    where
-        DefStructT n ps = DefStruct void_ n ps
-
+makeSynonyms 'Typed ''Statement "T"
 
 pattern FCallT :: Type -> Name -> [Expr 'Typed] -> Expr 'Typed
 pattern FCallT t n ps <- FCall t n ps
@@ -211,7 +126,7 @@ exprType :: Expr 'Typed -> Type
 exprType = \case
     FCall t _ _ -> t
     IntLit _ _ -> IntT
-    BoolLit _ _ -> BoolT 
+    BoolLit _ _ -> BoolT
     Var t _ -> t
 
 

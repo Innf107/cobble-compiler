@@ -29,6 +29,7 @@ dependencies:
 - polysemy
 - polysemy-plugin
 - filepath
+- template-haskell
 
 library:
   source-dirs: src
