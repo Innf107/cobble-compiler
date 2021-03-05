@@ -28,6 +28,7 @@ dependencies:
 - parsec
 - polysemy
 - polysemy-plugin
+- filepath
 
 library:
   source-dirs: src
@@ -49,7 +50,7 @@ executables:
 
 tests:
   mcscript-test:
-    main:                Spec.hs
+    main:                Main.hs
     source-dirs:         test
     ghc-options:
     - -threaded
@@ -57,3 +58,5 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - mcscript
+    - hspec
+    - process

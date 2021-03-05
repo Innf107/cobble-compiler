@@ -8,9 +8,9 @@ import Language.MCScript.Types
 data TypeError = VarDoesNotExist Name
                | FunctionDoesNotExist Name
 --               ^ also thrown if void is expected to return (e.g. when called as an expression)
-               | MisMatchedFunArgs Name [Type] [Type]
+               | WrongFunArgs Name [Type] [Type]
 --                                       ^ expected
-               | MisMatchedReturnType Name Type Type
+               | WrongReturnType Name Type Type
 --                                         ^ expected
                | WrongDeclType Name Type Type
 --                                  ^ expected
@@ -27,6 +27,13 @@ data TCState = TCState {
 
 
 type TypecheckC r = Members [State TCState, Error TypeError] r
+
+initialTCState :: TCState
+initialTCState = TCState {
+        varTypes = mempty
+      , funReturnTypes = mempty
+      , funArgs = mempty
+    }
 
 getVarType :: (TypecheckC r) => Name -> Sem r Type
 getVarType varName = gets varTypes <&> lookup varName >>= \case
@@ -81,7 +88,7 @@ typecheck = \case
         lastexpr' <- typeOf lastexpr
         if (snd lastexpr' == t)
         then insertFunReturnType fname t >> pure (DefFun fname args stmnts' lastexpr' t)
-        else throw (MisMatchedReturnType fname t (snd lastexpr'))
+        else throw (WrongReturnType fname t (snd lastexpr'))
     Decl vname t expr -> do
         expr' <- typeOf expr
         if (snd expr' == t)
@@ -110,7 +117,7 @@ typeOf = \case
         let exprTypes = map snd exprs' 
         if (exprTypes == fargs)
         then (FCall fname exprs',) <$> getFunReturnType fname
-        else throw $ MisMatchedFunArgs fname fargs exprTypes
+        else throw $ WrongFunArgs fname fargs exprTypes
     Var vname -> (Var vname,) <$> getVarType vname
 
 

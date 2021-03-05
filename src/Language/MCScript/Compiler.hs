@@ -32,6 +32,16 @@ data CompileState = CompileState {
       , _functions :: Map Text Function
     } deriving (Show, Eq)
 
+initialCompileState :: CompileState
+initialCompileState = CompileState {
+      _frames = Frame {
+        _varIndices=mempty
+      , _varCount=0
+      } :| []
+    , _lastReg = 0
+     , _functions = mempty
+    }
+
 data Frame = Frame {
         _varIndices :: Map Text Int
       , _varCount :: Int
@@ -66,7 +76,7 @@ rts = do
         ]
 
 compile :: (CompileC r) => S.Module 'Typed -> Sem r A.Module
-compile (S.Module modname stmnts) = A.Module modname . fst <$> runWriter (traverse compileStatement stmnts)
+compile (S.Module modname stmnts) = A.Module modname . fst <$> runWriterAssocR (traverse compileStatement stmnts)
 
 newReg :: (CompileC r) => Sem r Int
 newReg = modify (& lastReg +~ 1) >> get <&> (^. lastReg)
@@ -98,6 +108,13 @@ compileStatement = \case
     CallFun name args -> get <&> (^? functions . ix name . returnType . _Just) >>= \case
         Nothing -> panicFunNotFoundTooLate name
         Just rt -> void $ compileExprToReg rt (FCall name args)
+
+    DefVoid name pars body -> do
+        modify (& functions . at name ?~ Function {_params=pars, _returnType=Nothing})
+        tell . pure . A.Section name . fst =<< runWriterAssocR do
+            modify (& frames . head1 . varIndices .~ fromList (zip (map fst pars) [0..]))
+            modify (& frames . head1 . varCount .~ length pars)
+            traverse_ compileStatement body
 
 pushVarToStack :: (Member (Writer [Instruction]) r, CompileC r) => Text -> TypedExpr 'Typed -> Sem r Int
 pushVarToStack name ex = do

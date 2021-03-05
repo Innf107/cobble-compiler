@@ -124,12 +124,17 @@ data CompState = CompState {
     compUID::Int
 } deriving (Show, Eq)
 
+initialCompState :: CompState
+initialCompState = CompState {
+    compUID = 0
+}
+
 data CompEnv = CompEnv {
     debug::Bool
   , nameSpace::Text
 }
 
-type CompC r = Members '[Reader CompEnv, State CompState] r
+type CompC r = Members '[Reader CompEnv, State CompState, Error McAsmError] r
 
 
 {-

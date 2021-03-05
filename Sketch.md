@@ -30,3 +30,41 @@ execute if <returned == 0> run <set returnValue = fibRes>
 <set return-value = 42>
 ```
 
+
+### lambdas
+```
+[test.mcscript]
+main(){
+    f : int -> int = \x -> x * x;
+    f(2);
+    f(3);
+}
+```
+-->
+```
+[test.mcscript]
+main (){
+    f = Function<int, int>(0, {})
+--                         ^   ^ 
+--             function index  closure
+
+    call(f, 2)
+    call(f, 3)
+}
+
+
+[functions.mcscript]
+functions = [
+      <mcfunction: call "_f_lambda_main"> -- 0
+
+    ]
+
+int _f_lambda_main(x: int){
+    x * x
+}
+
+b call<a, b>(f: Function a b, x: a){
+    functions[0]
+}
+```
+

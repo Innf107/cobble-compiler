@@ -10,6 +10,7 @@ module Language.MCScript.Prelude (
     , module Polysemy.Reader
     , module Polysemy.Writer
     , module Control.Lens
+    , module System.FilePath
     , (|:)
     ) where
 
@@ -55,6 +56,9 @@ import Polysemy.State
 import Polysemy.Error
 import Polysemy.Reader
 import Polysemy.Writer hiding (pass)
+
+
+import System.FilePath hiding ((<.>))
 
 import Control.Lens
 
