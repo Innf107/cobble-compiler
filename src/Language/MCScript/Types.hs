@@ -65,6 +65,14 @@ deriving instance Eq (Expr 'Unaltered)
 
 data Type = IntT | BoolT | EntityT | StructT Name deriving (Show, Eq)
 
+type FileName = Text
+
+
+data LexInfo = LexInfo {
+      line :: Int
+    , column :: Int
+    , file :: FileName
+    } deriving (Show, Eq)
 
 
 type instance XCallFun 'Unaltered = Void

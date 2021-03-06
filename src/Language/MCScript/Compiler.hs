@@ -115,6 +115,14 @@ compileStatement = \case
             modify (& frames . head1 . varIndices .~ fromList (zip (map fst pars) [0..]))
             modify (& frames . head1 . varCount .~ length pars)
             traverse_ compileStatement body
+    DefFun _ name pars body retExp t -> do
+        modify (& functions . at name ?~ Function {_params=pars, _returnType=Nothing})
+        tell . pure . A.Section name . fst =<< runWriterAssocR do
+            modify (& frames . head1 . varIndices .~ fromList (zip (map fst pars) [0..]))
+            modify (& frames . head1 . varCount .~ length pars)
+            traverse_ compileStatement body
+            res <- compileExprToReg retExp
+            moveReg t res (SomeReg returnReg) -- :/
 
 pushVarToStack :: (Member (Writer [Instruction]) r, CompileC r) => Text -> Expr 'Typed -> Sem r Int
 pushVarToStack name ex = do
@@ -152,7 +160,11 @@ compileExprToReg = \case
                 case (f ^. returnType) of
                     Nothing -> panic' "Called a void function as an expression" [show fname]
                     Just _ -> pure $ SomeReg returnReg -- TODO: Is this okay or does this get overriden by recursion?
-                                                       -- TODO: (If it is, the entire case should be removed)    
+                                                       -- TODO: (If it is, the entire case should be removed)
                                                        -- TODO: PROBABLY BROKEN!! (returnReg is polymorphic, but
                                                        -- TODO registers for different types are implemented differently)
 
+moveReg :: (CompileC r, Member (Writer [Instruction]) r) => Type -> SomeReg -> SomeReg -> Sem r ()
+moveReg t r1 r2 = case t of
+    IntT -> MoveNumReg <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure
+    BoolT -> MoveNumReg <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure

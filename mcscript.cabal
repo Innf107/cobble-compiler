@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 247aca75332db12770a250e29aae7ea3d31d263beb9bdbaadae0f66fe2c7385e
+-- hash: ba3895ed55fa6355e6e94198f097201bf3998f8ede964a16fe7d4748b1a8725a
 
 name:           mcscript
 version:        0.1.0.0
@@ -31,6 +31,8 @@ library
       Language.MCScript.Compiler
       Language.MCScript.MCAsm.Compiler
       Language.MCScript.MCAsm.Types
+      Language.MCScript.Parser
+      Language.MCScript.Parser.Tokenizer
       Language.MCScript.Prelude
       Language.MCScript.Typechecker
       Language.MCScript.Types
@@ -82,6 +84,7 @@ test-suite mcscript-test
       Language.MCScript.CompilerSpec
       Language.MCScript.MCAsm.CompilerSpec
       Language.MCScript.MCAsm.TypesSpec
+      Language.MCScript.Parser.TokenizerSpec
       Language.MCScript.TypecheckerSpec
       Language.MCScript.TypesSpec
       Language.MCScriptSpec
