@@ -6,7 +6,7 @@ import Language.MCScript.Prelude
 
 import Language.MCScript.Compiler as S
 import Language.MCScript.Types as S
-import Language.MCScript.Parser as S
+import Language.MCScript.Parser.Preprocessor as S
 import Language.MCScript.Parser.Tokenizer as S
 
 import Language.MCScript.Typechecker as TC

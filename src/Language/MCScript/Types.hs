@@ -13,21 +13,23 @@ type Name = Text
 data Module (t :: Pass) = Module Name [Statement t] --deriving (Show, Eq)
 
 -- | A data kind representing Compiler passes.
-data Pass = Unaltered
+data Pass = UnexpandedMacros
+          | Unaltered
           | Typed
           deriving (Show, Eq)
 
 
 data Statement (p :: Pass) =
-      CallFun (XCallFun p) Name [Expr p]
-    | DefVoid (XDefVoid p) Name [(Name, Type)] [Statement p]
-    | DefFun (XDefFun p) Name [(Name, Type)] [Statement p] (Expr p) Type
+      CallFun (XCallFun p) LexInfo Name [Expr p]
+    | DefVoid (XDefVoid p) LexInfo Name [(Name, Type)] [Statement p]
+    | DefFun  (XDefFun p) LexInfo Name [(Name, Type)] [Statement p] (Expr p) Type
 --                                                          ^ last expr
-    | Decl (XDecl p) Name (Maybe Type) (Expr p)
-    | Assign (XAssign p) Name (Expr p)
-    | While (XWhile p) (Expr p) [Statement p]
-    | DefStruct (XDefStruct p) Name [(Name, Type)]
-    | StatementX (XStatement p)
+    | Decl  (XDecl p) LexInfo Name (Maybe Type) (Expr p)
+    | Assign (XAssign p) LexInfo Name (Expr p)
+    | While (XWhile p) LexInfo (Expr p) [Statement p]
+    | DefStruct (XDefStruct p) LexInfo Name [(Name, Type)]
+    | StatementX (XStatement p) LexInfo
+
 
 type family XCallFun (p :: Pass)
 type family XDefVoid (p :: Pass)
@@ -41,26 +43,32 @@ type family XStatement (p :: Pass)
 
 deriving instance Show (Statement 'Typed)
 deriving instance Show (Statement 'Unaltered)
+deriving instance Show (Statement 'UnexpandedMacros)
 deriving instance Eq (Statement 'Typed)
 deriving instance Eq (Statement 'Unaltered)
+deriving instance Eq (Statement 'UnexpandedMacros)
 
 
 data Expr (p :: Pass) =
-      FCall (XFCall p) Name [Expr p]
-    | IntLit (XIntLit p) Int
+      FCall (XFCall p) LexInfo Name [Expr p]
+    | IntLit (XIntLit p) LexInfo Int
           --  | FloatLit Double Text TODO: Needs Standard Library (Postfixes?)
-    | BoolLit (XBoolLit p) Bool
-    | Var (XVar p) Name
+    | BoolLit (XBoolLit p) LexInfo Bool
+    | Var (XVar p) LexInfo Name
+    | ExprX (XExpr p) LexInfo
 
 type family XFCall (p :: Pass)
 type family XIntLit (p :: Pass)
 type family XBoolLit (p :: Pass)
 type family XVar (p :: Pass)
+type family XExpr (p :: Pass)
 
 deriving instance Show (Expr 'Typed)
 deriving instance Show (Expr 'Unaltered)
+deriving instance Show (Expr 'UnexpandedMacros)
 deriving instance Eq (Expr 'Typed)
 deriving instance Eq (Expr 'Unaltered)
+deriving instance Eq (Expr 'UnexpandedMacros)
 
 
 data Type = IntT | BoolT | EntityT | StructT Name deriving (Show, Eq)
@@ -75,19 +83,20 @@ data LexInfo = LexInfo {
     } deriving (Show, Eq)
 
 
-type instance XCallFun 'Unaltered = Void
-type instance XDefVoid 'Unaltered = Void
-type instance XDefFun 'Unaltered = Void
-type instance XDecl 'Unaltered = Void
-type instance XAssign 'Unaltered = Void
-type instance XWhile 'Unaltered = Void
-type instance XDefStruct 'Unaltered = Void
-type instance XStatement 'Unaltered = Void
+type instance XCallFun 'Unaltered = ()
+type instance XDefVoid 'Unaltered = ()
+type instance XDefFun 'Unaltered = ()
+type instance XDecl 'Unaltered = ()
+type instance XAssign 'Unaltered = ()
+type instance XWhile 'Unaltered = ()
+type instance XDefStruct 'Unaltered = ()
+type instance XStatement 'Unaltered = ()
 
-type instance XFCall 'Unaltered = Void
-type instance XIntLit 'Unaltered = Void
-type instance XBoolLit 'Unaltered = Void
-type instance XVar 'Unaltered = Void
+type instance XFCall 'Unaltered = ()
+type instance XIntLit 'Unaltered = ()
+type instance XBoolLit 'Unaltered = ()
+type instance XVar 'Unaltered = ()
+type instance XExpr 'Unaltered = ()
 
 makeSynonyms 'Unaltered ''Statement "U"
 
@@ -95,49 +104,70 @@ makeSynonyms 'Unaltered ''Expr "U"
 
 makeSynonyms 'Typed ''Statement "T"
 
-pattern FCallT :: Type -> Name -> [Expr 'Typed] -> Expr 'Typed
-pattern FCallT t n ps <- FCall t n ps
+pattern FCallT :: Type -> LexInfo -> Name -> [Expr 'Typed] -> Expr 'Typed
+pattern FCallT t l n ps <- FCall t l n ps
     where
-        FCallT t n ps = FCall t n ps
+        FCallT t l n ps = FCall t l n ps
 
-pattern IntLitT :: Int -> Expr 'Typed
-pattern IntLitT i <- IntLit _ i
+pattern IntLitT :: LexInfo -> Int -> Expr 'Typed
+pattern IntLitT l i <- IntLit _ l i
     where
-        IntLitT i = IntLit void_ i
+        IntLitT l i = IntLit () l i
 
-pattern BoolLitT :: Bool -> Expr 'Typed
-pattern BoolLitT b <- BoolLit _ b
+pattern BoolLitT :: LexInfo -> Bool -> Expr 'Typed
+pattern BoolLitT l b <- BoolLit _ l b
     where
-        BoolLitT b = BoolLit void_ b
+        BoolLitT l b = BoolLit () l b
 
-pattern VarT :: Type -> Name -> Expr 'Typed
-pattern VarT t v <- Var t v
+pattern VarT :: Type -> LexInfo -> Name -> Expr 'Typed
+pattern VarT t l v <- Var t l v
     where
-        VarT t v = Var t v
+        VarT t l v = Var t l v
 
 
-type instance XCallFun 'Typed = Void -- TODO: Should this keep the return type?
-type instance XDefVoid 'Typed = Void
-type instance XDefFun 'Typed = Void
-type instance XDecl 'Typed = Void
-type instance XAssign 'Typed = Void
-type instance XWhile 'Typed = Void
-type instance XDefStruct 'Typed = Void
-type instance XStatement 'Typed = Void
+type instance XCallFun 'Typed = () -- TODO: Should this keep the return type?
+type instance XDefVoid 'Typed = ()
+type instance XDefFun 'Typed = ()
+type instance XDecl 'Typed = ()
+type instance XAssign 'Typed = ()
+type instance XWhile 'Typed = ()
+type instance XDefStruct 'Typed = ()
+type instance XStatement 'Typed = ()
 
 type instance XFCall 'Typed = Type
-type instance XIntLit 'Typed = Void
-type instance XBoolLit 'Typed = Void
+type instance XIntLit 'Typed = ()
+type instance XBoolLit 'Typed = ()
 type instance XVar 'Typed = Type
+type instance XExpr 'Typed = ()
 
 exprType :: Expr 'Typed -> Type
 exprType = \case
-    FCall t _ _ -> t
-    IntLit _ _ -> IntT
-    BoolLit _ _ -> BoolT
-    Var t _ -> t
+    FCall t _ _ _ -> t
+    IntLit _ _ _ -> IntT
+    BoolLit _ _ _ -> BoolT
+    Var t _ _ -> t
 
+type instance XCallFun 'UnexpandedMacros = ()
+type instance XDefFun 'UnexpandedMacros = ()
+type instance XDefVoid 'UnexpandedMacros = ()
+type instance XDecl 'UnexpandedMacros = ()
+type instance XAssign 'UnexpandedMacros = ()
+type instance XWhile 'UnexpandedMacros = ()
+type instance XDefStruct 'UnexpandedMacros = ()
+type instance XStatement 'UnexpandedMacros = CallStatementMacro
 
+data CallStatementMacro = CallStatementMacro [MacroParam] deriving (Show, Eq)
+
+data MacroParam = PStatement (Statement 'UnexpandedMacros) 
+                | PExpr (Expr 'UnexpandedMacros) 
+                | PStatements [Statement 'UnexpandedMacros]
+                deriving (Show, Eq) 
+
+type instance XFCall 'UnexpandedMacros = ()
+type instance XIntLit 'UnexpandedMacros = ()
+type instance XBoolLit 'UnexpandedMacros = ()
+type instance XVar 'UnexpandedMacros = ()
+type instance XExpr 'UnexpandedMacros = () -- TODO: Expression Macro?
 
 void_ :: Void
 void_ = error "Attempt to evaluate void"

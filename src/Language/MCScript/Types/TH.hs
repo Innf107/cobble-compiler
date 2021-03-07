@@ -10,9 +10,6 @@ import Data.Foldable (foldr1)
 
 import qualified Data.List as L (tail)
 
-voidTH :: Void
-voidTH = error "Attempt to evaluate void"
-
 
 makeSynonyms :: Name -> Name -> String -> Q [Dec]
 makeSynonyms passVariantName name postfix = do
@@ -28,7 +25,7 @@ makeSynonyms passVariantName name postfix = do
                 , PatSynD cnameU
                     (PrefixPatSyn varNames)
                     (ExplBidir [Clause (map VarP varNames)
-                        (NormalB $ foldl' AppE (ConE cname) (VarE 'voidTH : map VarE varNames)) []])
+                        (NormalB $ foldl' AppE (ConE cname) (ConE '() : map VarE varNames)) []])
                     (ConP cname (WildP : map VarP varNames))
                 ]
 

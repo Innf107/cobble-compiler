@@ -5,16 +5,16 @@ import Language.MCScript.Prelude
 import Language.MCScript.Types
 
 
-data TypeError = VarDoesNotExist Name
-               | FunctionDoesNotExist Name
+data TypeError = VarDoesNotExist LexInfo Name
+               | FunctionDoesNotExist LexInfo Name
 --               ^ also thrown if void is expected to return (e.g. when called as an expression)
-               | WrongFunArgs Name [Type] [Type]
+               | WrongFunArgs LexInfo Name [Type] [Type]
 --                                       ^ expected
-               | WrongReturnType Name Type Type
+               | WrongReturnType LexInfo Name Type Type
 --                                         ^ expected
-               | WrongDeclType Name Type Type
+               | WrongDeclType LexInfo Name Type Type
 --                                  ^ expected
-               | WrongAssignType Name Type Type
+               | WrongAssignType LexInfo Name Type Type
 --                                    ^ expected
                deriving (Show, Eq)
 
@@ -35,19 +35,19 @@ initialTCState = TCState {
       , funArgs = mempty
     }
 
-getVarType :: (TypecheckC r) => Name -> Sem r Type
-getVarType varName = gets varTypes <&> lookup varName >>= \case
-    Nothing -> throw (VarDoesNotExist varName)
+getVarType :: (TypecheckC r) => LexInfo -> Name -> Sem r Type
+getVarType l varName = gets varTypes <&> lookup varName >>= \case
+    Nothing -> throw (VarDoesNotExist l varName)
     Just t -> pure t
 
-getFunReturnType :: (TypecheckC r) => Name -> Sem r Type
-getFunReturnType funName = gets funReturnTypes <&> lookup funName >>= \case
-    Nothing -> throw (FunctionDoesNotExist funName)
+getFunReturnType :: (TypecheckC r) => LexInfo -> Name -> Sem r Type
+getFunReturnType l funName = gets funReturnTypes <&> lookup funName >>= \case
+    Nothing -> throw (FunctionDoesNotExist l funName)
     Just t -> pure t
 
-getFunArgs :: (TypecheckC r) => Name -> Sem r [Type]
-getFunArgs funName = gets funArgs <&> lookup funName >>= \case
-    Nothing -> throw (FunctionDoesNotExist funName)
+getFunArgs :: (TypecheckC r) => LexInfo -> Name -> Sem r [Type]
+getFunArgs l funName = gets funArgs <&> lookup funName >>= \case
+    Nothing -> throw (FunctionDoesNotExist l funName)
     Just as -> pure as
 
 insertFunArgs :: (TypecheckC r) => Name -> [Type] -> Sem r ()
@@ -72,60 +72,60 @@ typecheck = \case
     --        then throw $ MisMatchedFunArgs fname fargs exprTypes
     --        else pure (CallVoid fname exprs')
     -- TODO: Handle void functions
-    CallFunU fname exprs -> do
-        fargs <- getFunArgs fname
+    CallFunU l fname exprs -> do
+        fargs <- getFunArgs l fname
         exprs' <- traverse typeOf exprs
         
         let exprTypes = map exprType exprs'
         
         if (exprTypes /= fargs)
-            then throw $ WrongFunArgs fname fargs exprTypes
-            else pure (CallFun void_ fname exprs')
-    DefVoidU fname args stmnts -> do
+            then throw $ WrongFunArgs l fname fargs exprTypes
+            else pure (CallFunT l fname exprs')
+    DefVoidU l fname args stmnts -> do
         insertFunArgs fname (map snd args)
         for_ args (uncurry insertVarType)
         stmnts' <- traverse typecheck stmnts
-        pure (DefVoid void_ fname args stmnts')
-    DefFunU fname args stmnts lastexpr t -> do
+        pure (DefVoidT l fname args stmnts')
+    DefFunU l fname args stmnts lastexpr t -> do
         insertFunArgs fname (map snd args)
         for_ args (uncurry insertVarType)
         stmnts' <- traverse typecheck stmnts
         lastexpr' <- typeOf lastexpr
         if (exprType lastexpr' == t)
-        then insertFunReturnType fname t >> pure (DefFun void_ fname args stmnts' lastexpr' t)
-        else throw (WrongReturnType fname t (exprType lastexpr'))
-    DeclU vname (Just t) expr -> do
+        then insertFunReturnType fname t >> pure (DefFunT l fname args stmnts' lastexpr' t)
+        else throw (WrongReturnType l fname t (exprType lastexpr'))
+    DeclU l vname (Just t) expr -> do
         expr' <- typeOf expr
         if (exprType expr' == t)
-        then insertVarType vname t >> pure (Decl void_ vname (Just t) expr')
-        else throw (WrongDeclType vname t (exprType expr'))
-    DeclU vname Nothing expr -> do
+        then insertVarType vname t >> pure (DeclT l vname (Just t) expr')
+        else throw (WrongDeclType l vname t (exprType expr'))
+    DeclU l vname Nothing expr -> do
         expr' <- typeOf expr
-        insertVarType vname (exprType expr') >> pure (Decl void_ vname Nothing expr')        
-    AssignU vname expr -> do
-        varT <- getVarType vname
+        insertVarType vname (exprType expr') >> pure (DeclT l vname Nothing expr')
+    AssignU l vname expr -> do
+        varT <- getVarType l vname
         expr' <- typeOf expr
         if (varT == exprType expr')
-        then pure (Assign void_ vname expr') 
-        else throw (WrongAssignType vname varT (exprType expr'))
-    WhileU cond stmnts -> do
+        then pure (AssignT l vname expr')
+        else throw (WrongAssignType l vname varT (exprType expr'))
+    WhileU l cond stmnts -> do
         cond' <- typeOf cond
         stmnts' <- traverse typecheck stmnts
-        pure (While void_ cond' stmnts')
-    DefStructU name fields -> pure $ DefStructT name fields -- TODO: Add to state map
+        pure (WhileT l cond' stmnts')
+    DefStructU l name fields -> pure $ DefStructT l name fields -- TODO: Add to state map
 
 typeOf :: (TypecheckC r) => Expr 'Unaltered -> Sem r (Expr 'Typed)
 typeOf = \case
-    IntLit _ x -> pure $ IntLit void_ x
+    IntLitU l x -> pure $ IntLitT l x
     -- FloatLit x -> pure (FloatLit x, FloatT)
-    BoolLit _ x -> pure $ BoolLit void_ x
-    FCall _ fname exprs -> do
-        fargs <- getFunArgs fname
+    BoolLitU l x -> pure $ BoolLitT l x
+    FCallU l fname exprs -> do
+        fargs <- getFunArgs l fname
         exprs' <- traverse typeOf exprs
         let exprTypes = map exprType exprs' 
         if (exprTypes == fargs)
-        then (\x -> FCall x fname exprs') <$> getFunReturnType fname
-        else throw $ WrongFunArgs fname fargs exprTypes
-    Var _ vname -> (\x -> Var x vname) <$> getVarType vname
+        then (\x -> FCallT x l fname exprs') <$> getFunReturnType l fname
+        else throw $ WrongFunArgs l fname fargs exprTypes
+    VarU l vname -> (\x -> VarT x l vname) <$> getVarType l vname
 
 

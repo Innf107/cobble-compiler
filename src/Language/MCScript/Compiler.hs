@@ -90,9 +90,9 @@ newRegForType = \case
 
 compileStatement :: forall r. (Member (Writer [Instruction]) r, CompileC r) => S.Statement 'Typed -> Sem r ()
 compileStatement = \case
-    Decl _ name _ expr -> void $ pushVarToStack name expr
+    DeclT l name _ expr -> void $ pushVarToStack name expr
 
-    Assign _ name expr -> do
+    AssignT l name expr -> do
         varIxReg <- NumReg <$> newReg
         frameReg <- ArrayReg <$> newReg
         mvarIx <- get <&> join . (^? frames . head1 . varIndices . at name)
@@ -105,17 +105,17 @@ compileStatement = \case
                     , MoveNumLit varIxReg varIx
                     , SetNumInArray frameReg varIxReg exprReg
                     ]
-    CallFun _ name args -> get <&> (^? functions . ix name . returnType . _Just) >>= \case
+    CallFunT l name args -> get <&> (^? functions . ix name . returnType . _Just) >>= \case
         Nothing -> panicFunNotFoundTooLate name
-        Just rt -> void $ compileExprToReg (FCall rt name args)
+        Just rt -> void $ compileExprToReg (FCall rt l name args)
 
-    DefVoid _ name pars body -> do
+    DefVoidT l name pars body -> do
         modify (& functions . at name ?~ Function {_params=pars, _returnType=Nothing})
         tell . pure . A.Section name . fst =<< runWriterAssocR do
             modify (& frames . head1 . varIndices .~ fromList (zip (map fst pars) [0..]))
             modify (& frames . head1 . varCount .~ length pars)
             traverse_ compileStatement body
-    DefFun _ name pars body retExp t -> do
+    DefFunT l name pars body retExp t -> do
         modify (& functions . at name ?~ Function {_params=pars, _returnType=Nothing})
         tell . pure . A.Section name . fst =<< runWriterAssocR do
             modify (& frames . head1 . varIndices .~ fromList (zip (map fst pars) [0..]))
@@ -130,14 +130,14 @@ pushVarToStack name ex = do
     modify (& frames . head1 . varCount +~ 1)
     modify (& frames . head1 . varIndices . at name ?~ varIx)
 
-    compileStatement (Assign void_ name ex)
+    compileStatement (AssignT (LexInfo 0 0 "ThisShouldNotHaveHappened!") name ex)
     pure varIx
 
 compileExprToReg :: (Member (Writer [Instruction]) r, CompileC r) => Expr 'Typed -> Sem r SomeReg
 compileExprToReg = \case
-    (IntLit _ i) -> newRegForType IntT >>= \reg -> tell [MoveNumLit reg i] $> SomeReg reg
-    (BoolLit _ b) -> newRegForType BoolT >>= \reg -> tell [MoveNumLit reg (bool 0 1 b)] $> SomeReg reg
-    (Var t n) -> get <&> join . (^? frames . head1 . varIndices . at n) >>= \case
+    (IntLitT l i) -> newRegForType IntT >>= \reg -> tell [MoveNumLit reg i] $> SomeReg reg
+    (BoolLitT l b) -> newRegForType BoolT >>= \reg -> tell [MoveNumLit reg (bool 0 1 b)] $> SomeReg reg
+    (VarT t l n) -> get <&> join . (^? frames . head1 . varIndices . at n) >>= \case
         Nothing -> panicVarNotFoundTooLate n
         Just vIx -> do
             reg <- newRegForType t
@@ -150,7 +150,7 @@ compileExprToReg = \case
                 ]
             pure $ SomeReg reg
     -- (FloatT, FloatLit i) -> pure [MoveNumReg (NumReg reg)]
-    (FCall t fname args) -> do
+    (FCallT t l fname args) -> do
         get <&> (^. functions . at fname) >>= \case
             Nothing -> panicFunNotFoundTooLate fname
             Just f -> do
