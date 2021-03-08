@@ -57,6 +57,9 @@ spec = do
                 `shouldBe`
                 Right [Ident "a", Operator "+", Ident "b", Operator "-", 
                     Ident "c", Operator "/", Ident "de", Operator "*", Ident "f"]
+            map tokData <$> tokenize "Test" "x : int, y: bool"
+                `shouldBe`
+                Right [Ident "x", ReservedOp ":", Ident "int", ReservedOp ",", Ident "y", ReservedOp ":", Ident "bool"]
         it "does not need spaces between identifiers/operators and parentheses" do
             map tokData <$> tokenize "Test" "a[ b () ] +}- )de\n)"
                 `shouldBe`

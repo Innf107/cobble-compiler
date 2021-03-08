@@ -12,7 +12,7 @@ type Name = Text
 -- Top level module. 
 data Module (t :: Pass) = Module Name [Statement t] --deriving (Show, Eq)
 
--- | A data kind representing Compiler passes.
+-- | A data kind representing the state of the AST at a certain Compiler pass.
 data Pass = UnexpandedMacros
           | Unaltered
           | Typed
@@ -21,13 +21,14 @@ data Pass = UnexpandedMacros
 
 data Statement (p :: Pass) =
       CallFun (XCallFun p) LexInfo Name [Expr p]
-    | DefVoid (XDefVoid p) LexInfo Name [(Name, Type)] [Statement p]
-    | DefFun  (XDefFun p) LexInfo Name [(Name, Type)] [Statement p] (Expr p) Type
+    | DefVoid (XDefVoid p) LexInfo Name [(Name, TypeInfo p)] [Statement p]
+    | DefFun  (XDefFun p) LexInfo Name [(Name, TypeInfo p)] [Statement p] (Expr p) (TypeInfo p)
+    --  | DefMacro (XDefMacro p) LexInfo Name [()]
 --                                                          ^ last expr
-    | Decl  (XDecl p) LexInfo Name (Maybe Type) (Expr p)
+    | Decl  (XDecl p) LexInfo Name (Maybe (TypeInfo p)) (Expr p)
     | Assign (XAssign p) LexInfo Name (Expr p)
     | While (XWhile p) LexInfo (Expr p) [Statement p]
-    | DefStruct (XDefStruct p) LexInfo Name [(Name, Type)]
+    | DefStruct (XDefStruct p) LexInfo Name [(Name, TypeInfo p)]
     | StatementX (XStatement p) LexInfo
 
 
@@ -63,13 +64,14 @@ type family XBoolLit (p :: Pass)
 type family XVar (p :: Pass)
 type family XExpr (p :: Pass)
 
+type family TypeInfo (p :: Pass)
+
 deriving instance Show (Expr 'Typed)
 deriving instance Show (Expr 'Unaltered)
 deriving instance Show (Expr 'UnexpandedMacros)
 deriving instance Eq (Expr 'Typed)
 deriving instance Eq (Expr 'Unaltered)
 deriving instance Eq (Expr 'UnexpandedMacros)
-
 
 data Type = IntT | BoolT | EntityT | StructT Name deriving (Show, Eq)
 
@@ -97,6 +99,8 @@ type instance XIntLit 'Unaltered = ()
 type instance XBoolLit 'Unaltered = ()
 type instance XVar 'Unaltered = ()
 type instance XExpr 'Unaltered = ()
+
+type instance TypeInfo 'Unaltered = Type
 
 makeSynonyms 'Unaltered ''Statement "U"
 
@@ -140,6 +144,8 @@ type instance XBoolLit 'Typed = ()
 type instance XVar 'Typed = Type
 type instance XExpr 'Typed = ()
 
+type instance TypeInfo 'Typed = Type
+
 exprType :: Expr 'Typed -> Type
 exprType = \case
     FCall t _ _ _ -> t
@@ -154,20 +160,27 @@ type instance XDecl 'UnexpandedMacros = ()
 type instance XAssign 'UnexpandedMacros = ()
 type instance XWhile 'UnexpandedMacros = ()
 type instance XDefStruct 'UnexpandedMacros = ()
-type instance XStatement 'UnexpandedMacros = CallStatementMacro
+type instance XStatement 'UnexpandedMacros = CallStatementMacroX
 
-data CallStatementMacro = CallStatementMacro [MacroParam] deriving (Show, Eq)
+data CallStatementMacroX = CallStatementMacroX Name [MacroParam] deriving (Show, Eq)
 
 data MacroParam = PStatement (Statement 'UnexpandedMacros) 
                 | PExpr (Expr 'UnexpandedMacros) 
                 | PStatements [Statement 'UnexpandedMacros]
                 deriving (Show, Eq) 
 
+pattern CallStatementMacro :: LexInfo -> Name -> [MacroParam] -> Statement 'UnexpandedMacros
+pattern CallStatementMacro l n ps <- StatementX (CallStatementMacroX n ps) l
+    where
+        CallStatementMacro l n ps = StatementX (CallStatementMacroX n ps) l
+
 type instance XFCall 'UnexpandedMacros = ()
 type instance XIntLit 'UnexpandedMacros = ()
 type instance XBoolLit 'UnexpandedMacros = ()
 type instance XVar 'UnexpandedMacros = ()
 type instance XExpr 'UnexpandedMacros = () -- TODO: Expression Macro?
+
+type instance TypeInfo 'UnexpandedMacros = Name
 
 void_ :: Void
 void_ = error "Attempt to evaluate void"

@@ -34,7 +34,7 @@ isOpStart :: Char -> Bool
 isOpStart = isOpLetter
 
 isOpLetter :: Char -> Bool
-isOpLetter = flip elem "+-*/~^!?.|<>$&=#:;"
+isOpLetter = flip elem "+-*/~^!?.|<>$&=#:;,"
 
 isIdentStart :: Char -> Bool
 isIdentStart c = isAlpha c
@@ -43,10 +43,10 @@ isIdentLetter :: Char -> Bool
 isIdentLetter c = isAlphaNum c || c `elem` "_"
 
 reserved :: [String]
-reserved = ["True", "False", "defmacro"]
+reserved = ["True", "False", "defmacro", "void", "let", "while"]
 
 reservedOps :: [String]
-reservedOps = [":", ";"]
+reservedOps = [":", ";", ",", "=", "=>"]
 
 isParen :: Char -> Bool
 isParen = (`elem`"()[]{}")
