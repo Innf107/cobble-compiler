@@ -1,19 +1,17 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.3.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 55dfbda4dcfb7f1dda097181c04db44bfbcc663cbf810a356df213fdda940fdc
 
-name:           mcscript
+name:           cobble
 version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/githubuser/mcscript#readme>
-homepage:       https://github.com/githubuser/mcscript#readme
-bug-reports:    https://github.com/githubuser/mcscript/issues
-author:         Author name here
-maintainer:     example@example.com
-copyright:      2020 Author name here
+description:    Please see the README on GitHub at <https://github.com/Innf107/cobble-compiler#readme>
+homepage:       https://github.com/Innf107/cobble-compiler#readme
+bug-reports:    https://github.com/Innf107/cobble-compiler/issues
+author:         Finn Schneider
+maintainer:     finn@famschneider.info
+copyright:      2021 Finn Schneider
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
@@ -23,7 +21,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/mcscript
+  location: https://github.com/Innf107/cobble-compiler
 
 library
   exposed-modules:
@@ -45,7 +43,7 @@ library
       Language.Cobble.Types.TH
       Lib
   other-modules:
-      Paths_mcscript
+      Paths_cobble
   hs-source-dirs:
       src
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wno-unused-imports
@@ -62,19 +60,19 @@ library
     , text
   default-language: Haskell2010
 
-executable mcscript-exe
+executable cobble
   main-is: Main.hs
   other-modules:
-      Paths_mcscript
+      Paths_cobble
   hs-source-dirs:
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , cobble
     , directory
     , filepath
     , lens
-    , mcscript
     , parsec
     , polysemy
     , polysemy-plugin
@@ -83,7 +81,7 @@ executable mcscript-exe
     , text
   default-language: Haskell2010
 
-test-suite mcscript-test
+test-suite cobble-test
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
@@ -98,17 +96,17 @@ test-suite mcscript-test
       Language.CobbleSpec
       Server
       Spec
-      Paths_mcscript
+      Paths_cobble
   hs-source-dirs:
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , cobble
     , directory
     , filepath
     , hspec
     , lens
-    , mcscript
     , parsec
     , polysemy
     , polysemy-plugin
