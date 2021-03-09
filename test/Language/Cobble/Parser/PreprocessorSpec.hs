@@ -1,11 +1,11 @@
 {-#LANGUAGE NoImplicitPrelude, BlockArguments, OverloadedStrings#-}
 {-# LANGUAGE TypeApplications, DataKinds #-}
-module Language.MCScript.Parser.PreprocessorSpec where
+module Language.Cobble.Parser.PreprocessorSpec where
 
-import Language.MCScript.Prelude
-import Language.MCScript.Types
-import Language.MCScript.Parser.Tokenizer
-import Language.MCScript.Parser.Preprocessor
+import Language.Cobble.Prelude
+import Language.Cobble.Types
+import Language.Cobble.Parser.Tokenizer
+import Language.Cobble.Parser.Preprocessor
 
 import Test.Hspec
 

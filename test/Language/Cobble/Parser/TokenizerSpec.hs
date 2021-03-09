@@ -1,9 +1,9 @@
 {-# LANGUAGE NoImplicitPrelude, BlockArguments, OverloadedStrings #-}
-module Language.MCScript.Parser.TokenizerSpec where
+module Language.Cobble.Parser.TokenizerSpec where
 
-import Language.MCScript.Prelude
-import Language.MCScript.Parser.Tokenizer
-import Language.MCScript.Types
+import Language.Cobble.Prelude
+import Language.Cobble.Parser.Tokenizer
+import Language.Cobble.Types
 
 import Test.Hspec
 

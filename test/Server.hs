@@ -1,9 +1,9 @@
 {-#LANGUAGE NoImplicitPrelude, OverloadedStrings, NamedFieldPuns, DataKinds, LambdaCase, BlockArguments #-}
 module Server where
 
-import Language.MCScript.Prelude
-import Language.MCScript.Types
-import Language.MCScript
+import Language.Cobble.Prelude
+import Language.Cobble.Types
+import Language.Cobble
 import Lib
 
 import qualified Data.Either as E

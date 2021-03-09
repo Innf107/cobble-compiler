@@ -1,18 +1,18 @@
 {-#LANGUAGE NoImplicitPrelude, DataKinds, BlockArguments#-}
 {-# LANGUAGE TypeApplications, NamedFieldPuns #-}
-module Language.MCScript where
+module Language.Cobble where
 
-import Language.MCScript.Prelude
+import Language.Cobble.Prelude
 
-import Language.MCScript.Compiler as S
-import Language.MCScript.Types as S
-import Language.MCScript.Parser.Preprocessor as S
-import Language.MCScript.Parser.Tokenizer as S
+import Language.Cobble.Compiler as S
+import Language.Cobble.Types as S
+import Language.Cobble.Parser.Preprocessor as S
+import Language.Cobble.Parser.Tokenizer as S
 
-import Language.MCScript.Typechecker as TC
+import Language.Cobble.Typechecker as TC
 
-import Language.MCScript.MCAsm.Compiler as A
-import Language.MCScript.MCAsm.Types as A
+import Language.Cobble.MCAsm.Compiler as A
+import Language.Cobble.MCAsm.Types as A
 
 
 data CompilationError = CompilerError CompilerError

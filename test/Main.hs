@@ -2,10 +2,10 @@
 {-# LANGUAGE MultiWayIf, LambdaCase #-}
 module Main where
 
-import Language.MCScript.Prelude
+import Language.Cobble.Prelude
 
-import Language.MCScript.Types
-import Language.MCScript.Typechecker
+import Language.Cobble.Types
+import Language.Cobble.Typechecker
 
 import qualified Data.Text as T
 

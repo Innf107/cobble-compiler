@@ -1,4 +1,4 @@
-module Language.MCScript.TypesSpec where
+module Language.Cobble.CompilerSpec where
 
 import Test.Hspec
 

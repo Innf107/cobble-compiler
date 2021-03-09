@@ -1,6 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude, DataKinds, BlockArguments, LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns, ConstraintKinds, OverloadedStrings #-}
-module Language.MCScript.Parser.Preprocessor where
+module Language.Cobble.Parser.Preprocessor where
 
 {- Idea:
 
@@ -20,10 +20,10 @@ module Language.MCScript.Parser.Preprocessor where
 
 -}
 
-import Language.MCScript.Prelude
+import Language.Cobble.Prelude
 
-import Language.MCScript.Types
-import Language.MCScript.Parser.Tokenizer
+import Language.Cobble.Types
+import Language.Cobble.Parser.Tokenizer
 
 data PreprocessError = MacroNameNotIdent (Token 'Unprocessed) deriving (Show, Eq)
 

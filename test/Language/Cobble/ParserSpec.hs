@@ -1,12 +1,12 @@
 {-# LANGUAGE NoImplicitPrelude, OverloadedStrings, BlockArguments #-}
-module Language.MCScript.ParserSpec where
+module Language.Cobble.ParserSpec where
 
-import Language.MCScript.Prelude.Parser hiding (assign)
+import Language.Cobble.Prelude.Parser hiding (assign)
 
-import Language.MCScript.Types
-import Language.MCScript.Parser
-import Language.MCScript.Parser.Tokenizer
-import Language.MCScript.Parser.Preprocessor
+import Language.Cobble.Types
+import Language.Cobble.Parser
+import Language.Cobble.Parser.Tokenizer
+import Language.Cobble.Parser.Preprocessor
 
 import qualified Data.Text as T
 
@@ -58,6 +58,17 @@ spec = do
                     Right (DefFun () (LexInfo 1 1 "Test") "idInt" [("x", "int"), ("y", "bool")] [] (Var () (LexInfo 1 32 "Test") "x") "int")
             it "parses correct inputs with a body" do
                 testParse defFun (T.unlines [
+                      "int someFunction(x: int)"
+                    , "{"
+                    , "    let y = x;"
+                    , "} => f(y)"
+                    ])
+                    `shouldBe`
+                    Right (DefFun () (LexInfo 1 1 "Test") "someFunction" [("x", "int")]
+                        [ Decl () (LexInfo 3 5 "Test") "y" Nothing (Var () (LexInfo 3 13 "Test") "x")]
+                        (FCall () (LexInfo 4 6 "Test") "f" [Var () (LexInfo 4 8 "Test") "y"]) "int")
+            it "can be chosen by statement" do
+                testParse statement (T.unlines [
                       "int someFunction(x: int)"
                     , "{"
                     , "    let y = x;"

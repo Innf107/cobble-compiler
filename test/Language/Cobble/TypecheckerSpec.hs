@@ -1,10 +1,10 @@
 {-# LANGUAGE NoImplicitPrelude, DataKinds, BlockArguments, OverloadedStrings #-}
 
-module Language.MCScript.TypecheckerSpec where
+module Language.Cobble.TypecheckerSpec where
 
-import Language.MCScript.Prelude
-import Language.MCScript.Typechecker as TC
-import Language.MCScript.Types
+import Language.Cobble.Prelude
+import Language.Cobble.Typechecker as TC
+import Language.Cobble.Types
 
 import Test.Hspec as S
 

@@ -1,11 +1,11 @@
 {-# LANGUAGE NoImplicitPrelude, DataKinds, TypeFamilies, StandaloneDeriving, FlexibleInstances #-}
 {-# LANGUAGE GADTs, RankNTypes, PatternSynonyms, TemplateHaskell#-}
 {-# LANGUAGE LambdaCase, OverloadedStrings #-}
-module Language.MCScript.Types where
+module Language.Cobble.Types where
 
-import Language.MCScript.Prelude
+import Language.Cobble.Prelude
 
-import Language.MCScript.Types.TH
+import Language.Cobble.Types.TH
 
 type Name = Text
 

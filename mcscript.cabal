@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.3.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9846d775b5cbbf4d12d8f6ff3c5c8cb265675cd86846d97cac9c5607d5826b33
+-- hash: bbfa81eca3868e3139a76b02d813baa8b8194fff83b3cd26d4de21806dd108f0
 
 name:           mcscript
 version:        0.1.0.0
@@ -27,18 +27,18 @@ source-repository head
 
 library
   exposed-modules:
-      Language.MCScript
-      Language.MCScript.Compiler
-      Language.MCScript.MCAsm.Compiler
-      Language.MCScript.MCAsm.Types
-      Language.MCScript.Parser
-      Language.MCScript.Parser.Preprocessor
-      Language.MCScript.Parser.Tokenizer
-      Language.MCScript.Prelude
-      Language.MCScript.Prelude.Parser
-      Language.MCScript.Typechecker
-      Language.MCScript.Types
-      Language.MCScript.Types.TH
+      Language.Cobble
+      Language.Cobble.Compiler
+      Language.Cobble.MCAsm.Compiler
+      Language.Cobble.MCAsm.Types
+      Language.Cobble.Parser
+      Language.Cobble.Parser.Preprocessor
+      Language.Cobble.Parser.Tokenizer
+      Language.Cobble.Prelude
+      Language.Cobble.Prelude.Parser
+      Language.Cobble.Typechecker
+      Language.Cobble.Types
+      Language.Cobble.Types.TH
       Lib
   other-modules:
       Paths_mcscript
@@ -83,15 +83,15 @@ test-suite mcscript-test
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
-      Language.MCScript.CompilerSpec
-      Language.MCScript.MCAsm.CompilerSpec
-      Language.MCScript.MCAsm.TypesSpec
-      Language.MCScript.Parser.PreprocessorSpec
-      Language.MCScript.Parser.TokenizerSpec
-      Language.MCScript.ParserSpec
-      Language.MCScript.TypecheckerSpec
-      Language.MCScript.TypesSpec
-      Language.MCScriptSpec
+      Language.Cobble.CompilerSpec
+      Language.Cobble.MCAsm.CompilerSpec
+      Language.Cobble.MCAsm.TypesSpec
+      Language.Cobble.Parser.PreprocessorSpec
+      Language.Cobble.Parser.TokenizerSpec
+      Language.Cobble.ParserSpec
+      Language.Cobble.TypecheckerSpec
+      Language.Cobble.TypesSpec
+      Language.CobbleSpec
       Server
       Spec
       Paths_mcscript

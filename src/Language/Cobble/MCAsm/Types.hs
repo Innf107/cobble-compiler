@@ -1,8 +1,8 @@
 {-# LANGUAGE NoImplicitPrelude, OverloadedStrings, RankNTypes, ExistentialQuantification, TypeFamilies #-}
 {-# LANGUAGE GADTs, LambdaCase, StandaloneDeriving, DataKinds, ConstraintKinds, FlexibleContexts #-}
-module Language.MCScript.MCAsm.Types where
+module Language.Cobble.MCAsm.Types where
 
-import Language.MCScript.Prelude
+import Language.Cobble.Prelude
 
 
 -- Can use an unlimited amount of Registers

@@ -1,8 +1,8 @@
 {-#LANGUAGE NoImplicitPrelude, ConstraintKinds, DataKinds, LambdaCase, TupleSections#-}
-module Language.MCScript.Typechecker where
+module Language.Cobble.Typechecker where
 
-import Language.MCScript.Prelude
-import Language.MCScript.Types
+import Language.Cobble.Prelude
+import Language.Cobble.Types
 
 
 data TypeError = VarDoesNotExist LexInfo Name

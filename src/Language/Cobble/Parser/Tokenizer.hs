@@ -2,11 +2,11 @@
 {-# LANGUAGE LambdaCase, MultiWayIf, FlexibleContexts, GADTs, ScopedTypeVariables #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE KindSignatures #-}
-module Language.MCScript.Parser.Tokenizer where
+module Language.Cobble.Parser.Tokenizer where
 
-import Language.MCScript.Prelude
+import Language.Cobble.Prelude
 
-import Language.MCScript.Types
+import Language.Cobble.Types
 
 import Data.Char
 

@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, NoImplicitPrelude, MultiParamTypeClasses, BlockArguments, LambdaCase#-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Language.MCScript.Prelude (
+module Language.Cobble.Prelude (
       module Relude
     , module Relude.Extra
     , module Polysemy

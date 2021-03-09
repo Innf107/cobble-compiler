@@ -1,8 +1,8 @@
 {-#LANGUAGE NoImplicitPrelude, TemplateHaskell, BlockArguments, LambdaCase, OverloadedStrings#-}
 {-#LANGUAGE PatternSynonyms#-}
-module Language.MCScript.Types.TH where
+module Language.Cobble.Types.TH where
 
-import Language.MCScript.Prelude
+import Language.Cobble.Prelude
 
 import Language.Haskell.TH
 

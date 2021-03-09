@@ -1,12 +1,12 @@
 {-# LANGUAGE NoImplicitPrelude, LambdaCase, DataKinds, ConstraintKinds, OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns, ScopedTypeVariables #-}
-module Language.MCScript.MCAsm.Compiler where
+module Language.Cobble.MCAsm.Compiler where
 
-import Language.MCScript.Prelude
+import Language.Cobble.Prelude
 
 import qualified Data.Text as T
 
-import Language.MCScript.MCAsm.Types
+import Language.Cobble.MCAsm.Types
 
 initialize :: (CompC r) => Sem r IntermediateResult
 initialize = InterModule "init" . pure . InterInstructions . T.unlines <$> sequenceA [

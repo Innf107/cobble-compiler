@@ -1,13 +1,13 @@
 {-# LANGUAGE NoImplicitPrelude, ConstraintKinds, DataKinds, LambdaCase, TemplateHaskell, OverloadedStrings#-}
 {-# LANGUAGE FlexibleContexts, TypeFamilies, TypeApplications, ViewPatterns, BlockArguments #-}
 {-# LANGUAGE ScopedTypeVariables, RankNTypes #-}
-module Language.MCScript.Compiler where
+module Language.Cobble.Compiler where
 
-import Language.MCScript.Prelude
+import Language.Cobble.Prelude
 
-import Language.MCScript.Types as S
+import Language.Cobble.Types as S
 
-import Language.MCScript.MCAsm.Types as A
+import Language.Cobble.MCAsm.Types as A
 
 type CompileC r = Members '[State CompileState, Error CompilerError, Error McAsmError] r
 

@@ -1,9 +1,9 @@
 {-#LANGUAGE NoImplicitPrelude, DataKinds, NamedFieldPuns, LambdaCase, BlockArguments, OverloadedStrings#-}
-module Language.MCScript.Parser where
+module Language.Cobble.Parser where
 
-import Language.MCScript.Prelude.Parser hiding (assign)
-import Language.MCScript.Types
-import Language.MCScript.Parser.Tokenizer (Token(..), TokenData(..), Processing(..))
+import Language.Cobble.Prelude.Parser hiding (assign)
+import Language.Cobble.Types
+import Language.Cobble.Parser.Tokenizer (Token(..), TokenData(..), Processing(..))
 
 import Text.Parsec hiding ((<|>))
 import Text.Parsec.Pos
