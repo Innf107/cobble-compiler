@@ -4,6 +4,8 @@ module Language.Cobble.MCAsm.Compiler where
 
 import Language.Cobble.Prelude
 
+import Language.Cobble.Shared
+
 import qualified Data.Text as T
 
 import Language.Cobble.MCAsm.Types
@@ -34,7 +36,7 @@ hoistModules :: (CompC r) => IntermediateResult -> Sem r [CompiledModule]
 hoistModules (InterInstructions _) = error "Cannot create modules from standalone top level instructions"
 hoistModules (InterModule mn ins) = makeModulesInner mn ins
     where
-        makeModulesInner :: Text -> [IntermediateResult] -> Sem r [CompiledModule]
+        makeModulesInner :: Name -> [IntermediateResult] -> Sem r [CompiledModule]
         makeModulesInner mname subInstrs =
             let (mods, instrs) = partitionEithers $
                     map (\case
@@ -55,7 +57,7 @@ compileModule (Module {moduleName, moduleInstructions}) = do
 
 compileInstr :: (CompC r) => Instruction -> Sem r [IntermediateResult]
 compileInstr i = asks nameSpace >>= \ns ->
-    let call f = "function " <> ns <> ":" <> f in case i of
+    let call f = "function " <> ns <> ":" <> show f in case i of
     MoveNumLit reg lit -> instr ["scoreboard players set " <> renderReg reg <> " REGS " <> show lit]
     MoveNumReg reg1 reg2 -> instr ["scoreboard players operation " <> renderReg reg1 <> " REGS = " <>
                             renderReg reg2 <> " REGS"]
@@ -86,7 +88,7 @@ compileInstr i = asks nameSpace >>= \ns ->
           "execute as @e if score @s EPTR = " <> renderReg reg <> " EPTR run " <> command
         ]
     MakeArray reg len -> do
-        modName <- ("create-array-" <>) . show <$> incrementCompUID
+        modName <- (prependQual "create-array") . show <$> incrementCompUID
         pure [
               InterModule modName $ pure $ InterInstructions $ T.unlines [
                 "scoreboard players remove ARRAYCOUNTER REGS 1"

@@ -5,6 +5,7 @@ module Language.Cobble.Types.AST.Codegen where
 
 import Language.Cobble.Types.AST
 import Language.Cobble.Types.TH
+import Language.Cobble.Shared
 
 deriving instance Show (Statement 'Codegen)
 deriving instance Eq (Statement 'Codegen)
@@ -12,9 +13,12 @@ deriving instance Eq (Statement 'Codegen)
 deriving instance Show (Expr 'Codegen)
 deriving instance Eq (Expr 'Codegen)
 
+deriving instance Show (Type 'Codegen)
+deriving instance Eq (Type 'Codegen)
+
 makeSynonyms 'Codegen ''Statement "T"
 
-pattern FCallT :: Type -> LexInfo -> Name -> [Expr 'Codegen] -> Expr 'Codegen
+pattern FCallT :: Type 'Codegen -> LexInfo -> Name 'Codegen -> [Expr 'Codegen] -> Expr 'Codegen
 pattern FCallT t l n ps <- FCall t l n ps
     where
         FCallT t l n ps = FCall t l n ps
@@ -29,7 +33,7 @@ pattern BoolLitT l b <- BoolLit _ l b
     where
         BoolLitT l b = BoolLit () l b
 
-pattern VarT :: Type -> LexInfo -> Name -> Expr 'Codegen
+pattern VarT :: Type 'Codegen -> LexInfo -> Name 'Codegen -> Expr 'Codegen
 pattern VarT t l v <- Var t l v
     where
         VarT t l v = Var t l v
@@ -44,15 +48,18 @@ type instance XWhile 'Codegen = ()
 type instance XDefStruct 'Codegen = ()
 type instance XStatement 'Codegen = ()
 
-type instance XFCall 'Codegen = Type
+type instance XFCall 'Codegen = Type 'Codegen
 type instance XIntLit 'Codegen = ()
 type instance XBoolLit 'Codegen = ()
-type instance XVar 'Codegen = Type
+type instance XVar 'Codegen = Type 'Codegen
 type instance XExpr 'Codegen = ()
 
-type instance TypeInfo 'Codegen = Type
+type instance TypeInfo 'Codegen = Type 'Codegen
 
-exprType :: Expr 'Codegen -> Type
+type instance Name 'Codegen = QualifiedName
+
+
+exprType :: Expr 'Codegen -> Type 'Codegen
 exprType = \case
     FCall t _ _ _ -> t
     IntLit _ _ _ -> IntT

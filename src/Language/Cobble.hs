@@ -30,5 +30,5 @@ compileFully nameSpace debug mods = do
 compileToFunctionsAtPath :: FilePath -> Text -> Bool -> [S.Module 'Typecheck] -> Either CompilationError (IO ())
 compileToFunctionsAtPath path nameSpace debug mods = compileFully nameSpace debug mods 
     <&> traverse_ \CompiledModule{compModName, compModInstructions} ->
-        writeFileText (path </> toString compModName) compModInstructions
+        writeFileText (path </> show compModName) compModInstructions
         

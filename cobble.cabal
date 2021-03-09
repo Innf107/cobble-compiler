@@ -34,13 +34,18 @@ library
       Language.Cobble.Parser.Tokenizer
       Language.Cobble.Prelude
       Language.Cobble.Prelude.Parser
+      Language.Cobble.Qualifier
+      Language.Cobble.Shared
       Language.Cobble.Typechecker
       Language.Cobble.Types
       Language.Cobble.Types.AST
       Language.Cobble.Types.AST.Codegen
       Language.Cobble.Types.AST.ExpandMacros
+      Language.Cobble.Types.AST.ParsePreprocess
+      Language.Cobble.Types.AST.QualifyNames
       Language.Cobble.Types.AST.Typecheck
       Language.Cobble.Types.TH
+      Language.Cobble.Util.Convert
       Lib
   other-modules:
       Paths_cobble

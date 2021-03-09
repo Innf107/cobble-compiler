@@ -35,13 +35,13 @@ type PreprocessC r = Members '[Error PreprocessError] r
 preProcess ::[Token 'Unprocessed] -> Either PreprocessError [Token 'Processed]
 preProcess toks = run $ runError $ findMacroNames toks <&> replaceMacroCalls toks
 
-findMacroNames :: (PreprocessC r) => [Token 'Unprocessed] -> Sem r [Name]
+findMacroNames :: (PreprocessC r) => [Token 'Unprocessed] -> Sem r [Name 'ParsePreprocess]
 findMacroNames [] = pure []
 findMacroNames ((Token _ (Reserved "defmacro")) : (Token _ (Ident name)) : xs) = (name:) <$> findMacroNames xs
 findMacroNames ((Token _ (Reserved "defmacro") : t : _)) = throw $ MacroNameNotIdent t
 findMacroNames (_:xs) = findMacroNames xs
 
-replaceMacroCalls :: [Token 'Unprocessed] -> [Name] -> [Token 'Processed]
+replaceMacroCalls :: [Token 'Unprocessed] -> [Name 'ParsePreprocess] -> [Token 'Processed]
 replaceMacroCalls ts names = ts & map \case
     (Token l (Ident x)) | x `elem` names -> Token l (MacroCall x)
     x -> coerce x

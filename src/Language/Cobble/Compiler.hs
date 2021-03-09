@@ -7,7 +7,7 @@ import Language.Cobble.Prelude
 
 import Language.Cobble.Types as S
 
-import Language.Cobble.MCAsm.Types as A
+import Language.Cobble.MCAsm.Types as A hiding (Name)
 
 type CompileC r = Members '[State CompileState, Error CompilerError, Error McAsmError] r
 
@@ -19,17 +19,17 @@ panic = throw . Panic
 panic' :: (Member (Error CompilerError) r) => Text -> [Text] -> Sem r a
 panic' t as = panic $ t <> "\n\nContext: " <> unlines (map ("    "<>) as)
 
-panicVarNotFoundTooLate :: (Member (Error CompilerError) r) => Text -> Sem r a
-panicVarNotFoundTooLate v = panic $ "Variable " <> v <> " not found. This should have been caught earlier!" 
+panicVarNotFoundTooLate :: (Member (Error CompilerError) r) => Name 'Codegen -> Sem r a
+panicVarNotFoundTooLate v = panic $ "Variable " <> show v <> " not found. This should have been caught earlier!" 
 
-panicFunNotFoundTooLate :: (Member (Error CompilerError) r) => Text -> Sem r a
-panicFunNotFoundTooLate v = panic $ "Function " <> v <> " not found. This should have been caught earlier!"
+panicFunNotFoundTooLate :: (Member (Error CompilerError) r) => Name 'Codegen -> Sem r a
+panicFunNotFoundTooLate v = panic $ "Function " <> show v <> " not found. This should have been caught earlier!"
 
 
 data CompileState = CompileState {
         _frames :: NonEmpty Frame
       , _lastReg :: Int
-      , _functions :: Map Text Function
+      , _functions :: Map (Name 'Codegen) Function
     } deriving (Show, Eq)
 
 initialCompileState :: CompileState
@@ -43,13 +43,13 @@ initialCompileState = CompileState {
     }
 
 data Frame = Frame {
-        _varIndices :: Map Text Int
+        _varIndices :: Map (Name 'Codegen) Int
       , _varCount :: Int
     } deriving (Show, Eq)
 
 data Function = Function {
-      _params :: [(Text, Type)]
-    , _returnType :: Maybe Type
+      _params :: [(Name 'Codegen, Type 'Codegen)]
+    , _returnType :: Maybe (Type 'Codegen)
     } deriving (Show, Eq)
 
 emptyFrame :: Frame
@@ -81,7 +81,7 @@ compile (S.Module modname stmnts) = A.Module modname . fst <$> runWriterAssocR (
 newReg :: (CompileC r) => Sem r Int
 newReg = modify (& lastReg +~ 1) >> get <&> (^. lastReg)
 
-newRegForType :: (CompileC r, FromSomeReg a) => Type -> Sem r (Register a)
+newRegForType :: (CompileC r, FromSomeReg a) => Type 'Codegen -> Sem r (Register a)
 newRegForType = \case
     IntT -> castReg . NumReg =<< newReg
     EntityT -> castReg . EntityReg =<< newReg
@@ -124,7 +124,7 @@ compileStatement = \case
             res <- compileExprToReg retExp
             moveReg t res (SomeReg returnReg) -- :/
 
-pushVarToStack :: (Member (Writer [Instruction]) r, CompileC r) => Text -> Expr 'Codegen -> Sem r Int
+pushVarToStack :: (Member (Writer [Instruction]) r, CompileC r) => Name 'Codegen -> Expr 'Codegen -> Sem r Int
 pushVarToStack name ex = do
     varIx <- get <&> (^. frames . head1 . varCount)
     modify (& frames . head1 . varCount +~ 1)
@@ -164,7 +164,7 @@ compileExprToReg = \case
                                                        -- TODO: PROBABLY BROKEN!! (returnReg is polymorphic, but
                                                        -- TODO registers for different types are implemented differently)
 
-moveReg :: (CompileC r, Member (Writer [Instruction]) r) => Type -> SomeReg -> SomeReg -> Sem r ()
+moveReg :: (CompileC r, Member (Writer [Instruction]) r) => Type 'Codegen -> SomeReg -> SomeReg -> Sem r ()
 moveReg t r1 r2 = case t of
     IntT -> MoveNumReg <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure
     BoolT -> MoveNumReg <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure

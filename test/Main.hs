@@ -34,4 +34,3 @@ main = do
     when tc $ hspec Spec.spec
     when server $ Server.test
 
-

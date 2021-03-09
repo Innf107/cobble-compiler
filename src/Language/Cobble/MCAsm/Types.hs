@@ -4,10 +4,11 @@ module Language.Cobble.MCAsm.Types where
 
 import Language.Cobble.Prelude
 
+import Language.Cobble.Shared
 
 -- Can use an unlimited amount of Registers
 
-type Name = Text
+type Name = QualifiedName
 
 data Number
 
@@ -69,7 +70,7 @@ renderReg = \case
     CustomReg name -> name
 
 data Module = Module {
-      moduleName::Text
+      moduleName::Name
     , moduleInstructions::[Instruction]
     } deriving (Show, Eq)
 
