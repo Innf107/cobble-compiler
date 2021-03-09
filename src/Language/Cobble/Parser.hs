@@ -8,6 +8,9 @@ import Language.Cobble.Parser.Tokenizer (Token(..), TokenData(..), Processing(..
 import Text.Parsec hiding ((<|>))
 import Text.Parsec.Pos
 
+type NextPass = ExpandMacros
+
+
 type Parser = Parsec [Token 'Processed] ()
 
 (<??>) :: Text -> Parser a -> Parser a
@@ -69,15 +72,15 @@ macroCall = (token' \case
     _ -> Nothing) <?> "macro name"
  
  
-statement :: Parser (Statement 'UnexpandedMacros)
+statement :: Parser (Statement NextPass)
 statement = "statement" <??> {-callFun <|>-} defVoid <|> try defFun <|> decl <|> assign <|> while {- <|> defStruct -} <|> callStatementMacro
 --                              ^ TODO
 
-expr :: Parser (Expr 'UnexpandedMacros)
+expr :: Parser (Expr NextPass)
 expr = "expr" <??> uncurry (IntLit ()) <$> intLit <|> boollit <|> try fcall <|> var
 
 
-defVoid :: Parser (Statement 'UnexpandedMacros)
+defVoid :: Parser (Statement NextPass)
 defVoid = "void definition" <??> do
     li <- reserved "void"
     fname <- ident'
@@ -87,7 +90,7 @@ defVoid = "void definition" <??> do
     b <- statementBody
     pure $ DefVoid () li fname ps b
 
-defFun :: Parser (Statement 'UnexpandedMacros)
+defFun :: Parser (Statement NextPass)
 defFun = "function definition" <??> do
     (li, t) <- typeP
     fname <- ident'
@@ -99,7 +102,7 @@ defFun = "function definition" <??> do
     ret <- expr
     pure $ DefFun () li fname ps b ret t
 
-decl :: Parser (Statement 'UnexpandedMacros)
+decl :: Parser (Statement NextPass)
 decl = "variable declaration" <??> do
     li <- reserved "let"
     (_, vname, mtype) <- mTypedIdent
@@ -107,14 +110,14 @@ decl = "variable declaration" <??> do
     e <- expr
     pure $ Decl () li vname mtype e
 
-assign :: Parser (Statement 'UnexpandedMacros)
+assign :: Parser (Statement NextPass)
 assign = "variable assignment" <??> do
     (li, vname) <- ident
     reservedOp' "="
     e <- expr
     pure $ Assign () li vname e
 
-while :: Parser (Statement 'UnexpandedMacros)
+while :: Parser (Statement NextPass)
 while = "while statement" <??> do
     li <- reserved "while"
     paren' "("
@@ -123,13 +126,13 @@ while = "while statement" <??> do
     b <- statementBody
     pure $ While () li e b
 
-callStatementMacro :: Parser (Statement 'UnexpandedMacros)
+callStatementMacro :: Parser (Statement NextPass)
 callStatementMacro = "statement macro call" <??> do
     (li, mname) <- macroCall
     fail "StatementMacroParams: TODO!"
     pure $ CallStatementMacro li mname undefined
 
-fcall :: Parser (Expr 'UnexpandedMacros)
+fcall :: Parser (Expr NextPass)
 fcall = "function call" <??> do
     (li, fname) <- ident
     paren' "("
@@ -137,45 +140,33 @@ fcall = "function call" <??> do
     paren' ")"
     pure $ FCall () li fname ps
    
-boollit :: Parser (Expr 'UnexpandedMacros)
+boollit :: Parser (Expr NextPass)
 boollit = "boolean literal" <??> choice [ reserved "True" >>= \li -> pure $ BoolLit () li True
                  , reserved "False" >>= \li -> pure $ BoolLit () li False
                  ]
 
-var :: Parser (Expr 'UnexpandedMacros)
+var :: Parser (Expr NextPass)
 var = "variable" <??> uncurry (Var ()) <$> ident
 
-statementBody :: Parser [Statement 'UnexpandedMacros]
+statementBody :: Parser [Statement NextPass]
 statementBody = paren' "{" *> statements <* paren "}"
 
-statements :: Parser [Statement 'UnexpandedMacros]
+statements :: Parser [Statement NextPass]
 statements = many (statement <* reservedOp ";")
 
-typedIdent :: Parser (LexInfo, Text, TypeInfo 'UnexpandedMacros)
+typedIdent :: Parser (LexInfo, Text, TypeInfo NextPass)
 typedIdent = "typed identifier" <??> do
     (li, n) <- ident 
     reservedOp' ":"
     (_, t) <- typeP
     pure (li, n, t)
 
-mTypedIdent :: Parser (LexInfo, Text, Maybe (TypeInfo 'UnexpandedMacros))
+mTypedIdent :: Parser (LexInfo, Text, Maybe (TypeInfo NextPass))
 mTypedIdent = "optionally typed identifier" <??> do
         (li, n) <- ident
         mt <- optionMaybe $ reservedOp' ":" >> snd <$> typeP
         pure (li, n, mt)
 
-typeP :: Parser (LexInfo, TypeInfo 'UnexpandedMacros)
+typeP :: Parser (LexInfo, TypeInfo NextPass)
 typeP = "type" <??> ident 
 
-{-
-void proc(x: int, y: float){
-
-};
-
-int f(x: int) => x*x;
-
-int g(x: int){
-    let y = x * x;
-} => y * x;
- 
--}

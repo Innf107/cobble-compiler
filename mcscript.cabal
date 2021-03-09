@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bbfa81eca3868e3139a76b02d813baa8b8194fff83b3cd26d4de21806dd108f0
+-- hash: 55dfbda4dcfb7f1dda097181c04db44bfbcc663cbf810a356df213fdda940fdc
 
 name:           mcscript
 version:        0.1.0.0
@@ -38,6 +38,10 @@ library
       Language.Cobble.Prelude.Parser
       Language.Cobble.Typechecker
       Language.Cobble.Types
+      Language.Cobble.Types.AST
+      Language.Cobble.Types.AST.Codegen
+      Language.Cobble.Types.AST.ExpandMacros
+      Language.Cobble.Types.AST.Typecheck
       Language.Cobble.Types.TH
       Lib
   other-modules:

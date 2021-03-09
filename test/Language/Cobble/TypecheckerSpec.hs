@@ -129,10 +129,10 @@ spec = do
 emptyTCState :: TCState
 emptyTCState = TCState mempty mempty mempty
 
-runTypecheck :: [Statement 'Unaltered] -> Either TypeError [Statement 'Typed]
+runTypecheck :: [Statement 'Typecheck] -> Either TypeError [Statement NextPass]
 runTypecheck = fmap snd . runTypecheck' emptyTCState
 
-runTypecheck' :: TCState -> [Statement 'Unaltered] -> Either TypeError (TCState, [Statement 'Typed])
+runTypecheck' :: TCState -> [Statement 'Typecheck] -> Either TypeError (TCState, [Statement NextPass])
 runTypecheck' tcstate = run . runError . runState tcstate . traverse typecheck
 
 dummyLex :: LexInfo

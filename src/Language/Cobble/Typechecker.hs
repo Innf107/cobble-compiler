@@ -4,6 +4,7 @@ module Language.Cobble.Typechecker where
 import Language.Cobble.Prelude
 import Language.Cobble.Types
 
+type NextPass = Codegen
 
 data TypeError = VarDoesNotExist LexInfo Name
                | FunctionDoesNotExist LexInfo Name
@@ -59,10 +60,10 @@ insertFunReturnType funName t = void $ modify (\s -> s{varTypes=funReturnTypes s
 insertVarType :: (TypecheckC r) => Name -> Type -> Sem r ()
 insertVarType varName t = void $ modify (\s -> s{varTypes=varTypes s & insert varName t})
 
-typecheckModule :: (TypecheckC r) => Module 'Unaltered -> Sem r (Module 'Typed)
+typecheckModule :: (TypecheckC r) => Module 'Typecheck -> Sem r (Module NextPass)
 typecheckModule (Module mname instrs) = Module mname <$> traverse typecheck instrs
 
-typecheck :: (TypecheckC r) => Statement 'Unaltered -> Sem r (Statement 'Typed)
+typecheck :: (TypecheckC r) => Statement 'Typecheck -> Sem r (Statement NextPass)
 typecheck = \case
     --CallVoid fname exprs -> do
     --    fargs <- getFunArgs fname
@@ -114,7 +115,7 @@ typecheck = \case
         pure (WhileT l cond' stmnts')
     DefStructU l name fields -> pure $ DefStructT l name fields -- TODO: Add to state map
 
-typeOf :: (TypecheckC r) => Expr 'Unaltered -> Sem r (Expr 'Typed)
+typeOf :: (TypecheckC r) => Expr 'Typecheck -> Sem r (Expr NextPass)
 typeOf = \case
     IntLitU l x -> pure $ IntLitT l x
     -- FloatLit x -> pure (FloatLit x, FloatT)

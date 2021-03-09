@@ -75,7 +75,7 @@ rts = do
         , MakeArray stackReg stackPTRReg
         ]
 
-compile :: (CompileC r) => S.Module 'Typed -> Sem r A.Module
+compile :: (CompileC r) => S.Module 'Codegen -> Sem r A.Module
 compile (S.Module modname stmnts) = A.Module modname . fst <$> runWriterAssocR (traverse compileStatement stmnts)
 
 newReg :: (CompileC r) => Sem r Int
@@ -88,7 +88,7 @@ newRegForType = \case
     BoolT -> castReg . NumReg =<< newReg
     StructT _ -> castReg . ArrayReg =<< newReg
 
-compileStatement :: forall r. (Member (Writer [Instruction]) r, CompileC r) => S.Statement 'Typed -> Sem r ()
+compileStatement :: forall r. (Member (Writer [Instruction]) r, CompileC r) => S.Statement 'Codegen -> Sem r ()
 compileStatement = \case
     DeclT l name _ expr -> void $ pushVarToStack name expr
 
@@ -124,7 +124,7 @@ compileStatement = \case
             res <- compileExprToReg retExp
             moveReg t res (SomeReg returnReg) -- :/
 
-pushVarToStack :: (Member (Writer [Instruction]) r, CompileC r) => Text -> Expr 'Typed -> Sem r Int
+pushVarToStack :: (Member (Writer [Instruction]) r, CompileC r) => Text -> Expr 'Codegen -> Sem r Int
 pushVarToStack name ex = do
     varIx <- get <&> (^. frames . head1 . varCount)
     modify (& frames . head1 . varCount +~ 1)
@@ -133,7 +133,7 @@ pushVarToStack name ex = do
     compileStatement (AssignT (LexInfo 0 0 "ThisShouldNotHaveHappened!") name ex)
     pure varIx
 
-compileExprToReg :: (Member (Writer [Instruction]) r, CompileC r) => Expr 'Typed -> Sem r SomeReg
+compileExprToReg :: (Member (Writer [Instruction]) r, CompileC r) => Expr 'Codegen -> Sem r SomeReg
 compileExprToReg = \case
     (IntLitT l i) -> newRegForType IntT >>= \reg -> tell [MoveNumLit reg i] $> SomeReg reg
     (BoolLitT l b) -> newRegForType BoolT >>= \reg -> tell [MoveNumLit reg (bool 0 1 b)] $> SomeReg reg

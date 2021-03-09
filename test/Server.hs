@@ -21,7 +21,7 @@ test = do
 
 type Query = Text
 
-testWithServer :: [Module 'Unaltered] -> [(Text, Query, Expectation)] -> IO ()
+testWithServer :: [Module 'Typecheck] -> [(Text, Query, Expectation)] -> IO ()
 testWithServer program tests = do
     cwd <- getCurrentDirectory <&> (</> "test/Server")
 
