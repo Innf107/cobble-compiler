@@ -121,9 +121,13 @@ spec = do
                     `shouldBe`
                     Right [DefFunT l "f" [] [DeclT l "x" (Just IntT) (FCallT IntT l "f" [])] (VarT IntT l "x") IntT]
             it "has the correct recursive return type" do
-                runTypecheck [DefFunU l "f" [] [DeclU l "x" (Just BoolT) (FCallU l "f" [])] (VarU l "x") IntT]
+                runTypecheck [
+                    DefFunU l "f" []  [
+                        DeclU l "x" (Just BoolT) (FCallU l "f" [])
+                      ] (IntLitU l 42) IntT
+                    ]
                     `shouldBe`
-                    Left (WrongDeclType l "f" BoolT IntT)
+                    Left (WrongDeclType l "x" BoolT IntT)
         --TODO
 
 emptyTCState :: TCState

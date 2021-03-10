@@ -1,5 +1,8 @@
 {-# LANGUAGE FlexibleInstances, NoImplicitPrelude, MultiParamTypeClasses, BlockArguments, LambdaCase#-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Language.Cobble.Prelude (
       module Relude
@@ -12,6 +15,8 @@ module Language.Cobble.Prelude (
     , module Control.Lens
     , module System.FilePath
     , (|:)
+    , state 
+    , whenAlt
     ) where
 
 import Relude hiding (
@@ -25,6 +30,7 @@ import Relude hiding (
     , modify'
     , put
     , State
+    , state
     , evalState
     , runState
     , execState
@@ -65,3 +71,10 @@ import Control.Lens
 (|:) :: a -> NonEmpty a -> NonEmpty a
 a |: (x :| xs) = a :| (x : xs)
 
+
+state :: (Member (State s) r) => (s -> (a, s)) -> Sem r a
+state f = get >>= \(f -> (r, s')) -> put s' *> pure r
+    
+
+whenAlt :: (Alternative f) => Bool -> a -> f a
+whenAlt b x = if b then pure x else empty

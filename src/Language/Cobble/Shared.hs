@@ -20,8 +20,14 @@ prependQual t (QualifiedName cs) = QualifiedName $ t:cs
 instance Semigroup QualifiedName where
     QualifiedName cs1 <> QualifiedName cs2 = QualifiedName (cs1 <> cs2)
     
+instance Monoid QualifiedName where
+    mempty = QualifiedName []
+    
 instance IsString QualifiedName where
-    fromString = QualifiedName . T.split (=='.') . toText
+    fromString = makeQName . toText
 
 (.:) :: QualifiedName -> Text -> QualifiedName
 (QualifiedName cs) .: c = QualifiedName (cs <> [c]) 
+
+makeQName :: Text -> QualifiedName
+makeQName = QualifiedName . T.split (=='.')

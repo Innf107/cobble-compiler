@@ -57,7 +57,7 @@ insertFunArgs :: (TypecheckC r) => Name NextPass -> [Type NextPass] -> Sem r ()
 insertFunArgs funName ts =void $ modify (\s -> s{funArgs=funArgs s & insert funName ts})
 
 insertFunReturnType :: (TypecheckC r) => Name NextPass -> Type NextPass -> Sem r ()
-insertFunReturnType funName t = void $ modify (\s -> s{varTypes=funReturnTypes s & insert funName t})
+insertFunReturnType funName t = void $ modify (\s -> s{funReturnTypes=funReturnTypes s & insert funName t})
 
 insertVarType :: (TypecheckC r) => Name NextPass -> Type NextPass -> Sem r ()
 insertVarType varName t = void $ modify (\s -> s{varTypes=varTypes s & insert varName t})
@@ -92,10 +92,11 @@ typecheck = \case
     DefFunU l fname (conv -> args) stmnts lastexpr (conv -> t) -> do
         insertFunArgs fname (map snd args)
         for_ args (uncurry insertVarType)
+        insertFunReturnType fname t
         stmnts' <- traverse typecheck stmnts
         lastexpr' <- typeOf lastexpr
         if (exprType lastexpr' == t)
-        then insertFunReturnType fname t >> pure (DefFunT l fname args stmnts' lastexpr' t)
+        then pure (DefFunT l fname args stmnts' lastexpr' t)
         else throw (WrongReturnType l fname t (exprType lastexpr'))
     DeclU l vname (Just (conv -> t)) expr -> do
         expr' <- typeOf expr

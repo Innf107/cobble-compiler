@@ -15,4 +15,3 @@ copyFileOrDirectory parents from to =
                 files <- filter (`notElem` ["..", "."]) <$> getDirectoryContents from
                 forM_ files $ \file -> copyFileOrDirectory parents (from </> file) (to </> file)
             False -> fail $ "copyFileOrDirectory: File does not exist: " <> from
-

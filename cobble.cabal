@@ -1,8 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.3.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: 9ed98017e59ce62160a74329624bb00b6aecbbd7157ff03091058395baea3045
 
 name:           cobble
 version:        0.1.0.0
@@ -96,6 +98,7 @@ test-suite cobble-test
       Language.Cobble.Parser.PreprocessorSpec
       Language.Cobble.Parser.TokenizerSpec
       Language.Cobble.ParserSpec
+      Language.Cobble.QualifierSpec
       Language.Cobble.TypecheckerSpec
       Language.Cobble.TypesSpec
       Language.CobbleSpec
