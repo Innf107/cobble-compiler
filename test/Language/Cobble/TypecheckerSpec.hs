@@ -128,7 +128,18 @@ spec = do
                     ]
                     `shouldBe`
                     Left (WrongDeclType l "x" BoolT IntT)
-        --TODO
+
+    describe "CallFun" do
+        it "does not fail if called with the correct arguments" do
+            runTypecheck [
+                  DefVoid () l "f" [("x", IntT)] []
+                , CallFun () l "f" [IntLit () l 5]
+                ]
+                `shouldBe`
+                Right [
+                  DefVoid () l "f" [("x", IntT)] []
+                , CallFun () l "f" [IntLit () l 5]
+                ]
 
 emptyTCState :: TCState
 emptyTCState = TCState mempty mempty mempty

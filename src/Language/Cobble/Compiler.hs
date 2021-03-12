@@ -25,7 +25,6 @@ panicVarNotFoundTooLate v = panic $ "Variable " <> show v <> " not found. This s
 panicFunNotFoundTooLate :: (Member (Error CompilerError) r) => Name 'Codegen -> Sem r a
 panicFunNotFoundTooLate v = panic $ "Function " <> show v <> " not found. This should have been caught earlier!"
 
-
 data CompileState = CompileState {
         _frames :: NonEmpty Frame
       , _lastReg :: Int

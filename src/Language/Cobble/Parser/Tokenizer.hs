@@ -12,11 +12,22 @@ import Data.Char
 
 import Text.Read (read)
 
+-- | A Token, indexed by a parameter of kind `Processing`, 
+-- consists of its lexical information
+-- as well as the actual token data.
+-- See the haddock for `Processing` and `TokenData` for
+-- information about those.
 data Token (p :: Processing) = Token {
       tokLexInfo::LexInfo
     , tokData :: TokenData p
     }  deriving (Show, Eq)
 
+-- | A data kind representing the processing
+-- status of a token. This is (currently) only used
+-- as a phantom parameter, so it should be very easy to convert
+-- if you really have to.
+-- Here 'processing status' refers to, whether Macro Names in `Ident`s have been 
+-- replaced by `MacroCall` Tokens.
 data Processing = Unprocessed
                 | Processed
 

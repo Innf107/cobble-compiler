@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9ed98017e59ce62160a74329624bb00b6aecbbd7157ff03091058395baea3045
+-- hash: 0ded2b51eaf31739b38d17e96fe30b6c243f004c02a7cf3c5987a16b2a8c9335
 
 name:           cobble
 version:        0.1.0.0
@@ -46,6 +46,7 @@ library
       Language.Cobble.Types.AST.ParsePreprocess
       Language.Cobble.Types.AST.QualifyNames
       Language.Cobble.Types.AST.Typecheck
+      Language.Cobble.Types.PrettyPrint
       Language.Cobble.Types.TH
       Language.Cobble.Util.Convert
       Lib

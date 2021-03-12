@@ -3,6 +3,7 @@ module Language.Cobble.Parser where
 
 import Language.Cobble.Prelude.Parser hiding (assign)
 import Language.Cobble.Types
+import Language.Cobble.Types.PrettyPrint
 import Language.Cobble.Parser.Tokenizer (Token(..), TokenData(..), Processing(..))
 
 import Text.Parsec hiding ((<|>))
@@ -20,14 +21,14 @@ infix 0 <??>
 
 token' :: (Token 'Processed -> Maybe a) -> Parser a
 token' = token
-    (\(Token _ t) -> show t) -- TODO: Better pretty printing function
+    prettyPrintToken
     (\(Token LexInfo{line, column, file} _) -> newPos (toString file) line column)
 
 
 ident :: Parser (LexInfo, Text)
-ident = (token' \case
+ident = "identifier" <??> token' \case
     Token l (Ident t) -> Just (l, t)
-    _ -> Nothing) <?> "identifier" 
+    _ -> Nothing
     
 ident' :: Parser Text
 ident' = snd <$> ident
