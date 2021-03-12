@@ -31,8 +31,6 @@ type instance XBoolLit 'Typecheck = ()
 type instance XVar 'Typecheck = ()
 type instance XExpr 'Typecheck = ()
 
-type instance TypeInfo 'Typecheck = Type 'Typecheck
-
 type instance Name 'Typecheck = QualifiedName
 
 makeSynonyms 'Typecheck ''Statement "U"

@@ -44,6 +44,4 @@ type instance XBoolLit 'ExpandMacros = ()
 type instance XVar 'ExpandMacros = ()
 type instance XExpr 'ExpandMacros = () -- TODO: Expression Macro?
 
-type instance TypeInfo 'ExpandMacros = Name 'ExpandMacros
-
 type instance Name 'ExpandMacros = Text

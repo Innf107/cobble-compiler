@@ -23,9 +23,9 @@ spec = do
                 `shouldBe`
                 Right [Ident "this", Ident "is", Ident "a", Ident "test"]
         it "handles reserved identifiers" do
-            map tokData <$> tokenize "Test" "this Falsee is True"
+            map tokData <$> tokenize "Test" "this Falsee is True bool"
                 `shouldBe`
-                Right [Ident "this", Ident "Falsee", Ident "is", Reserved "True"]
+                Right [Ident "this", Ident "Falsee", Ident "is", Reserved "True", Reserved "bool"]
         it "handles reserved operators" do
             map tokData <$> tokenize "Test" "x : y := 4;"
                 `shouldBe`
@@ -59,7 +59,7 @@ spec = do
                     Ident "c", Operator "/", Ident "de", Operator "*", Ident "f"]
             map tokData <$> tokenize "Test" "x : int, y: bool"
                 `shouldBe`
-                Right [Ident "x", ReservedOp ":", Ident "int", ReservedOp ",", Ident "y", ReservedOp ":", Ident "bool"]
+                Right [Ident "x", ReservedOp ":", Reserved "int", ReservedOp ",", Ident "y", ReservedOp ":", Reserved "bool"]
         it "does not need spaces between identifiers/operators and parentheses" do
             map tokData <$> tokenize "Test" "a[ b () ] +}- )de\n)"
                 `shouldBe`

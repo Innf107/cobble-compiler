@@ -1,4 +1,5 @@
 {-#LANGUAGE NoImplicitPrelude, DataKinds, NamedFieldPuns, LambdaCase, BlockArguments, OverloadedStrings#-}
+{-# LANGUAGE TupleSections #-}
 module Language.Cobble.Parser where
 
 import Language.Cobble.Prelude.Parser hiding (assign)
@@ -155,19 +156,22 @@ statementBody = paren' "{" *> statements <* paren "}"
 statements :: Parser [Statement NextPass]
 statements = many (statement <* reservedOp ";")
 
-typedIdent :: Parser (LexInfo, Text, TypeInfo NextPass)
+typedIdent :: Parser (LexInfo, Text, Type NextPass)
 typedIdent = "typed identifier" <??> do
     (li, n) <- ident 
     reservedOp' ":"
     (_, t) <- typeP
     pure (li, n, t)
 
-mTypedIdent :: Parser (LexInfo, Text, Maybe (TypeInfo NextPass))
+mTypedIdent :: Parser (LexInfo, Text, Maybe (Type NextPass))
 mTypedIdent = "optionally typed identifier" <??> do
         (li, n) <- ident
         mt <- optionMaybe $ reservedOp' ":" >> snd <$> typeP
         pure (li, n, mt)
 
-typeP :: Parser (LexInfo, TypeInfo NextPass)
-typeP = "type" <??> ident 
+typeP :: Parser (LexInfo, Type NextPass)
+typeP = "type" <??> (, IntT) <$> reserved "int"
+    <|> (, BoolT) <$> reserved "bool"
+    <|> (, EntityT) <$> reserved "entity"
+    <|> second StructT <$> ident
 

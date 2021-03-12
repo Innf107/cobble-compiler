@@ -32,6 +32,4 @@ type instance XBoolLit 'QualifyNames = ()
 type instance XVar 'QualifyNames = ()
 type instance XExpr 'QualifyNames = ()
 
-type instance TypeInfo 'QualifyNames = Type 'QualifyNames
-
 type instance Name 'QualifyNames = Text

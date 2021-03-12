@@ -27,14 +27,14 @@ data Pass = ParsePreprocess
 
 data Statement (p :: Pass) =
       CallFun (XCallFun p) LexInfo (Name p) [Expr p]
-    | DefVoid (XDefVoid p) LexInfo (Name p) [(Name p, TypeInfo p)] [Statement p]
-    | DefFun  (XDefFun p)  LexInfo (Name p) [(Name p, TypeInfo p)] [Statement p] (Expr p) (TypeInfo p)
+    | DefVoid (XDefVoid p) LexInfo (Name p) [(Name p, Type p)] [Statement p]
+    | DefFun  (XDefFun p)  LexInfo (Name p) [(Name p, Type p)] [Statement p] (Expr p) (Type p)
     --  | DefMacro (XDefMacro p) LexInfo Name [()]
 --                                                          ^ last expr
-    | Decl  (XDecl p) LexInfo (Name p) (Maybe (TypeInfo p)) (Expr p)
+    | Decl  (XDecl p) LexInfo (Name p) (Maybe (Type p)) (Expr p)
     | Assign (XAssign p) LexInfo (Name p) (Expr p)
     | While (XWhile p) LexInfo (Expr p) [Statement p]
-    | DefStruct (XDefStruct p) LexInfo (Name p) [(Name p, TypeInfo p)]
+    | DefStruct (XDefStruct p) LexInfo (Name p) [(Name p, Type p)]
     | StatementX (XStatement p) LexInfo
 
 
@@ -61,8 +61,6 @@ type family XIntLit (p :: Pass)
 type family XBoolLit (p :: Pass)
 type family XVar (p :: Pass)
 type family XExpr (p :: Pass)
-
-type family TypeInfo (p :: Pass)
 
 data Type (p :: Pass) = IntT | BoolT | EntityT | StructT (Name p)
 

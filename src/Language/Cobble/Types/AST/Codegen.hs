@@ -54,8 +54,6 @@ type instance XBoolLit 'Codegen = ()
 type instance XVar 'Codegen = Type 'Codegen
 type instance XExpr 'Codegen = ()
 
-type instance TypeInfo 'Codegen = Type 'Codegen
-
 type instance Name 'Codegen = QualifiedName
 
 
