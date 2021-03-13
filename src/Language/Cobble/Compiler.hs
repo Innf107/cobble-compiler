@@ -54,10 +54,10 @@ data Function = Function {
 emptyFrame :: Frame
 emptyFrame = Frame mempty 0
 
-stackReg :: Register Array
+stackReg :: Register 'Array
 stackReg = CustomReg "STACK"
 
-stackPTRReg :: Register Number
+stackPTRReg :: Register 'Number
 stackPTRReg = CustomReg "STACKPTR"
 
 returnReg :: Register a

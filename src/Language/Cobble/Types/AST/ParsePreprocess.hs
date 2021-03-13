@@ -1,3 +1,4 @@
+{-#OPTIONS_GHC -Wno-orphans#-}
 {-#LANGUAGE NoImplicitPrelude, DataKinds, TypeFamilies#-}
 module Language.Cobble.Types.AST.ParsePreprocess where
 

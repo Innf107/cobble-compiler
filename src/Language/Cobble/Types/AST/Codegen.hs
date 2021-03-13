@@ -1,3 +1,4 @@
+{-#OPTIONS_GHC -Wno-orphans#-}
 {-#LANGUAGE DataKinds, TemplateHaskell#-}
 {-# LANGUAGE PatternSynonyms, TypeFamilies #-}
 {-# LANGUAGE StandaloneDeriving, FlexibleInstances, LambdaCase #-}

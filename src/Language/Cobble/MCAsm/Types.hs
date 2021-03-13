@@ -10,11 +10,13 @@ import Language.Cobble.Shared
 
 type Name = QualifiedName
 
-data Number
-
-data Entity
-
-data Array
+-- | A DataKind representing the type of a register.
+-- In Minecraft, `Number`s are represented as scoreboards,
+-- `Entity`s are represented as Entity Pointers (see Documentation),
+-- and `Array`s are represented as Entity Arrays (also see Documentation) 
+data RegType = Number
+             | Entity
+             | Array
 
 data McAsmError = RegisterCastError Text deriving (Show, Eq)
 
@@ -34,30 +36,30 @@ class FromSomeReg a where
 castReg :: (Member (Error McAsmError) r, FromSomeReg a, FromSomeReg b) => Register a -> Sem r (Register b)
 castReg = fromSomeReg . SomeReg
 
-instance FromSomeReg Number where
+instance FromSomeReg 'Number where
     fromSomeReg = \case
         SomeReg (NumReg i) -> pure $ NumReg i
         SomeReg (CustomReg t) -> pure $ CustomReg t
         _ -> throw $ RegisterCastError "Number"
 
-instance FromSomeReg Entity where
+instance FromSomeReg 'Entity where
     fromSomeReg = \case
         SomeReg (EntityReg i) -> pure $ EntityReg i
         SomeReg (CustomReg t) -> pure $ CustomReg t
         _ -> throw $ RegisterCastError "Number"
 
-instance FromSomeReg Array where
+instance FromSomeReg 'Array where
     fromSomeReg = \case
         SomeReg (ArrayReg i) -> pure $ ArrayReg i
         SomeReg (CustomReg t) -> pure $ CustomReg t
         _ -> throw $ RegisterCastError "Number"
 
 
-data Register a where
-    NumReg :: Int -> Register Number
-    EntityReg :: Int -> Register Entity
-    ArrayReg :: Int -> Register Array
-    CustomReg :: Text -> Register a
+data Register (t :: RegType) where
+    NumReg :: Int -> Register 'Number
+    EntityReg :: Int -> Register 'Entity
+    ArrayReg :: Int -> Register 'Array
+    CustomReg :: Text -> Register t
 
 deriving instance Show (Register a)
 deriving instance Eq (Register a)
@@ -75,40 +77,40 @@ data Module = Module {
     } deriving (Show, Eq)
 
 data Instruction =
-      MoveNumReg (Register Number) (Register Number)
-    | MoveNumLit (Register Number) Int
-    | MoveArray (Register Array) (Register Array)
+      MoveNumReg (Register 'Number) (Register 'Number)
+    | MoveNumLit (Register 'Number) Int
+    | MoveArray (Register 'Array) (Register 'Array)
 
-    | AddReg (Register Number) (Register Number)
-    | AddLit (Register Number) Int
-    | SubLit (Register Number) Int
-    | DivLit (Register Number) Int
+    | AddReg (Register 'Number) (Register 'Number)
+    | AddLit (Register 'Number) Int
+    | SubLit (Register 'Number) Int
+    | DivLit (Register 'Number) Int
 
     | Section Name [Instruction]
     | Call Name
-    | CallEq (Register Number) (Register Number) Name
+    | CallEq (Register 'Number) (Register 'Number) Name
     | CallElse Name
     | Then
 
-    | GetCommandResult (Register Number) Text
+    | GetCommandResult (Register 'Number) Text
 
-    | GetBySelector (Register Entity) Text
+    | GetBySelector (Register 'Entity) Text
     
-    | RunCommandAsEntity Text (Register Entity)
+    | RunCommandAsEntity Text (Register 'Entity)
 
-    | MakeArray (Register Array) (Register Number)
+    | MakeArray (Register 'Array) (Register 'Number)
     --          ^final register  ^length
-    | GetNumInArray (Register Number) (Register Array) (Register Number)
+    | GetNumInArray (Register 'Number) (Register 'Array) (Register 'Number)
     --              ^final register   ^array           ^index
-    | GetEntityInArray (Register Entity) (Register Array) (Register Number)
+    | GetEntityInArray (Register 'Entity) (Register 'Array) (Register 'Number)
     --                 ^final register   ^array           ^index
-    | GetArrayInArray (Register Array) (Register  Array) (Register Number)
+    | GetArrayInArray (Register 'Array) (Register  'Array) (Register 'Number)
     --                ^final register   ^array           ^index
-    | SetNumInArray (Register Array) (Register Number) (Register Number)
+    | SetNumInArray (Register 'Array) (Register 'Number) (Register 'Number)
     --              ^array           ^index            ^writing register
-    | SetEntityInArray (Register Array) (Register Number) (Register Entity)
+    | SetEntityInArray (Register 'Array) (Register 'Number) (Register 'Entity)
     --                 ^array           ^index            ^writing register
-    | SetArrayInArray (Register Array) (Register Number) (Register Array)
+    | SetArrayInArray (Register 'Array) (Register 'Number) (Register 'Array)
     --                 ^array           ^index            ^writing register
     deriving (Show, Eq)
 

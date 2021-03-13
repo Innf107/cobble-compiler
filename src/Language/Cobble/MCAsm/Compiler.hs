@@ -128,7 +128,7 @@ compileInstr i = asks nameSpace >>= \ns ->
     where
         instr :: (Applicative f) => [Text] -> f [IntermediateResult]
         instr = pure . pure . InterInstructions . T.unlines
-        opLit :: (Applicative f) => Text -> (Register Number) -> Int -> f [IntermediateResult]
+        opLit :: (Applicative f) => Text -> (Register 'Number) -> Int -> f [IntermediateResult]
         opLit operator reg lit = instr $  [ "scoreboard players set CONST REGS " <> show lit
                     , "scoreboard players operation " <> renderReg reg <> " REGS " <> operator <> " CONST REGS"]
         incrementUID :: Text
