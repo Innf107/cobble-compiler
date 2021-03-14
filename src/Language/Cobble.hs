@@ -2,7 +2,9 @@
 {-# LANGUAGE TypeApplications, NamedFieldPuns #-}
 module Language.Cobble where
 
-import Language.Cobble.Prelude
+import Language.Cobble.Prelude hiding ((<.>))
+import System.FilePath ((<.>))
+import System.Directory
 
 import Language.Cobble.Compiler as S
 import Language.Cobble.Types as S
@@ -27,8 +29,9 @@ compileFully nameSpace debug mods = do
         run $ runError @CompilerError $ runError @McAsmError $ evalState S.initialCompileState $ traverse S.compile tmods
     first AsmError $ run $ runReader (CompEnv debug nameSpace) $ evalState A.initialCompState $ runError $ A.compile asmMods
 
-compileToFunctionsAtPath :: FilePath -> Text -> Bool -> [S.Module 'Typecheck] -> Either CompilationError (IO ())
-compileToFunctionsAtPath path nameSpace debug mods = compileFully nameSpace debug mods 
-    <&> traverse_ \CompiledModule{compModName, compModInstructions} ->
-        writeFileText (path </> show compModName) compModInstructions
+compileToFunctionsAtPath :: FilePath -> NameSpace -> Bool -> [S.Module 'Typecheck] -> Either CompilationError (IO ())
+compileToFunctionsAtPath path nameSpace debug mods =  compileFully nameSpace debug mods 
+    <&> (createDirectory (path </> toString nameSpace) *> createDirectory (path </> toString nameSpace </> "functions") *>) 
+        . traverse_ \CompiledModule{compModName, compModInstructions} ->
+        writeFileText (path </> toString nameSpace </> "functions" </> show compModName <.> "mcfunction") compModInstructions
         

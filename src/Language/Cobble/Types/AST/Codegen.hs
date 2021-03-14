@@ -47,6 +47,7 @@ type instance XDecl 'Codegen = ()
 type instance XAssign 'Codegen = ()
 type instance XWhile 'Codegen = ()
 type instance XDefStruct 'Codegen = ()
+type instance XSetScoreboard 'Codegen = ()
 type instance XStatement 'Codegen = ()
 
 type instance XFCall 'Codegen = Type 'Codegen

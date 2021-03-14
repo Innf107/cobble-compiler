@@ -18,7 +18,7 @@ initialize = InterModule "init" . pure . InterInstructions . T.unlines <$> seque
     , pure $ "scoreboard objectives add UID dummy"
     , pure $ "scoreboard objectives add APTR dummy"
     , pure $ "scoreboard objectives add IX dummy"
-    , pure $ "scoreboard objectives set UID UID 0"
+    , pure $ "scoreboard players set UID UID 0"
     , whenDebugMonoid $ pure "scoreboard objectives setdisplay sidebar REGS"
     ]
 
@@ -123,6 +123,9 @@ compileInstr i = asks nameSpace >>= \ns ->
     SetEntityInArray arr aix reg -> instr [
           "execute as @e[tag=ARRAY] if score @s APTR = " <> renderReg arr <> " APTR if score @s IX = "
             <> renderReg aix <> " IX run scoreboard players operation @s EPTR = " <> renderReg reg <> " EPTR"
+        ]
+    SetScoreboard obj player reg -> instr [
+          "scoreboard players operation " <> player <> " " <> obj <> " = " <> renderReg reg <> " REGS"
         ]
 
     where

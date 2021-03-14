@@ -17,14 +17,21 @@ type Name = QualifiedName
 data RegType = Number
              | Entity
              | Array
-
+                  -- | An error representing a failed register cast.
+                  -- Since casts are ALWAYS unsafe, this is an error in the
+                  -- compiling code 
 data McAsmError = RegisterCastError Text deriving (Show, Eq)
 
+-- | Dangerous!
+-- Can existentialize a register to allow unsafe casts (see castReg)
 data SomeReg where
     SomeReg :: Register a -> SomeReg
 
 deriving instance Show SomeReg
 
+-- | Dangerous!
+-- Reduces an existentialized `SomeReg` to a concrete `Register a`.
+-- Throws an exception if the register types don't match!
 class FromSomeReg a where
     fromSomeReg :: (Member (Error McAsmError) r) => SomeReg -> Sem r (Register a)
 
@@ -33,7 +40,7 @@ class FromSomeReg a where
 -- castReg . fromSomeReg :: Register a -> Register b is only safe if a ~ b, i.e.
 -- if the type is known to not change and this function is only used because Haskell's
 -- type system is getting in the way.
-castReg :: (Member (Error McAsmError) r, FromSomeReg a, FromSomeReg b) => Register a -> Sem r (Register b)
+castReg :: (Member (Error McAsmError) r, FromSomeReg b) => Register a -> Sem r (Register b)
 castReg = fromSomeReg . SomeReg
 
 instance FromSomeReg 'Number where
@@ -107,11 +114,13 @@ data Instruction =
     | GetArrayInArray (Register 'Array) (Register  'Array) (Register 'Number)
     --                ^final register   ^array           ^index
     | SetNumInArray (Register 'Array) (Register 'Number) (Register 'Number)
-    --              ^array           ^index            ^writing register
+    --                ^array           ^index            ^writing register
     | SetEntityInArray (Register 'Array) (Register 'Number) (Register 'Entity)
     --                 ^array           ^index            ^writing register
     | SetArrayInArray (Register 'Array) (Register 'Number) (Register 'Array)
     --                 ^array           ^index            ^writing register
+    | SetScoreboard Text Text (Register 'Number)
+    --     objective^    ^player
     deriving (Show, Eq)
 
 data IntermediateResult = InterModule Name [IntermediateResult]

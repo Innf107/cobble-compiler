@@ -1,9 +1,0 @@
-summon minecraft:armor_stand 0 0 0 {Marker:1, Invisible:1, Tags:["STACK"]}
-scoreboard objectives add REGS dummy
-scoreboard objectives add EPTR dummy
-scoreboard objectives add UID dummy
-scoreboard objectives add APTR dummy
-scoreboard objectives add IX dummy
-scoreboard objectives set UID UID 0
-scoreboard objectives setdisplay sidebar REGS
-

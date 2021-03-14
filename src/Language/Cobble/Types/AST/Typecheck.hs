@@ -24,6 +24,7 @@ type instance XDecl 'Typecheck = ()
 type instance XAssign 'Typecheck = ()
 type instance XWhile 'Typecheck = ()
 type instance XDefStruct 'Typecheck = ()
+type instance XSetScoreboard 'Typecheck = ()
 type instance XStatement 'Typecheck = ()
 
 type instance XFCall 'Typecheck = ()

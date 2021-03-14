@@ -90,5 +90,23 @@
     <orderEntry type="library" name="semigroups-0.19.1" level="project" />
     <orderEntry type="library" name="void-0.7.3" level="project" />
     <orderEntry type="library" name="colour-2.3.5" level="project" />
+    <orderEntry type="library" name="connection-0.3.1" level="project" />
+    <orderEntry type="library" name="basement-0.0.11" level="project" />
+    <orderEntry type="library" name="data-default-class-0.1.2.0" level="project" />
+    <orderEntry type="library" name="network-3.1.1.1" level="project" />
+    <orderEntry type="library" name="socks-0.6.1" level="project" />
+    <orderEntry type="library" name="tls-1.5.4" level="project" />
+    <orderEntry type="library" name="x509-1.7.5" level="project" />
+    <orderEntry type="library" name="x509-store-1.6.7" level="project" />
+    <orderEntry type="library" name="x509-system-1.6.6" level="project" />
+    <orderEntry type="library" name="x509-validation-1.6.11" level="project" />
+    <orderEntry type="library" name="cereal-0.5.8.1" level="project" />
+    <orderEntry type="library" name="asn1-encoding-0.9.6" level="project" />
+    <orderEntry type="library" name="asn1-types-0.3.4" level="project" />
+    <orderEntry type="library" name="cryptonite-0.27" level="project" />
+    <orderEntry type="library" name="hourglass-0.2.12" level="project" />
+    <orderEntry type="library" name="memory-0.15.0" level="project" />
+    <orderEntry type="library" name="asn1-parse-0.9.5" level="project" />
+    <orderEntry type="library" name="pem-0.2.4" level="project" />
   </component>
 </module>

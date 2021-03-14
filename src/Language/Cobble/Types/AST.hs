@@ -35,6 +35,8 @@ data Statement (p :: Pass) =
     | Assign (XAssign p) LexInfo (Name p) (Expr p)
     | While (XWhile p) LexInfo (Expr p) [Statement p]
     | DefStruct (XDefStruct p) LexInfo (Name p) [(Name p, Type p)]
+    | SetScoreboard (XSetScoreboard p) LexInfo Text Text (Expr p)
+--                                    objective^    ^player
     | StatementX (XStatement p) LexInfo
 
 
@@ -45,6 +47,7 @@ type family XDecl (p :: Pass)
 type family XAssign (p :: Pass)
 type family XWhile (p :: Pass)
 type family XDefStruct (p :: Pass)
+type family XSetScoreboard (p :: Pass)
 type family XStatement (p :: Pass)
 
 

@@ -19,6 +19,7 @@ data TypeError = VarDoesNotExist LexInfo (Name NextPass)
 --                                  ^ expected
                | WrongAssignType LexInfo (Name NextPass) (Type NextPass) (Type NextPass)
 --                                    ^ expected
+               | WrongSetScoreboardType LexInfo Text Text (Type NextPass)
                deriving (Show, Eq)
 
 -- TODO: Scope (Maybe should be handled in a different step?)
@@ -117,6 +118,11 @@ typecheck = \case
         stmnts' <- traverse typecheck stmnts
         pure (WhileT l cond' stmnts')
     DefStructU l name (conv -> fields) -> pure $ DefStructT l name fields -- TODO: Add to state map
+    SetScoreboardU l obj player ex -> do
+        ex' <- typeOf ex
+        if (exprType ex' /= IntT)
+        then throw (WrongSetScoreboardType l obj player (exprType ex'))
+        else pure (SetScoreboardT l obj player ex')
 
 typeOf :: (TypecheckC r) => Expr 'Typecheck -> Sem r (Expr NextPass)
 typeOf = \case

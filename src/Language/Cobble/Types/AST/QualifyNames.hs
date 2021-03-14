@@ -24,6 +24,7 @@ type instance XDecl 'QualifyNames = ()
 type instance XAssign 'QualifyNames = ()
 type instance XWhile 'QualifyNames = ()
 type instance XDefStruct 'QualifyNames = ()
+type instance XSetScoreboard 'QualifyNames = ()
 type instance XStatement 'QualifyNames = ()
 
 

@@ -25,6 +25,7 @@ type instance XDecl 'ExpandMacros = ()
 type instance XAssign 'ExpandMacros = ()
 type instance XWhile 'ExpandMacros = ()
 type instance XDefStruct 'ExpandMacros = ()
+type instance XSetScoreboard 'ExpandMacros = ()
 type instance XStatement 'ExpandMacros = CallStatementMacroX
 
 data CallStatementMacroX = CallStatementMacroX (Name 'ExpandMacros) [MacroParam] deriving (Show, Eq)

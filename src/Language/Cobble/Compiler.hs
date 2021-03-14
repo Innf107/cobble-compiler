@@ -122,6 +122,9 @@ compileStatement = \case
             traverse_ compileStatement body
             res <- compileExprToReg retExp
             moveReg t res (SomeReg returnReg) -- :/
+    SetScoreboardT l obj player ex -> do
+        r <- fromSomeReg =<< compileExprToReg ex
+        tell [A.SetScoreboard obj player r]
 
 pushVarToStack :: (Member (Writer [Instruction]) r, CompileC r) => Name 'Codegen -> Expr 'Codegen -> Sem r Int
 pushVarToStack name ex = do

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a3bafa56add680b3b48e14409d543f37f02786ef1811c90111c5038170c1d0fd
+-- hash: cfef88769813991ec11eb9f4eeb306b776fa5e12c2981d788c8dc68adfe4e10b
 
 name:           cobble
 version:        0.1.0.0
@@ -105,6 +105,7 @@ test-suite cobble-test
       Language.Cobble.Types.PrettyPrintSpec
       Language.Cobble.TypesSpec
       Language.CobbleSpec
+      Rcon
       Server
       Spec
       Paths_cobble
@@ -113,7 +114,10 @@ test-suite cobble-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , bytestring
+    , cereal
     , cobble
+    , connection
     , directory
     , filepath
     , hspec
@@ -122,6 +126,7 @@ test-suite cobble-test
     , polysemy
     , polysemy-plugin
     , process
+    , random
     , relude
     , template-haskell
     , text

@@ -1,7 +1,0 @@
-kill @e[tag=STACK]
-scoreboard objectives remove REGS
-scoreboard objectives remove EPTR
-scoreboard objectives remove UID
-scoreboard objectives remove APTR
-scoreboard objectives remove IX
-
