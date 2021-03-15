@@ -44,7 +44,7 @@ sendCommand :: Text -> Rcon Text
 sendCommand c = do
     pid <- liftIO $ randomIO @Int32
     let payload = encodeUtf8 c
-    let len = convInt $ B.length payload + 10
+    let len = fromIntegral $ B.length payload + 10
     sendPacket Packet {
       packetLength=len
     , packetId=pid
@@ -81,8 +81,8 @@ receivePayload = do
     c <- askConnection
     liftIO $ do
         len <- readInt32LE <$> connectionGetExact c 4
-        rest <- connectionGetExact c (convInt len)
-        pure $ B.take (convInt (len - 10)) $ B.drop 8 rest
+        rest <- connectionGetExact c (fromIntegral len)
+        pure $ B.take (fromIntegral (len - 10)) $ B.drop 8 rest
 
 readInt32LE :: ByteString -> Int32
 readInt32LE bs = case runGet getInt32le bs of
@@ -94,7 +94,7 @@ sendLogin :: Text -> Rcon ()
 sendLogin pw = do
     pid <- liftIO $ randomIO @Int32
     let payload = encodeUtf8 pw
-    let len = convInt $ B.length payload + 10
+    let len = fromIntegral $ B.length payload + 10
     sendPacket Packet {
       packetLength=len
     , packetId=pid
@@ -106,7 +106,7 @@ sendLogin pw = do
         reslen <- readInt32LE <$> connectionGetExact c 4
         _ <- readInt32LE <$> connectionGetExact c 4
         t <- readInt32LE <$> connectionGetExact c 4
-        _ <- connectionGetExact c (convInt reslen - 8)
+        _ <- connectionGetExact c (fromIntegral reslen - 8)
         if t == -1 then
             fail "Incorrect Password"
         else

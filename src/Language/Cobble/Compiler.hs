@@ -170,3 +170,4 @@ moveReg :: (CompileC r, Member (Writer [Instruction]) r) => Type 'Codegen -> Som
 moveReg t r1 r2 = case t of
     IntT -> MoveNumReg <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure
     BoolT -> MoveNumReg <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure
+

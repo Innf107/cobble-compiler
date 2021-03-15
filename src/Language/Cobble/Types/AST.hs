@@ -11,6 +11,8 @@ import Language.Cobble.Shared
 
 import Language.Cobble.Types.TH
 
+import Language.Cobble.MCAsm.McFunction
+
 type family Name (p :: Pass)
 
 -- Top level module.

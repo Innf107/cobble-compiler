@@ -10,5 +10,3 @@ class Convert a b where
 instance (Functor f, Convert a b) => Convert (f a) (f b) where
     conv = fmap conv
 
-convInt :: (Integral a, Num b) => a -> b
-convInt = fromIntegral . toInteger

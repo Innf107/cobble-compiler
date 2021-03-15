@@ -6,6 +6,8 @@ import Language.Cobble.Prelude
 
 import Language.Cobble.Shared
 
+import Language.Cobble.MCAsm.McFunction
+
 -- Can use an unlimited amount of Registers
 
 type Name = QualifiedName
@@ -124,7 +126,7 @@ data Instruction =
     deriving (Show, Eq)
 
 data IntermediateResult = InterModule Name [IntermediateResult]
-                        | InterInstructions Text
+                        | InterInstructions [McFunction]
                         deriving (Show, Eq)
 
 data CompiledModule = CompiledModule {

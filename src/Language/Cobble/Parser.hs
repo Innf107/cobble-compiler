@@ -10,7 +10,7 @@ import Language.Cobble.Parser.Tokenizer (Token(..), TokenData(..), Processing(..
 import Text.Parsec hiding ((<|>))
 import Text.Parsec.Pos
 
-type NextPass = ExpandMacros
+type NextPass = 'ExpandMacros
 
 
 type Parser = Parsec [Token 'Processed] ()

@@ -16,6 +16,7 @@ import Language.Cobble.Typechecker as TC
 import Language.Cobble.MCAsm.Compiler as A
 import Language.Cobble.MCAsm.Types as A
 
+import Language.Cobble.MCAsm.McFunction
 
 data CompilationError = CompilerError CompilerError
                       | AsmError McAsmError
