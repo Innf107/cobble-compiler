@@ -12,10 +12,10 @@ import Language.Cobble.Util.Maybe
 
 import qualified Data.Text as T
 
-prettyPrintToken :: (IsString s) => Token a -> s 
+prettyPrintToken :: (IsString s) => Token -> s 
 prettyPrintToken = fromString . prettyPrintTokenInner
     where
-        prettyPrintTokenInner :: Token a -> String
+        prettyPrintTokenInner :: Token -> String
         prettyPrintTokenInner (Token _ d) = case d of
             Ident i -> toString i
             Reserved r -> toString r
@@ -23,12 +23,11 @@ prettyPrintToken = fromString . prettyPrintTokenInner
             Operator o -> toString o
             ReservedOp o -> toString o
             IntLiteral l -> show l
-            MacroCall m -> toString m
 
 class PrettyPrint x where
     prettyPrint :: x -> Text
 
-instance PrettyPrint (Token a) where prettyPrint = prettyPrintToken
+instance PrettyPrint Token where prettyPrint = prettyPrintToken
 
 instance PrettyPrint Text where prettyPrint = id
 
@@ -77,10 +76,6 @@ instance (PrettyPrint (Name p)) => PrettyPrint (Type p) where
 class PrettyPrintExt (p :: Pass) where
     prettyPrintExtSt :: Statement p -> Maybe Text
     prettyPrintExtEx :: Expr p -> Maybe Text
-
-instance PrettyPrintExt 'ExpandMacros where
-    prettyPrintExtSt _ = Nothing
-    prettyPrintExtEx _ = Nothing
 
 
 instance PrettyPrintExt 'QualifyNames where

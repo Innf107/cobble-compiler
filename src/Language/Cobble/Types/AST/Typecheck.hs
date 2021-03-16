@@ -38,4 +38,3 @@ type instance Name 'Typecheck = QualifiedName
 makeSynonyms 'Typecheck ''Statement "U"
 
 makeSynonyms 'Typecheck ''Expr "U"
-

@@ -6,7 +6,6 @@ import Language.Cobble.Prelude.Parser hiding (assign)
 import Language.Cobble.Types
 import Language.Cobble.Parser
 import Language.Cobble.Parser.Tokenizer
-import Language.Cobble.Parser.Preprocessor
 
 import qualified Data.Text as T
 
@@ -185,13 +184,11 @@ spec = do
 
 data TestError = ParseE ParseError
                | LexicalE LexicalError
-               | PreprocessE PreprocessError
                deriving (Show, Eq)
 
 testParse :: Parser a -> Text -> Either TestError a
 testParse p t = do
     ts <- first LexicalE $ tokenize "Test" t
-    processed <- first PreprocessE $ preProcess ts
-    first ParseE $ parse p "Test" processed
+    first ParseE $ parse p "Test" ts
 
 

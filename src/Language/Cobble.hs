@@ -8,7 +8,6 @@ import System.Directory
 
 import Language.Cobble.Compiler as S
 import Language.Cobble.Types as S
-import Language.Cobble.Parser.Preprocessor as S
 import Language.Cobble.Parser.Tokenizer as S
 
 import Language.Cobble.Typechecker as TC
@@ -31,8 +30,9 @@ compileFully nameSpace debug mods = do
     first AsmError $ run $ runReader (CompEnv debug nameSpace) $ evalState A.initialCompState $ runError $ A.compile asmMods
 
 compileToFunctionsAtPath :: FilePath -> NameSpace -> Bool -> [S.Module 'Typecheck] -> Either CompilationError (IO ())
-compileToFunctionsAtPath path nameSpace debug mods =  compileFully nameSpace debug mods 
-    <&> (createDirectory (path </> toString nameSpace) *> createDirectory (path </> toString nameSpace </> "functions") *>) 
-        . traverse_ \CompiledModule{compModName, compModInstructions} ->
-        writeFileText (path </> toString nameSpace </> "functions" </> show compModName <.> "mcfunction") compModInstructions
+compileToFunctionsAtPath path nameSpace debug mods = compileFully nameSpace debug mods <&> \cmods -> do 
+        createDirectory (path </> toString nameSpace)
+        createDirectory (path </> toString nameSpace </> "functions")
+        for_ cmods \CompiledModule{compModName, compModInstructions} ->
+            writeFileText (path </> toString nameSpace </> "functions" </> show compModName <.> "mcfunction") compModInstructions
         

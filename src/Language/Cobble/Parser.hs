@@ -5,22 +5,22 @@ module Language.Cobble.Parser where
 import Language.Cobble.Prelude.Parser hiding (assign)
 import Language.Cobble.Types
 import Language.Cobble.Types.PrettyPrint
-import Language.Cobble.Parser.Tokenizer (Token(..), TokenData(..), Processing(..))
+import Language.Cobble.Parser.Tokenizer (Token(..), TokenData(..))
 
 import Text.Parsec hiding ((<|>))
 import Text.Parsec.Pos
 
-type NextPass = 'ExpandMacros
+type NextPass = 'QualifyNames
 
 
-type Parser = Parsec [Token 'Processed] ()
+type Parser = Parsec [Token] ()
 
 (<??>) :: Text -> Parser a -> Parser a
 t <??> p = p <?> toString t
 
 infix 0 <??>
 
-token' :: (Token 'Processed -> Maybe a) -> Parser a
+token' :: (Token -> Maybe a) -> Parser a
 token' = token
     prettyPrintToken
     (\(Token LexInfo{line, column, file} _) -> newPos (toString file) line column)
@@ -67,15 +67,9 @@ intLit :: Parser (LexInfo, Int)
 intLit = (token' \case
     Token l (IntLiteral i) -> Just (l, i)
     _ -> Nothing) <?> "integer literal"
-    
-macroCall :: Parser (LexInfo, Text)
-macroCall = (token' \case
-    Token l (MacroCall m) -> Just (l, m)
-    _ -> Nothing) <?> "macro name"
- 
- 
+     
 statement :: Parser (Statement NextPass)
-statement = "statement" <??> {-callFun <|>-} defVoid <|> try defFun <|> decl <|> assign <|> while {- <|> defStruct -} <|> callStatementMacro
+statement = "statement" <??> {-callFun <|>-} defVoid <|> try defFun <|> decl <|> assign <|> while {- <|> defStruct -}
 --                              ^ TODO
 
 expr :: Parser (Expr NextPass)
@@ -127,12 +121,6 @@ while = "while statement" <??> do
     paren' ")"
     b <- statementBody
     pure $ While () li e b
-
-callStatementMacro :: Parser (Statement NextPass)
-callStatementMacro = "statement macro call" <??> do
-    (li, mname) <- macroCall
-    fail "StatementMacroParams: TODO!"
-    pure $ CallStatementMacro li mname undefined
 
 fcall :: Parser (Expr NextPass)
 fcall = "function call" <??> do

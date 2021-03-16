@@ -37,10 +37,6 @@ spec = do
                 ]
     describe "prettyPrint for Name" do
         it "gives the right value for each compiler pass (currently tested: ParsePreprocess, ExpandMacros, QualifyNames, Typecheck, Codegen)" do
-            prettyPrint ("Test" :: Name 'ParsePreprocess) `shouldBe` "Test"
-            prettyPrint ("Some.Other.Test" :: Name 'ParsePreprocess) `shouldBe` "Some.Other.Test"
-            prettyPrint ("Test" :: Name 'ExpandMacros) `shouldBe` "Test"
-            prettyPrint ("Some.Other.Test" :: Name 'ExpandMacros) `shouldBe` "Some.Other.Test"
             prettyPrint ("Test" :: Name 'QualifyNames) `shouldBe` "Test"
             prettyPrint ("Some.Other.Test" :: Name 'QualifyNames) `shouldBe` "Some.Other.Test"
             prettyPrint ("Test" :: Name 'Typecheck) `shouldBe` "Test"
@@ -52,15 +48,12 @@ spec = do
         describe "IntLit" do
             context "For all unchanged passes" do
                 it "just converts the literal to a text" do
-                    prettyPrint (IntLit () dli 42 :: Expr 'ExpandMacros) `shouldBe` "42"
                     prettyPrint (IntLit () dli 42 :: Expr 'QualifyNames) `shouldBe` "42"
                     prettyPrint (IntLit () dli 42 :: Expr 'Typecheck) `shouldBe` "42"
                     prettyPrint (IntLit () dli 42 :: Expr 'Codegen) `shouldBe` "42"
         describe "BoolLit" do
             context "For all unchanged passes" do
                 it "converts the literal to a text (lowercase)" do
-                    prettyPrint (BoolLit () dli True :: Expr 'ExpandMacros) `shouldBe` "true"
-                    prettyPrint (BoolLit () dli False :: Expr 'ExpandMacros) `shouldBe` "false"
                     prettyPrint (BoolLit () dli True :: Expr 'QualifyNames) `shouldBe` "true"
                     prettyPrint (BoolLit () dli False :: Expr 'QualifyNames) `shouldBe` "false"
                     prettyPrint (BoolLit () dli True :: Expr 'Typecheck) `shouldBe` "true"
@@ -70,7 +63,6 @@ spec = do
         describe "Var" do
             context "For all unchanged passes" do
                 it "just takes the variable name" do
-                    prettyPrint (Var () dli "x" :: Expr 'ExpandMacros) `shouldBe` "x"
                     prettyPrint (Var () dli "x" :: Expr 'QualifyNames) `shouldBe` "x"
                     prettyPrint (Var () dli "x" :: Expr 'Typecheck) `shouldBe` "x"
             context "For the Codegen pass" do
@@ -80,7 +72,6 @@ spec = do
         describe "FCall" do
             context "For all unchanged passes" do
                 it "displays the function call like a C-like language " do
-                    prettyPrint (FCall () dli "f" [Var () dli "x", IntLit () dli 5] :: Expr 'ExpandMacros) `shouldBe` "f(x, 5)"
                     prettyPrint (FCall () dli "f" [Var () dli "x", IntLit () dli 5] :: Expr 'QualifyNames) `shouldBe` "f(x, 5)"
                     prettyPrint (FCall () dli "f" [Var () dli "x", IntLit () dli 5] :: Expr 'Typecheck) `shouldBe` "f(x, 5)"
             context "For the Codegen pass" do

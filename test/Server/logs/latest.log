@@ -1,55 +1,51 @@
-[22:39:52] [main/INFO]: Environment: authHost='https://authserver.mojang.com', accountsHost='https://api.mojang.com', sessionHost='https://sessionserver.mojang.com', servicesHost='https://api.minecraftservices.com', name='PROD'
-[22:39:52] [main/INFO]: Found new data pack file/Test, loading it automatically
-[22:39:53] [main/WARN]: Ambiguity between arguments [teleport, destination] and [teleport, targets] with inputs: [Player, 0123, @e, dd12be42-52a9-4a91-a8a1-11c01849e498]
-[22:39:53] [main/WARN]: Ambiguity between arguments [teleport, location] and [teleport, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
-[22:39:53] [main/WARN]: Ambiguity between arguments [teleport, location] and [teleport, targets] with inputs: [0.1 -0.5 .9, 0 0 0]
-[22:39:53] [main/WARN]: Ambiguity between arguments [teleport, targets] and [teleport, destination] with inputs: [Player, 0123, dd12be42-52a9-4a91-a8a1-11c01849e498]
-[22:39:53] [main/WARN]: Ambiguity between arguments [teleport, targets, location] and [teleport, targets, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
-[22:39:53] [main/INFO]: Reloading ResourceManager: Default, Test
-[22:39:55] [Worker-Main-14/INFO]: Loaded 7 recipes
-[22:39:55] [Worker-Main-14/ERROR]: Couldn't load function tag minecraft:load as it is missing following references: test:clean (from Test)
-[22:39:55] [Worker-Main-14/INFO]: Loaded 927 advancements
-[22:39:57] [Server thread/INFO]: Starting minecraft server version 1.16.5
-[22:39:57] [Server thread/INFO]: Loading properties
-[22:39:57] [Server thread/INFO]: Default game type: SURVIVAL
-[22:39:57] [Server thread/INFO]: Generating keypair
-[22:39:58] [Server thread/INFO]: Starting Minecraft server on *:25565
-[22:39:58] [Server thread/INFO]: Using epoll channel type
-[22:39:58] [Server thread/INFO]: Preparing level "world"
-[22:39:58] [Server thread/INFO]: Preparing start region for dimension minecraft:overworld
-[22:40:01] [Server thread/INFO]: Preparing spawn area: 0%
-[22:40:01] [Server thread/INFO]: Preparing spawn area: 0%
-[22:40:01] [Server thread/INFO]: Preparing spawn area: 0%
-[22:40:01] [Server thread/INFO]: Preparing spawn area: 0%
-[22:40:01] [Server thread/INFO]: Preparing spawn area: 0%
-[22:40:01] [Server thread/INFO]: Preparing spawn area: 0%
-[22:40:01] [Server thread/INFO]: Preparing spawn area: 47%
-[22:40:06] [Worker-Main-14/INFO]: Preparing spawn area: 83%
-[22:40:06] [Worker-Main-10/INFO]: Preparing spawn area: 83%
-[22:40:06] [Worker-Main-8/INFO]: Preparing spawn area: 83%
-[22:40:06] [Worker-Main-8/INFO]: Preparing spawn area: 83%
-[22:40:06] [Worker-Main-8/INFO]: Preparing spawn area: 83%
-[22:40:06] [Worker-Main-8/INFO]: Preparing spawn area: 83%
-[22:40:06] [Worker-Main-12/INFO]: Preparing spawn area: 83%
-[22:40:06] [Worker-Main-12/INFO]: Preparing spawn area: 83%
-[22:40:06] [Worker-Main-12/INFO]: Preparing spawn area: 83%
-[22:40:06] [Worker-Main-8/INFO]: Preparing spawn area: 83%
-[22:40:07] [Worker-Main-9/INFO]: Preparing spawn area: 83%
-[22:40:07] [Worker-Main-14/INFO]: Preparing spawn area: 83%
-[22:40:08] [Worker-Main-8/INFO]: Preparing spawn area: 83%
-[22:40:08] [Worker-Main-12/INFO]: Preparing spawn area: 83%
-[22:40:09] [Worker-Main-9/INFO]: Preparing spawn area: 83%
-[22:40:09] [Worker-Main-11/INFO]: Preparing spawn area: 85%
-[22:40:10] [Worker-Main-12/INFO]: Preparing spawn area: 87%
-[22:40:10] [Worker-Main-9/INFO]: Preparing spawn area: 88%
-[22:40:11] [Worker-Main-10/INFO]: Preparing spawn area: 91%
-[22:40:11] [Server thread/INFO]: Preparing spawn area: 96%
-[22:40:11] [Server thread/INFO]: Time elapsed: 13274 ms
-[22:40:11] [Server thread/INFO]: Done (13.374s)! For help, type "help"
-[22:40:11] [Server thread/INFO]: Starting remote control listener
-[22:40:11] [Server thread/INFO]: Thread RCON Listener started
-[22:40:11] [Server thread/INFO]: RCON running on 0.0.0.0:25575
-[22:40:12] [RCON Listener #1/INFO]: Thread RCON Client /0:0:0:0:0:0:0:1 started
-[22:40:12] [Server thread/INFO]: [Rcon: Created new objective [TestScore]]
-[22:40:12] [Server thread/INFO]: [Rcon: Executed 2 commands from function 'test:test']
-[22:40:12] [RCON Client /0:0:0:0:0:0:0:1 #2/INFO]: Thread RCON Client /0:0:0:0:0:0:0:1 shutting down
+[11:28:37] [main/INFO]: Found new data pack file/Test, loading it automatically
+[11:28:37] [main/WARN]: Ambiguity between arguments [teleport, destination] and [teleport, targets] with inputs: [Player, 0123, @e, dd12be42-52a9-4a91-a8a1-11c01849e498]
+[11:28:37] [main/WARN]: Ambiguity between arguments [teleport, location] and [teleport, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
+[11:28:37] [main/WARN]: Ambiguity between arguments [teleport, location] and [teleport, targets] with inputs: [0.1 -0.5 .9, 0 0 0]
+[11:28:37] [main/WARN]: Ambiguity between arguments [teleport, targets] and [teleport, destination] with inputs: [Player, 0123, dd12be42-52a9-4a91-a8a1-11c01849e498]
+[11:28:37] [main/WARN]: Ambiguity between arguments [teleport, targets, location] and [teleport, targets, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
+[11:28:37] [main/INFO]: Reloading ResourceManager: Default, Test
+[11:28:38] [Worker-Main-12/INFO]: Loaded 7 recipes
+[11:28:39] [Worker-Main-12/ERROR]: Couldn't load function tag minecraft:load as it is missing following references: test:clean (from Test)
+[11:28:39] [Worker-Main-12/INFO]: Loaded 927 advancements
+[11:28:41] [Server thread/INFO]: Starting minecraft server version 1.16.5
+[11:28:41] [Server thread/INFO]: Loading properties
+[11:28:41] [Server thread/INFO]: Default game type: SURVIVAL
+[11:28:41] [Server thread/INFO]: Generating keypair
+[11:28:41] [Server thread/INFO]: Starting Minecraft server on *:25565
+[11:28:41] [Server thread/INFO]: Using epoll channel type
+[11:28:41] [Server thread/INFO]: Preparing level "world"
+[11:28:41] [Server thread/INFO]: Preparing start region for dimension minecraft:overworld
+[11:28:43] [Server thread/INFO]: Preparing spawn area: 0%
+[11:28:43] [Server thread/INFO]: Preparing spawn area: 0%
+[11:28:43] [Server thread/INFO]: Preparing spawn area: 0%
+[11:28:43] [Server thread/INFO]: Preparing spawn area: 0%
+[11:28:43] [Server thread/INFO]: Preparing spawn area: 0%
+[11:28:44] [Server thread/INFO]: Preparing spawn area: 0%
+[11:28:48] [Worker-Main-8/INFO]: Preparing spawn area: 83%
+[11:28:48] [Worker-Main-10/INFO]: Preparing spawn area: 83%
+[11:28:48] [Worker-Main-10/INFO]: Preparing spawn area: 83%
+[11:28:48] [Worker-Main-10/INFO]: Preparing spawn area: 83%
+[11:28:48] [Worker-Main-9/INFO]: Preparing spawn area: 83%
+[11:28:48] [Worker-Main-9/INFO]: Preparing spawn area: 83%
+[11:28:48] [Worker-Main-9/INFO]: Preparing spawn area: 83%
+[11:28:48] [Worker-Main-9/INFO]: Preparing spawn area: 83%
+[11:28:48] [Worker-Main-11/INFO]: Preparing spawn area: 83%
+[11:28:49] [Worker-Main-12/INFO]: Preparing spawn area: 83%
+[11:28:49] [Worker-Main-14/INFO]: Preparing spawn area: 83%
+[11:28:50] [Worker-Main-9/INFO]: Preparing spawn area: 83%
+[11:28:50] [Worker-Main-14/INFO]: Preparing spawn area: 83%
+[11:28:51] [Worker-Main-8/INFO]: Preparing spawn area: 83%
+[11:28:51] [Worker-Main-8/INFO]: Preparing spawn area: 84%
+[11:28:52] [Worker-Main-14/INFO]: Preparing spawn area: 88%
+[11:28:52] [Worker-Main-14/INFO]: Preparing spawn area: 89%
+[11:28:53] [Server thread/INFO]: Preparing spawn area: 93%
+[11:28:53] [Server thread/INFO]: Time elapsed: 11900 ms
+[11:28:53] [Server thread/INFO]: Done (12.059s)! For help, type "help"
+[11:28:53] [Server thread/INFO]: Starting remote control listener
+[11:28:53] [Server thread/INFO]: Thread RCON Listener started
+[11:28:53] [Server thread/INFO]: RCON running on 0.0.0.0:25575
+[11:28:53] [RCON Listener #1/INFO]: Thread RCON Client /0:0:0:0:0:0:0:1 started
+[11:28:53] [Server thread/INFO]: [Rcon: Created new objective [TestScore]]
+[11:28:53] [Server thread/INFO]: [Rcon: Executed 2 commands from function 'test:test']
+[11:28:53] [RCON Client /0:0:0:0:0:0:0:1 #2/INFO]: Thread RCON Client /0:0:0:0:0:0:0:1 shutting down

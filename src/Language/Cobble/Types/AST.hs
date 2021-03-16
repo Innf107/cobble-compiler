@@ -19,9 +19,7 @@ type family Name (p :: Pass)
 data Module (p :: Pass) = Module (Name p) [Statement p] --deriving (Show, Eq)
 
 -- | A data kind representing the state of the AST at a certain Compiler pass.
-data Pass = ParsePreprocess
-          | ExpandMacros
-          | QualifyNames
+data Pass = QualifyNames
           | Typecheck
           | Codegen
           deriving (Show, Eq)
@@ -31,9 +29,8 @@ data Statement (p :: Pass) =
       CallFun (XCallFun p) LexInfo (Name p) [Expr p]
     | DefVoid (XDefVoid p) LexInfo (Name p) [(Name p, Type p)] [Statement p]
     | DefFun  (XDefFun p)  LexInfo (Name p) [(Name p, Type p)] [Statement p] (Expr p) (Type p)
-    --  | DefMacro (XDefMacro p) LexInfo Name [()]
 --                                                          ^ last expr
-    | Decl  (XDecl p) LexInfo (Name p) (Maybe (Type p)) (Expr p)
+    | Decl (XDecl p) LexInfo (Name p) (Maybe (Type p)) (Expr p)
     | Assign (XAssign p) LexInfo (Name p) (Expr p)
     | While (XWhile p) LexInfo (Expr p) [Statement p]
     | DefStruct (XDefStruct p) LexInfo (Name p) [(Name p, Type p)]

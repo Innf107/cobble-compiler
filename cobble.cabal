@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 04d10cbdd83c56431313441af1ffd00596e287792b14ade5f9f868f8e1667364
+-- hash: 87251b27f96af8e9c6ceb130e5ab2f590a234ab9545bc76c19abaf82b65aedd4
 
 name:           cobble
 version:        0.1.0.0
@@ -33,7 +33,6 @@ library
       Language.Cobble.MCAsm.McFunction
       Language.Cobble.MCAsm.Types
       Language.Cobble.Parser
-      Language.Cobble.Parser.Preprocessor
       Language.Cobble.Parser.Tokenizer
       Language.Cobble.Prelude
       Language.Cobble.Prelude.Parser
@@ -43,8 +42,6 @@ library
       Language.Cobble.Types
       Language.Cobble.Types.AST
       Language.Cobble.Types.AST.Codegen
-      Language.Cobble.Types.AST.ExpandMacros
-      Language.Cobble.Types.AST.ParsePreprocess
       Language.Cobble.Types.AST.QualifyNames
       Language.Cobble.Types.AST.Typecheck
       Language.Cobble.Types.PrettyPrint
@@ -98,7 +95,6 @@ test-suite cobble-test
       Language.Cobble.CompilerSpec
       Language.Cobble.MCAsm.CompilerSpec
       Language.Cobble.MCAsm.TypesSpec
-      Language.Cobble.Parser.PreprocessorSpec
       Language.Cobble.Parser.TokenizerSpec
       Language.Cobble.ParserSpec
       Language.Cobble.QualifierSpec

@@ -12,33 +12,20 @@ import Data.Char
 
 import Text.Read (read)
 
--- | A Token, indexed by a parameter of kind `Processing`, 
--- consists of its lexical information
+-- | A Token consists of its lexical information
 -- as well as the actual token data.
--- See the haddock for `Processing` and `TokenData` for
--- information about those.
-data Token (p :: Processing) = Token {
+data Token = Token {
       tokLexInfo::LexInfo
-    , tokData :: TokenData p
+    , tokData :: TokenData
     }  deriving (Show, Eq)
 
--- | A data kind representing the processing
--- status of a token. This is (currently) only used
--- as a phantom parameter, so it should be very easy to convert
--- if you really have to.
--- Here 'processing status' refers to, whether Macro Names in `Ident`s have been 
--- replaced by `MacroCall` Tokens.
-data Processing = Unprocessed
-                | Processed
 
-
-data TokenData (p :: Processing) = Ident Text
+data TokenData = Ident Text
          | Reserved Text
          | Paren Text
          | Operator Text
          | ReservedOp Text
          | IntLiteral Int
-         | MacroCall Text
          deriving (Show, Eq)
 
 isOpStart :: Char -> Bool
@@ -104,26 +91,26 @@ putStart ts = do
 throwL :: (TokenizeC r) => LexicalErrorData -> Sem r ()
 throwL d = get >>= \li -> throw (LexicalError li d)
 
-tellToken :: (TokenizeC r, Member (Writer [Token 'Unprocessed]) r) => TokenData 'Unprocessed -> Sem r ()
+tellToken :: (TokenizeC r, Member (Writer [Token]) r) => TokenData -> Sem r ()
 tellToken td = do
     lexInfo <- gets snd
     tell [Token lexInfo td]
 
-tellTokenNewLex:: (TokenizeC r, Member (Writer [Token 'Unprocessed]) r) => TokenData 'Unprocessed -> Sem r ()
+tellTokenNewLex:: (TokenizeC r, Member (Writer [Token]) r) => TokenData -> Sem r ()
 tellTokenNewLex td = do
     lexInfo <- get
     tell [Token lexInfo td]
 
 
-tokenize :: FileName -> Text -> Either LexicalError [Token 'Unprocessed]
+tokenize :: FileName -> Text -> Either LexicalError [Token]
 tokenize fileName text = run $ runError $ evalState initialLex $ evalState (Default, initialLex) $ tokenize' (toString text)
     where
         initialLex = LexInfo 1 0 fileName
 
-tokenize' :: TokenizeC r => [Char] -> Sem r [Token 'Unprocessed]
+tokenize' :: TokenizeC r => [Char] -> Sem r [Token]
 tokenize' input = fmap fst $ runWriterAssocR $ evalState input $ go
     where
-        go :: (TokenizeC r, Members [Writer [Token 'Unprocessed], State [Char]] r) => Sem r ()
+        go :: (TokenizeC r, Members [Writer [Token], State [Char]] r) => Sem r ()
         go = gets fst >>= \case
             Default -> askChar >>= \case
                 Nothing -> pass
