@@ -17,6 +17,7 @@ module Language.Cobble.Prelude (
     , (|:)
     , state 
     , whenAlt
+    , ($$)
     ) where
 
 import Relude hiding (
@@ -78,3 +79,8 @@ state f = get >>= \(f -> (r, s')) -> put s' *> pure r
 
 whenAlt :: (Alternative f) => Bool -> a -> f a
 whenAlt b x = if b then pure x else empty
+
+($$) :: (a -> b) -> a -> b
+($$) = ($)
+
+infixr 5 $$

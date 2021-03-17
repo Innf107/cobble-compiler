@@ -108,5 +108,7 @@
     <orderEntry type="library" name="memory-0.15.0" level="project" />
     <orderEntry type="library" name="asn1-parse-0.9.5" level="project" />
     <orderEntry type="library" name="pem-0.2.4" level="project" />
+    <orderEntry type="library" name="optparse-applicative-0.15.1.0" level="project" />
+    <orderEntry type="library" name="ansi-wl-pprint-0.6.9" level="project" />
   </component>
 </module>

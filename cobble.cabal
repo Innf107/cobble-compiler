@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 87251b27f96af8e9c6ceb130e5ab2f590a234ab9545bc76c19abaf82b65aedd4
+-- hash: 95c987fca19e139bf59c2ac17e90304fd34c0dac8d37ef3d7722ae118ed7b363
 
 name:           cobble
 version:        0.1.0.0
@@ -80,6 +80,7 @@ executable cobble
     , directory
     , filepath
     , lens
+    , optparse-applicative
     , parsec
     , polysemy
     , polysemy-plugin

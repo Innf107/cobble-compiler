@@ -22,7 +22,7 @@ data CompilationError = CompilerError CompilerError
                       | TypeError TypeError
                       deriving (Show, Eq)
 
-compileFully :: Text -> Bool -> [S.Module 'Typecheck] -> Either CompilationError [CompiledModule]
+compileFully :: NameSpace -> Bool -> [S.Module 'Typecheck] -> Either CompilationError [CompiledModule]
 compileFully nameSpace debug mods = do
     tmods <- first TypeError $ run $ runError $ evalState initialTCState $ traverse (TC.typecheckModule) mods
     asmMods <- join $ first CompilerError $ fmap (first AsmError) $ 
