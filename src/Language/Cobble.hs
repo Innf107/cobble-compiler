@@ -1,5 +1,5 @@
-{-#LANGUAGE NoImplicitPrelude, DataKinds, BlockArguments#-}
-{-# LANGUAGE TypeApplications, NamedFieldPuns #-}
+{-#LANGUAGE NoImplicitPrelude, DataKinds, BlockArguments, OverloadedStrings#-}
+{-# LANGUAGE TypeApplications, NamedFieldPuns, DisambiguateRecordFields #-}
 module Language.Cobble where
 
 import Language.Cobble.Prelude hiding ((<.>))
@@ -11,6 +11,8 @@ import Language.Cobble.Types as S
 import Language.Cobble.Parser.Tokenizer as S
 import Language.Cobble.Parser as S
 import Language.Cobble.Qualifier as S
+import Language.Cobble.Packager
+import Language.Cobble.Util.Polysemy.Time
 
 import Language.Cobble.Prelude.Parser (ParseError, parse)
 
@@ -38,13 +40,18 @@ data CompileOpts = CompileOpts {
     }
 
 --TODO: Use Module
-compileFileToDatapack :: CompileOpts -> Text -> Either CompilationError LByteString
-compileFileToDatapack opts content = do
-    toks <- first LexError $ tokenize (fileName opts) content
-    modAst <- first ParseError $ parse (module_ (name opts)) (toString (fileName opts)) toks
-    qualAst <- first QualificationError $ qualify modAst
-    tcAst <- first TypeError $ runModuleTypecheck qualAst
-    undefined
+compileFileToDatapack :: CompileOpts -> Text -> IO (Either CompilationError LByteString)
+compileFileToDatapack opts@CompileOpts{debug=debug_,name=name_} content = do
+    compMods <- pure do
+        toks     <- first LexError $ tokenize (fileName opts) content
+        modAst   <- first ParseError $ parse (module_ name_) (toString (fileName opts)) toks
+        qualAst  <- first QualificationError $ qualify modAst
+        tcAst    <- first TypeError $ runModuleTypecheck qualAst
+        asm      <- join $ run $ runError $ mapError CompilerError $ runError $ mapError AsmError $ evalState initialCompileState $ S.compile tcAst
+        first AsmError $ run $ runReader A.CompEnv {debug=debug_,nameSpace=name_} $ runError $ evalState A.initialCompState $ A.compile [asm]
+    case compMods of
+        Left e -> pure (Left e)
+        Right cms -> Right <$> (runM $ timeToIO $ makeDataPack (dataPackOptions name_ "Created with Cobble") cms)
 
 compileFully :: NameSpace -> Bool -> [S.Module 'Typecheck] -> Either CompilationError [CompiledModule]
 compileFully nameSpace debug mods = do

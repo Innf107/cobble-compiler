@@ -17,7 +17,7 @@ panic :: (Member (Error CompilerError) r) => Text -> Sem r a
 panic = throw . Panic
 
 panic' :: (Member (Error CompilerError) r) => Text -> [Text] -> Sem r a
-panic' t as = panic $ t <> "\n\nContext: " <> unlines (map ("    "<>) as)
+panic' t as = panic $ t <> "\n\nContext: \n" <> unlines (map ("    "<>) as)
 
 panicVarNotFoundTooLate :: (Member (Error CompilerError) r) => Name 'Codegen -> Sem r a
 panicVarNotFoundTooLate v = panic $ "Variable " <> show v <> " not found. This should have been caught earlier!" 
@@ -115,7 +115,7 @@ compileStatement = \case
             modify (& frames . head1 . varCount .~ length pars)
             traverse_ compileStatement body
     DefFunT l name pars body retExp t -> do
-        modify (& functions . at name ?~ Function {_params=pars, _returnType=Nothing})
+        modify (& functions . at name ?~ Function {_params=pars, _returnType=Just t})
         tell . pure . A.Section name . fst =<< runWriterAssocR do
             modify (& frames . head1 . varIndices .~ fromList (zip (map fst pars) [0..]))
             modify (& frames . head1 . varCount .~ length pars)
