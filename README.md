@@ -62,7 +62,7 @@ However, similar to [EPs](#rep-entites), this will likely result in undefined be
 **Note**: Arrays do not have to be continuus. An array can for example have values at index `1` and `3`, but not `2`.
 This might be dangerous though, since accessing an empty array index is generally undefined behaviour.
 
-###<a id=appendix></a> Appendix
+### <a id=appendix></a> Appendix
 
 ####<a id=marker-entity></a>**Marker Entities**
 Marker Entites used to be represented by armor stands with the NBT tags `Invisible:1`
