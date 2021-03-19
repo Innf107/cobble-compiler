@@ -18,6 +18,7 @@ module Language.Cobble.Prelude (
     , state 
     , whenAlt
     , ($$)
+    , mapFromLeft
     ) where
 
 import Relude hiding (
@@ -84,3 +85,6 @@ whenAlt b x = if b then pure x else empty
 ($$) = ($)
 
 infixr 5 $$
+
+mapFromLeft :: (a -> b) -> Either a b -> b
+mapFromLeft = (`either`id)

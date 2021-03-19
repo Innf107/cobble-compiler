@@ -17,6 +17,8 @@ deriving instance Eq (Expr 'Typecheck)
 deriving instance Show (Type 'Typecheck)
 deriving instance Eq (Type 'Typecheck)
   
+type instance XModule 'Typecheck = ()
+  
 type instance XCallFun 'Typecheck = ()
 type instance XDefVoid 'Typecheck = ()
 type instance XDefFun 'Typecheck = ()

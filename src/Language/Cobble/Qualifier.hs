@@ -22,6 +22,13 @@ data Scope = Scope {
 
 makeLenses 'Scope
 
+qualify :: Module 'QualifyNames -> Either QualificationError (Module NextPass)
+qualify = run 
+        . runError 
+        . evalState 0 
+        . evalState ([Scope {_prefix="", _typeNames=[], _varFunNames=[]}]) 
+        . qualifyMod
+
 newUID :: (QualifyC r) => Sem r Int
 newUID = state (\s -> (s+1, s+1))
 
@@ -47,6 +54,8 @@ addType li n = do
         then throw (VarAlreadyDeclaredInScope li n)
         else modify @[Scope] (& _head . typeNames %~ cons n)
 
+qualifyMod :: (QualifyC r) => Module 'QualifyNames -> Sem r (Module NextPass)
+qualifyMod (Module () n sts) = Module () (makeQName n) <$> traverse qualifyStatement sts
 
 qualifyStatement :: (QualifyC r) => Statement 'QualifyNames -> Sem r (Statement NextPass)
 qualifyStatement = \case

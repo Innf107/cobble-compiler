@@ -63,8 +63,14 @@ insertFunReturnType funName t = void $ modify (\s -> s{funReturnTypes=funReturnT
 insertVarType :: (TypecheckC r) => Name NextPass -> Type NextPass -> Sem r ()
 insertVarType varName t = void $ modify (\s -> s{varTypes=varTypes s & insert varName t})
 
+runModuleTypecheck :: Module 'Typecheck -> Either TypeError (Module NextPass)
+runModuleTypecheck = run 
+                    . runError
+                    . evalState initialTCState 
+                    . typecheckModule
+
 typecheckModule :: (TypecheckC r) => Module 'Typecheck -> Sem r (Module NextPass)
-typecheckModule (Module mname instrs) = Module mname <$> traverse typecheck instrs
+typecheckModule (Module () mname instrs) = Module () mname <$> traverse typecheck instrs
 
 typecheck :: (TypecheckC r) => Statement 'Typecheck -> Sem r (Statement NextPass)
 typecheck = \case

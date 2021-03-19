@@ -68,6 +68,9 @@ intLit = (token' \case
     Token l (IntLiteral i) -> Just (l, i)
     _ -> Nothing) <?> "integer literal"
      
+module_ :: Text -> Parser (Module NextPass)
+module_ mname = "module" <??> Module () mname <$> statements
+     
 statement :: Parser (Statement NextPass)
 statement = "statement" <??> {-callFun <|>-} defVoid <|> try defFun <|> decl <|> assign <|> while {- <|> defStruct -}
 --                              ^ TODO

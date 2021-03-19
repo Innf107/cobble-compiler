@@ -22,7 +22,7 @@ import Control.Exception (bracket)
 test :: IO ()
 test = do
     testWithServer [
-            Module @'Typecheck "test" [
+            Module @'Typecheck () "test" [
                 SetScoreboard () dli "TestScore" "TestPlayer" (IntLit () dli 5)
             ]
         ] [("A basic SetScoreboard works",
@@ -86,10 +86,6 @@ data Expectation = ExpectLast (ExpectInner)
                  deriving (Show, Eq)
 
 data ExpectInner = ExpectExact Text deriving (Show, Eq)
-
-mapFromLeft :: (a -> b) -> Either a b -> b
-mapFromLeft f (Left x) = f x
-mapFromLeft _ (Right y) = y
 
 runWithServer :: IO a -> IO a
 runWithServer a = do

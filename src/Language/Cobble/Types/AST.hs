@@ -16,7 +16,9 @@ import Language.Cobble.MCAsm.McFunction
 type family Name (p :: Pass)
 
 -- Top level module.
-data Module (p :: Pass) = Module (Name p) [Statement p] --deriving (Show, Eq)
+data Module (p :: Pass) = Module (XModule p) (Name p) [Statement p] --deriving (Show, Eq)
+
+type family XModule (p :: Pass)
 
 -- | A data kind representing the state of the AST at a certain Compiler pass.
 data Pass = QualifyNames

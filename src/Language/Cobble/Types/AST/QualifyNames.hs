@@ -17,6 +17,8 @@ deriving instance Eq (Expr 'QualifyNames)
 deriving instance Show (Type 'QualifyNames)
 deriving instance Eq (Type 'QualifyNames) 
   
+type instance XModule 'QualifyNames = ()
+  
 type instance XCallFun 'QualifyNames = ()
 type instance XDefFun 'QualifyNames = ()
 type instance XDefVoid 'QualifyNames = ()

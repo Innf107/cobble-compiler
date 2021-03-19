@@ -40,6 +40,8 @@ pattern VarT t l v <- Var t l v
         VarT t l v = Var t l v
 
 
+type instance XModule 'Codegen = ()
+
 type instance XCallFun 'Codegen = () -- TODO: Should this keep the return type?
 type instance XDefVoid 'Codegen = ()
 type instance XDefFun 'Codegen = ()

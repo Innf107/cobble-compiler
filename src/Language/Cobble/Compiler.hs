@@ -75,7 +75,7 @@ rts = do
         ]
 
 compile :: (CompileC r) => S.Module 'Codegen -> Sem r A.Module
-compile (S.Module modname stmnts) = A.Module modname . fst <$> runWriterAssocR (traverse compileStatement stmnts)
+compile (S.Module () modname stmnts) = A.Module modname . fst <$> runWriterAssocR (traverse compileStatement stmnts)
 
 newReg :: (CompileC r) => Sem r Int
 newReg = modify (& lastReg +~ 1) >> get <&> (^. lastReg)

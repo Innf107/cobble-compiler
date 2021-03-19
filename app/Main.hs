@@ -1,5 +1,5 @@
 {-#LANGUAGE NoImplicitPrelude, ScopedTypeVariables, OverloadedStrings, LambdaCase #-}
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns, DisambiguateRecordFields #-}
 module Main where
 
 import Language.Cobble.Prelude hiding (argument)
@@ -11,7 +11,7 @@ main :: IO ()
 main = runCobble =<< execParser (info (mainOpts <**> helper) mainInfo)
     where
         mainOpts = hsubparser (
-              command "compile" (Compile <$> info compileOpts (progDesc "compile a file directly"))
+              command "compile" (Compile <$> info compileOpts (progDesc "Compile a source fileto a datapack directly"))
             ) 
         mainInfo = idm
 
@@ -22,19 +22,28 @@ runCobble :: CobbleAction -> IO ()
 runCobble = \case
     Compile co -> runCompile co
 
-runCompile :: CompileOpts -> IO ()
-runCompile CompileOpts{compFile, debug} = do
+runCompile :: CompileCmdOpts -> IO ()
+runCompile CompileCmdOpts{compFile, debug} = do
     content <- readFileText compFile
-    undefined -- compile 
+    let name = takeBaseName compFile
+    datapackBS <- either failWithCompError pure $ compileFileToDatapack (CompileOpts {
+          fileName=toText compFile
+        , name=toText name
+        , debug
+        }) content
+    writeFileLBS (name <> ".zip") datapackBS
 
-data CobbleAction = Compile CompileOpts deriving (Show, Eq)
+failWithCompError :: CompilationError -> IO a
+failWithCompError e = fail $ "CompilationError: " <> show e
 
-data CompileOpts = CompileOpts {
+data CobbleAction = Compile CompileCmdOpts deriving (Show, Eq)
+
+data CompileCmdOpts = CompileCmdOpts {
       compFile :: FilePath
     , debug :: Bool
     } deriving (Show, Eq)
 
-compileOpts :: Parser CompileOpts
-compileOpts = CompileOpts
+compileOpts :: Parser CompileCmdOpts
+compileOpts = CompileCmdOpts
     <$> argument str (metavar "SOURCEFILE")
     <*> switch (long "debug" <> help "Debug mode keeps additional information at runtime")

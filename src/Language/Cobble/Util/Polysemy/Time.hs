@@ -14,6 +14,7 @@ import Data.Time
 import Data.Time.Clock.POSIX
 
 data Time m a where
+-- | Returns the time in **seconds** since Unix Epoch
     GetTime :: Time m Integer
 
 makeSem ''Time
