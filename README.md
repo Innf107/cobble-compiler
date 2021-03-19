@@ -64,21 +64,21 @@ This might be dangerous though, since accessing an empty array index is generall
 
 ### <a id=appendix></a> Appendix
 
-####<a id=marker-entity></a>**Marker Entities**
+#### <a id=marker-entity></a> **Marker Entities**
 Marker Entites used to be represented by armor stands with the NBT tags `Invisible:1`
 and `Marker:1`. Because of their massive performance improvements, this was changed to
 area effect clouds with a Duration of `2^31-1` (The maximum value). Because the actual choice of marker
 entities is irrelevant and the concrete choice might change again in the future, 
 this document only uses the abstract term *marker entity*.
 
-####<a id=uid></a>**UIDs**
+#### <a id=uid></a> **UIDs**
 Some implementeations need to pick unique numbers, which is where the `UID`
 scoreboard comes in. Being only inhabited by a single [Pseudo-Player](#pseudo-players) also named `UID`, this
 score only ever increases. This API is (currently) not exposed to MCAsm directly, although 
 that might change in the future. When a UID is read from the `UID` [Pseudo-Player](#pseudo-players), 
 the score is increased by 1. This makes sure, that all UID values are unique.
 
-####<a id=pseudo-players></a>**Pseudo-Players**
+#### <a id=pseudo-players></a> **Pseudo-Players**
 This document mentions *Pseudo-Players* a lot. When assigning scoreboards in Minecraft,
 there are no checks to make sure the player actually exists. In practice, this means that
 a command like `scoreboard players set SomePlayer SomeObjective 42` will set the value of `SomeObjective`
