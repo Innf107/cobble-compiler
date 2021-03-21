@@ -72,11 +72,18 @@ module_ :: Text -> Parser (Module NextPass)
 module_ mname = "module" <??> Module () mname <$> statements
 
 statement :: Parser (Statement NextPass)
-statement = "statement" <??> {-callFun <|>-} defVoid <|> try defFun <|> decl <|> assign <|> while {- <|> defStruct -}
---                              ^ TODO
+statement = "statement" <??> try callFun <|> defVoid <|> try defFun <|> decl <|> assign <|> while {- <|> defStruct -}
 
 expr :: Parser (Expr NextPass)
 expr = "expr" <??> uncurry (IntLit ()) <$> intLit <|> boollit <|> try fcall <|> var
+
+callFun :: Parser (Statement NextPass)
+callFun = "toplevel function call" <??> do
+    (li, fname) <- ident
+    paren' "("
+    ps <- expr `sepBy` reservedOp' ","
+    paren' ")"
+    pure $ CallFun () li fname ps
 
 
 defVoid :: Parser (Statement NextPass)
