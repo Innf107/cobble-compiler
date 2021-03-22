@@ -2,7 +2,7 @@
 {-# LANGUAGE NamedFieldPuns, ScopedTypeVariables #-}
 module Language.Cobble.MCAsm.Compiler where
 
-import Language.Cobble.Prelude
+import Language.Cobble.Prelude hiding (ix)
 
 import Language.Cobble.Shared
 
@@ -14,22 +14,22 @@ import Language.Cobble.MCAsm.McFunction
 
 initialize :: (CompC r) => Sem r IntermediateResult
 initialize = InterModule "init" . pure . InterInstructions . catMaybes <$> sequenceA [
-      pure $ Just $ addScoreboardObjective "REGS"
-    , pure $ Just $ addScoreboardObjective "EPTR"
-    , pure $ Just $ addScoreboardObjective "UID"
-    , pure $ Just $ addScoreboardObjective "APTR"
-    , pure $ Just $ addScoreboardObjective "IX"
-    , pure $ Just $ setScoreboardForPlayer "UID" "UID" 0
-    , whenDebugAlt $ pure $ Just $ setScoreboardSidebar "REGS"
+      pure $ Just $ addScoreboardObjective regs
+    , pure $ Just $ addScoreboardObjective eptr
+    , pure $ Just $ addScoreboardObjective uid
+    , pure $ Just $ addScoreboardObjective aptr
+    , pure $ Just $ addScoreboardObjective ix
+    , pure $ Just $ setScoreboardForPlayer uid "UID" 0
+    , whenDebugAlt $ pure $ Just $ setScoreboardSidebar regs
     ]
 
 clean :: (CompC r) => Sem r IntermediateResult
 clean = InterModule "init" . pure . InterInstructions . catMaybes <$> sequenceA [
-      pure $ Just $ removeScoreboardObjective "REGS"
-    , pure $ Just $ removeScoreboardObjective "EPTR"
-    , pure $ Just $ removeScoreboardObjective "UID"
-    , pure $ Just $ removeScoreboardObjective "APTR"
-    , pure $ Just $ removeScoreboardObjective "IX"
+      pure $ Just $ removeScoreboardObjective regs
+    , pure $ Just $ removeScoreboardObjective eptr
+    , pure $ Just $ removeScoreboardObjective uid
+    , pure $ Just $ removeScoreboardObjective aptr
+    , pure $ Just $ removeScoreboardObjective ix
     ]
 
 hoistModules :: (CompC r) => IntermediateResult -> Sem r [CompiledModule]
@@ -57,9 +57,9 @@ compileModule (Module {moduleName, moduleInstructions}) = do
     pure $ InterModule moduleName (concat results)
 
 compileInstr :: (CompC r) => Instruction -> Sem r [IntermediateResult]
-compileInstr i = asks nameSpace >>= \ns -> case i of
-    MoveNumLit reg lit -> instr [setScoreboardForPlayer "REGS" (renderReg reg) lit]
-    MoveNumReg reg1 reg2 -> instr [regOperation reg1 SAssign reg2]
+compileInstr i = asks nameSpace >>= \ns -> (<>) <$> whenDebugMonoid (pure [comment $ show i]) <*> case i of
+    MoveNumLit reg lit -> instr [setScoreboardForPlayer regs (renderReg reg) lit]
+    MoveNumReg reg1 reg2 -> instr [moveReg regs reg1 regs reg2]
     AddLit reg lit -> instr [addReg reg lit]
     AddReg reg1 reg2 -> instr [regOperation reg1 SAdd reg2]
     SubLit reg lit -> instr [subReg reg lit]
@@ -78,63 +78,40 @@ compileInstr i = asks nameSpace >>= \ns -> case i of
           execute $ EStoreRes (stScoreReg reg) $ ERun $ rawCommand command
         ]
     GetBySelector reg selector -> instr [
-          execute $ EAs "@e" $ EIf (EIScore "EPTR" "@s" $ EIEQ "EPTR" (renderReg reg)) $ ERun $ resetScoreboardForPlayer "EPTR" "@s"
+          execute $ EAs "@e" $ EIf (EIScore eptr "@s" $ EIEQ eptr (renderReg reg)) $ ERun $ resetScoreboardForPlayer eptr "@s"
         , incrementUID
-        , execute $ EAs ("@e[" <> selector <> "]") $ ERun $ scoreboardOperation "EPTR" "@s" SAssign "UID" "UID"
-        , scoreboardOperation "EPTR" (renderReg reg) SAssign "UID" "UID"
+        , execute $ EAs ("@e[" <> selector <> "]") $ ERun $ scoreboardOperation eptr "@s" SAssign uid "UID"
+        , scoreboardOperation eptr (renderReg reg) SAssign uid "UID"
         ]
     RunCommandAsEntity command reg -> instr [
-          execute $ EAs "@e" $ EIf (EIScore "EPTR" "@s" $ EIEQ "EPTR" (renderReg reg)) $ ERun $ rawCommand command
+          execute $ EAs "@e" $ EIf (EIScore eptr "@s" $ EIEQ eptr (renderReg reg)) $ ERun $ rawCommand command
         ]
-    MakeArray reg len -> do
-        modName <- (prependQual "create-array") . show <$> incrementCompUID
-        pure [
-              InterModule modName $ pure $ InterInstructions [
-                subReg arrayCounterReg 1
-              , summonMarkerWithTags ["TEMP", "ARRAY"]
-              , scoreboardOperation "APTR" "@e[tag=TEMP]" SAssign "UID" "UID"
-              , scoreboardOperation "IX" "@e[tag=TEMP]" SAssign "REGS" (renderReg arrayCounterReg)
-              , removeTag "TEMP" "@e[tag=TEMP]"
-              , execute $ EIf (eiScoreReg arrayCounterReg $ EIMatches (RInfEnd 1)) $ ERun $ runFunction ns modName
-              ]
-            , InterInstructions [
-                incrementUID
-              , scoreboardOperation "REGS" (renderReg reg) SAssign "UID" "UID"
-              , regOperation arrayCounterReg SAssign len
-              , execute $ EIf (eiScoreReg arrayCounterReg $ EIMatches (RInfEnd 1)) $ ERun $ runFunction ns modName
-              ]
-            ]
     GetNumInArray reg arr aix -> instr [
-          execute $ EAs "@e[tag=ARRAY]" 
-            $ EIf (EIScore "APTR" "@s" $ EIEQ "APTR" (renderReg arr)) 
-            $ EIf (EIScore "IX" "@s" $ EIEQ "IX" (renderReg aix)) 
-            $ ERun $ scoreboardOperation "REGS" (renderReg reg) SAssign "REGS" "@s" 
+          asArrayElem arr aix $ scoreboardOperation regs (renderReg reg) SAssign regs "@s" 
         ]
 
     GetEntityInArray reg arr aix -> instr [
-          execute $ EAs "@e[tag=ARRAY]" 
-            $ EIf (EIScore "APTR" "@s" $ EIEQ "APTR" (renderReg arr)) 
-            $ EIf (EIScore "IX" "@s" $ EIEQ "IX" (renderReg aix)) 
-            $ ERun $ scoreboardOperation "EPTR" (renderReg reg) SAssign "EPTR" "@s"
+          asArrayElem arr aix $ scoreboardOperation eptr (renderReg reg) SAssign eptr "@s"
         ]
-
-    SetNumInArray arr aix reg -> instr [
-          execute $ EAs "@e[tag=ARRAY]" 
-            $ EIf (EIScore "APTR" "@s" $ EIEQ "APTR" (renderReg arr)) 
-            $ EIf (EIScore "IX" "@s" $ EIEQ "IX" (renderReg aix))
-            $ ERun $ scoreboardOperation "REGS" "@s" SAssign "REGS" (renderReg reg)
-        ]
-
-    SetEntityInArray arr aix reg -> instr [
-          execute $ EAs "@e[tag=ARRAY]" 
-            $ EIf (EIScore "APTR" "@s" $ EIEQ "APTR" (renderReg arr)) 
-            $ EIf (EIScore "IX" "@s" $ EIEQ "IX" (renderReg aix))
-            $ ERun $ scoreboardOperation "EPTR" "@s" SAssign "EPTR" (renderReg reg)
-        ]
+    SetNumInArray arr aix reg -> instr $
+          asArrayElemOrNew arr aix $ scoreboardOperation regs "@s" SAssign regs (renderReg reg)
+        
+    SetEntityInArray arr aix reg -> instr $
+          asArrayElemOrNew arr aix $ scoreboardOperation eptr "@s" SAssign eptr (renderReg reg)
+        
     SetScoreboard obj player reg -> instr [
-          scoreboardOperation obj player SAssign "REGS" (renderReg reg)
+          scoreboardOperation obj player SAssign regs (renderReg reg)
         ]
-
+    MoveArray r1 r2 -> instr [
+          moveReg aptr r1 aptr r2
+        ]
+    GetArrayInArray reg arr aix -> instr [
+          asArrayElem arr aix $ moveScoreboard aptr (renderReg reg) aptr "@s"
+        ]
+    SetArrayInArray arr aix reg -> instr $
+          asArrayElemOrNew arr aix $ moveScoreboard aptr "@s" aptr (renderReg reg)
+            
+        
     where
         instr :: (Applicative f) => [McFunction] -> f [IntermediateResult]
         instr = pure . pure . InterInstructions
@@ -144,10 +121,30 @@ compileInstr i = asks nameSpace >>= \ns -> case i of
             , regOperation r s constReg
             ]
         incrementUID :: McFunction
-        incrementUID = addScoreboardForPlayer "UID" "UID" 1
+        incrementUID = addScoreboardForPlayer uid "UID" 1
         incrementCompUID :: CompC r => Sem r Int
         incrementCompUID = gets compUID <* modify (\s -> s{compUID = compUID s + 1})
 
+asArrayElemOrNew :: Register 'Array -> Register 'Number -> McFunction -> [McFunction]
+asArrayElemOrNew areg ixreg mcf = asArrayElemOrIfNotPresent areg ixreg mcf 
+    [ summonMarkerWithTags [arrayTag, tempTag]
+    , moveScoreboard aptr ("@e[tag=" <> renderTag tempTag <> "]") aptr (renderReg areg)
+    , moveScoreboard ix ("@e[tag=" <> renderTag tempTag <> "]") regs (renderReg ixreg)
+    , mcf
+    ]
+
+asArrayElemOrIfNotPresent :: Register 'Array -> Register 'Number -> McFunction -> [McFunction] -> [McFunction]
+asArrayElemOrIfNotPresent areg ixreg mcf inp = [
+      setReg elseReg 0 
+    , asArrayElem areg ixreg $ setReg elseReg 1
+    , execute $ EIf (eiScoreReg elseReg $ EIMatches (RBounded 1 1)) $ ERun $ asArrayElem areg ixreg mcf
+    ] <> map (execute . EIf (eiScoreReg elseReg $ EIMatches (RBounded 0 0)) . ERun) inp
+
+asArrayElem :: Register 'Array -> Register 'Number -> McFunction -> McFunction
+asArrayElem areg ixreg mcf = execute $ EAs "@e[tag=ARRAY]" 
+                        $ EIf (EIScore aptr "@s" $ EIEQ aptr (renderReg areg))
+                        $ EIf (EIScore ix "@s" $ EIEQ ix (renderReg ixreg))
+                        $ ERun mcf
 
 whenDebugMonoid :: (CompC r, Monoid a) => Sem r a -> Sem r a
 whenDebugMonoid s = asks debug >>= bool (pure mempty) s
@@ -164,23 +161,50 @@ elseReg = CustomReg "ELSE"
 arrayCounterReg :: Register 'Number
 arrayCounterReg = CustomReg "ARRAYCOUNTER"
 
+regs :: Objective
+regs = Objective "REGS"
+
+aptr :: Objective
+aptr = Objective "APTR"
+
+ix :: Objective
+ix = Objective "IX"
+
+eptr :: Objective
+eptr = Objective "EPTR"
+
+uid :: Objective
+uid = Objective "UID"
+
+tempTag :: Tag
+tempTag = Tag "TEMP"
+
+arrayTag :: Tag
+arrayTag = Tag "ARRAY"
+
 setReg :: Register 'Number -> Int -> McFunction
-setReg = setScoreboardForPlayer "REGS" . renderReg
+setReg = setScoreboardForPlayer regs . renderReg
 
 addReg :: Register 'Number -> Int -> McFunction
-addReg r = addScoreboardForPlayer "REGS" (renderReg r)
+addReg r = addScoreboardForPlayer regs (renderReg r)
 
 subReg :: Register 'Number -> Int -> McFunction
-subReg r = subScoreboardForPlayer "REGS" (renderReg r)
+subReg r = subScoreboardForPlayer regs (renderReg r)
 
 eiScoreReg :: Register 'Number -> EIScoreOp -> EIfParam
-eiScoreReg r = EIScore "REGS" (renderReg r)
+eiScoreReg r = EIScore regs (renderReg r)
 
 eiEqReg :: Register 'Number -> EIScoreOp
-eiEqReg r = EIEQ "REGS" (renderReg r)
+eiEqReg r = EIEQ regs (renderReg r)
 
 stScoreReg :: Register 'Number -> Store
-stScoreReg = StScore "REGS" . renderReg
+stScoreReg = StScore regs . renderReg
 
 regOperation :: Register 'Number -> SOperation -> Register 'Number -> McFunction
-regOperation r1 o r2 = scoreboardOperation "REGS" (renderReg r1) o "REGS" (renderReg r2)
+regOperation r1 o r2 = scoreboardOperation regs (renderReg r1) o regs (renderReg r2)
+
+moveReg :: Objective -> Register a -> Objective -> Register b -> McFunction
+moveReg o1 r1 o2 r2 = moveScoreboard o1 (renderReg r1) o2 (renderReg r2)
+
+comment :: Text -> IntermediateResult
+comment = InterInstructions . pure . McFunction . ("#" <>)

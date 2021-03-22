@@ -107,8 +107,6 @@ data Instruction =
     
     | RunCommandAsEntity Text (Register 'Entity)
 
-    | MakeArray (Register 'Array) (Register 'Number)
-    --          ^final register  ^length
     | GetNumInArray (Register 'Number) (Register 'Array) (Register 'Number)
     --              ^final register   ^array           ^index
     | GetEntityInArray (Register 'Entity) (Register 'Array) (Register 'Number)
@@ -121,8 +119,8 @@ data Instruction =
     --                 ^array           ^index            ^writing register
     | SetArrayInArray (Register 'Array) (Register 'Number) (Register 'Array)
     --                 ^array           ^index            ^writing register
-    | SetScoreboard Text Text (Register 'Number)
-    --     objective^    ^player
+    | SetScoreboard Objective Text (Register 'Number)
+    --                        ^player
     deriving (Show, Eq)
 
 data IntermediateResult = InterModule Name [IntermediateResult]
