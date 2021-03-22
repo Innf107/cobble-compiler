@@ -19,6 +19,7 @@ module Language.Cobble.Prelude (
     , whenAlt
     , ($$)
     , mapFromLeft
+    , censorM
     ) where
 
 import Relude hiding (
@@ -88,3 +89,10 @@ infixr 5 $$
 
 mapFromLeft :: (a -> b) -> Either a b -> b
 mapFromLeft = (`either`id)
+
+censorM :: (Member (Writer o) r) => (o -> Sem r ()) -> Sem r a -> Sem r a
+censorM f a = do
+    (fo, x) <- listen a
+    f fo
+    pure x
+

@@ -19,7 +19,7 @@ data TypeError = VarDoesNotExist LexInfo (Name NextPass)
 --                                  ^ expected
                | WrongAssignType LexInfo (Name NextPass) (Type NextPass) (Type NextPass)
 --                                    ^ expected
-               | WrongSetScoreboardType LexInfo Text Text (Type NextPass)
+               | WrongSetScoreboardType LexInfo Objective Text (Type NextPass)
                deriving (Show, Eq)
 
 -- TODO: Scope (Maybe should be handled in a different step?)

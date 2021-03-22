@@ -4,95 +4,93 @@ module Language.Cobble.MCAsm.McFunction where
 
 import Language.Cobble.Prelude
 
+import Language.Cobble.MCAsm.Types
+
 import qualified Data.Text as T
 
 import qualified GHC.Show as S
 import Language.Cobble.Shared
 
-newtype McFunction = McFunction { runMcFunction :: Text } deriving (Show, Eq)
+rawCommand :: (CompInnerC r) => Text -> Sem r ()
+rawCommand = tell . pure . McFunction
 
-newtype Objective = Objective { renderObjective :: Text } deriving (Show, Eq)
+addScoreboardObjective :: (CompInnerC r) => Objective -> Sem r ()
+addScoreboardObjective t = rawCommand $ "scoreboard objectives add " <> (renderObjective t) <> " dummy"
 
-newtype Tag = Tag { renderTag :: Text } deriving (Show, Eq)
-
-rawCommand :: Text -> McFunction
-rawCommand = McFunction 
-
-addScoreboardObjective :: Objective -> McFunction
-addScoreboardObjective t = McFunction $ "scoreboard objectives add " <> (renderObjective t) <> " dummy"
-
-removeScoreboardObjective :: Objective -> McFunction
-removeScoreboardObjective t = McFunction $ "scoreboard objectives remove " <> (renderObjective t)
+removeScoreboardObjective :: (CompInnerC r) => Objective -> Sem r ()
+removeScoreboardObjective t = rawCommand $ "scoreboard objectives remove " <> (renderObjective t)
 
 
 
-setScoreboardSidebar :: Objective -> McFunction
-setScoreboardSidebar objective = McFunction $ "scoreboard objectives setdisplay sidebar " <> renderObjective objective
+setScoreboardSidebar :: (CompInnerC r) =>  Objective -> Sem r ()
+setScoreboardSidebar objective = rawCommand $ "scoreboard objectives setdisplay sidebar " <> renderObjective objective
 
-scoreboardOperation :: Objective -> Text -> SOperation -> Objective -> Text -> McFunction
+scoreboardOperation :: (CompInnerC r) => Objective -> Text -> SOperation -> Objective -> Text -> Sem r ()
 scoreboardOperation o1 p1 sop o2 p2 =
-    McFunction $ "scoreboard players operation " <>p1 <> " " <> renderObjective o1 <> " " <> show sop
+    rawCommand $ "scoreboard players operation " <>p1 <> " " <> renderObjective o1 <> " " <> show sop
         <> " " <> p2 <> " " <> renderObjective o2
 
 data SOperation = SAdd | SSub | SMul | SDiv | SMod | SAssign | SMin | SMax | SSwap deriving Eq
 
-setScoreboardForPlayer :: Objective -> Text -> Int -> McFunction
+setScoreboardForPlayer :: (CompInnerC r) => Objective -> Text -> Int -> Sem r ()
 setScoreboardForPlayer objective player value =
-    McFunction $ "scoreboard players set " <> player <> " " <> renderObjective objective <> " " <> show value
+    rawCommand $ "scoreboard players set " <> player <> " " <> renderObjective objective <> " " <> show value
 
-addScoreboardForPlayer :: Objective -> Text -> Int -> McFunction
-addScoreboardForPlayer o p i = McFunction $ "scoreboard players add " <> p <> " " <> renderObjective o <> " " <> show i
+addScoreboardForPlayer :: (CompInnerC r) => Objective -> Text -> Int -> Sem r ()
+addScoreboardForPlayer o p i = rawCommand $ "scoreboard players add " <> p <> " " <> renderObjective o <> " " <> show i
 
-subScoreboardForPlayer :: Objective -> Text -> Int -> McFunction
-subScoreboardForPlayer o p i = McFunction $ "scoreboard players remove " <> p <> " " <> renderObjective o <> " " <> show i
+subScoreboardForPlayer :: (CompInnerC r) => Objective -> Text -> Int -> Sem r ()
+subScoreboardForPlayer o p i = rawCommand $ "scoreboard players remove " <> p <> " " <> renderObjective o <> " " <> show i
 
-resetScoreboardForPlayer :: Objective -> Text -> McFunction
-resetScoreboardForPlayer o p = McFunction $ "scoreboard players reset " <> p <> " " <> renderObjective o
+resetScoreboardForPlayer :: (CompInnerC r) => Objective -> Text -> Sem r ()
+resetScoreboardForPlayer o p = rawCommand $ "scoreboard players reset " <> p <> " " <> renderObjective o
 
-moveScoreboard :: Objective -> Text -> Objective -> Text -> McFunction
+moveScoreboard :: (CompInnerC r) => Objective -> Text -> Objective -> Text -> Sem r ()
 moveScoreboard o1 p1 o2 p2 = scoreboardOperation o1 p1 SAssign o2 p2
 
-summonMarkerWithTags :: [Tag] -> McFunction
+summonMarkerWithTags :: (CompInnerC r) => [Tag] -> Sem r ()
 summonMarkerWithTags = summonMarkerAtWithTags 0 0 0
 
-summonMarkerAtWithTags :: Pos -> Pos -> Pos -> [Tag] -> McFunction
-summonMarkerAtWithTags x y z tags = McFunction $ "summon minecraft:area_of_effect_cloud " <> T.unwords [show x, show y, show z]
+summonMarkerAtWithTags :: (CompInnerC r) => Pos -> Pos -> Pos -> [Tag] -> Sem r ()
+summonMarkerAtWithTags x y z tags = rawCommand $ "summon minecraft:area_of_effect_cloud " <> T.unwords [show x, show y, show z]
                                 <> " {Duration: 2147483647, Tags:["
                                 <> T.intercalate "," (map (show . renderTag) tags)
                                 <> "]}"
 
-removeTag :: Tag -> Text -> McFunction
-removeTag tag ent = McFunction $ "tag " <> ent <> " remove " <> renderTag tag   
+removeTag :: (CompInnerC r) => Tag -> Text -> Sem r ()
+removeTag tag ent = rawCommand $ "tag " <> ent <> " remove " <> renderTag tag
 
-runFunction :: Text -> QualifiedName -> McFunction
-runFunction ns f = McFunction $ "function " <> ns <> ":" <> show f
+runFunction :: (CompInnerC r) => Text -> QualifiedName -> Sem r ()
+runFunction ns f = rawCommand $ "function " <> ns <> ":" <> show f
 
-execute :: ExecuteAction -> McFunction
-execute = McFunction . mappend "execute " . runExecAction
+execute :: (CompInnerC r) => ExecuteAction r -> Sem r ()
+execute = censor (map (\f -> McFunction ("execute " <> runMcFunction f))) . runExecAction
 
-runExecAction :: ExecuteAction -> Text
+runExecAction :: (CompInnerC r) => ExecuteAction r -> Sem r ()
 runExecAction = \case
-    ERun (McFunction f) -> "run " <> f
-    EAs       e a     -> "as " <> e <> " " <> runExecAction a
-    EAt       e a     -> "at " <> e <> " " <> runExecAction a
-    EIn       d a     -> "in " <> show d <> " " <> runExecAction a
-    EAnchored d a     -> "anchored " <> show d <> " " <> runExecAction a
-    EStoreRes s a     -> "store result " <> show s <> " " <> runExecAction a
-    EStoreSuccess s a -> "store success " <> show s <> " " <> runExecAction a
-    EFacing efp a     -> "facing " <> show efp <> " " <> runExecAction a
-    EIf eip a         -> "if " <> show eip <> " " <> runExecAction a
+    ERun      f       -> censorMcFunction ("run "<>)                                     f
+    EAs       e a     -> censorMcFunction (\x -> "as " <> e <> " " <> x)                 $ runExecAction a
+    EAt       e a     -> censorMcFunction (\x -> "at " <> e <> " " <> x)                 $ runExecAction a
+    EIn       d a     -> censorMcFunction (\x -> "in " <> show d <> " " <> x)            $ runExecAction a
+    EAnchored d a     -> censorMcFunction (\x -> "anchored " <> show d <> " " <> x)      $ runExecAction a
+    EStoreRes s a     -> censorMcFunction (\x -> "store result " <> show s <> " " <> x)  $ runExecAction a
+    EStoreSuccess s a -> censorMcFunction (\x -> "store success " <> show s <> " " <> x) $ runExecAction a
+    EFacing efp a     -> censorMcFunction (\x -> "facing " <> show efp <> " " <> x)      $ runExecAction a
+    EIf eip a         -> censorMcFunction (\x -> "if " <> show eip <> " " <> x)          $ runExecAction a
 
-data ExecuteAction = EAs Text ExecuteAction
-                   | EAt Text ExecuteAction
-                   | EIn Dimension ExecuteAction
-                   | EAnchored Anchor ExecuteAction
-                   | EStoreRes Store ExecuteAction
-                   | EStoreSuccess Store ExecuteAction
-                   | EFacing EFaceParam ExecuteAction
-                   | EIf EIfParam ExecuteAction
-                   | ERun McFunction
+censorMcFunction :: (CompInnerC r) => (Text -> Text) -> Sem r a -> Sem r a
+censorMcFunction f = censor (map (McFunction . f . runMcFunction))
+
+data ExecuteAction r = EAs Text (ExecuteAction r)
+                   | EAt Text (ExecuteAction r)
+                   | EIn Dimension (ExecuteAction r)
+                   | EAnchored Anchor (ExecuteAction r)
+                   | EStoreRes Store (ExecuteAction r)
+                   | EStoreSuccess Store (ExecuteAction r)
+                   | EFacing EFaceParam (ExecuteAction r)
+                   | EIf EIfParam (ExecuteAction r)
+                   | ERun (Sem r ())
                    -- TODO: EAlign
-                   deriving Eq
 
 data EIfParam = EIBlock Pos Pos Pos Text
               | EIBlocks -- TODO
@@ -100,7 +98,6 @@ data EIfParam = EIBlock Pos Pos Pos Text
               | EIEntity Text
               | EIPredicate QualifiedName
               | EIScore Objective Text EIScoreOp
-              deriving Eq
 
 instance S.Show EIfParam where
     show = \case
@@ -126,7 +123,7 @@ instance S.Show EIScoreOp where
         EILE obj pl -> toString $ "<= " <> pl <> " " <> renderObjective obj
         EIGE obj pl -> toString $ ">= " <> pl <> " " <> renderObjective obj
         EIEQ obj pl -> toString $ "= " <> pl <> " " <> renderObjective obj
-        EIMatches r -> "matches " <> show r 
+        EIMatches r -> "matches " <> show r
   
 data Range = RInfEnd Int
            | RInfStart Int

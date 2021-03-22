@@ -6,8 +6,6 @@ import Language.Cobble.Prelude
 
 import Language.Cobble.Shared
 
-import Language.Cobble.MCAsm.McFunction
-
 -- Can use an unlimited amount of Registers
 
 type Name = QualifiedName
@@ -146,7 +144,15 @@ data CompEnv = CompEnv {
   , nameSpace::Text
 }
 
-type CompC r = Members '[Reader CompEnv, State CompState, Error McAsmError] r
+newtype McFunction = McFunction { runMcFunction :: Text } deriving (Show, Eq)
+
+newtype Objective = Objective { renderObjective :: Text } deriving (Show, Eq)
+
+newtype Tag = Tag { renderTag :: Text } deriving (Show, Eq)
+
+
+type CompC      r = Members '[Reader CompEnv, State CompState, Error McAsmError] r
+type CompInnerC r = Members '[Reader CompEnv, State CompState, Error McAsmError, Writer [McFunction]] r
 
 
 {-

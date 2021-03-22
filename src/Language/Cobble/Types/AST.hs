@@ -11,7 +11,7 @@ import Language.Cobble.Shared
 
 import Language.Cobble.Types.TH
 
-import Language.Cobble.MCAsm.McFunction
+import Language.Cobble.MCAsm.Types (Objective)
 
 type family Name (p :: Pass)
 
@@ -36,8 +36,8 @@ data Statement (p :: Pass) =
     | Assign (XAssign p) LexInfo (Name p) (Expr p)
     | While (XWhile p) LexInfo (Expr p) [Statement p]
     | DefStruct (XDefStruct p) LexInfo (Name p) [(Name p, Type p)]
-    | SetScoreboard (XSetScoreboard p) LexInfo Text Text (Expr p)
---                                    objective^    ^player
+    | SetScoreboard (XSetScoreboard p) LexInfo Objective Text (Expr p)
+--                                                       ^player
     | StatementX (XStatement p) LexInfo
 
 

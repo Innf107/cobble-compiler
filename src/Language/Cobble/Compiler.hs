@@ -71,7 +71,6 @@ rts :: (CompileC r) => Sem r A.Module
 rts = do
     pure $ A.Module "RTS" [
           MoveNumLit stackPTRReg 0 
-        , MakeArray stackReg stackPTRReg
         ]
 
 compile :: (CompileC r) => S.Module 'Codegen -> Sem r A.Module

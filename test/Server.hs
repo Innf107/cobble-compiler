@@ -23,7 +23,7 @@ test :: IO ()
 test = do
     testWithServer [
             Module @'Typecheck () "test" [
-                SetScoreboard () dli "TestScore" "TestPlayer" (IntLit () dli 5)
+                SetScoreboard () dli testScore "TestPlayer" (IntLit () dli 5)
             ]
         ] [("A basic SetScoreboard works",
             ["scoreboard objectives add TestScore dummy", "function test:test", "scoreboard players get TestPlayer TestScore"],
@@ -31,6 +31,9 @@ test = do
 
 dli :: LexInfo
 dli = LexInfo 0 0 "Test"
+
+testScore :: Objective
+testScore = Objective "TestScore"
 
 type Description = Text
 
