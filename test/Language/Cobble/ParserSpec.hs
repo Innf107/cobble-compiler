@@ -1,4 +1,3 @@
-{-# LANGUAGE NoImplicitPrelude, OverloadedStrings, BlockArguments #-}
 module Language.Cobble.ParserSpec where
 
 import Language.Cobble.Prelude.Parser hiding (assign)

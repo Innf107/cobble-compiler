@@ -1,5 +1,4 @@
-{-#LANGUAGE NoImplicitPrelude, TemplateHaskell, DataKinds, PolyKinds, TypeOperators, FlexibleContexts#-}
-{-# LANGUAGE GADTs, ScopedTypeVariables, LambdaCase, BlockArguments #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Language.Cobble.Util.Polysemy.Time (
       Time
     , getTime

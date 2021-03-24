@@ -1,5 +1,3 @@
-{-#LANGUAGE NoImplicitPrelude, DataKinds, NamedFieldPuns, LambdaCase, BlockArguments, OverloadedStrings#-}
-{-# LANGUAGE TupleSections #-}
 module Language.Cobble.Parser where
 
 import Language.Cobble.Prelude.Parser hiding (assign)

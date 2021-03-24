@@ -1,4 +1,3 @@
-{-# LANGUAGE NoImplicitPrelude, OverloadedStrings #-}
 -- | This module contains behaviour and types that are shared between
 -- the Cobble and MCAsm Compiler
 module Language.Cobble.Shared where

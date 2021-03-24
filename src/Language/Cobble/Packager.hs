@@ -1,4 +1,3 @@
-{-# LANGUAGE NoImplicitPrelude, DataKinds, ConstraintKinds, KindSignatures, ScopedTypeVariables, OverloadedStrings #-}
 module Language.Cobble.Packager where
 
 import Language.Cobble.Prelude

@@ -1,9 +1,3 @@
-{-# LANGUAGE FlexibleInstances, NoImplicitPrelude, MultiParamTypeClasses, BlockArguments, LambdaCase#-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module Language.Cobble.Prelude (
       module Relude
     , module Relude.Extra

@@ -1,7 +1,4 @@
-{-# LANGUAGE NoImplicitPrelude, DataKinds, ConstraintKinds, PostfixOperators, TypeApplications #-}
-{-# LANGUAGE LambdaCase, MultiWayIf, FlexibleContexts, GADTs, ScopedTypeVariables #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE NoOverloadedStrings #-}
 module Language.Cobble.Parser.Tokenizer where
 
 import Language.Cobble.Prelude

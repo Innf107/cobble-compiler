@@ -1,6 +1,4 @@
-{-# LANGUAGE NoImplicitPrelude, ConstraintKinds, DataKinds, LambdaCase, TemplateHaskell, OverloadedStrings#-}
-{-# LANGUAGE FlexibleContexts, TypeFamilies, TypeApplications, ViewPatterns, BlockArguments #-}
-{-# LANGUAGE ScopedTypeVariables, RankNTypes #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Language.Cobble.Compiler where
 
 import Language.Cobble.Prelude

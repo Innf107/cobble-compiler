@@ -1,7 +1,3 @@
-{-# LANGUAGE NoImplicitPrelude, DataKinds, LambdaCase, OverloadedStrings, FlexibleInstances #-}
-{-# LANGUAGE TypeApplications, KindSignatures, RankNTypes, ScopedTypeVariables#-}
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Language.Cobble.Types.PrettyPrint where
 

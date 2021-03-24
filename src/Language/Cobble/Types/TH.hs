@@ -1,5 +1,4 @@
-{-#LANGUAGE NoImplicitPrelude, TemplateHaskell, BlockArguments, LambdaCase, OverloadedStrings#-}
-{-#LANGUAGE PatternSynonyms#-}
+{-#LANGUAGE TemplateHaskell #-}
 module Language.Cobble.Types.TH where
 
 import Language.Cobble.Prelude

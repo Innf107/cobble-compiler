@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.3.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e699064a5a853926971d12a3504e324ba8048edcf329026c7f289869ef47f527
+-- hash: d20a5e217d8ba6d52af15c23606fb7b18640811da5642a1fec8e2631363514bd
 
 name:           cobble
 version:        0.1.0.0
@@ -55,6 +55,32 @@ library
       Paths_cobble
   hs-source-dirs:
       src
+  default-extensions:
+      LambdaCase
+      NoImplicitPrelude
+      OverloadedStrings
+      DataKinds
+      TypeFamilies
+      FlexibleInstances
+      FlexibleContexts
+      RankNTypes
+      MultiParamTypeClasses
+      PatternSynonyms
+      StandaloneDeriving
+      GADTs
+      ConstraintKinds
+      ScopedTypeVariables
+      BlockArguments
+      TypeOperators
+      NamedFieldPuns
+      MultiWayIf
+      PostfixOperators
+      KindSignatures
+      TypeApplications
+      PolyKinds
+      ViewPatterns
+      TupleSections
+      DisambiguateRecordFields
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wno-unused-imports
   build-depends:
       base >=4.7 && <5
@@ -77,6 +103,32 @@ executable cobble
       Paths_cobble
   hs-source-dirs:
       app
+  default-extensions:
+      LambdaCase
+      NoImplicitPrelude
+      OverloadedStrings
+      DataKinds
+      TypeFamilies
+      FlexibleInstances
+      FlexibleContexts
+      RankNTypes
+      MultiParamTypeClasses
+      PatternSynonyms
+      StandaloneDeriving
+      GADTs
+      ConstraintKinds
+      ScopedTypeVariables
+      BlockArguments
+      TypeOperators
+      NamedFieldPuns
+      MultiWayIf
+      PostfixOperators
+      KindSignatures
+      TypeApplications
+      PolyKinds
+      ViewPatterns
+      TupleSections
+      DisambiguateRecordFields
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
@@ -101,7 +153,7 @@ test-suite cobble-test
   other-modules:
       Language.Cobble.CompilerSpec
       Language.Cobble.MCAsm.CompilerSpec
-      Language.Cobble.MCAsm.TypesSpec
+      Language.Cobble.MCAsm.McFunctionSpec
       Language.Cobble.Parser.TokenizerSpec
       Language.Cobble.ParserSpec
       Language.Cobble.QualifierSpec
@@ -115,6 +167,32 @@ test-suite cobble-test
       Paths_cobble
   hs-source-dirs:
       test
+  default-extensions:
+      LambdaCase
+      NoImplicitPrelude
+      OverloadedStrings
+      DataKinds
+      TypeFamilies
+      FlexibleInstances
+      FlexibleContexts
+      RankNTypes
+      MultiParamTypeClasses
+      PatternSynonyms
+      StandaloneDeriving
+      GADTs
+      ConstraintKinds
+      ScopedTypeVariables
+      BlockArguments
+      TypeOperators
+      NamedFieldPuns
+      MultiWayIf
+      PostfixOperators
+      KindSignatures
+      TypeApplications
+      PolyKinds
+      ViewPatterns
+      TupleSections
+      DisambiguateRecordFields
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5

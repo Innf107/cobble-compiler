@@ -1,5 +1,3 @@
-{-#LANGUAGE NoImplicitPrelude, ScopedTypeVariables, OverloadedStrings, DataKinds#-}
-{-# LANGUAGE MultiWayIf, LambdaCase #-}
 module Main where
 
 import Language.Cobble.Prelude

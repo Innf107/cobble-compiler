@@ -1,5 +1,3 @@
-{-#LANGUAGE NoImplicitPrelude, DataKinds, BlockArguments, OverloadedStrings#-}
-{-# LANGUAGE TypeApplications, NamedFieldPuns, DisambiguateRecordFields #-}
 module Language.Cobble where
 
 import Language.Cobble.Prelude hiding ((<.>))

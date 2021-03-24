@@ -1,7 +1,5 @@
 {-#OPTIONS_GHC -Wno-orphans#-}
-{-# LANGUAGE NoImplicitPrelude,  DataKinds, TemplateHaskell#-}
-{-# LANGUAGE PatternSynonyms, TypeFamilies #-}
-{-# LANGUAGE StandaloneDeriving, FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell#-}
 module Language.Cobble.Types.AST.QualifyNames where
   
 import Language.Cobble.Prelude

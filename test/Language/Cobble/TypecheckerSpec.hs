@@ -1,5 +1,3 @@
-{-# LANGUAGE NoImplicitPrelude, DataKinds, BlockArguments, OverloadedStrings #-}
-
 module Language.Cobble.TypecheckerSpec where
 
 import Language.Cobble.Prelude

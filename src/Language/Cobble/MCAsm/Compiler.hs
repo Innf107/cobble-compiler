@@ -1,7 +1,4 @@
-{-# LANGUAGE NoImplicitPrelude, LambdaCase, DataKinds, ConstraintKinds, OverloadedStrings #-}
-{-# LANGUAGE NamedFieldPuns, ScopedTypeVariables #-}
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Language.Cobble.MCAsm.Compiler where
 
 import Language.Cobble.Prelude hiding (ix)

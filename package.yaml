@@ -68,3 +68,30 @@ tests:
     - bytestring
     - random
     - cereal
+
+default-extensions:
+  - LambdaCase
+  - NoImplicitPrelude
+  - OverloadedStrings
+  - DataKinds
+  - TypeFamilies
+  - FlexibleInstances
+  - FlexibleContexts
+  - RankNTypes
+  - MultiParamTypeClasses
+  - PatternSynonyms
+  - StandaloneDeriving
+  - GADTs
+  - ConstraintKinds
+  - ScopedTypeVariables
+  - BlockArguments
+  - TypeOperators
+  - NamedFieldPuns
+  - MultiWayIf
+  - PostfixOperators
+  - KindSignatures
+  - TypeApplications
+  - PolyKinds
+  - ViewPatterns
+  - TupleSections
+  - DisambiguateRecordFields

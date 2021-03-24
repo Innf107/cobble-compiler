@@ -1,5 +1,3 @@
-{-# LANGUAGE NoImplicitPrelude, OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
 module Language.Cobble.MCAsm.McFunction where
 
 import Language.Cobble.Prelude

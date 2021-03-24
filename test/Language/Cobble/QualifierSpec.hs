@@ -1,4 +1,3 @@
-{-# LANGUAGE NoImplicitPrelude, DataKinds, BlockArguments, OverloadedStrings #-}
 module Language.Cobble.QualifierSpec where
 
 import Language.Cobble.Prelude

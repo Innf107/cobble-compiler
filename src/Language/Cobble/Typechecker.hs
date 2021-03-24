@@ -1,5 +1,3 @@
-{-#LANGUAGE NoImplicitPrelude, ConstraintKinds, DataKinds, LambdaCase, TupleSections#-}
-{-# LANGUAGE ViewPatterns #-}
 module Language.Cobble.Typechecker where
 
 import Language.Cobble.Prelude

@@ -1,5 +1,3 @@
-{-# LANGUAGE NoImplicitPrelude, MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
 module Language.Cobble.Util.Maybe where
 
 import Language.Cobble.Prelude

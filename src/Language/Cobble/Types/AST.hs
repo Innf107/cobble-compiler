@@ -1,7 +1,4 @@
-{-# LANGUAGE NoImplicitPrelude, DataKinds, TypeFamilies, StandaloneDeriving, FlexibleInstances #-}
-{-# LANGUAGE GADTs, RankNTypes, PatternSynonyms, TemplateHaskell#-}
-{-# LANGUAGE LambdaCase, OverloadedStrings #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TemplateHaskell#-}
 module Language.Cobble.Types.AST where
 
 import Language.Cobble.Prelude

@@ -1,5 +1,4 @@
-{-# LANGUAGE NoImplicitPrelude, DataKinds, ConstraintKinds, LambdaCase, OverloadedStrings #-}
-{-# LANGUAGE TypeApplications, TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Language.Cobble.Qualifier where
 
 import Language.Cobble.Prelude

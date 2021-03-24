@@ -1,4 +1,3 @@
-{-# LANGUAGE NoImplicitPrelude, LambdaCase #-}
 module Lib where
 
 import Relude

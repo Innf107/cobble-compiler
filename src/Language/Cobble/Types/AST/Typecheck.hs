@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
-{-# LANGUAGE DataKinds, TemplateHaskell #-}
-{-# LANGUAGE PatternSynonyms, TypeFamilies #-}
-{-# LANGUAGE StandaloneDeriving, FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Language.Cobble.Types.AST.Typecheck where
+
+import Language.Cobble.Prelude
 
 import Language.Cobble.Types.AST
 import Language.Cobble.Types.TH
