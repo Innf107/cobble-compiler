@@ -32,6 +32,7 @@ clean = InterModule "clean" <$> instr do
     removeScoreboardObjective eptr
     removeScoreboardObjective uid
     removeScoreboardObjective aptr
+    removeScoreboardObjective aelem
     removeScoreboardObjective ix
 
 hoistModules :: (CompC r) => IntermediateResult -> Sem r [CompiledModule]
