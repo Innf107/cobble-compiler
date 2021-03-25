@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d20a5e217d8ba6d52af15c23606fb7b18640811da5642a1fec8e2631363514bd
+-- hash: 0a9e14936e21abc58f424c52a6da2152f2d7c99bd09ec9bd66f25146e801949b
 
 name:           cobble
 version:        0.1.0.0
@@ -81,6 +81,8 @@ library
       ViewPatterns
       TupleSections
       DisambiguateRecordFields
+      ImportQualifiedPost
+      NegativeLiterals
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wno-unused-imports
   build-depends:
       base >=4.7 && <5
@@ -129,6 +131,8 @@ executable cobble
       ViewPatterns
       TupleSections
       DisambiguateRecordFields
+      ImportQualifiedPost
+      NegativeLiterals
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
@@ -193,6 +197,8 @@ test-suite cobble-test
       ViewPatterns
       TupleSections
       DisambiguateRecordFields
+      ImportQualifiedPost
+      NegativeLiterals
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5

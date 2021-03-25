@@ -5,6 +5,8 @@ import Language.Cobble.Prelude
 
 import Language.Cobble.Shared
 
+import GHC.Show qualified as S
+
 -- Can use an unlimited amount of Registers
 
 type Name = QualifiedName
@@ -86,24 +88,36 @@ data Instruction =
       MoveNumReg (Register 'Number) (Register 'Number)
     | MoveNumLit (Register 'Number) Int
     | MoveArray (Register 'Array) (Register 'Array)
+    | MoveEntity (Register 'Entity) (Register 'Entity)
 
     | AddReg (Register 'Number) (Register 'Number)
     | AddLit (Register 'Number) Int
+    | SubReg (Register 'Number) (Register 'Number)
     | SubLit (Register 'Number) Int
+    | MulReg (Register 'Number) (Register 'Number)
+    | MulLit (Register 'Number) Int
+    | DivReg (Register 'Number) (Register 'Number)
     | DivLit (Register 'Number) Int
+
+--  | Signum (Register 'Number) -- Signum(x) = Min(Max(x, -1), 1)
+    | Min (Register 'Number) (Register 'Number)
+    | Max (Register 'Number) (Register 'Number)
 
     | Section Name [Instruction]
     | Call Name
-    | CallEq (Register 'Number) (Register 'Number) Name
-    | CallElse Name
-    | Then
+    | ExecInRange (Register 'Number) Range [McFunction]
+    | ExecEQ (Register 'Number) (Register 'Number) [McFunction]
+    | ExecLT (Register 'Number) (Register 'Number) [McFunction]
+    | ExecGT (Register 'Number) (Register 'Number) [McFunction]
+    | ExecLE (Register 'Number) (Register 'Number) [McFunction]
+    | ExecGE (Register 'Number) (Register 'Number) [McFunction]
 
-    | GetCommandResult (Register 'Number) Text
+    | GetCommandResult (Register 'Number) McFunction
 
     | GetBySelector (Register 'Entity) Text
     
-    | RunCommandAsEntity Text (Register 'Entity)
-
+    | RunCommandAsEntity (Register 'Entity) McFunction
+    
     | GetNumInArray (Register 'Number) (Register 'Array) (Register 'Number)
     --              ^final register   ^array           ^index
     | GetEntityInArray (Register 'Entity) (Register 'Array) (Register 'Number)
@@ -154,3 +168,13 @@ type CompC      r = Members '[Reader CompEnv, State CompState, Error McAsmError]
 type CompInnerC r = Members '[Reader CompEnv, State CompState, Error McAsmError, Writer [McFunction]] r
 
 
+data Range = RInfEnd Int
+           | RInfStart Int
+           | RBounded Int Int
+           deriving (Eq)
+
+instance S.Show Range where
+    show = \case
+        RInfEnd i           -> show i <> ".."
+        RInfStart i         ->  ".." <> show i
+        RBounded minr maxr  ->  show minr <> ".." <> show maxr

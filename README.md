@@ -36,11 +36,9 @@ if an entity referenced by an Entity Pointer dies or gets referenced by a differ
 **Note**: Making one EP point to multiple entities is technically not impossible,
 but will likely result in undefined behaviour (that's why EPs use [UIDs](#uid)).
 
-**Note**: Despite the name, multiple Entity Pointers *CANNOT* point to the same entity.
-If an entity is assigned to an EP, and is then later reassigned to a second EP, the first
-one now becomes *empty*.
-
 #### <a id=rep-arrays></a> **Arrays**
+TODO: Array Elements now use `AELEM` instead of `APTR` to allow nested arrays
+
 Because they use two different scoreboards, arrays are probably the most complicated primitive type.
 Elements of arrays are represented as [marker entities](#marker-entity) with
 two scores. The first scoreboard, `APTR` is very similar to the `EPTR` scorebaord for entites.

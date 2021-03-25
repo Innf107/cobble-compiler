@@ -20,12 +20,12 @@ removeScoreboardObjective t = rawCommand $ "scoreboard objectives remove " <> (r
 
 
 
-setScoreboardSidebar :: (CompInnerC r) =>  Objective -> Sem r ()
+setScoreboardSidebar :: (CompInnerC r) => Objective -> Sem r ()
 setScoreboardSidebar objective = rawCommand $ "scoreboard objectives setdisplay sidebar " <> renderObjective objective
 
 scoreboardOperation :: (CompInnerC r) => Objective -> Text -> SOperation -> Objective -> Text -> Sem r ()
 scoreboardOperation o1 p1 sop o2 p2 =
-    rawCommand $ "scoreboard players operation " <>p1 <> " " <> renderObjective o1 <> " " <> show sop
+    rawCommand $ "scoreboard players operation " <> p1 <> " " <> renderObjective o1 <> " " <> show sop
         <> " " <> p2 <> " " <> renderObjective o2
 
 data SOperation = SAdd | SSub | SMul | SDiv | SMod | SAssign | SMin | SMax | SSwap deriving Eq
@@ -50,9 +50,9 @@ summonMarkerWithTags :: (CompInnerC r) => [Tag] -> Sem r ()
 summonMarkerWithTags = summonMarkerAtWithTags 0 0 0
 
 summonMarkerAtWithTags :: (CompInnerC r) => Pos -> Pos -> Pos -> [Tag] -> Sem r ()
-summonMarkerAtWithTags x y z tags = rawCommand $ "summon minecraft:area_of_effect_cloud " <> T.unwords [show x, show y, show z]
+summonMarkerAtWithTags x y z tags = rawCommand $ "summon minecraft:area_effect_cloud " <> T.unwords [show x, show y, show z]
                                 <> " {Duration: 2147483647, Tags:["
-                                <> T.intercalate "," (map (show . renderTag) tags)
+                                <> T.intercalate "," (map renderTag tags)
                                 <> "]}"
 
 removeTag :: (CompInnerC r) => Tag -> Text -> Sem r ()
@@ -123,16 +123,7 @@ instance S.Show EIScoreOp where
         EIEQ obj pl -> toString $ "= " <> pl <> " " <> renderObjective obj
         EIMatches r -> "matches " <> show r
   
-data Range = RInfEnd Int
-           | RInfStart Int
-           | RBounded Int Int
-           deriving (Eq)
            
-instance S.Show Range where
-    show = \case
-        RInfEnd i           -> show i <> ".."
-        RInfStart i         ->  ".." <> show i
-        RBounded minr maxr  ->  show minr <> ".." <> show maxr
 
 data EFaceParam = EFEntity Text Anchor
                 | EFPos Pos Pos Pos
