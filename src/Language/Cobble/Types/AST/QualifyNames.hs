@@ -35,3 +35,5 @@ type instance XVar 'QualifyNames = ()
 type instance XExpr 'QualifyNames = ()
 
 type instance Name 'QualifyNames = Text
+
+type instance XTCon 'QualifyNames = ()

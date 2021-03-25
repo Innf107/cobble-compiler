@@ -38,7 +38,7 @@ isIdentLetter :: Char -> Bool
 isIdentLetter c = isAlphaNum c || c `elem` "_"
 
 reserved :: [String]
-reserved = ["True", "False", "defmacro", "void", "let", "while", "int", "bool"]
+reserved = ["True", "False", "defmacro", "void", "let", "while"]
 
 reservedOps :: [String]
 reservedOps = [":", ";", ",", "=", "=>"]

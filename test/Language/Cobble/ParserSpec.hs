@@ -21,9 +21,9 @@ spec = do
                     `shouldBe`
                     Right (DefVoid () (LexInfo 1 1 "Test") "proc" [] [])
             it "parses correctly with inputs" do
-                testParse defVoid "void proc(x : int, y: bool){}"
+                testParse defVoid "void proc(x : Int, y: Bool){}"
                     `shouldBe`
-                    Right (DefVoid () (LexInfo 1 1 "Test") "proc" [("x", IntT), ("y", BoolT)] [])
+                    Right (DefVoid () (LexInfo 1 1 "Test") "proc" [("x", intT), ("y", boolT)] [])
             it "parses correctly with a body" do
                 testParse defVoid (T.unlines [
                       "void proc()"
@@ -43,55 +43,55 @@ spec = do
                     Right (DefVoid () (LexInfo 1 1 "Test") "proc" [] [])
         describe "defFun" do
             it "parses correct inputs without params and an empty body (with braces)" do
-                testParse defFun "int f(){} => 5"
+                testParse defFun "Int f(){} => 5"
                     `shouldBe`
-                    Right (DefFun () (LexInfo 1 1 "Test") "f" [] [] (IntLit () (LexInfo 1 14 "Test") 5) IntT)
+                    Right (DefFun () (LexInfo 1 1 "Test") "f" [] [] (IntLit () (LexInfo 1 14 "Test") 5) intT)
             it "parses correct inputs without params and an empty body (without braces)" do
-                testParse defFun "int f() => 5"
+                testParse defFun "Int f() => 5"
                     `shouldBe`
-                    Right (DefFun () (LexInfo 1 1 "Test") "f" [] [] (IntLit () (LexInfo 1 12 "Test") 5) IntT)
+                    Right (DefFun () (LexInfo 1 1 "Test") "f" [] [] (IntLit () (LexInfo 1 12 "Test") 5) intT)
             it "parses correct inputs with params" do
-                testParse defFun "int idInt(x : int, y: bool) => x"
+                testParse defFun "Int idInt(x : Int, y: Bool) => x"
                     `shouldBe`
-                    Right (DefFun () (LexInfo 1 1 "Test") "idInt" [("x", IntT), ("y", BoolT)] [] (Var () (LexInfo 1 32 "Test") "x") IntT)
+                    Right (DefFun () (LexInfo 1 1 "Test") "idInt" [("x", intT), ("y", boolT)] [] (Var () (LexInfo 1 32 "Test") "x") intT)
             it "parses correct inputs with a body" do
                 testParse defFun (T.unlines [
-                      "int someFunction(x: int)"
+                      "Int someFunction(x: Int)"
                     , "{"
                     , "    let y = x;"
                     , "} => f(y)"
                     ])
                     `shouldBe`
-                    Right (DefFun () (LexInfo 1 1 "Test") "someFunction" [("x", IntT)]
+                    Right (DefFun () (LexInfo 1 1 "Test") "someFunction" [("x", intT)]
                         [ Decl () (LexInfo 3 5 "Test") "y" Nothing (Var () (LexInfo 3 13 "Test") "x")]
-                        (FCall () (LexInfo 4 6 "Test") "f" [Var () (LexInfo 4 8 "Test") "y"]) IntT)
+                        (FCall () (LexInfo 4 6 "Test") "f" [Var () (LexInfo 4 8 "Test") "y"]) intT)
             it "can be chosen by statement" do
                 testParse statement (T.unlines [
-                      "int someFunction(x: int)"
+                      "Int someFunction(x: Int)"
                     , "{"
                     , "    let y = x;"
                     , "} => f(y)"
                     ])
                     `shouldBe`
-                    Right (DefFun () (LexInfo 1 1 "Test") "someFunction" [("x", IntT)]
+                    Right (DefFun () (LexInfo 1 1 "Test") "someFunction" [("x", intT)]
                         [ Decl () (LexInfo 3 5 "Test") "y" Nothing (Var () (LexInfo 3 13 "Test") "x")]
-                        (FCall () (LexInfo 4 6 "Test") "f" [Var () (LexInfo 4 8 "Test") "y"]) IntT)
+                        (FCall () (LexInfo 4 6 "Test") "f" [Var () (LexInfo 4 8 "Test") "y"]) intT)
         describe "decl" do
             it "parses correct inputs without a type sig" do
                 testParse decl "let x = 5"
                     `shouldBe`
                     Right (Decl () (LexInfo 1 1 "Test") "x" Nothing (IntLit () (LexInfo 1 9 "Test") 5))
             it "parses correct inputs with a type sig" do
-                testParse decl "let x : int = 5"
+                testParse decl "let x : Int = 5"
                     `shouldBe`
-                    Right (Decl () (LexInfo 1 1 "Test") "x" (Just IntT) (IntLit () (LexInfo 1 15 "Test") 5))
+                    Right (Decl () (LexInfo 1 1 "Test") "x" (Just intT) (IntLit () (LexInfo 1 15 "Test") 5))
             it "can be chosen by statement" do
                 testParse statement "let x = 5"
                     `shouldBe`
                     Right (Decl () (LexInfo 1 1 "Test") "x" Nothing (IntLit () (LexInfo 1 9 "Test") 5))
-                testParse statement "let x : int = 5"
+                testParse statement "let x : Int = 5"
                     `shouldBe`
-                    Right (Decl () (LexInfo 1 1 "Test") "x" (Just IntT) (IntLit () (LexInfo 1 15 "Test") 5))
+                    Right (Decl () (LexInfo 1 1 "Test") "x" (Just intT) (IntLit () (LexInfo 1 15 "Test") 5))
         describe "assign" do
             it "parses correct inputs" do
                 testParse assign "x = 5"
@@ -133,8 +133,6 @@ spec = do
                           Decl () (LexInfo 3 5 "Test") "x" Nothing (IntLit () (LexInfo 3 13 "Test") 5)
                         , Assign () (LexInfo 4 5 "Test") "x" (IntLit () (LexInfo 4 9 "Test") 6)
                         ])
-        describe "callStatementMacro" pass
-        -- TODO
     describe "expr" do
         describe "fcall" do
             it "parses correct inputs without parameters" do

@@ -10,6 +10,8 @@ import Language.Cobble.Types.TH
 
 import Language.Cobble.MCAsm.Types (Objective)
 
+import GHC.Show qualified as S
+
 type family Name (p :: Pass)
 
 -- Top level module.
@@ -63,7 +65,14 @@ type family XBoolLit (p :: Pass)
 type family XVar (p :: Pass)
 type family XExpr (p :: Pass)
 
-data Type (p :: Pass) = IntT | BoolT | EntityT | StructT (Name p)
+data Kind = KStar | KFun Kind Kind deriving (Eq)
+
+
+data Type (p :: Pass) = TCon (Name p) (XTCon p)
+                      | TApp (Type p) (Type p)
+                      | TVar (Name p)
+
+type family XTCon (p :: Pass)
 
 type FileName = Text
 
@@ -74,9 +83,31 @@ data LexInfo = LexInfo {
     , file :: FileName
     } deriving (Show, Eq)
 
-instance (Name p1 ~ Name p2) => Convert (Type p1) (Type p2) where
+instance (Name p1 ~ Name p2, XTCon p1 ~ XTCon p2) => Convert (Type p1) (Type p2) where
     conv = \case
-        IntT -> IntT
-        BoolT -> BoolT
-        EntityT -> EntityT
-        StructT n -> StructT n
+        TCon n k   -> TCon n k
+        TApp t1 t2 -> TApp (conv t1) (conv t2)
+        TVar n     -> TVar n
+
+instance S.Show Kind where
+    show KStar = "*"
+    show (KFun k1 k2) = "(" <> show k1 <> ") -> (" <> show k2 <> ")"
+
+class TyLit n where
+    tyIntT :: n
+    tyBoolT :: n
+    
+instance TyLit QualifiedName where
+    tyIntT = "Prelude.Int"
+    tyBoolT = "Prelude.Bool"
+instance TyLit Text where
+    tyIntT = "Int"
+    tyBoolT = "Bool"
+
+intT, boolT :: (HasStar (XTCon p), TyLit (Name p)) => Type p
+intT  = TCon tyIntT star
+boolT = TCon tyBoolT star
+
+class HasStar t where star :: t
+instance HasStar () where star = ()
+instance HasStar Kind where star = KStar

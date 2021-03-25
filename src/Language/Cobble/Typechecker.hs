@@ -124,7 +124,7 @@ typecheck = \case
     DefStructU l name (conv -> fields) -> pure $ DefStructT l name fields -- TODO: Add to state map
     SetScoreboardU l obj player ex -> do
         ex' <- typeOf ex
-        if (exprType ex' /= IntT)
+        if (exprType ex' /= intT)
         then throw (WrongSetScoreboardType l obj player (exprType ex'))
         else pure (SetScoreboardT l obj player ex')
 

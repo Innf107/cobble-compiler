@@ -17,6 +17,7 @@ data Scope = Scope {
     _prefix::QualifiedName
   , _typeNames::[Text]
   , _varFunNames::[Text]
+  , _typeKinds::Map Text Kind
   }
 
 makeLenses 'Scope
@@ -36,7 +37,7 @@ askPref = get @[Scope] <&> view (_head . prefix)
 
 localPref :: (QualifyC r) => (QualifiedName -> QualifiedName) -> Sem r a -> Sem r a
 localPref f s = do
-    modify @[Scope] (\ss -> Scope (f (ss ^. _head . prefix)) [] [] : ss)
+    modify @[Scope] (\ss -> Scope (f (ss ^. _head . prefix)) [] [] mempty : ss)
     s <* modify @[Scope] (view _tail)
 
 addName :: (QualifyC r) => LexInfo -> Text -> Sem r ()
@@ -46,12 +47,14 @@ addName li n = do
         then throw (VarAlreadyDeclaredInScope li n)
         else modify @[Scope] (& _head . varFunNames %~ cons n)
 
-addType :: (QualifyC r) => LexInfo -> Text -> Sem r ()
-addType li n = do
+addType :: (QualifyC r) => LexInfo -> Text -> Kind -> Sem r ()
+addType li n k = do
     ns <- get @[Scope] <&> view (_head . typeNames)
     if n `elem` ns
         then throw (VarAlreadyDeclaredInScope li n)
-        else modify @[Scope] (& _head . typeNames %~ cons n)
+        else do
+            modify @[Scope] (& _head . typeNames %~ cons n)
+            modify @[Scope] (& _head . typeKinds %~ insert n k)
 
 qualifyMod :: (QualifyC r) => Module 'QualifyNames -> Sem r (Module NextPass)
 qualifyMod (Module () n sts) = Module () (makeQName n) <$> traverse qualifyStatement sts
@@ -104,7 +107,7 @@ qualifyStatement = \case
         pure $ While () li c' body'
     DefStruct () li n fs -> do
         n' <- askPref <&> (.: n)
-        addType li n
+        addType li n KStar
         fs' <- localPref (.: n) $ traverse (bitraverse (\x -> askPref <&> (\a -> a .: x)) (qualifyType li)) fs
         pure $ DefStruct () li n' fs'
 
@@ -120,10 +123,9 @@ qualifyExp = \case
 
 qualifyType :: (QualifyC r) => LexInfo -> Type 'QualifyNames -> Sem r (Type NextPass)
 qualifyType li = \case
-    IntT -> pure IntT
-    BoolT -> pure BoolT
-    EntityT -> pure EntityT
-    StructT n -> StructT <$> lookupTypeName n li
+    TCon n k   -> TCon <$> lookupTypeName n li <*> lookupKind n li
+    TApp t1 t2 -> TApp <$> qualifyType li t1 <*> qualifyType li t2
+    TVar v     -> pure $ TVar (QualifiedName [v])
 
 lookupName :: (QualifyC r) => Text -> LexInfo -> Sem r QualifiedName
 lookupName n li = get @[Scope] >>= \scopes -> maybe (throw (NameNotFound li n)) pure $
@@ -132,4 +134,8 @@ lookupName n li = get @[Scope] >>= \scopes -> maybe (throw (NameNotFound li n)) 
 lookupTypeName :: (QualifyC r) => Text -> LexInfo -> Sem r QualifiedName
 lookupTypeName n li = get @[Scope] >>= \scopes -> maybe (throw (TypeNotFound li n)) pure $
     flip asumMap scopes $ \s -> whenAlt (n `elem` _typeNames s) (_prefix s .: n)
+
+lookupKind :: (QualifyC r) => Text -> LexInfo -> Sem r Kind
+lookupKind n li = get @[Scope] >>= \scopes -> maybe (throw (TypeNotFound li n)) pure $
+    flip asumMap scopes $ \s -> lookup n (_typeKinds s)
 

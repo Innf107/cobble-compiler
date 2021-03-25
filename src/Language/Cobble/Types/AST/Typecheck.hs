@@ -37,6 +37,8 @@ type instance XExpr 'Typecheck = ()
 
 type instance Name 'Typecheck = QualifiedName
 
+type instance XTCon 'Typecheck = Kind
+
 makeSynonyms 'Typecheck ''Statement "U"
 
 makeSynonyms 'Typecheck ''Expr "U"

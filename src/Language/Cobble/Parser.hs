@@ -5,6 +5,10 @@ import Language.Cobble.Types
 import Language.Cobble.Types.PrettyPrint
 import Language.Cobble.Parser.Tokenizer (Token(..), TokenData(..))
 
+import Data.Text qualified as T
+
+import Data.Char
+
 import Text.Parsec hiding ((<|>))
 import Text.Parsec.Pos
 
@@ -166,8 +170,8 @@ mTypedIdent = "optionally typed identifier" <??> do
         pure (li, n, mt)
 
 typeP :: Parser (LexInfo, Type NextPass)
-typeP = "type" <??> (, IntT) <$> reserved "int"
-    <|> (, BoolT) <$> reserved "bool"
-    <|> (, EntityT) <$> reserved "entity"
-    <|> second StructT <$> ident
-
+typeP = "type" <??> do
+    (li, i) <- ident
+    pure $ (li,) $ if isLower (T.head i)
+        then TVar i
+        else TCon i ()

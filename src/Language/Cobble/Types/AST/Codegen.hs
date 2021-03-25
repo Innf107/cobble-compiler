@@ -60,10 +60,12 @@ type instance XExpr 'Codegen = ()
 
 type instance Name 'Codegen = QualifiedName
 
+type instance XTCon 'Codegen = Kind
+
 
 exprType :: Expr 'Codegen -> Type 'Codegen
 exprType = \case
     FCall t _ _ _ -> t
-    IntLit _ _ _ -> IntT
-    BoolLit _ _ _ -> BoolT
+    IntLit _ _ _ -> intT
+    BoolLit _ _ _ -> boolT
     Var t _ _ -> t

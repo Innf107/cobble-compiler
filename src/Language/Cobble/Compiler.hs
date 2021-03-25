@@ -79,10 +79,10 @@ newReg = modify (& lastReg +~ 1) >> get <&> (^. lastReg)
 
 newRegForType :: (CompileC r, FromSomeReg a) => Type 'Codegen -> Sem r (Register a)
 newRegForType = \case
-    IntT -> castReg . NumReg =<< newReg
-    EntityT -> castReg . EntityReg =<< newReg
-    BoolT -> castReg . NumReg =<< newReg
-    StructT _ -> castReg . ArrayReg =<< newReg
+    TCon "Int" KStar    -> castReg . NumReg =<< newReg
+    TCon "Entity" KStar -> castReg . EntityReg =<< newReg
+    TCon "Bool" KStar   -> castReg . NumReg =<< newReg
+    _ -> castReg . ArrayReg =<< newReg
 
 compileStatement :: forall r. (Member (Writer [Instruction]) r, CompileC r) => S.Statement 'Codegen -> Sem r ()
 compileStatement = \case
@@ -134,8 +134,8 @@ pushVarToStack name ex = do
 
 compileExprToReg :: (Member (Writer [Instruction]) r, CompileC r) => Expr 'Codegen -> Sem r SomeReg
 compileExprToReg = \case
-    (IntLitT l i) -> newRegForType IntT >>= \reg -> tell [MoveNumLit reg i] $> SomeReg reg
-    (BoolLitT l b) -> newRegForType BoolT >>= \reg -> tell [MoveNumLit reg (bool 0 1 b)] $> SomeReg reg
+    (IntLitT l i) -> newRegForType intT >>= \reg -> tell [MoveNumLit reg i] $> SomeReg reg
+    (BoolLitT l b) -> newRegForType boolT >>= \reg -> tell [MoveNumLit reg (bool 0 1 b)] $> SomeReg reg
     (VarT t l n) -> get <&> join . (^? frames . head1 . varIndices . at n) >>= \case
         Nothing -> panicVarNotFoundTooLate n
         Just vIx -> do
@@ -165,6 +165,7 @@ compileExprToReg = \case
 
 moveReg :: (CompileC r, Member (Writer [Instruction]) r) => Type 'Codegen -> SomeReg -> SomeReg -> Sem r ()
 moveReg t r1 r2 = case t of
-    IntT -> MoveNumReg <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure
-    BoolT -> MoveNumReg <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure
+    TCon "Int" KStar  -> MoveNumReg <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure
+    TCon "Bool" KStar -> MoveNumReg <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure
+    _ -> error "TODO: moveReg for arbitrary types (MoveArray)"
 

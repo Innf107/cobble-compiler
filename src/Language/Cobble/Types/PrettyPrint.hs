@@ -29,7 +29,7 @@ instance PrettyPrint Text where prettyPrint = id
 
 instance PrettyPrint QualifiedName where prettyPrint = show
 
-instance (PrettyPrintExt p, PrettyPrint (Name p), Show (Statement p), Show (Expr p))
+instance (PrettyPrintExt p, PrettyPrint (Name p), Show (Statement p), Show (Expr p), PrettyPrint (Type p))
     => PrettyPrint (Statement p) where
     prettyPrint = \case
         s@(CallFun _ _ n args) -> prettyPrintExtSt s
@@ -62,12 +62,11 @@ instance (PrettyPrintExt p, PrettyPrint (Name p), Show (Expr p)) => PrettyPrint 
         e@(Var _ _ n) -> prettyPrintExtEx e ?. prettyPrint n
         e -> prettyPrintExtEx e ?. error ("Cannot PrettyPrint '" <> show e <> "'")
 
-instance (PrettyPrint (Name p)) => PrettyPrint (Type p) where
+instance (Show (XTCon p), PrettyPrint (Name p)) => PrettyPrint (Type p) where
     prettyPrint = \case
-        IntT -> "int"
-        BoolT -> "bool"
-        EntityT -> "entity"
-        StructT n -> prettyPrint n
+        TCon n k -> prettyPrint n <> " (:: " <> show k <> ")"
+        TVar vn -> prettyPrint vn
+        TApp t1 t2 -> "(" <> prettyPrint t1 <> ") (" <> prettyPrint t2 <> ")"
 
 class PrettyPrintExt (p :: Pass) where
     prettyPrintExtSt :: Statement p -> Maybe Text
