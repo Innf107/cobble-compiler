@@ -117,7 +117,7 @@ data Instruction =
     | GetBySelector (Register 'Entity) Text
     
     | RunCommandAsEntity (Register 'Entity) McFunction
-    
+
     | GetNumInArray (Register 'Number) (Register 'Array) (Register 'Number)
     --              ^final register   ^array           ^index
     | GetEntityInArray (Register 'Entity) (Register 'Array) (Register 'Number)
@@ -141,7 +141,7 @@ data IntermediateResult = InterModule Name [IntermediateResult]
 data CompiledModule = CompiledModule {
         compModName :: Name
       , compModInstructions :: Text
-    }
+    } deriving (Show, Eq)
 
 data CompState = CompState {
     compUID::Int

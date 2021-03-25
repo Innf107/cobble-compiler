@@ -22,7 +22,7 @@ makeDataPack options ms = fromArchive <$> do
     foldlM (\a m -> addEntryToArchive <$> makeModEntry m <*> pure a) ia ms
     where
         makeModEntry :: CompiledModule -> Sem r Entry
-        makeModEntry m = toEntry ("/data" </> toString (name options) </> show (compModName m)) 
+        makeModEntry m = toEntry ("/data" </> toString (name options) </> "functions" </> show (compModName m) <> ".mcfunction")
                          <$> getTime 
                          <*> pure (encodeUtf8 (compModInstructions m))
                          

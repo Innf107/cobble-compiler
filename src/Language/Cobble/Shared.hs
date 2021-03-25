@@ -29,4 +29,5 @@ instance IsString QualifiedName where
 (QualifiedName cs) .: c = QualifiedName (cs <> [c]) 
 
 makeQName :: Text -> QualifiedName
-makeQName = QualifiedName . T.split (=='.')
+makeQName "" = QualifiedName []
+makeQName t  = QualifiedName $ T.split (=='.') t
