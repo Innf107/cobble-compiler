@@ -27,7 +27,7 @@ initialize = InterModule "init" <$> instr do
 
 
 clean :: (CompC r) => Sem r IntermediateResult
-clean = InterModule "init" <$> instr do
+clean = InterModule "clean" <$> instr do
     removeScoreboardObjective regs
     removeScoreboardObjective eptr
     removeScoreboardObjective uid
