@@ -60,7 +60,7 @@ type instance XExpr 'Codegen = ()
 
 type instance Name 'Codegen = QualifiedName
 
-type instance XTCon 'Codegen = Kind
+type instance XKind 'Codegen = Kind
 
 
 exprType :: Expr 'Codegen -> Type 'Codegen

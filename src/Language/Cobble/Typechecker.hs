@@ -18,6 +18,9 @@ data TypeError = VarDoesNotExist LexInfo (Name NextPass)
                | WrongAssignType LexInfo (Name NextPass) (Type NextPass) (Type NextPass)
 --                                    ^ expected
                | WrongSetScoreboardType LexInfo Objective Text (Type NextPass)
+               | CannotUnify (Type NextPass) (Type NextPass)
+               | OccursCheck (Name 'Typecheck) (Type NextPass)
+               | KindMismatch (Type NextPass) (Type NextPass)
                deriving (Show, Eq)
 
 -- TODO: Scope (Maybe should be handled in a different step?)
@@ -141,5 +144,32 @@ typeOf = \case
         then (\x -> FCallT x l fname exprs') <$> getFunReturnType l fname
         else throw $ WrongFunArgs l fname fargs exprTypes
     VarU l vname -> (\x -> VarT x l vname) <$> getVarType l vname
+
+
+type Subst = [(Name 'Typecheck, Type NextPass)]
+
+(+->) :: Name 'Typecheck -> Type NextPass -> Subst
+n +-> t = [(n, t)]
+
+(@@) :: Subst -> Subst -> Subst
+(@@) = undefined
+
+tv :: Type NextPass -> [Name NextPass]
+tv = undefined
+
+mgu :: (TypecheckC r) => Type NextPass -> Type NextPass -> Sem r Subst
+mgu (TVar n k) t = bindVar n k t
+mgu t (TVar n k) = bindVar n k t
+mgu (TCon t1 k1) (TCon t2 k2)
+    | t1 == t2 && k1 == k2 = pure []
+mgu (TApp l1 r1) (TApp l2 r2) = (@@) <$> mgu l1 l2 <*> mgu r1 r2
+mgu t1 t2 = throw $ CannotUnify t1 t2
+
+bindVar :: (TypecheckC r) => Name NextPass -> Kind -> Type NextPass -> Sem r Subst
+bindVar u k t
+    | TVar u k == t         = pure []
+    | u `elem` tv t         = throw (OccursCheck u t)
+    | Right k /= kind t     = throw (KindMismatch (TVar u k) t)
+    | otherwise             = pure [(u, t)]
 
 

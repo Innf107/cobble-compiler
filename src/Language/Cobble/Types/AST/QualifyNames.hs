@@ -36,4 +36,4 @@ type instance XExpr 'QualifyNames = ()
 
 type instance Name 'QualifyNames = Text
 
-type instance XTCon 'QualifyNames = ()
+type instance XKind 'QualifyNames = ()

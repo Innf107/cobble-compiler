@@ -68,11 +68,11 @@ type family XExpr (p :: Pass)
 data Kind = KStar | KFun Kind Kind deriving (Eq)
 
 
-data Type (p :: Pass) = TCon (Name p) (XTCon p)
+data Type (p :: Pass) = TCon (Name p) (XKind p)
                       | TApp (Type p) (Type p)
-                      | TVar (Name p)
+                      | TVar (Name p) (XKind p)
 
-type family XTCon (p :: Pass)
+type family XKind (p :: Pass)
 
 type FileName = Text
 
@@ -83,11 +83,11 @@ data LexInfo = LexInfo {
     , file :: FileName
     } deriving (Show, Eq)
 
-instance (Name p1 ~ Name p2, XTCon p1 ~ XTCon p2) => Convert (Type p1) (Type p2) where
+instance (Name p1 ~ Name p2, XKind p1 ~ XKind p2) => Convert (Type p1) (Type p2) where
     conv = \case
         TCon n k   -> TCon n k
         TApp t1 t2 -> TApp (conv t1) (conv t2)
-        TVar n     -> TVar n
+        TVar n k   -> TVar n k
 
 instance S.Show Kind where
     show KStar = "*"
@@ -104,10 +104,32 @@ instance TyLit Text where
     tyIntT = "Int"
     tyBoolT = "Bool"
 
-intT, boolT :: (HasStar (XTCon p), TyLit (Name p)) => Type p
-intT  = TCon tyIntT star
-boolT = TCon tyBoolT star
+intT, boolT :: (IsKind (XKind p), TyLit (Name p)) => Type p
+intT  = TCon tyIntT (fromKind KStar)
+boolT = TCon tyBoolT (fromKind KStar)
 
-class HasStar t where star :: t
-instance HasStar () where star = ()
-instance HasStar Kind where star = KStar
+class IsKind t where 
+    kFun :: t -> t -> t
+    kStar :: t
+    kStar = fromKind KStar
+    fromKind :: Kind -> t
+    fromKind KStar = kStar
+    fromKind (KFun k1 k2) = kFun (fromKind k1) (fromKind k2)
+    {-# MINIMAL kFun, (fromKind | kStar) #-}
+instance IsKind () where 
+    fromKind _ = ()
+    kFun _ _   = ()
+instance IsKind Kind where 
+    fromKind = id
+    kFun = KFun 
+
+kind :: ((XKind p) ~ Kind) => Type p -> Either (Kind, Kind) Kind
+kind = \case
+    TVar _ k -> pure k
+    TCon _ k -> pure k
+    TApp t1 t2 -> bisequence (kind t1, kind t2) >>= \case
+        (KFun kp kr, ka)
+            | kp == ka -> pure kr
+        (k1, k2) -> Left (k1, k2) 
+    
+      

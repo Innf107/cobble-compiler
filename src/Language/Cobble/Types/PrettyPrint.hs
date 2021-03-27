@@ -62,10 +62,10 @@ instance (PrettyPrintExt p, PrettyPrint (Name p), Show (Expr p)) => PrettyPrint 
         e@(Var _ _ n) -> prettyPrintExtEx e ?. prettyPrint n
         e -> prettyPrintExtEx e ?. error ("Cannot PrettyPrint '" <> show e <> "'")
 
-instance (Show (XTCon p), PrettyPrint (Name p)) => PrettyPrint (Type p) where
+instance (Show (XKind p), PrettyPrint (Name p)) => PrettyPrint (Type p) where
     prettyPrint = \case
         TCon n k -> prettyPrint n <> " (:: " <> show k <> ")"
-        TVar vn -> prettyPrint vn
+        TVar vn k -> prettyPrint vn <> " (:: " <> show k <> ")"
         TApp t1 t2 -> "(" <> prettyPrint t1 <> ") (" <> prettyPrint t2 <> ")"
 
 class PrettyPrintExt (p :: Pass) where

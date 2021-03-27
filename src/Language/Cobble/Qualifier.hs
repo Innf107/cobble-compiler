@@ -11,6 +11,9 @@ type QualifyC r = Members '[State Int, State [Scope], Error QualificationError] 
 data QualificationError = NameNotFound LexInfo Text
                         | TypeNotFound LexInfo Text
                         | VarAlreadyDeclaredInScope LexInfo Text
+                        | EarlyKindMismatch (Type 'QualifyNames) (Type 'QualifyNames)
+                        | LateKindMismatch (Type NextPass) (Type NextPass)
+                        | InvalidKind (Type NextPass) Kind Kind
                         deriving (Show, Eq)
 
 data Scope = Scope {
@@ -121,11 +124,35 @@ qualifyExp = \case
     BoolLit () li b -> pure $ BoolLit () li b
     Var () li vname -> Var () li <$> lookupName vname li
 
-qualifyType :: (QualifyC r) => LexInfo -> Type 'QualifyNames -> Sem r (Type NextPass)
-qualifyType li = \case
-    TCon n k   -> TCon <$> lookupTypeName n li <*> lookupKind n li
-    TApp t1 t2 -> TApp <$> qualifyType li t1 <*> qualifyType li t2
-    TVar v     -> pure $ TVar (QualifiedName [v])
+qualifyType :: forall r. (QualifyC r) => LexInfo -> Type 'QualifyNames -> Sem r (Type NextPass)
+qualifyType li = qtInner KStar
+    where 
+        qtInner :: Kind -> Type 'QualifyNames -> Sem r (Type NextPass)
+        qtInner k = \case
+            TCon n ()   -> do
+                TCon <$> lookupTypeName n li <*> lookupKind n li
+            TApp t1 t2  -> do
+                t1' <- qtInner (KStar `KFun` k) t1
+                kind' t1' >>= \case
+                    KFun k1 k2 -> do
+                        t2' <- qtInner k1 t2
+                        pure $ TApp t1' t2'
+                    _ -> throw $ EarlyKindMismatch t1 t2
+            TVar v ()   -> pure $ TVar (QualifiedName [v]) k
+
+{-
+a (b c) | *
+
+a | * -> *
+a :: * -> *
+
+(b c) | *
+b | * -> *
+b :: * -> *
+c :: *
+
+
+-}
 
 lookupName :: (QualifyC r) => Text -> LexInfo -> Sem r QualifiedName
 lookupName n li = get @[Scope] >>= \scopes -> maybe (throw (NameNotFound li n)) pure $
@@ -139,3 +166,6 @@ lookupKind :: (QualifyC r) => Text -> LexInfo -> Sem r Kind
 lookupKind n li = get @[Scope] >>= \scopes -> maybe (throw (TypeNotFound li n)) pure $
     flip asumMap scopes $ \s -> lookup n (_typeKinds s)
 
+
+kind' :: (QualifyC r) => Type NextPass -> Sem r Kind
+kind' t = either (throw . uncurry (InvalidKind t)) pure (kind t)

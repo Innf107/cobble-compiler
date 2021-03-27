@@ -173,5 +173,5 @@ typeP :: Parser (LexInfo, Type NextPass)
 typeP = "type" <??> do
     (li, i) <- ident
     pure $ (li,) $ if isLower (T.head i)
-        then TVar i
+        then TVar i ()
         else TCon i ()
