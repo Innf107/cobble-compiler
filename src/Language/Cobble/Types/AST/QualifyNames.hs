@@ -19,6 +19,7 @@ type instance XModule 'QualifyNames = ()
   
 type instance XCallFun 'QualifyNames = ()
 type instance XDefFun 'QualifyNames = ()
+type instance XImport 'QualifyNames = ()
 type instance XDefVoid 'QualifyNames = ()
 type instance XDecl 'QualifyNames = ()
 type instance XAssign 'QualifyNames = ()

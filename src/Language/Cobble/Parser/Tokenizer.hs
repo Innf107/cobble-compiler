@@ -104,6 +104,11 @@ tokenize fileName text = run $ runError $ evalState initialLex $ evalState (Defa
     where
         initialLex = LexInfo 1 0 fileName
 
+tokenizeError :: (Member (Error LexicalError) r) => FileName -> Text -> Sem r [Token]
+tokenizeError fileName text = evalState initialLex $ evalState (Default, initialLex) $ tokenize' (toString text)
+    where
+        initialLex = LexInfo 1 0 fileName
+
 tokenize' :: TokenizeC r => [Char] -> Sem r [Token]
 tokenize' input = fmap fst $ runWriterAssocR $ evalState input $ go
     where

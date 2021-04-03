@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 935d037f75211a89724ce0d8d281e39399b010a311bae956051c1cb951249531
+-- hash: 893264b0662093b48bac806f1126611f492a45c7a0e5443dd92107e84f515b43
 
 name:           cobble
 version:        0.1.0.0
@@ -32,6 +32,7 @@ library
       Language.Cobble.MCAsm.Compiler
       Language.Cobble.MCAsm.McFunction
       Language.Cobble.MCAsm.Types
+      Language.Cobble.ModuleSolver
       Language.Cobble.Packager
       Language.Cobble.Parser
       Language.Cobble.Parser.Tokenizer
@@ -44,11 +45,15 @@ library
       Language.Cobble.Types.AST
       Language.Cobble.Types.AST.Codegen
       Language.Cobble.Types.AST.QualifyNames
+      Language.Cobble.Types.AST.ResolveImports
+      Language.Cobble.Types.AST.SolveModules
       Language.Cobble.Types.AST.Typecheck
       Language.Cobble.Types.PrettyPrint
       Language.Cobble.Types.TH
+      Language.Cobble.Util
       Language.Cobble.Util.Convert
       Language.Cobble.Util.Maybe
+      Language.Cobble.Util.Polysemy.FileSystem
       Language.Cobble.Util.Polysemy.Time
       Lib
   other-modules:
@@ -83,6 +88,7 @@ library
       DisambiguateRecordFields
       ImportQualifiedPost
       NegativeLiterals
+      DeriveGeneric
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wno-unused-imports
   build-depends:
       base >=4.7 && <5
@@ -133,6 +139,7 @@ executable cobble
       DisambiguateRecordFields
       ImportQualifiedPost
       NegativeLiterals
+      DeriveGeneric
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
@@ -201,6 +208,7 @@ test-suite cobble-test
       DisambiguateRecordFields
       ImportQualifiedPost
       NegativeLiterals
+      DeriveGeneric
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5

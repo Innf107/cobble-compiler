@@ -12,7 +12,7 @@ import Data.Char
 import Text.Parsec hiding ((<|>))
 import Text.Parsec.Pos
 
-type NextPass = 'QualifyNames
+type NextPass = 'SolveModules
 
 
 type Parser = Parsec [Token] ()

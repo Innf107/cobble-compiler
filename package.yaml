@@ -97,3 +97,4 @@ default-extensions:
   - DisambiguateRecordFields
   - ImportQualifiedPost
   - NegativeLiterals
+  - DeriveGeneric

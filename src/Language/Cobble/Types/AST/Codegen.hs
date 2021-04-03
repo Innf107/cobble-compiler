@@ -10,12 +10,15 @@ import Language.Cobble.Shared
 
 deriving instance Show (Statement 'Codegen)
 deriving instance Eq (Statement 'Codegen)
+deriving instance Generic (Statement 'Codegen)
 
 deriving instance Show (Expr 'Codegen)
 deriving instance Eq (Expr 'Codegen)
+deriving instance Generic (Expr 'Codegen)
 
 deriving instance Show (Type 'Codegen)
 deriving instance Eq (Type 'Codegen)
+deriving instance Generic (Type 'Codegen)
 
 makeSynonyms 'Codegen ''Statement "T"
 
@@ -45,6 +48,7 @@ type instance XModule 'Codegen = ()
 type instance XCallFun 'Codegen = () -- TODO: Should this keep the return type?
 type instance XDefVoid 'Codegen = ()
 type instance XDefFun 'Codegen = ()
+type instance XImport 'Codegen = ()
 type instance XDecl 'Codegen = ()
 type instance XAssign 'Codegen = ()
 type instance XWhile 'Codegen = ()
