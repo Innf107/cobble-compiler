@@ -87,7 +87,7 @@ typecheck = \case
     --        then throw $ MisMatchedFunArgs fname fargs exprTypes
     --        else pure (CallVoid fname exprs')
     -- TODO: Handle void functions
-    CallFunU l fname exprs -> do
+    CallFun () l fname exprs -> do
         fargs <- getFunArgs l fname
         exprs' <- traverse typeOf exprs
         
@@ -96,12 +96,12 @@ typecheck = \case
         if (exprTypes /= fargs)
             then throw $ WrongFunArgs l fname fargs exprTypes
             else pure (CallFunT l fname exprs')
-    DefVoidU l fname (conv -> args) stmnts -> do
+    DefVoid () l fname (conv -> args) stmnts -> do
         insertFunArgs fname (map snd args)
         for_ args (uncurry insertVarType)
         stmnts' <- traverse typecheck stmnts
         pure (DefVoidT l fname args stmnts')
-    DefFunU l fname (conv -> args) stmnts lastexpr (conv -> t) -> do
+    DefFun () l fname (conv -> args) stmnts lastexpr (conv -> t) -> do
         insertFunArgs fname (map snd args)
         for_ args (uncurry insertVarType)
         insertFunReturnType fname t
@@ -110,44 +110,47 @@ typecheck = \case
         if (getType lastexpr' == t)
         then pure (DefFunT l fname args stmnts' lastexpr' t)
         else throw (WrongReturnType l fname t (getType lastexpr'))
-    DeclU l vname (Just (conv -> t)) expr -> do
+    Decl () l vname (Just (conv -> t)) expr -> do
         expr' <- typeOf expr
         if (getType expr' == t)
         then insertVarType vname t >> pure (DeclT l vname (Just t) expr')
         else throw (WrongDeclType l vname t (getType expr'))
-    DeclU l vname Nothing expr -> do
+    Decl () l vname Nothing expr -> do
         expr' <- typeOf expr
         insertVarType vname (getType expr') >> pure (DeclT l vname Nothing expr')
-    AssignU l vname expr -> do
+    Assign () l vname expr -> do
         varT <- getVarType l vname
         expr' <- typeOf expr
         if (varT == getType expr')
         then pure (AssignT l vname expr')
         else throw (WrongAssignType l vname varT (getType expr'))
-    WhileU l cond stmnts -> do
+    While () l cond stmnts -> do
         cond' <- typeOf cond
         stmnts' <- traverse typecheck stmnts
         pure (WhileT l cond' stmnts')
-    DefStructU l name (conv -> fields) -> pure $ DefStructT l name fields -- TODO: Add to state map
-    SetScoreboardU l obj player ex -> do
+    DefStruct () l name (conv -> fields) -> pure $ DefStructT l name fields -- TODO: Add to state map
+    SetScoreboard () l obj player ex -> do
         ex' <- typeOf ex
         if (getType @_ @'Codegen ex' /= intT)
         then throw (WrongSetScoreboardType l obj player (getType ex'))
         else pure (SetScoreboardT l obj player ex')
+    Import () l modName -> pure $ Import () l modName
+    StatementX x _l -> case x of
 
 typeOf :: (TypecheckC r) => Expr 'Typecheck -> Sem r (Expr NextPass)
 typeOf = \case
-    IntLitU l x -> pure $ IntLitT l x
+    IntLit () l x -> pure $ IntLitT l x
     -- FloatLit x -> pure (FloatLit x, FloatT)
-    BoolLitU l x -> pure $ BoolLitT l x
-    FCallU l fname exprs -> do
+    BoolLit () l x -> pure $ BoolLitT l x
+    FCall () l fname exprs -> do
         fargs <- getFunArgs l fname
         exprs' <- traverse typeOf exprs
         let exprTypes = map getType exprs'
         if (exprTypes == fargs)
         then (\x -> FCallT x l fname exprs') <$> getFunReturnType l fname
         else throw $ WrongFunArgs l fname fargs exprTypes
-    VarU l vname -> (\x -> VarT x l vname) <$> getVarType l vname
+    Var () l vname -> (\x -> VarT x l vname) <$> getVarType l vname
+    ExprX x _l -> case x of
 
 
 type Subst = [(Name 'Typecheck, Type NextPass)]

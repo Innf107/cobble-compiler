@@ -33,17 +33,16 @@ data CompilationError = LexError LexicalError
                       | AsmError McAsmError
                       | TypeError TypeError
                       | ModuleError ModuleError
-                      | ControllerPanic ControllerPanic
+                      | ControllerPanic Panic
                       deriving (Show, Eq)
 
 
-data ControllerPanic = ModuleDependencyNotFound (S.Name 'SolveModules) deriving (Show, Eq)
-
 type ControllerC r = Members '[Reader CompileOpts, Error CompilationError, Error Panic, FileSystem FilePath Text] r
 
-runControllerC :: Sem '[Reader CompileOpts, Error CompilationError, Error Panic, FileSystem FilePath Text] a 
+runControllerC :: CompileOpts 
+               -> Sem '[Error Panic, Error CompilationError, Reader CompileOpts, FileSystem FilePath Text, Embed IO] a
                -> IO (Either CompilationError a)
-runControllerC = undefined
+runControllerC opts = runM . fileSystemIO . runReader opts . runError . mapError ControllerPanic
 
 -- TODO
 data CompileOpts = CompileOpts {
@@ -105,7 +104,7 @@ compileAndAnnotateSig (m, deps) = do
 getDep :: (ControllerC r, Member (State (Map (S.Name 'QualifyNames) ModSig)) r)
        => S.Name 'SolveModules
        -> Sem r ModSig
-getDep n = maybe (throw (ControllerPanic $ ModuleDependencyNotFound n)) pure =<< gets (lookup n)
+getDep n = maybe (throw (ModuleDependencyNotFound n)) pure =<< gets (lookup n)
 
 compileWithSig :: (ControllerC r)
                => S.Module 'QualifyNames

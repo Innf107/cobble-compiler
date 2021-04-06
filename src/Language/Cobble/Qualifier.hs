@@ -140,7 +140,7 @@ qualifyType li = qtInner KStar
             TApp t1 t2  -> do
                 t1' <- qtInner (KStar `KFun` k) t1
                 kind' t1' >>= \case
-                    KFun k1 k2 -> do
+                    KFun k1 _k2 -> do
                         t2' <- qtInner k1 t2
                         pure $ TApp t1' t2'
                     _ -> throw $ EarlyKindMismatch t1 t2

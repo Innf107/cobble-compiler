@@ -82,7 +82,7 @@ alterFilePure :: forall fd fc a. (FileDescriptor fd)
               -> fd
               -> PureFS fd fc
               -> (PureFS fd fc, Maybe a)
-alterFilePure f fd = first (fromMaybe (PureFSDirectory root [])) . alterFilePureInner root f fd
+alterFilePure initialF initialFd = first (fromMaybe (PureFSDirectory root [])) . alterFilePureInner root initialF initialFd
     where
         alterFilePureInner :: fd
                           -> (Maybe fc -> (Maybe fc, a))

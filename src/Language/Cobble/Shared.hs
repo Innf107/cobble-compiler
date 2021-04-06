@@ -39,5 +39,7 @@ unqualifyName :: QualifiedName -> Text
 unqualifyName (QualifiedName ps) = fromMaybe "" $ viaNonEmpty last ps
 
 
-data Panic = Panic Text deriving (Show, Eq)
+data Panic = Panic Text 
+           | ModuleDependencyNotFound Text
+           deriving (Show, Eq)
 

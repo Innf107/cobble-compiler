@@ -93,7 +93,7 @@ defVoid = "void definition" <??> do
     li <- reserved "void"
     fname <- ident'
     paren' "("
-    ps <- map (\(x, y, z) -> (y, z)) <$> typedIdent `sepBy` (reservedOp ",")
+    ps <- map (\(_x, y, z) -> (y, z)) <$> typedIdent `sepBy` (reservedOp ",")
     paren' ")"
     b <- statementBody
     pure $ DefVoid () li fname ps b
@@ -103,7 +103,7 @@ defFun = "function definition" <??> do
     (li, t) <- typeP
     fname <- ident'
     paren' "("
-    ps <- map (\(x, y, z) -> (y, z)) <$> typedIdent `sepBy` (reservedOp ",")
+    ps <- map (\(_x, y, z) -> (y, z)) <$> typedIdent `sepBy` (reservedOp ",")
     paren' ")"
     b <- option [] statementBody
     reservedOp' "=>"

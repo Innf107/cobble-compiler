@@ -133,9 +133,9 @@ tokenize' input = fmap fst $ runWriterAssocR $ evalState input $ go
                     | otherwise -> throwL $ UnexpectedCharInIdent c
                 -- TODO
                 where
-                    endIdent cs
-                        | cs `elem` reserved = tellToken (Reserved (toText cs))
-                        | otherwise = tellToken (Ident (toText cs))
+                    endIdent chars
+                        | chars `elem` reserved = tellToken (Reserved (toText chars))
+                        | otherwise = tellToken (Ident (toText chars))
             InOp cs -> askChar >>= \case
                 Nothing -> endOp cs
                 Just c -> if
@@ -146,9 +146,9 @@ tokenize' input = fmap fst $ runWriterAssocR $ evalState input $ go
                     | isParen c -> endOp cs >> tellTokenNewLex (Paren (one c)) >> putStart Default >> go
                     | otherwise -> throwL $ UnexpectedCharInOp c
                 where
-                    endOp cs
-                        | cs `elem` reservedOps = tellToken (ReservedOp (toText cs))
-                        | otherwise = tellToken (Operator (toText cs))
+                    endOp chars
+                        | chars `elem` reservedOps = tellToken (ReservedOp (toText chars))
+                        | otherwise = tellToken (Operator (toText chars))
             InIntLit cs -> askChar >>= \case
                 Nothing -> endIntLit cs
                 Just c -> if

@@ -63,7 +63,7 @@ makeLenses 'Frame
 makeLenses 'CompileState
 makeLenses 'Function
 
-rts :: (CompileC r) => Sem r A.Module
+rts :: Sem r A.Module
 rts = do
     pure $ A.Module "RTS" [
           MoveNumLit stackPTRReg 0 
@@ -84,9 +84,9 @@ newRegForType = \case
 
 compileStatement :: forall r. (Member (Writer [Instruction]) r, CompileC r) => S.Statement 'Codegen -> Sem r ()
 compileStatement = \case
-    DeclT l name _ expr -> void $ pushVarToStack name expr
+    Decl () _li name _ expr -> void $ pushVarToStack name expr
 
-    AssignT l name expr -> do
+    Assign () _li name expr -> do
         varIxReg <- NumReg <$> newReg
         frameReg <- ArrayReg <$> newReg
         mvarIx <- get <&> join . (^? frames . head1 . varIndices . at name)
@@ -99,25 +99,25 @@ compileStatement = \case
                     , MoveNumLit varIxReg varIx
                     , SetNumInArray frameReg varIxReg exprReg
                     ]
-    CallFunT l name args -> get <&> (^? functions . ix name . returnType . _Just) >>= \case
+    CallFun () li name args -> get <&> (^? functions . ix name . returnType . _Just) >>= \case
         Nothing -> panicFunNotFoundTooLate name
-        Just rt -> void $ compileExprToReg (FCall rt l name args)
+        Just rt -> void $ compileExprToReg (FCall rt li name args)
 
-    DefVoidT l name pars body -> do
+    DefVoid () _li name pars body -> do
         modify (& functions . at name ?~ Function {_params=pars, _returnType=Nothing})
         tell . pure . A.Section name . fst =<< runWriterAssocR do
             modify (& frames . head1 . varIndices .~ fromList (zip (map fst pars) [0..]))
             modify (& frames . head1 . varCount .~ length pars)
             traverse_ compileStatement body
-    DefFunT l name pars body retExp t -> do
+    DefFun () _li name pars body retExp t -> do
         modify (& functions . at name ?~ Function {_params=pars, _returnType=Just t})
         tell . pure . A.Section name . fst =<< runWriterAssocR do
             modify (& frames . head1 . varIndices .~ fromList (zip (map fst pars) [0..]))
             modify (& frames . head1 . varCount .~ length pars)
             traverse_ compileStatement body
             res <- compileExprToReg retExp
-            moveReg t res (SomeReg returnReg) -- :/
-    SetScoreboardT l obj player ex -> do
+            moveReg t res (SomeReg returnReg) -- TODO: :/
+    S.SetScoreboard () _li obj player ex -> do
         r <- fromSomeReg =<< compileExprToReg ex
         tell [A.SetScoreboard obj player r]
 
@@ -132,9 +132,9 @@ pushVarToStack name ex = do
 
 compileExprToReg :: (Member (Writer [Instruction]) r, CompileC r) => Expr 'Codegen -> Sem r SomeReg
 compileExprToReg = \case
-    (IntLitT l i) -> newRegForType intT >>= \reg -> tell [MoveNumLit reg i] $> SomeReg reg
-    (BoolLitT l b) -> newRegForType boolT >>= \reg -> tell [MoveNumLit reg (bool 0 1 b)] $> SomeReg reg
-    (VarT t l n) -> get <&> join . (^? frames . head1 . varIndices . at n) >>= \case
+    (IntLit () _li i) -> newRegForType intT >>= \reg -> tell [MoveNumLit reg i] $> SomeReg reg
+    (BoolLit () _li b) -> newRegForType boolT >>= \reg -> tell [MoveNumLit reg (bool 0 1 b)] $> SomeReg reg
+    (Var t _li n) -> get <&> join . (^? frames . head1 . varIndices . at n) >>= \case
         Nothing -> panicVarNotFoundTooLate n
         Just vIx -> do
             reg <- newRegForType t
@@ -147,7 +147,7 @@ compileExprToReg = \case
                 ]
             pure $ SomeReg reg
     -- (FloatT, FloatLit i) -> pure [MoveNumReg (NumReg reg)]
-    (FCallT t l fname args) -> do
+    (FCall t _li fname args) -> do
         get <&> (^. functions . at fname) >>= \case
             Nothing -> panicFunNotFoundTooLate fname
             Just f -> do
@@ -160,6 +160,7 @@ compileExprToReg = \case
                                                        -- TODO: (If it is, the entire case should be removed)
                                                        -- TODO: PROBABLY BROKEN!! (returnReg is polymorphic, but
                                                        -- TODO registers for different types are implemented differently)
+    ExprX x _li -> case x of
 
 moveReg :: (CompileC r, Member (Writer [Instruction]) r) => Type 'Codegen -> SomeReg -> SomeReg -> Sem r ()
 moveReg t r1 r2 = case t of
