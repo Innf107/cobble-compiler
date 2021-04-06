@@ -86,11 +86,3 @@ type instance XExpr 'Codegen = Void
 type instance Name 'Codegen = QualifiedName
 
 type instance XKind 'Codegen = Kind
-
-
-exprType :: Expr 'Codegen -> Type 'Codegen
-exprType = \case
-    FCall t _ _ _ -> t
-    IntLit _ _ _ -> intT
-    BoolLit _ _ _ -> boolT
-    Var t _ _ -> t

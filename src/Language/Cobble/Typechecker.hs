@@ -91,7 +91,7 @@ typecheck = \case
         fargs <- getFunArgs l fname
         exprs' <- traverse typeOf exprs
         
-        let exprTypes = map exprType exprs'
+        let exprTypes = map getType exprs'
         
         if (exprTypes /= fargs)
             then throw $ WrongFunArgs l fname fargs exprTypes
@@ -107,23 +107,23 @@ typecheck = \case
         insertFunReturnType fname t
         stmnts' <- traverse typecheck stmnts
         lastexpr' <- typeOf lastexpr
-        if (exprType lastexpr' == t)
+        if (getType lastexpr' == t)
         then pure (DefFunT l fname args stmnts' lastexpr' t)
-        else throw (WrongReturnType l fname t (exprType lastexpr'))
+        else throw (WrongReturnType l fname t (getType lastexpr'))
     DeclU l vname (Just (conv -> t)) expr -> do
         expr' <- typeOf expr
-        if (exprType expr' == t)
+        if (getType expr' == t)
         then insertVarType vname t >> pure (DeclT l vname (Just t) expr')
-        else throw (WrongDeclType l vname t (exprType expr'))
+        else throw (WrongDeclType l vname t (getType expr'))
     DeclU l vname Nothing expr -> do
         expr' <- typeOf expr
-        insertVarType vname (exprType expr') >> pure (DeclT l vname Nothing expr')
+        insertVarType vname (getType expr') >> pure (DeclT l vname Nothing expr')
     AssignU l vname expr -> do
         varT <- getVarType l vname
         expr' <- typeOf expr
-        if (varT == exprType expr')
+        if (varT == getType expr')
         then pure (AssignT l vname expr')
-        else throw (WrongAssignType l vname varT (exprType expr'))
+        else throw (WrongAssignType l vname varT (getType expr'))
     WhileU l cond stmnts -> do
         cond' <- typeOf cond
         stmnts' <- traverse typecheck stmnts
@@ -131,8 +131,8 @@ typecheck = \case
     DefStructU l name (conv -> fields) -> pure $ DefStructT l name fields -- TODO: Add to state map
     SetScoreboardU l obj player ex -> do
         ex' <- typeOf ex
-        if (exprType ex' /= intT)
-        then throw (WrongSetScoreboardType l obj player (exprType ex'))
+        if (getType @_ @'Codegen ex' /= intT)
+        then throw (WrongSetScoreboardType l obj player (getType ex'))
         else pure (SetScoreboardT l obj player ex')
 
 typeOf :: (TypecheckC r) => Expr 'Typecheck -> Sem r (Expr NextPass)
@@ -143,7 +143,7 @@ typeOf = \case
     FCallU l fname exprs -> do
         fargs <- getFunArgs l fname
         exprs' <- traverse typeOf exprs
-        let exprTypes = map exprType exprs' 
+        let exprTypes = map getType exprs'
         if (exprTypes == fargs)
         then (\x -> FCallT x l fname exprs') <$> getFunReturnType l fname
         else throw $ WrongFunArgs l fname fargs exprTypes

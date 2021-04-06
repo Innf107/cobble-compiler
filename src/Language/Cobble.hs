@@ -30,7 +30,6 @@ import System.FilePath qualified as FP
 data CompilationError = LexError LexicalError
                       | ParseError ParseError
                       | QualificationError QualificationError
-                      | CompilerError CompilerError
                       | AsmError McAsmError
                       | TypeError TypeError
                       | ModuleError ModuleError
@@ -40,9 +39,9 @@ data CompilationError = LexError LexicalError
 
 data ControllerPanic = ModuleDependencyNotFound (S.Name 'SolveModules) deriving (Show, Eq)
 
-type ControllerC r = Members '[Reader CompileOpts, Error CompilationError, FileSystem FilePath Text] r
+type ControllerC r = Members '[Reader CompileOpts, Error CompilationError, Error Panic, FileSystem FilePath Text] r
 
-runControllerC :: Sem '[Reader CompileOpts, Error CompilationError, FileSystem FilePath Text] a 
+runControllerC :: Sem '[Reader CompileOpts, Error CompilationError, Error Panic, FileSystem FilePath Text] a 
                -> IO (Either CompilationError a)
 runControllerC = undefined
 
@@ -123,13 +122,13 @@ compileWithSig m = do
     let tcState = foldMap (\dsig -> TCState {
                     varTypes=exportedVars dsig
                 ,   funReturnTypes=M.mapMaybe snd $ exportedFunctions dsig
-                ,   funArgs=fmap (map snd . fst) $ exportedFunctions dsig
+                ,   funArgs=map snd . fst <$> exportedFunctions dsig
                 })
                 (xModule m)
     compEnv <- asks \CompileOpts{name, debug} -> CompEnv {nameSpace=name, debug}
     qMod  <- mapError QualificationError $ evalState qualScopes $ qualify m
     tcMod <- mapError TypeError $ evalState tcState $ typecheckModule qMod
-    asmMod <- mapError AsmError $ mapError CompilerError $ evalState initialCompileState $ S.compile tcMod
+    asmMod <- mapError AsmError $ evalState initialCompileState $ S.compile tcMod
     compMods <- mapError AsmError $ evalState initialCompState $ runReader compEnv $ A.compile [asmMod]
     let sig = extractSig tcMod
     pure (compMods, sig)

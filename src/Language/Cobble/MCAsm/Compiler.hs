@@ -2,6 +2,8 @@ module Language.Cobble.MCAsm.Compiler where
 
 import Language.Cobble.Prelude hiding (ix)
 
+import Language.Cobble.Types (Panic(..))
+
 import Language.Cobble.Shared
 
 import qualified Data.Text as T
@@ -36,7 +38,7 @@ clean = InterModule "clean" <$> instr do
     removeScoreboardObjective ix
 
 hoistModules :: (CompC r) => IntermediateResult -> Sem r [CompiledModule]
-hoistModules (InterInstructions _) = error "Cannot create modules from standalone top level instructions"
+hoistModules (InterInstructions _) = throw $ Panic "Cannot create modules from standalone top level instructions"
 hoistModules (InterModule mn ins) = makeModulesInner mn ins
     where
         makeModulesInner :: Name -> [IntermediateResult] -> Sem r [CompiledModule]

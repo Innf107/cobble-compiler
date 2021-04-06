@@ -37,3 +37,7 @@ makeQName t  = QualifiedName $ T.split (=='.') t
 
 unqualifyName :: QualifiedName -> Text
 unqualifyName (QualifiedName ps) = fromMaybe "" $ viaNonEmpty last ps
+
+
+data Panic = Panic Text deriving (Show, Eq)
+

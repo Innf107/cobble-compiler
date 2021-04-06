@@ -114,6 +114,9 @@ qualifyStatement = \case
         addType li n KStar
         fs' <- localPref (.: n) $ traverse (bitraverse (\x -> askPref <&> (\a -> a .: x)) (qualifyType li)) fs
         pure $ DefStruct () li n' fs'
+    Import () li modName -> pure $ Import () li (makeQName modName)
+    SetScoreboard () li obj pl e -> SetScoreboard () li obj pl <$> qualifyExp e
+    StatementX x _li -> case x of
 
 qualifyExp :: (QualifyC r) => Expr 'QualifyNames -> Sem r (Expr NextPass)
 qualifyExp = \case
@@ -124,6 +127,7 @@ qualifyExp = \case
     IntLit () li i -> pure $ IntLit () li i
     BoolLit () li b -> pure $ BoolLit () li b
     Var () li vname -> Var () li <$> lookupName vname li
+    ExprX x _li -> case x of
 
 -- TODO: Fix Kind inference
 qualifyType :: forall r. (QualifyC r) => LexInfo -> Type 'QualifyNames -> Sem r (Type NextPass)

@@ -22,7 +22,7 @@ import Control.Exception (bracket)
 test :: IO ()
 test = do
     testWithServer [
-            Module @'Typecheck () "test" [
+            Module @'Typecheck mempty "test" [
                 SetScoreboard () dli testScore "TestPlayer" (IntLit () dli 5)
             ]
         ] [("A basic SetScoreboard works",
@@ -39,8 +39,8 @@ type Description = Text
 
 type Query = [Text]
 
-testWithServer :: => a -> [(Description, Query, Expectation)] -> IO ()
-testWithServer program tests = do
+testWithServer :: a -> [(Description, Query, Expectation)] -> IO ()
+testWithServer program tests = undefined {- do
     cwd <- getCurrentDirectory <&> (</> "test/Server")
 
     logLn "Resetting 'world' to 'worldTEMPLATE'"
@@ -60,7 +60,7 @@ testWithServer program tests = do
             then putTextLn $ desc <> " passed"
             else putTextLn $ desc <> " FAILED!!!\n    Expected: " <> showExpectation expectation <> "\n    Got: " <> show ress
     logLn "Server tests finished"
-
+-}
 
 matchesExpectation :: [Text] -> Expectation -> Bool
 matchesExpectation res = \case

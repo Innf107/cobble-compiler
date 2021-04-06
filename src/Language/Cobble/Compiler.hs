@@ -7,20 +7,18 @@ import Language.Cobble.Types as S
 
 import Language.Cobble.MCAsm.Types as A hiding (Name)
 
-type CompileC r = Members '[State CompileState, Error CompilerError, Error McAsmError] r
+type CompileC r = Members '[State CompileState, Error Panic, Error McAsmError] r
 
-data CompilerError = Panic Text deriving (Show, Eq)
-
-panic :: (Member (Error CompilerError) r) => Text -> Sem r a
+panic :: (Member (Error Panic) r) => Text -> Sem r a
 panic = throw . Panic
 
-panic' :: (Member (Error CompilerError) r) => Text -> [Text] -> Sem r a
+panic' :: (Member (Error Panic) r) => Text -> [Text] -> Sem r a
 panic' t as = panic $ t <> "\n\nContext: \n" <> unlines (map ("    "<>) as)
 
-panicVarNotFoundTooLate :: (Member (Error CompilerError) r) => Name 'Codegen -> Sem r a
+panicVarNotFoundTooLate :: (Member (Error Panic) r) => Name 'Codegen -> Sem r a
 panicVarNotFoundTooLate v = panic $ "Variable " <> show v <> " not found. This should have been caught earlier!" 
 
-panicFunNotFoundTooLate :: (Member (Error CompilerError) r) => Name 'Codegen -> Sem r a
+panicFunNotFoundTooLate :: (Member (Error Panic) r) => Name 'Codegen -> Sem r a
 panicFunNotFoundTooLate v = panic $ "Function " <> show v <> " not found. This should have been caught earlier!"
 
 data CompileState = CompileState {
