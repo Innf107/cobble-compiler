@@ -97,9 +97,9 @@ compileStatement = \case
             Just varIx -> do
                 exprReg <- fromSomeReg =<< compileExprToReg expr
                 tell [
-                      GetArrayInArray frameReg stackReg stackPTRReg
+                      GetInArray frameReg stackReg stackPTRReg
                     , MoveNumLit varIxReg varIx
-                    , SetNumInArray frameReg varIxReg exprReg
+                    , SetInArray @'Array frameReg varIxReg exprReg
                     ]
     CallFun () li name args -> get <&> (^? functions . ix name . returnType . _Just) >>= \case
         Nothing -> panicFunNotFoundTooLate name
@@ -118,7 +118,7 @@ compileStatement = \case
             modify (& frames . head1 . varCount .~ length pars)
             traverse_ compileStatement body
             res <- compileExprToReg retExp
-            moveReg t res (SomeReg returnReg) -- TODO: :/
+            moveReg t res (SomeReg @'Number returnReg) -- TODO: :/
     S.SetScoreboard () _li obj player ex -> do
         r <- fromSomeReg =<< compileExprToReg ex
         tell [A.SetScoreboard obj player r]
@@ -145,8 +145,8 @@ compileExprToReg = \case
             varIxReg <- NumReg <$> newReg
             tell [
                   MoveNumLit varIxReg vIx
-                , GetArrayInArray frameReg stackReg stackPTRReg
-                , GetNumInArray reg frameReg varIxReg
+                , GetInArray @'Array frameReg stackReg stackPTRReg
+                , GetInArray @'Array reg frameReg varIxReg
                 ]
             pure $ SomeReg reg
     -- (FloatT, FloatLit i) -> pure [MoveNumReg (NumReg reg)]
@@ -159,7 +159,7 @@ compileExprToReg = \case
                 tell [Call fname]
                 case (f ^. returnType) of
                     Nothing -> panic' "Called a void function as an expression" [show fname]
-                    Just _ -> pure $ SomeReg returnReg -- TODO: Is this okay or does this get overriden by recursion?
+                    Just _ -> pure $ SomeReg @'Number returnReg -- TODO: Is this okay or does this get overriden by recursion?
                                                        -- TODO: (If it is, the entire case should be removed)
                                                        -- TODO: PROBABLY BROKEN!! (returnReg is polymorphic, but
                                                        -- TODO registers for different types are implemented differently)
@@ -167,7 +167,7 @@ compileExprToReg = \case
 
 moveReg :: (CompileC r, Member (Writer [Instruction]) r) => Type 'Codegen -> SomeReg -> SomeReg -> Sem r ()
 moveReg t r1 r2 = case t of
-    TCon "Int" KStar  -> MoveNumReg <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure
-    TCon "Bool" KStar -> MoveNumReg <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure
+    TCon "Int" KStar  -> MoveReg @'Number <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure
+    TCon "Bool" KStar -> MoveReg @'Number <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure
     _ -> error "TODO: moveReg for arbitrary types (MoveArray)"
 

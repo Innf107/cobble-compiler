@@ -89,57 +89,56 @@ renderRegId (NamedReg name) = name
 data Module = Module {
       moduleName::Name
     , moduleInstructions::[Instruction]
-    } deriving (Show, Eq)
+    } deriving (Show)
 
-data Instruction =
-      MoveReg (Register 'Number) (Register 'Number)
-    | MoveNumLit (Register 'Number) Int
-    | MoveArray (Register 'Array) (Register 'Array)
-    | MoveEntity (Register 'Entity) (Register 'Entity)
+data Instruction where
+      MoveReg    :: (ObjForType t) => (Register t) -> (Register t) -> Instruction
+      MoveNumLit :: (Register 'Number) -> Int -> Instruction
 
-    | AddReg (Register 'Number) (Register 'Number)
-    | AddLit (Register 'Number) Int
-    | SubReg (Register 'Number) (Register 'Number)
-    | SubLit (Register 'Number) Int
-    | MulReg (Register 'Number) (Register 'Number)
-    | MulLit (Register 'Number) Int
-    | DivReg (Register 'Number) (Register 'Number)
-    | DivLit (Register 'Number) Int
+      AddReg :: (Register 'Number) -> (Register 'Number) -> Instruction
+      AddLit :: (Register 'Number) -> Int -> Instruction
+      SubReg :: (Register 'Number) -> (Register 'Number) -> Instruction
+      SubLit :: (Register 'Number) -> Int -> Instruction
+      MulReg :: (Register 'Number) -> (Register 'Number) -> Instruction
+      MulLit :: (Register 'Number) -> Int -> Instruction
+      DivReg :: (Register 'Number) -> (Register 'Number) -> Instruction
+      DivLit :: (Register 'Number) -> Int -> Instruction
 
---  | Signum (Register 'Number) -- Signum(x) = Min(Max(x, -1), 1)
-    | Min (Register 'Number) (Register 'Number)
-    | Max (Register 'Number) (Register 'Number)
+--    Signum (Register 'Number) -- Signum(x) = Min(Max(x, -1), 1)
+      Min :: (Register 'Number) -> (Register 'Number) -> Instruction
+      Max :: (Register 'Number) -> (Register 'Number) -> Instruction
 
-    | Section Name [Instruction]
-    | Call Name
-    | ExecInRange (Register 'Number) Range [McFunction]
-    | ExecEQ (Register 'Number) (Register 'Number) [McFunction]
-    | ExecLT (Register 'Number) (Register 'Number) [McFunction]
-    | ExecGT (Register 'Number) (Register 'Number) [McFunction]
-    | ExecLE (Register 'Number) (Register 'Number) [McFunction]
-    | ExecGE (Register 'Number) (Register 'Number) [McFunction]
+      Section :: Name -> [Instruction] -> Instruction
+      Call    :: Name -> Instruction
 
-    | GetCommandResult (Register 'Number) McFunction
+      ExecInRange :: (Register 'Number) -> Range -> [McFunction] -> Instruction
+      ExecEQ :: (Register 'Number) -> (Register 'Number) -> [McFunction] -> Instruction
+      ExecLT :: (Register 'Number) -> (Register 'Number) -> [McFunction] -> Instruction
+      ExecGT :: (Register 'Number) -> (Register 'Number) -> [McFunction] -> Instruction
+      ExecLE :: (Register 'Number) -> (Register 'Number) -> [McFunction] -> Instruction
+      ExecGE :: (Register 'Number) -> (Register 'Number) -> [McFunction] -> Instruction
 
-    | GetBySelector (Register 'Entity) Text
+      GetCommandResult :: (Register 'Number) -> McFunction -> Instruction
+
+      GetBySelector :: (Register 'Entity) -> Text -> Instruction
     
-    | RunCommandAsEntity (Register 'Entity) McFunction
+      RunCommandAsEntity :: (Register 'Entity) -> McFunction -> Instruction
 
-    | GetNumInArray (Register 'Number) (Register 'Array) (Register 'Number)
-    --              ^final register   ^array           ^index
-    | GetEntityInArray (Register 'Entity) (Register 'Array) (Register 'Number)
-    --                 ^final register   ^array           ^index
-    | GetArrayInArray (Register 'Array) (Register  'Array) (Register 'Number)
-    --                ^final register   ^array           ^index
-    | SetNumInArray (Register 'Array) (Register 'Number) (Register 'Number)
-    --                ^array           ^index            ^writing register
-    | SetEntityInArray (Register 'Array) (Register 'Number) (Register 'Entity)
-    --                 ^array           ^index            ^writing register
-    | SetArrayInArray (Register 'Array) (Register 'Number) (Register 'Array)
-    --                 ^array           ^index            ^writing register
-    | SetScoreboard Objective Text (Register 'Number)
-    --                        ^player
-    deriving (Show, Eq)
+      GetInArray :: (ObjForType t) => (Register t) -> (Register 'Array) -> (Register 'Number) -> Instruction
+    --                      ^final register   ^array           ^index
+      SetInArray :: (ObjForType t) => (Register 'Array) -> (Register 'Number) -> (Register t) -> Instruction
+    --             ^array           ^index            ^writing register
+      SetScoreboard :: Objective -> Text -> (Register 'Number) -> Instruction
+    --                               ^player
+deriving instance Show Instruction
+--deriving instance Eq Instruction   somehow broken?
+
+
+class ObjForType (t :: RegType) where objForType :: f t -> Objective
+instance ObjForType 'Number where objForType _ = Objective "REGS"
+instance ObjForType 'Entity where objForType _ = Objective "EPTR"
+instance ObjForType 'Array  where objForType _ = Objective "APTR"
+
 
 data IntermediateResult = InterModule Name [IntermediateResult]
                         | InterInstructions [McFunction]
