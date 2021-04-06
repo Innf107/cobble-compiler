@@ -39,7 +39,7 @@ type Description = Text
 
 type Query = [Text]
 
-testWithServer :: (CompilableToPath a) => a -> [(Description, Query, Expectation)] -> IO ()
+testWithServer :: => a -> [(Description, Query, Expectation)] -> IO ()
 testWithServer program tests = do
     cwd <- getCurrentDirectory <&> (</> "test/Server")
 
@@ -111,10 +111,4 @@ logLn = putTextLn
 waitUntil :: IO Bool -> IO ()
 waitUntil m = m >>= bool (waitUntil m) pass
 
-class CompilableToPath a where
-    compileToFunctionsAtPath' :: FilePath -> NameSpace -> Bool -> a -> Either CompilationError (IO ())
-    
-instance (CompilableToPath [Module 'Typecheck]) where compileToFunctionsAtPath' = compileToFunctionsAtPath
-
-    
 

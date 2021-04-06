@@ -3,7 +3,9 @@ module Language.Cobble.Qualifier where
 
 import Language.Cobble.Prelude
 import Language.Cobble.Types
-  
+
+import Data.Map qualified as M
+
 type NextPass = 'Typecheck
   
 type QualifyC r = Members '[State Int, State [Scope], Error QualificationError] r
@@ -25,11 +27,10 @@ data Scope = Scope {
 
 makeLenses 'Scope
 
-qualify :: Module 'QualifyNames -> Either QualificationError (Module NextPass)
-qualify = run 
-        . runError 
-        . evalState 0 
-        . evalState ([Scope {_prefix="", _typeNames=[], _varFunNames=[]}]) 
+qualify :: (Members '[Error QualificationError, State [Scope]] r) 
+        => Module 'QualifyNames 
+        -> Sem r (Module NextPass)
+qualify = evalState @Int 0 
         . qualifyMod
 
 newUID :: (QualifyC r) => Sem r Int
@@ -60,7 +61,7 @@ addType li n k = do
             modify @[Scope] (& _head . typeKinds %~ insert n k)
 
 qualifyMod :: (QualifyC r) => Module 'QualifyNames -> Sem r (Module NextPass)
-qualifyMod (Module () n sts) = Module () (makeQName n) <$> traverse qualifyStatement sts
+qualifyMod (Module deps n sts) = Module deps (makeQName n) <$> traverse qualifyStatement sts
 
 qualifyStatement :: (QualifyC r) => Statement 'QualifyNames -> Sem r (Statement NextPass)
 qualifyStatement = \case
@@ -90,7 +91,7 @@ qualifyStatement = \case
                 <*> qualifyExp le
         t' <- qualifyType li t
         pure $ DefFun () li n' ps' body' le' t'
-        
+
     Decl () li n mt e -> do
         n' <- askPref <&> (.: n)
         addName li n
@@ -124,6 +125,7 @@ qualifyExp = \case
     BoolLit () li b -> pure $ BoolLit () li b
     Var () li vname -> Var () li <$> lookupName vname li
 
+-- TODO: Fix Kind inference
 qualifyType :: forall r. (QualifyC r) => LexInfo -> Type 'QualifyNames -> Sem r (Type NextPass)
 qualifyType li = qtInner KStar
     where 
@@ -139,20 +141,6 @@ qualifyType li = qtInner KStar
                         pure $ TApp t1' t2'
                     _ -> throw $ EarlyKindMismatch t1 t2
             TVar v ()   -> pure $ TVar (QualifiedName [v]) k
-
-{-
-a (b c) | *
-
-a | * -> *
-a :: * -> *
-
-(b c) | *
-b | * -> *
-b :: * -> *
-c :: *
-
-
--}
 
 lookupName :: (QualifyC r) => Text -> LexInfo -> Sem r QualifiedName
 lookupName n li = get @[Scope] >>= \scopes -> maybe (throw (NameNotFound li n)) pure $

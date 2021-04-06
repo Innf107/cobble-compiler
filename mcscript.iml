@@ -113,5 +113,6 @@
     <orderEntry type="library" name="zip-archive-0.4.1" level="project" />
     <orderEntry type="library" name="digest-0.0.1.2" level="project" />
     <orderEntry type="library" name="zlib-0.6.2.2" level="project" />
+    <orderEntry type="library" name="uniplate-1.6.13" level="project" />
   </component>
 </module>

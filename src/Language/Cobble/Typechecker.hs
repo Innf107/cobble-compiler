@@ -23,12 +23,16 @@ data TypeError = VarDoesNotExist LexInfo (Name NextPass)
                | KindMismatch (Type NextPass) (Type NextPass)
                deriving (Show, Eq)
 
--- TODO: Scope (Maybe should be handled in a different step?)
+
 data TCState = TCState {
         varTypes::Map (Name 'Typecheck) (Type NextPass)
       , funReturnTypes::Map (Name 'Typecheck) (Type NextPass)
       , funArgs::Map (Name 'Typecheck) [Type NextPass]
     } deriving (Show, Eq)
+
+
+instance Semigroup TCState where (TCState v fr fa) <> (TCState v' fr' fa') = TCState (v <> v') (fr <> fr') (fa <> fa')
+instance Monoid TCState where mempty = TCState mempty mempty mempty
 
 
 type TypecheckC r = Members [State TCState, Error TypeError] r
@@ -71,7 +75,7 @@ runModuleTypecheck = run
                     . typecheckModule
 
 typecheckModule :: (TypecheckC r) => Module 'Typecheck -> Sem r (Module NextPass)
-typecheckModule (Module () mname instrs) = Module () mname <$> traverse typecheck instrs
+typecheckModule (Module deps mname instrs) = Module deps mname <$> traverse typecheck instrs
 
 typecheck :: (TypecheckC r) => Statement 'Typecheck -> Sem r (Statement NextPass)
 typecheck = \case

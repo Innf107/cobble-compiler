@@ -4,11 +4,14 @@ module Language.Cobble.Shared where
 
 import Language.Cobble.Prelude
 
+import Data.Data
+import Data.Generics.Uniplate.Data
+
 import qualified Data.Text as T
 
 import qualified GHC.Show as S
 
-data QualifiedName = QualifiedName {qualComponents::[Text]} deriving (Eq, Ord)
+data QualifiedName = QualifiedName {qualComponents::[Text]} deriving (Eq, Ord, Generic, Data, Typeable)
 
 instance S.Show QualifiedName where
     show = toString . T.intercalate "." . qualComponents
@@ -31,3 +34,6 @@ instance IsString QualifiedName where
 makeQName :: Text -> QualifiedName
 makeQName "" = QualifiedName []
 makeQName t  = QualifiedName $ T.split (=='.') t
+
+unqualifyName :: QualifiedName -> Text
+unqualifyName (QualifiedName ps) = fromMaybe "" $ viaNonEmpty last ps

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 893264b0662093b48bac806f1126611f492a45c7a0e5443dd92107e84f515b43
+-- hash: cba9a385c11a670edb759aed4155684c9bb07a5ccb5dff9cfdeedca9e7fa2aa1
 
 name:           cobble
 version:        0.1.0.0
@@ -45,7 +45,6 @@ library
       Language.Cobble.Types.AST
       Language.Cobble.Types.AST.Codegen
       Language.Cobble.Types.AST.QualifyNames
-      Language.Cobble.Types.AST.ResolveImports
       Language.Cobble.Types.AST.SolveModules
       Language.Cobble.Types.AST.Typecheck
       Language.Cobble.Types.PrettyPrint
@@ -61,11 +60,13 @@ library
   hs-source-dirs:
       src
   default-extensions:
-      LambdaCase
       NoImplicitPrelude
+      ApplicativeDo
+      LambdaCase
       OverloadedStrings
       DataKinds
       TypeFamilies
+      TypeFamilyDependencies
       FlexibleInstances
       FlexibleContexts
       RankNTypes
@@ -89,9 +90,21 @@ library
       ImportQualifiedPost
       NegativeLiterals
       DeriveGeneric
-  ghc-options: -fplugin=Polysemy.Plugin -Wall -Wno-unused-imports
+      DeriveDataTypeable
+      BangPatterns
+      DefaultSignatures
+      DeriveFoldable
+      DeriveFunctor
+      DeriveTraversable
+      DerivingStrategies
+      EmptyCase
+      ExistentialQuantification
+      GeneralizedNewtypeDeriving
+      InstanceSigs
+  ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wincomplete-record-updates -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
+    , containers
     , directory
     , filepath
     , lens
@@ -102,6 +115,7 @@ library
     , template-haskell
     , text
     , time
+    , uniplate
     , zip-archive
   default-language: Haskell2010
 
@@ -112,11 +126,13 @@ executable cobble
   hs-source-dirs:
       app
   default-extensions:
-      LambdaCase
       NoImplicitPrelude
+      ApplicativeDo
+      LambdaCase
       OverloadedStrings
       DataKinds
       TypeFamilies
+      TypeFamilyDependencies
       FlexibleInstances
       FlexibleContexts
       RankNTypes
@@ -140,10 +156,22 @@ executable cobble
       ImportQualifiedPost
       NegativeLiterals
       DeriveGeneric
+      DeriveDataTypeable
+      BangPatterns
+      DefaultSignatures
+      DeriveFoldable
+      DeriveFunctor
+      DeriveTraversable
+      DerivingStrategies
+      EmptyCase
+      ExistentialQuantification
+      GeneralizedNewtypeDeriving
+      InstanceSigs
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , cobble
+    , containers
     , directory
     , filepath
     , lens
@@ -155,6 +183,7 @@ executable cobble
     , template-haskell
     , text
     , time
+    , uniplate
     , zip-archive
   default-language: Haskell2010
 
@@ -181,11 +210,13 @@ test-suite cobble-test
   hs-source-dirs:
       test
   default-extensions:
-      LambdaCase
       NoImplicitPrelude
+      ApplicativeDo
+      LambdaCase
       OverloadedStrings
       DataKinds
       TypeFamilies
+      TypeFamilyDependencies
       FlexibleInstances
       FlexibleContexts
       RankNTypes
@@ -209,6 +240,17 @@ test-suite cobble-test
       ImportQualifiedPost
       NegativeLiterals
       DeriveGeneric
+      DeriveDataTypeable
+      BangPatterns
+      DefaultSignatures
+      DeriveFoldable
+      DeriveFunctor
+      DeriveTraversable
+      DerivingStrategies
+      EmptyCase
+      ExistentialQuantification
+      GeneralizedNewtypeDeriving
+      InstanceSigs
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
@@ -216,6 +258,7 @@ test-suite cobble-test
     , cereal
     , cobble
     , connection
+    , containers
     , directory
     , filepath
     , hspec
@@ -229,5 +272,6 @@ test-suite cobble-test
     , template-haskell
     , text
     , time
+    , uniplate
     , zip-archive
   default-language: Haskell2010

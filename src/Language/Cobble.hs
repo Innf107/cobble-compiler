@@ -12,6 +12,7 @@ import Language.Cobble.ModuleSolver
 import Language.Cobble.Util.Polysemy.Time
 import Language.Cobble.Util.Polysemy.FileSystem
 import Language.Cobble.Util
+import Language.Cobble.Shared
 
 import Language.Cobble.Prelude.Parser (ParseError, parse)
 
@@ -22,6 +23,7 @@ import Language.Cobble.MCAsm.Types as A
 
 import Language.Cobble.MCAsm.McFunction
 
+import Data.Map qualified as M
 import Data.List qualified as L
 import System.FilePath qualified as FP
 
@@ -32,8 +34,11 @@ data CompilationError = LexError LexicalError
                       | AsmError McAsmError
                       | TypeError TypeError
                       | ModuleError ModuleError
+                      | ControllerPanic ControllerPanic
                       deriving (Show, Eq)
 
+
+data ControllerPanic = ModuleDependencyNotFound (S.Name 'SolveModules) deriving (Show, Eq)
 
 type ControllerC r = Members '[Reader CompileOpts, Error CompilationError, FileSystem FilePath Text] r
 
@@ -82,16 +87,69 @@ compileAll files = do
     tokens <- traverse (\fn -> mapError LexError $ tokenizeError (toText fn) =<< readFile fn) files
     asts   <- traverse (\(ts, n) -> mapError ParseError $ fromEither $ parse (module_ (getModName n)) n ts) (zip tokens files)
 
-    orderedMods <- mapError ModuleError $ findCompilationOrder asts
+    orderedMods :: [(S.Module 'SolveModules, [Text])] <- mapError ModuleError $ findCompilationOrder asts
 
-    evalState mempty $ map fst <$> traverse compileWithSig orderedMods
+    fmap join $ evalState mempty $ traverse compileAndAnnotateSig orderedMods
 
-compileWithSig :: (ControllerC r, Member (State (Map (S.Name 'ResolveImports) ModSig)) r)
-               => S.Module 'ResolveImports
-               -> Sem r (CompiledModule, ModSig)
-compileWithSig mods = do
-    imods <- mapError QualificationError $ traverse resolveImports mods
-    undefined 
+compileAndAnnotateSig :: (ControllerC r, Member (State (Map (S.Name 'QualifyNames) ModSig)) r)
+                      => (S.Module 'SolveModules, [S.Name 'SolveModules])
+                      -> Sem r [CompiledModule]
+compileAndAnnotateSig (m, deps) = do
+    annotatedMod :: (S.Module 'QualifyNames) <- S.Module
+        <$> fromList <$> traverse (\d -> (makeQName d,) <$> getDep d) deps
+        <*> pure (S.moduleName m)
+        <*> pure (map coercePass (moduleStatements m))
+    (compMod, sig) <- compileWithSig annotatedMod
+    modify (insert (S.moduleName m) sig)
+    pure compMod
+
+getDep :: (ControllerC r, Member (State (Map (S.Name 'QualifyNames) ModSig)) r)
+       => S.Name 'SolveModules
+       -> Sem r ModSig
+getDep n = maybe (throw (ControllerPanic $ ModuleDependencyNotFound n)) pure =<< gets (lookup n)
+
+compileWithSig :: (ControllerC r)
+               => S.Module 'QualifyNames
+               -> Sem r ([CompiledModule], ModSig)
+compileWithSig m = do
+    let qualScopes =
+            map (\(dname, dsig) -> Scope {
+                    _prefix=dname
+                ,   _typeNames=map unqualifyName $ keys (exportedStructs dsig)
+                ,   _varFunNames=map unqualifyName $ keys (exportedVars dsig) ++ keys (exportedFunctions dsig)
+                ,   _typeKinds=todo mempty})
+                (M.toList $ xModule m)
+            ++ [Scope (makeQName $ S.moduleName m) mempty mempty mempty]
+    let tcState = foldMap (\dsig -> TCState {
+                    varTypes=exportedVars dsig
+                ,   funReturnTypes=M.mapMaybe snd $ exportedFunctions dsig
+                ,   funArgs=fmap (map snd . fst) $ exportedFunctions dsig
+                })
+                (xModule m)
+    compEnv <- asks \CompileOpts{name, debug} -> CompEnv {nameSpace=name, debug}
+    qMod  <- mapError QualificationError $ evalState qualScopes $ qualify m
+    tcMod <- mapError TypeError $ evalState tcState $ typecheckModule qMod
+    asmMod <- mapError AsmError $ mapError CompilerError $ evalState initialCompileState $ S.compile tcMod
+    compMods <- mapError AsmError $ evalState initialCompState $ runReader compEnv $ A.compile [asmMod]
+    let sig = extractSig tcMod
+    pure (compMods, sig)
+
+-- TODO: Move to own module
+extractSig :: S.Module 'Codegen -> ModSig
+extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
+
+makePartialSig :: S.Statement 'Codegen -> ModSig
+makePartialSig = \case
+    Decl () _ n _ e             -> mempty {exportedVars = one (n, getType e)}
+    DefVoid () _ n ps _         -> mempty {exportedFunctions = one (n,(ps, Nothing))}
+    DefFun () _ n ps _ _ t      -> mempty {exportedFunctions = one (n,(ps, Just t))}
+    DefStruct () _ n fs         -> mempty {exportedStructs = one (n, fs)}
+    CallFun () _ _ _            -> mempty
+    Import () _ _               -> mempty
+    Assign () _ _ _             -> mempty
+    While () _ _ _              -> mempty
+    S.SetScoreboard () _ _ _ _  -> mempty
+    StatementX v _              -> absurd v
 
 getModName :: FilePath -> Text
 getModName = toText . FP.dropExtension . L.last . segments

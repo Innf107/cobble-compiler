@@ -10,22 +10,36 @@ import Language.Cobble.Types.TH
 
 import Language.Cobble.MCAsm.Types (Objective)
 
+import Data.Data
+import Data.Generics.Uniplate.Data
+
 import GHC.Show qualified as S
 
 type family Name (p :: Pass)
 
 -- Top level module.
 data Module (p :: Pass) = Module
-    { xModule::(XModule p)
-    , moduleName::(Name p)
-    , moduleStatements::[Statement p]
+    { xModule :: (XModule p)
+    , moduleName :: (Name p)
+    , moduleStatements :: [Statement p]
     }
 
 type family XModule (p :: Pass)
 
+-- | The signature of a module contains
+-- everything that a module exports
+-- (Variables, Functions, Types, etc.)
+data ModSig = ModSig {
+    exportedVars :: Map QualifiedName (Type 'Codegen)
+,   exportedFunctions :: Map (QualifiedName) ([(QualifiedName, Type 'Codegen)], Maybe (Type 'Codegen))
+,   exportedStructs :: Map (QualifiedName) [(QualifiedName, Type 'Codegen)]
+} deriving (Generic, Typeable) -- Instances for @Eq@ and @Data@ are defined in Language.Cobble.Types.AST.Codegen
+
+instance Semigroup ModSig where ModSig vs fs ts <> ModSig vs' fs' ts' = ModSig (vs <> vs') (fs <> fs') (ts <> ts')
+instance Monoid ModSig where mempty = ModSig mempty mempty mempty
+
 -- | A data kind representing the state of the AST at a certain Compiler pass.
 data Pass = SolveModules
-          | ResolveImports
           | QualifyNames
           | Typecheck
           | Codegen
@@ -72,7 +86,7 @@ type family XBoolLit (p :: Pass)
 type family XVar (p :: Pass)
 type family XExpr (p :: Pass)
 
-data Kind = KStar | KFun Kind Kind deriving (Eq)
+data Kind = KStar | KFun Kind Kind deriving (Eq, Generic, Data, Typeable)
 
 
 data Type (p :: Pass) = TCon (Name p) (XKind p)
@@ -88,7 +102,7 @@ data LexInfo = LexInfo {
       line :: Int
     , column :: Int
     , file :: FileName
-    } deriving (Show, Eq)
+    } deriving (Show, Eq, Data, Typeable)
 
 instance (Name p1 ~ Name p2, XKind p1 ~ XKind p2) => Convert (Type p1) (Type p2) where
     conv = \case
@@ -200,4 +214,4 @@ type ModuleCoercible p1 p2 = ( StatementCoercible p1 p2
                              )
 instance (ModuleCoercible p1 p2, StatementCoercible p1 p2) => CoercePass Module p1 p2 where
     coercePass (Module x n sts) = Module x n (map coercePass sts) 
-        
+

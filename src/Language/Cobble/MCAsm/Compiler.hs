@@ -49,7 +49,7 @@ hoistModules (InterModule mn ins) = makeModulesInner mn ins
             in (CompiledModule mname (unlines (map runMcFunction (concat instrs))):)
 --                                                                ^ TODO: Is this concat okay?
                . concat <$> mapM (\(n, inner) -> makeModulesInner (mname <> n) inner) mods
---                                                                           ^ TODO: shouldn't submodules be handled by @QualifiedName@s?
+
 compile :: (CompC r) => [Module] -> Sem r [CompiledModule]
 compile mods = fmap concat $ join $ mapM hoistModules <$>
     ((++) <$> sequenceA [initialize,clean] <*> mapM compileModule mods)

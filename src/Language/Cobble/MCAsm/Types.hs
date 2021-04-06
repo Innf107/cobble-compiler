@@ -7,6 +7,10 @@ import Language.Cobble.Shared
 
 import GHC.Show qualified as S
 
+import Data.Data
+
+import Data.Generics.Uniplate.Data
+
 -- Can use an unlimited amount of Registers
 
 type Name = QualifiedName
@@ -159,9 +163,9 @@ data CompEnv = CompEnv {
 
 newtype McFunction = McFunction { runMcFunction :: Text } deriving (Show, Eq)
 
-newtype Objective = Objective { renderObjective :: Text } deriving (Show, Eq)
+newtype Objective = Objective { renderObjective :: Text } deriving (Show, Eq, Generic, Data, Typeable)
 
-newtype Tag = Tag { renderTag :: Text } deriving (Show, Eq)
+newtype Tag = Tag { renderTag :: Text } deriving (Show, Eq, Generic, Data, Typeable)
 
 
 type CompC      r = Members '[Reader CompEnv, State CompState, Error McAsmError] r

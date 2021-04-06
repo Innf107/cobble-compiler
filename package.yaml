@@ -32,13 +32,19 @@ dependencies:
 - template-haskell
 - zip-archive
 - time
+- uniplate
+- containers
 
 library:
   source-dirs: src
   ghc-options:
   - -fplugin=Polysemy.Plugin
   - -Wall
+  - -Wcompat
+  - -Wincomplete-uni-patterns
   - -Wno-unused-imports
+  - -Wincomplete-record-updates
+  - -Wredundant-constraints
 
 executables:
   cobble:
@@ -70,11 +76,13 @@ tests:
     - cereal
 
 default-extensions:
-  - LambdaCase
   - NoImplicitPrelude
+  - ApplicativeDo
+  - LambdaCase
   - OverloadedStrings
   - DataKinds
   - TypeFamilies
+  - TypeFamilyDependencies
   - FlexibleInstances
   - FlexibleContexts
   - RankNTypes
@@ -98,3 +106,14 @@ default-extensions:
   - ImportQualifiedPost
   - NegativeLiterals
   - DeriveGeneric
+  - DeriveDataTypeable
+  - BangPatterns
+  - DefaultSignatures
+  - DeriveFoldable
+  - DeriveFunctor
+  - DeriveTraversable
+  - DerivingStrategies
+  - EmptyCase
+  - ExistentialQuantification
+  - GeneralizedNewtypeDeriving
+  - InstanceSigs

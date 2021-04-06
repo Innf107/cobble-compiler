@@ -8,6 +8,7 @@ module Language.Cobble.Prelude (
     , module Polysemy.Writer
     , module Control.Lens
     , module System.FilePath
+    , module Data.Generics.Uniplate.Data
     , (|:)
     , state 
     , whenAlt
@@ -60,10 +61,21 @@ import Polysemy.Error
 import Polysemy.Reader
 import Polysemy.Writer hiding (pass)
 
+import Data.Generics.Uniplate.Data
 
 import System.FilePath hiding ((<.>))
 
-import Control.Lens
+import Control.Lens hiding (
+        universe
+    ,   children
+    ,   contexts
+    ,   holes
+    ,   para
+    ,   rewriteM
+    ,   rewrite
+    ,   transformM
+    ,   transform
+    )
 
 (|:) :: a -> NonEmpty a -> NonEmpty a
 a |: (x :| xs) = a :| (x : xs)

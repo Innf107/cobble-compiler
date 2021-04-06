@@ -15,10 +15,6 @@ data DepModule = DepModule {
     ,   modDeps :: [DepModule]
     } deriving (Show, Eq)
 
-data ModSig = ModSig {
-    sigTypes :: Map QualifiedName (Type 'Codegen)
-}
-
 type NextPass = 'QualifyNames
 
 -- | Finds an order for a list of modules such that
@@ -28,11 +24,11 @@ type NextPass = 'QualifyNames
 -- This function is not very efficient, but that should
 -- not matter even if there are a lot of modules in a project.
 -- In case it does matter, the function should be fairly easy to optimize.
-solveModuleOrder :: (ModC r) => [(DepModule, a)] -> Sem r [a]
+solveModuleOrder :: (ModC r) => [(DepModule, a)] -> Sem r [(DepModule, a)]
 solveModuleOrder [] = pure []
 solveModuleOrder ms = case find (null . modDeps . fst) ms of
     Nothing -> findCircularDeps (map fst ms)
-    Just (m, x) -> (x:) <$> solveModuleOrder 
+    Just (m, x) -> ((m, x):) <$> solveModuleOrder
         (map (first (\dm -> dm{modDeps = removeMod (modDeps dm)})) $ filter ((/=modName m) . modName . fst) ms)
         where
             removeMod :: [DepModule] -> [DepModule]
@@ -62,13 +58,12 @@ toDepMod ms m@(Module () mname _) = fmap (DepModule mname) $ getModDeps m
 determineDeps :: (ModC r) => [Module 'SolveModules] -> Sem r [DepModule]
 determineDeps ms = traverse (toDepMod ms) ms
 
-findCompilationOrder :: (ModC r) => [Module 'SolveModules] -> Sem r [Module 'ResolveImports]
+flattenDeps :: DepModule -> [Name 'SolveModules]
+flattenDeps = concatMap flattenDeps . modDeps
+
+-- TODO: Should probably return modules in a different pass ("Parse, don't validate")
+findCompilationOrder :: (ModC r) => [Module 'SolveModules] -> Sem r [(Module 'SolveModules, [Name 'SolveModules])]
 findCompilationOrder ms = do
     depMods <- determineDeps ms
-    map coercePass <$> solveModuleOrder (zip depMods ms)
-
-annotateImports :: (ModC r, Member (State (Map (Name 'ResolveImports) ModSig)) r) 
-                => Module 'ResolveImports 
-                -> Sem r (Module NextPass)
-annotateImports = undefined 
+    map (second flattenDeps . swap) <$> solveModuleOrder (zip depMods ms)
 

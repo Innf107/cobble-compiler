@@ -2,12 +2,12 @@ module Language.Cobble.Types
     (
       module Export
     , NameSpace
+    , HasType (..)
     )
     where
 
 import Language.Cobble.Types.AST as Export
 import Language.Cobble.Types.AST.SolveModules as Export
-import Language.Cobble.Types.AST.ResolveImports as Export
 import Language.Cobble.Types.AST.QualifyNames as Export
 import Language.Cobble.Types.AST.Typecheck as Export
 import Language.Cobble.Types.AST.Codegen as Export
@@ -17,3 +17,17 @@ import Language.Cobble.MCAsm.Types as Export (Objective(..))
 import Language.Cobble.Prelude
 
 type NameSpace = Text
+
+
+class HasType t p where
+    getType :: t -> Type p
+
+instance HasType (Expr 'Codegen) 'Codegen where
+    getType = \case
+        FCall x _ _ _ -> x
+        Var x _ _ -> x
+        IntLit () _ _ -> intT
+        BoolLit () _ _ -> boolT
+        ExprX v _ -> absurd v
+        
+        

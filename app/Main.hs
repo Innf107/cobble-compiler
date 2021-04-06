@@ -26,11 +26,11 @@ runCompile :: CompileCmdOpts -> IO ()
 runCompile CompileCmdOpts{compFile, debug} = do
     content <- readFileText compFile
     let name = takeBaseName compFile
-    datapackBS <- either failWithCompError pure =<< compileFileToDatapack (CompileOpts {
+    datapackBS <- either failWithCompError pure =<< {-compileFileToDatapack-} undefined (CompileOpts {
           fileName=toText compFile
         , name=toText name
         , debug
-        }) content 
+        }) content
     writeFileLBS (name <> ".zip") datapackBS
 
 failWithCompError :: CompilationError -> IO a
