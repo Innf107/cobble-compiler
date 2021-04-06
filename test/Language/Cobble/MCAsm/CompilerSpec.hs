@@ -6,6 +6,7 @@ import Language.Cobble.MCAsm.Types
 import Language.Cobble.MCAsm.Compiler
 
 import Test.Hspec
+import Language.Cobble.Shared (Panic)
 
 spec :: Spec
 spec = do
@@ -206,11 +207,16 @@ spec = do
                       ,   CompiledModule "SomeSection.InnerSection" (unlines ["say 3", "say 4"])
                       ]
 
+data TestError = TestMcAsmError McAsmError
+               | TestPanic Panic
+               deriving (Show, Eq)
+
 runAsm :: CompEnv
        -> CompState
-       -> Sem '[Reader CompEnv, State CompState, Error McAsmError] a
-       -> Either McAsmError a
-runAsm env initialState = run . runError . evalState initialState . runReader env
+       -> Sem '[Reader CompEnv, State CompState, Error Panic, Error McAsmError, Error TestError] a
+       -> Either TestError a
+runAsm env initialState = run . runError @TestError . mapError TestMcAsmError . mapError TestPanic . evalState initialState . runReader env
 
-evalAsm :: Sem '[Reader CompEnv, State CompState, Error McAsmError] a -> Either McAsmError a
+evalAsm :: Sem '[Reader CompEnv, State CompState, Error Panic, Error McAsmError, Error TestError] a
+        -> Either TestError a
 evalAsm = runAsm (CompEnv False "test") initialCompState

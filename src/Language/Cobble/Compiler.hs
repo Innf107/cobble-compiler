@@ -51,13 +51,15 @@ emptyFrame :: Frame
 emptyFrame = Frame mempty 0
 
 stackReg :: Register 'Array
-stackReg = CustomReg "STACK"
+stackReg = ArrayReg $ NamedReg "STACK"
 
 stackPTRReg :: Register 'Number
-stackPTRReg = CustomReg "STACKPTR"
+stackPTRReg = NumReg $ NamedReg "STACKPTR"
 
-returnReg :: Register a
-returnReg = CustomReg "RETURN"
+class ReturnReg (t :: RegType) where returnReg :: Register t
+instance ReturnReg 'Number where returnReg = NumReg (NamedReg "RETURN")
+instance ReturnReg 'Entity where returnReg = EntityReg (NamedReg "RETURN")
+instance ReturnReg 'Array where returnReg = ArrayReg (NamedReg "RETURN")
 
 makeLenses 'Frame
 makeLenses 'CompileState
@@ -72,8 +74,8 @@ rts = do
 compile :: (CompileC r) => S.Module 'Codegen -> Sem r A.Module
 compile (S.Module _deps modname stmnts) = A.Module modname . fst <$> runWriterAssocR (traverse compileStatement stmnts)
 
-newReg :: (CompileC r) => Sem r Int
-newReg = modify (& lastReg +~ 1) >> get <&> (^. lastReg)
+newReg :: (CompileC r) => Sem r RegId
+newReg = modify (& lastReg +~ 1) >> get <&> IdReg . (^. lastReg)
 
 newRegForType :: (CompileC r, FromSomeReg a) => Type 'Codegen -> Sem r (Register a)
 newRegForType = \case
@@ -120,6 +122,7 @@ compileStatement = \case
     S.SetScoreboard () _li obj player ex -> do
         r <- fromSomeReg =<< compileExprToReg ex
         tell [A.SetScoreboard obj player r]
+
 
 pushVarToStack :: (Member (Writer [Instruction]) r, CompileC r) => Name 'Codegen -> Expr 'Codegen -> Sem r Int
 pushVarToStack name ex = do

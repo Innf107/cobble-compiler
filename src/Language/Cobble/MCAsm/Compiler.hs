@@ -169,13 +169,13 @@ whenDebug :: (CompC r) => Sem r () -> Sem r ()
 whenDebug s = asks debug >>= flip when s
 
 constReg :: Register 'Number
-constReg = CustomReg "CONST"
+constReg = NumReg (NamedReg "CONST")
 
 elseReg :: Register 'Number
-elseReg = CustomReg "ELSE"
+elseReg = NumReg (NamedReg "ELSE")
 
 arrayCounterReg :: Register 'Number
-arrayCounterReg = CustomReg "ARRAYCOUNTER"
+arrayCounterReg = NumReg (NamedReg "ARRAYCOUNTER")
 
 regs, aptr, aelem, ix, eptr, uid :: Objective
 regs  = Objective "REGS"

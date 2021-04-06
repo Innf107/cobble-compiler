@@ -51,37 +51,40 @@ castReg = fromSomeReg . SomeReg
 instance FromSomeReg 'Number where
     fromSomeReg = \case
         SomeReg (NumReg i) -> pure $ NumReg i
-        SomeReg (CustomReg t) -> pure $ CustomReg t
         _ -> throw $ RegisterCastError "Number"
 
 instance FromSomeReg 'Entity where
     fromSomeReg = \case
         SomeReg (EntityReg i) -> pure $ EntityReg i
-        SomeReg (CustomReg t) -> pure $ CustomReg t
-        _ -> throw $ RegisterCastError "Number"
+        _ -> throw $ RegisterCastError "Entity"
 
 instance FromSomeReg 'Array where
     fromSomeReg = \case
         SomeReg (ArrayReg i) -> pure $ ArrayReg i
-        SomeReg (CustomReg t) -> pure $ CustomReg t
-        _ -> throw $ RegisterCastError "Number"
+        _ -> throw $ RegisterCastError "Array"
 
 
 data Register (t :: RegType) where
-    NumReg :: Int -> Register 'Number
-    EntityReg :: Int -> Register 'Entity
-    ArrayReg :: Int -> Register 'Array
-    CustomReg :: Text -> Register t
+    NumReg :: RegId -> Register 'Number
+    EntityReg :: RegId -> Register 'Entity
+    ArrayReg :: RegId -> Register 'Array
+
+data RegId = IdReg Int
+           | NamedReg Text
+           deriving (Show, Eq)
 
 deriving instance Show (Register a)
 deriving instance Eq (Register a)
 
 renderReg :: Register a -> Text
 renderReg = \case
-    NumReg    i -> "R" <> show i
-    EntityReg i -> "E" <> show i
-    ArrayReg  i -> "A" <> show i
-    CustomReg name -> name
+    NumReg    i -> "N" <> renderRegId i
+    EntityReg i -> "E" <> renderRegId i
+    ArrayReg  i -> "A" <> renderRegId i
+
+renderRegId :: RegId -> Text
+renderRegId (IdReg i) = show i
+renderRegId (NamedReg name) = name
 
 data Module = Module {
       moduleName::Name
@@ -89,7 +92,7 @@ data Module = Module {
     } deriving (Show, Eq)
 
 data Instruction =
-      MoveNumReg (Register 'Number) (Register 'Number)
+      MoveReg (Register 'Number) (Register 'Number)
     | MoveNumLit (Register 'Number) Int
     | MoveArray (Register 'Array) (Register 'Array)
     | MoveEntity (Register 'Entity) (Register 'Entity)
