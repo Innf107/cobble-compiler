@@ -4,8 +4,10 @@ module Main where
 
 import Language.Cobble.Prelude hiding (argument)
 import Language.Cobble
+import Language.Cobble.Packager
 
 import Options.Applicative
+import Language.Cobble.Util.Polysemy.Time
 
 main :: IO ()
 main = runCobble =<< execParser (info (mainOpts <**> helper) mainInfo)
@@ -23,27 +25,34 @@ runCobble = \case
     Compile co -> runCompile co
 
 runCompile :: CompileCmdOpts -> IO ()
-runCompile CompileCmdOpts{compFile, debug} = do
-    content <- readFileText compFile
-    let name = takeBaseName compFile
-    datapackBS <- either failWithCompError pure =<< {-compileFileToDatapack-} undefined (CompileOpts {
-          fileName=toText compFile
-        , name=toText name
-        , debug
-        }) content
-    writeFileLBS (name <> ".zip") datapackBS
+runCompile CompileCmdOpts{compFiles, debug, packageName, description} = do
+    let opts = CompileOpts {
+            name=packageName
+        ,   debug
+        ,   dataPackOpts = DataPackOptions {
+                name=packageName
+            ,   description
+            }                   
+        }
+    datapackBS <- either failWithCompError pure =<< runControllerC opts (timeToIO $ compileToDataPack compFiles)
+    writeFileLBS (toString packageName <> ".zip") datapackBS
 
+-- TODO
 failWithCompError :: CompilationError -> IO a
 failWithCompError e = fail $ "CompilationError: " <> show e
 
 data CobbleAction = Compile CompileCmdOpts deriving (Show, Eq)
 
 data CompileCmdOpts = CompileCmdOpts {
-      compFile :: FilePath
+      compFiles :: [FilePath]
+    , packageName :: Text
     , debug :: Bool
+    , description :: Text
     } deriving (Show, Eq)
 
 compileOpts :: Parser CompileCmdOpts
 compileOpts = CompileCmdOpts
-    <$> argument str (metavar "SOURCEFILE")
+    <$> some (argument str (metavar "SOURCEFILES"))
+    <*> strOption (long "package-name" <> short 'p' <> metavar "NAME" <> help "The name of the package/datapack")
     <*> switch (long "debug" <> help "Debug mode keeps additional information at runtime")
+    <*> strOption (long "description" <> short 'd' <> metavar "DESCRIPTION" <> help "The datapack description for the datapack's pack.mcmeta")
