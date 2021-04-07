@@ -56,10 +56,6 @@ stackReg = ArrayReg $ NamedReg "STACK"
 stackPTRReg :: Register 'Number
 stackPTRReg = NumReg $ NamedReg "STACKPTR"
 
-class ReturnReg (t :: RegType) where returnReg :: Register t
-instance ReturnReg 'Number where returnReg = NumReg (NamedReg "RETURN")
-instance ReturnReg 'Entity where returnReg = EntityReg (NamedReg "RETURN")
-instance ReturnReg 'Array where returnReg = ArrayReg (NamedReg "RETURN")
 
 makeLenses 'Frame
 makeLenses 'CompileState
@@ -78,11 +74,10 @@ newReg :: (CompileC r) => Sem r RegId
 newReg = modify (& lastReg +~ 1) >> get <&> IdReg . (^. lastReg)
 
 newRegForType :: (CompileC r, FromSomeReg a) => Type 'Codegen -> Sem r (Register a)
-newRegForType = \case
-    TCon "Int" KStar    -> castReg . NumReg =<< newReg
-    TCon "Entity" KStar -> castReg . EntityReg =<< newReg
-    TCon "Bool" KStar   -> castReg . NumReg =<< newReg
-    _ -> castReg . ArrayReg =<< newReg
+newRegForType t = case rtType t of
+    Number -> castReg . NumReg    =<< newReg
+    Entity -> castReg . EntityReg =<< newReg
+    Array  -> castReg . ArrayReg  =<< newReg
 
 compileStatement :: forall r. (Member (Writer [Instruction]) r, CompileC r) => S.Statement 'Codegen -> Sem r ()
 compileStatement = \case
@@ -92,15 +87,16 @@ compileStatement = \case
         varIxReg <- NumReg <$> newReg
         frameReg <- ArrayReg <$> newReg
         mvarIx <- get <&> join . (^? frames . head1 . varIndices . at name)
-        case mvarIx of   
+        case mvarIx of
             Nothing -> panicVarNotFoundTooLate name
             Just varIx -> do
-                exprReg <- fromSomeReg =<< compileExprToReg expr
+                exprReg <- compileExprToReg expr
                 tell [
                       GetInArray frameReg stackReg stackPTRReg
                     , MoveNumLit varIxReg varIx
-                    , SetInArray @'Array frameReg varIxReg exprReg
                     ]
+                tell . pure =<< makeInstr (getType expr) exprReg (\r -> SetInArray frameReg varIxReg r)
+
     CallFun () li name args -> get <&> (^? functions . ix name . returnType . _Just) >>= \case
         Nothing -> panicFunNotFoundTooLate name
         Just rt -> void $ compileExprToReg (FCall rt li name args)
@@ -118,7 +114,7 @@ compileStatement = \case
             modify (& frames . head1 . varCount .~ length pars)
             traverse_ compileStatement body
             res <- compileExprToReg retExp
-            moveReg t res (SomeReg @'Number returnReg) -- TODO: :/
+            tell .pure =<< makeInstr t res (\res' -> MoveReg returnReg res')
     S.SetScoreboard () _li obj player ex -> do
         r <- fromSomeReg =<< compileExprToReg ex
         tell [A.SetScoreboard obj player r]
@@ -135,20 +131,21 @@ pushVarToStack name ex = do
 
 compileExprToReg :: (Member (Writer [Instruction]) r, CompileC r) => Expr 'Codegen -> Sem r SomeReg
 compileExprToReg = \case
-    (IntLit () _li i) -> newRegForType intT >>= \reg -> tell [MoveNumLit reg i] $> SomeReg reg
-    (BoolLit () _li b) -> newRegForType boolT >>= \reg -> tell [MoveNumLit reg (bool 0 1 b)] $> SomeReg reg
+    (IntLit () _li i)  -> NumReg <$> newReg >>= \reg -> tell [MoveNumLit reg i] $> SomeReg reg
+    (BoolLit () _li b) -> NumReg <$> newReg >>= \reg -> tell [MoveNumLit reg (bool 0 1 b)] $> SomeReg reg
     (Var t _li n) -> get <&> join . (^? frames . head1 . varIndices . at n) >>= \case
         Nothing -> panicVarNotFoundTooLate n
         Just vIx -> do
-            reg <- newRegForType t
+            regID <- newReg
             frameReg <- ArrayReg <$> newReg
             varIxReg <- NumReg <$> newReg
             tell [
                   MoveNumLit varIxReg vIx
                 , GetInArray @'Array frameReg stackReg stackPTRReg
-                , GetInArray @'Array reg frameReg varIxReg
                 ]
-            pure $ SomeReg reg
+            makeInstr' t regID \r -> do
+                tell [GetInArray r frameReg varIxReg]
+                pure $ SomeReg r
     -- (FloatT, FloatLit i) -> pure [MoveNumReg (NumReg reg)]
     (FCall t _li fname args) -> do
         get <&> (^. functions . at fname) >>= \case
@@ -159,11 +156,12 @@ compileExprToReg = \case
                 tell [Call fname]
                 case (f ^. returnType) of
                     Nothing -> panic' "Called a void function as an expression" [show fname]
-                    Just _ -> pure $ SomeReg @'Number returnReg -- TODO: Is this okay or does this get overriden by recursion?
-                                                       -- TODO: (If it is, the entire case should be removed)
-                                                       -- TODO: PROBABLY BROKEN!! (returnReg is polymorphic, but
-                                                       -- TODO registers for different types are implemented differently)
-    ExprX x _li -> case x of
+                    Just t' | t' /= t -> panic' "Return type of function does not match fcall expr return type" [show fname, show t, show t']
+                    Just _ -> case rtType t of
+                        Number -> pure $ SomeReg @'Number returnReg
+                        Entity -> pure $ SomeReg @'Entity returnReg
+                        Array  -> pure $ SomeReg @'Array  returnReg
+    ExprX x _li -> absurd x
 
 moveReg :: (CompileC r, Member (Writer [Instruction]) r) => Type 'Codegen -> SomeReg -> SomeReg -> Sem r ()
 moveReg t r1 r2 = case t of
@@ -171,3 +169,29 @@ moveReg t r1 r2 = case t of
     TCon "Bool" KStar -> MoveReg @'Number <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure
     _ -> error "TODO: moveReg for arbitrary types (MoveArray)"
 
+makeInstr :: (CompileC r) => Type 'Codegen -> SomeReg -> (forall rt. (ObjForType rt, ReturnReg rt) => Register rt -> a) -> Sem r a
+makeInstr t r f = case rtType t of
+    Number -> f <$> fromSomeReg @'Number r
+    Entity -> f <$> fromSomeReg @'Entity r
+    Array  -> f <$> fromSomeReg @'Array  r
+
+makeInstr' :: Type 'Codegen -> RegId -> (forall rt. (ObjForType rt, ReturnReg rt) => Register rt -> a) -> a
+makeInstr' t rid f = case rtType t of
+    Number -> f $ NumReg rid
+    Entity -> f $ EntityReg rid
+    Array  -> f $ ArrayReg rid
+
+
+
+rtType :: Type 'Codegen -> RegType
+rtType = \case
+    TCon "Int" KStar -> Number
+    TCon "Bool" KStar -> Number
+    TCon "Entity" KStar -> Entity
+    _ -> Array
+
+regId :: Register t -> RegId
+regId = \case
+    NumReg r -> r
+    EntityReg r -> r
+    ArrayReg r -> r

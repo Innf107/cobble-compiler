@@ -1,4 +1,5 @@
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 module Language.Cobble.MCAsm.Types where
 
 import Language.Cobble.Prelude
@@ -133,6 +134,10 @@ data Instruction where
 deriving instance Show Instruction
 --deriving instance Eq Instruction   somehow broken?
 
+class ReturnReg (t :: RegType) where returnReg :: Register t
+instance ReturnReg 'Number where returnReg = NumReg (NamedReg "RETURN")
+instance ReturnReg 'Entity where returnReg = EntityReg (NamedReg "RETURN")
+instance ReturnReg 'Array where returnReg = ArrayReg (NamedReg "RETURN")
 
 class ObjForType (t :: RegType) where objForType :: f t -> Objective
 instance ObjForType 'Number where objForType _ = Objective "REGS"
