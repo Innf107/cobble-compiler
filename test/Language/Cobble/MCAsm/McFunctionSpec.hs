@@ -6,6 +6,7 @@ import Test.Hspec
 
 import Language.Cobble.MCAsm.Types
 import Language.Cobble.MCAsm.McFunction
+import Language.Cobble.Shared
 
 import Polysemy.Input
 
@@ -121,12 +122,16 @@ spec = do
             it "EFacing" $ pass @IO
             it "EIf" $ pass @IO
         
+data TestError = TestMcAsmError McAsmError
+               | TestPanic Panic
+               deriving (Show, Eq)
+        
 runCompInner :: CompEnv
              -> CompState
-             -> Sem '[Reader CompEnv, State CompState, Writer [McFunction], Error McAsmError] a
-             -> Either McAsmError ([McFunction], a)
-runCompInner env initialState = run . runError . runWriter . evalState initialState . runReader env
+             -> Sem '[Reader CompEnv, State CompState, Writer [McFunction], Error McAsmError, Error Panic, Error TestError] a
+             -> Either TestError ([McFunction], a)
+runCompInner env initialState = run . runError @TestError . mapError TestPanic . mapError TestMcAsmError . runWriter . evalState initialState . runReader env
 
-evalCompInner :: Sem '[Reader CompEnv, State CompState, Writer [McFunction], Error McAsmError] ()
-              -> Either McAsmError [McFunction]
-evalCompInner = fmap fst . run . runError . runWriter . evalState initialCompState . runReader (CompEnv True "Test")
+evalCompInner :: Sem '[Reader CompEnv, State CompState, Writer [McFunction], Error McAsmError, Error Panic, Error TestError] a
+              -> Either TestError [McFunction]
+evalCompInner = fmap fst . runCompInner (CompEnv True "Test") initialCompState
