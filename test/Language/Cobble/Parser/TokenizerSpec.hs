@@ -23,9 +23,9 @@ spec = do
                 `shouldBe`
                 Right [Ident "this", Ident "is", Ident "a", Ident "test"]
         it "handles reserved identifiers" do
-            map tokData <$> tokenize "Test" "this Falsee is True bool"
+            map tokData <$> tokenize "Test" "this Falsee is a True import bool"
                 `shouldBe`
-                Right [Ident "this", Ident "Falsee", Ident "is", Reserved "True", Ident "bool"]
+                Right [Ident "this", Ident "Falsee", Ident "is", Ident "a", Reserved "True", Reserved "import", Ident "bool"]
         it "handles reserved operators" do
             map tokData <$> tokenize "Test" "x : y := 4;"
                 `shouldBe`
