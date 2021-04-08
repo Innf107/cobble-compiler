@@ -6,6 +6,7 @@ module Language.Cobble.Prelude (
     , module Polysemy.Error
     , module Polysemy.Reader
     , module Polysemy.Writer
+    , module Polysemy.Output
     , module Control.Lens
     , module System.FilePath
     , module Data.Generics.Uniplate.Data
@@ -60,6 +61,7 @@ import Polysemy.State
 import Polysemy.Error
 import Polysemy.Reader
 import Polysemy.Writer hiding (pass)
+import Polysemy.Output
 
 import Data.Generics.Uniplate.Data
 

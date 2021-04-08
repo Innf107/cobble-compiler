@@ -7,7 +7,7 @@ import Language.Cobble.Types as S
 
 import Language.Cobble.MCAsm.Types as A hiding (Name)
 
-type CompileC r = Members '[State CompileState, Error Panic, Error McAsmError] r
+type CompileC r = Members '[State CompileState, Error Panic, Error McAsmError, Output Log] r
 
 panic :: (Member (Error Panic) r) => Text -> Sem r a
 panic = throw . Panic
@@ -68,7 +68,7 @@ rts = do
         ]
 
 compile :: (CompileC r) => S.Module 'Codegen -> Sem r A.Module
-compile (S.Module _deps modname stmnts) = A.Module modname . fst <$> runWriterAssocR (traverse compileStatement stmnts)
+compile (S.Module _deps modname stmnts) = log LogVerbose "STARTING COBBLE CODEGEN" >> A.Module modname . fst <$> runWriterAssocR (traverse compileStatement stmnts)
 
 newReg :: (CompileC r) => Sem r RegId
 newReg = modify (& lastReg +~ 1) >> get <&> IdReg . (^. lastReg)
@@ -80,7 +80,7 @@ newRegForType t = case rtType t of
     Array  -> castReg . ArrayReg  =<< newReg
 
 compileStatement :: forall r. (Member (Writer [Instruction]) r, CompileC r) => S.Statement 'Codegen -> Sem r ()
-compileStatement = \case
+compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >>) $ s & \case
     Decl () _li name _ expr -> void $ pushVarToStack name expr
 
     Assign () _li name expr -> do
@@ -126,11 +126,11 @@ pushVarToStack name ex = do
     modify (& frames . head1 . varCount +~ 1)
     modify (& frames . head1 . varIndices . at name ?~ varIx)
 
-    compileStatement (AssignT (LexInfo 0 0 "ThisShouldNotHaveHappened!") name ex)
+    compileStatement (AssignT (LexInfo 0 0 "YouShouldNotSeeThis!") name ex)
     pure varIx
 
 compileExprToReg :: (Member (Writer [Instruction]) r, CompileC r) => Expr 'Codegen -> Sem r SomeReg
-compileExprToReg = \case
+compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e & \case
     (IntLit () _li i)  -> NumReg <$> newReg >>= \reg -> tell [MoveNumLit reg i] $> SomeReg reg
     (BoolLit () _li b) -> NumReg <$> newReg >>= \reg -> tell [MoveNumLit reg (bool 0 1 b)] $> SomeReg reg
     (Var t _li n) -> get <&> join . (^? frames . head1 . varIndices . at n) >>= \case
@@ -165,8 +165,8 @@ compileExprToReg = \case
 
 moveReg :: (CompileC r, Member (Writer [Instruction]) r) => Type 'Codegen -> SomeReg -> SomeReg -> Sem r ()
 moveReg t r1 r2 = case t of
-    TCon "Int" KStar  -> MoveReg @'Number <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure
-    TCon "Bool" KStar -> MoveReg @'Number <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure
+    TCon "Prelude.Int" KStar  -> MoveReg @'Number <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure
+    TCon "Prelude.Bool" KStar -> MoveReg @'Number <$> (fromSomeReg r1) <*> (fromSomeReg r2) >>= tell . pure
     _ -> error "TODO: moveReg for arbitrary types (MoveArray)"
 
 makeInstr :: (CompileC r) => Type 'Codegen -> SomeReg -> (forall rt. (ObjForType rt, ReturnReg rt) => Register rt -> a) -> Sem r a
@@ -185,9 +185,9 @@ makeInstr' t rid f = case rtType t of
 
 rtType :: Type 'Codegen -> RegType
 rtType = \case
-    TCon "Int" KStar -> Number
-    TCon "Bool" KStar -> Number
-    TCon "Entity" KStar -> Entity
+    TCon "Prelude.Int" KStar -> Number
+    TCon "Prelude.Bool" KStar -> Number
+    TCon "Prelude.Entity" KStar -> Entity
     _ -> Array
 
 regId :: Register t -> RegId

@@ -1,4 +1,13 @@
-module Language.Cobble where
+module Language.Cobble (
+      compileAll
+    , compileToDataPack
+    , runControllerC
+    , LogLevel(..)
+    , Log(..)
+    , CompilationError(..)
+    , CompileOpts(..)
+    , ControllerC
+    ) where
 
 import Language.Cobble.Prelude hiding ((<.>), readFile)
 
@@ -37,12 +46,12 @@ data CompilationError = LexError LexicalError
                       deriving (Show, Eq)
 
 
-type ControllerC r = Members '[Reader CompileOpts, Error CompilationError, Error Panic, FileSystem FilePath Text] r
+type ControllerC r = Members '[Reader CompileOpts, Error CompilationError, Error Panic, FileSystem FilePath Text, Output Log] r
 
 runControllerC :: CompileOpts 
-               -> Sem '[Error Panic, Error CompilationError, Reader CompileOpts, FileSystem FilePath Text, Embed IO] a
-               -> IO (Either CompilationError a)
-runControllerC opts = runM . fileSystemIO . runReader opts . runError . mapError ControllerPanic
+               -> Sem '[Error Panic, Error CompilationError, Reader CompileOpts, FileSystem FilePath Text, Output Log, Embed IO] a
+               -> IO ([Log], Either CompilationError a)
+runControllerC opts = runM . outputToIOMonoidAssocR pure . fileSystemIO . runReader opts . runError . mapError ControllerPanic
 
 -- TODO
 data CompileOpts = CompileOpts {

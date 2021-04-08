@@ -43,3 +43,14 @@ data Panic = Panic Text
            | ModuleDependencyNotFound Text
            deriving (Show, Eq)
 
+data Log = Log LogLevel Text deriving (Show, Eq, Ord)
+
+data LogLevel = LogWarning     
+              | LogInfo        
+              | LogVerbose     
+              | LogDebug        
+              | LogDebugVerbose
+              deriving (Show, Eq, Ord, Enum, Read)
+
+log :: (Member (Output Log) r) => LogLevel -> Text -> Sem r ()
+log l t = output (Log l t)

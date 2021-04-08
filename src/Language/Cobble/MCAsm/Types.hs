@@ -1,5 +1,3 @@
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
 module Language.Cobble.MCAsm.Types where
 
 import Language.Cobble.Prelude
@@ -26,7 +24,7 @@ data RegType = Number
                   -- | An error representing a failed register cast.
                   -- Since casts are ALWAYS unsafe, this is an error in the
                   -- compiling code 
-data McAsmError = RegisterCastError Text deriving (Show, Eq)
+data McAsmError = RegisterCastError Text SomeReg deriving (Show, Eq)
 
 -- | Dangerous!
 -- Can existentialize a register to allow unsafe casts (see castReg)
@@ -34,6 +32,13 @@ data SomeReg where
     SomeReg :: Register a -> SomeReg
 
 deriving instance Show SomeReg
+
+instance Eq SomeReg where
+    (SomeReg r1) == (SomeReg r2) = case (r1, r2) of
+        (NumReg    a, NumReg    b) -> a == b
+        (EntityReg a, EntityReg b) -> a == b
+        (ArrayReg  a, ArrayReg  b) -> a == b
+        _ -> False
 
 -- | Dangerous!
 -- Reduces an existentialized `SomeReg` to a concrete `Register a`.
@@ -52,17 +57,17 @@ castReg = fromSomeReg . SomeReg
 instance FromSomeReg 'Number where
     fromSomeReg = \case
         SomeReg (NumReg i) -> pure $ NumReg i
-        _ -> throw $ RegisterCastError "Number"
+        r -> throw $ RegisterCastError "Number" r
 
 instance FromSomeReg 'Entity where
     fromSomeReg = \case
         SomeReg (EntityReg i) -> pure $ EntityReg i
-        _ -> throw $ RegisterCastError "Entity"
+        r -> throw $ RegisterCastError "Entity" r
 
 instance FromSomeReg 'Array where
     fromSomeReg = \case
         SomeReg (ArrayReg i) -> pure $ ArrayReg i
-        _ -> throw $ RegisterCastError "Array"
+        r -> throw $ RegisterCastError "Array" r
 
 
 data Register (t :: RegType) where
@@ -93,7 +98,7 @@ data Module = Module {
     } deriving (Show)
 
 data Instruction where
-      MoveReg    :: (ObjForType t) => (Register t) -> (Register t) -> Instruction
+      MoveReg    :: forall t. (ObjForType t) => (Register t) -> (Register t) -> Instruction
       MoveNumLit :: (Register 'Number) -> Int -> Instruction
 
       AddReg :: (Register 'Number) -> (Register 'Number) -> Instruction
@@ -125,14 +130,13 @@ data Instruction where
     
       RunCommandAsEntity :: (Register 'Entity) -> McFunction -> Instruction
 
-      GetInArray :: (ObjForType t) => (Register t) -> (Register 'Array) -> (Register 'Number) -> Instruction
+      GetInArray :: forall t. (ObjForType t) => (Register t) -> (Register 'Array) -> (Register 'Number) -> Instruction
     --                      ^final register   ^array           ^index
-      SetInArray :: (ObjForType t) => (Register 'Array) -> (Register 'Number) -> (Register t) -> Instruction
+      SetInArray :: forall t. (ObjForType t) => (Register 'Array) -> (Register 'Number) -> (Register t) -> Instruction
     --             ^array           ^index            ^writing register
       SetScoreboard :: Objective -> Text -> (Register 'Number) -> Instruction
     --                               ^player
 deriving instance Show Instruction
---deriving instance Eq Instruction   somehow broken?
 
 class ReturnReg (t :: RegType) where returnReg :: Register t
 instance ReturnReg 'Number where returnReg = NumReg (NamedReg "RETURN")
@@ -189,3 +193,33 @@ instance S.Show Range where
         RInfEnd i           -> show i <> ".."
         RInfStart i         ->  ".." <> show i
         RBounded minr maxr  ->  show minr <> ".." <> show maxr
+
+instance Eq Instruction where
+    MoveReg r1 r2  == MoveReg r1' r2'  = SomeReg r1 == SomeReg r1' && SomeReg r2 == SomeReg r2'
+    MoveNumLit r l == MoveNumLit r' l' = r  == r'  && l  == l' 
+    AddReg r1 r2   == AddReg r1' r2'   = r1 == r1' && r2 == r2'
+    AddLit r l     == AddLit r' l'     = r  == r'  && l  == l' 
+    SubReg r1 r2   == SubReg r1' r2'   = r1 == r1' && r2 == r2'
+    SubLit r l     == SubLit r' l'     = r  == r'  && l  == l'
+    MulReg r1 r2   == MulReg r1' r2'   = r1 == r1' && r2 == r2'
+    MulLit r l     == MulLit r' l'     = r  == r'  && l  == l'
+    DivReg r1 r2   == DivReg r1' r2'   = r1 == r1' && r2 == r2'
+    DivLit r l     == DivLit r' l'     = r  == r'  && l  == l'
+    Min    r1 r2   == Min    r1' r2'   = r1 == r1' && r2 == r2'
+    Max    r1 r2   == Max    r1' r2'   = r1 == r1' && r2 == r2'
+    Section n is   == Section n' is'   = n  == n'  && is == is'
+    Call n         == Call    n'       = n  == n' 
+    ExecInRange reg r is == ExecInRange reg' r' is' = reg == reg' && r == r' && is == is'
+    ExecEQ r1 r2 is == ExecEQ r1' r2' is' = r1 == r1' && r2 == r2' && is == is'
+    ExecLT r1 r2 is == ExecLT r1' r2' is' = r1 == r1' && r2 == r2' && is == is'
+    ExecGT r1 r2 is == ExecGT r1' r2' is' = r1 == r1' && r2 == r2' && is == is'
+    ExecLE r1 r2 is == ExecLE r1' r2' is' = r1 == r1' && r2 == r2' && is == is'
+    ExecGE r1 r2 is == ExecGE r1' r2' is' = r1 == r1' && r2 == r2' && is == is'
+    GetCommandResult r f == GetCommandResult r' f' = r == r' && f == f'
+    GetBySelector r s == GetBySelector r' s' = r == r' && s == s'
+    RunCommandAsEntity r c == RunCommandAsEntity r' c' = r == r' && c == c' 
+    GetInArray r ar ir == GetInArray r' ar' ir' = SomeReg r == SomeReg r' && ar == ar' && ir == ir'
+    SetInArray ar ir r == SetInArray ar' ir' r' = ar == ar' && ir == ir' && SomeReg r == SomeReg r' 
+    SetScoreboard o p r == SetScoreboard o' p' r' = o == o' && p == p' && r == r'
+    _ == _ = False 
+    
