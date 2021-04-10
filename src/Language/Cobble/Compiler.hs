@@ -156,11 +156,29 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
     ExprX x _li -> absurd x
 
 saveFrame :: (CompileC r, Member (Writer [Instruction]) r) => Frame -> Sem r ()
-saveFrame f = traverse_ undefined (toList $ f ^. varRegs)
+saveFrame f = traverse_ pushRegToStack (toList $ f ^. varRegs)
 
 restoreFrame :: (CompileC r, Member (Writer [Instruction]) r) => Frame -> Sem r ()
-restoreFrame f = traverse_ undefined (toList $ f ^. varRegs)
+restoreFrame f = traverse_ popRegFromStack (reverse $ toList $ f ^. varRegs)
 
+pushRegToStack :: (CompileC r, Member (Writer [Instruction]) r) => SomeReg -> Sem r()
+pushRegToStack sr = tell [
+        withSomeReg sr (SetInArray stackReg stackPTRReg)
+    ,   AddLit stackPTRReg 1
+    ]
+      
+popRegFromStack :: (CompileC r, Member (Writer [Instruction]) r) => SomeReg -> Sem r()
+popRegFromStack sr = tell [
+        SubLit stackPTRReg 1
+    ,   withSomeReg sr (\r -> GetInArray r stackReg stackPTRReg)
+    ]
+      
+  
+withSomeReg :: SomeReg -> (forall rt. (ObjForType rt, ReturnReg rt) => Register rt -> a) -> a
+withSomeReg sr f = case sr of
+    SomeReg (NumReg ri) _ -> f (NumReg ri)
+    SomeReg (EntityReg ri) _ -> f (EntityReg ri)
+    SomeReg (ArrayReg ri) _ -> f (ArrayReg ri)
 
 makeInstr :: (CompileC r, Member (Writer [Instruction]) r) => Type 'Codegen -> SomeReg -> (forall rt. (ObjForType rt, ReturnReg rt) => Register rt -> [Instruction]) -> Sem r ()
 makeInstr t r f = tell =<< case rtType t of
