@@ -208,7 +208,15 @@ spec = do
                     `shouldBe`
                     Left (NameNotFound dli "x")
 
-
+    describe "qualifyMod" do
+        it "does *not* prefix the mod name" do
+            testQual [Scope "Mod" [] [] mempty] (qualifyMod (Module mempty "MyMod" []))
+                `shouldBe`
+                Right (Module mempty "MyMod" [])
+        it "prefixes all statements" do
+            testQual [Scope "Mod" [] [] mempty] (qualifyMod (Module mempty "MyMod" [Decl () dli "x" Nothing (IntLit () dli 5)]))
+                `shouldBe`
+                Right (Module mempty "MyMod" [Decl () dli "Mod.x" Nothing (IntLit () dli 5)])
     describe "qualifyType" do
         pass
 

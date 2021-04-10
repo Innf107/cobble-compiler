@@ -180,8 +180,8 @@ newtype Objective = Objective { renderObjective :: Text } deriving (Show, Eq, Ge
 newtype Tag = Tag { renderTag :: Text } deriving (Show, Eq, Generic, Data, Typeable)
 
 
-type CompC      r = Members '[Reader CompEnv, State CompState, Error McAsmError, Error Panic] r
-type CompInnerC r = Members '[Reader CompEnv, State CompState, Error McAsmError, Error Panic, Writer [McFunction]] r
+type CompC      r = Members '[Reader CompEnv, State CompState, Error McAsmError, Error Panic, Output Log] r
+type CompInnerC r = Members '[Reader CompEnv, State CompState, Error McAsmError, Error Panic, Writer [McFunction], Output Log] r
 
 
 data Range = RInfEnd Int

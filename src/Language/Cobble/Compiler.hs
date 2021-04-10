@@ -66,7 +66,8 @@ rts = do
         ]
 
 compile :: (CompileC r) => S.Module 'Codegen -> Sem r A.Module
-compile (S.Module _deps modname stmnts) = log LogVerbose "STARTING COBBLE CODEGEN" >> A.Module modname . fst <$> runWriterAssocR (traverse compileStatement stmnts)
+compile (S.Module _deps modname stmnts) = log LogVerbose ("STARTING COBBLE CODEGEN FOR MODULE: " <> show modname) 
+                                       >> A.Module modname . fst <$> runWriterAssocR (traverse compileStatement stmnts)
 
 newReg :: (CompileC r) => Sem r RegId
 newReg = modify (& lastReg +~ 1) >> get <&> IdReg . (^. lastReg)
