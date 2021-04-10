@@ -21,13 +21,14 @@ type Name = QualifiedName
 data RegType = Number
              | Entity
              | Array
+             deriving (Show, Eq)
                   -- | An error representing a failed register cast.
                   -- Since casts are ALWAYS unsafe, this is an error in the
                   -- compiling code 
 data McAsmError = RegisterCastError Text SomeReg deriving (Show, Eq)
 
 -- | Dangerous!
--- Can existentialize a register to allow unsafe casts (see castReg)
+-- Used to existentialize a register to allow unsafe casts (see castReg)
 data SomeReg where
     SomeReg :: Register a -> SomeReg
 

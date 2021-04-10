@@ -12,11 +12,7 @@ spec :: Spec
 spec = do
     describe "statements" do
         describe "Decl" do
-            it "Produces the same instructions as Assign" do
-                compileTest [Decl () dli "test.x" Nothing (IntLit () dli 5)]
-                    `shouldBe`
-                    compileTest' (initialCompileState & frames . head1 . varIndices . at "test.x" ?~ 0)
-                        [Assign () dli "test.x" (IntLit () dli 5)]
+            pass
         describe "Assign" do
             it "panics if the variable was not previously declared" do
                 compileTest [Assign () dli "test.x" (IntLit () dli 23)]
