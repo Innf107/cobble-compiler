@@ -47,62 +47,66 @@ hoistModules (InterModule mn ins) = makeModulesInner mn ins
                     ) subInstrs
             in (CompiledModule mname (unlines (map runMcFunction (concat instrs))):)
 --                                                                ^ TODO: Is this concat okay?
-               . concat <$> mapM (\(n, inner) -> makeModulesInner (mname <> n) inner) mods
+               . concat <$> mapM (\(n, inner) -> makeModulesInner n inner) mods
 
 compile :: (CompC r) => [Module] -> Sem r [CompiledModule]
-compile mods = fmap concat $ join $ mapM hoistModules <$>
-    ((++) <$> sequenceA [initialize,clean] <*> mapM compileModule mods)
+compile mods = do
+    log LogVerbose "STARTING MCASM Codegen"
+    fmap concat $ join $ mapM hoistModules <$> ((++) <$> sequenceA [initialize,clean] <*> mapM compileModule mods)
 
 compileModule :: (CompC r) => Module -> Sem r IntermediateResult
 compileModule (Module {moduleName, moduleInstructions}) = do
+    log LogDebug $ "COMPILING MODULE " <> show moduleName
     results <- mapM compileInstr $ moduleInstructions
     pure $ InterModule moduleName (concat results)
 
 compileInstr :: (CompC r) => Instruction -> Sem r [IntermediateResult]
-compileInstr i = asks nameSpace >>= \ns -> (<>) <$> whenDebugMonoid (pure [comment $ show i]) <*> case i of
-    MoveReg reg1 reg2 -> instr $ moveReg (objForType reg1) reg1 (objForType reg2) reg2
+compileInstr i = do
+    log LogDebugVerbose $ "COMPILING INSTRUCTION: " <> show i
+    asks nameSpace >>= \ns -> (<>) <$> whenDebugMonoid (pure [comment $ show i]) <*> case i of
+        MoveReg reg1 reg2 -> instr $ moveReg (objForType reg1) reg1 (objForType reg2) reg2
 
-    MoveNumLit reg lit          -> instr $ setScoreboardForPlayer (objForType reg) (renderReg reg) lit
-    AddLit reg lit              -> instr $ addReg reg lit
-    AddReg reg1 reg2            -> instr $ regOperation reg1 SAdd reg2
-    SubLit reg lit              -> instr $ subReg reg lit
-    SubReg reg1 reg2            -> instr $ regOperation reg1 SSub reg2
-    MulLit reg lit              -> instr $ opLit reg SMul lit
-    MulReg reg1 reg2            -> instr $ regOperation reg1 SMul reg2
-    DivLit reg lit              -> instr $ opLit reg SDiv lit
-    DivReg reg1 reg2            -> instr $ regOperation reg1 SDiv reg2
-    Min reg1 reg2               -> instr $ regOperation reg1 SMin reg2
-    Max reg1 reg2               -> instr $ regOperation reg1 SMax reg2
-    Section name instrs         -> pure . InterModule name . concat <$> (mapM compileInstr instrs)
-    Call section                -> instr $ runFunction ns section
-    ExecEQ reg1 reg2 is         -> instr $ execute $ EIf (eiScoreReg reg1 $ eiEqReg reg2) $ ERun (tell is)
-    ExecLT reg1 reg2 is         -> instr $ execute $ EIf (eiScoreReg reg1 $ eiLtReg reg2) $ ERun (tell is)
-    ExecGT reg1 reg2 is         -> instr $ execute $ EIf (eiScoreReg reg1 $ eiGtReg reg2) $ ERun (tell is)
-    ExecLE reg1 reg2 is         -> instr $ execute $ EIf (eiScoreReg reg1 $ eiLeReg reg2) $ ERun (tell is)
-    ExecGE reg1 reg2 is         -> instr $ execute $ EIf (eiScoreReg reg1 $ eiGeReg reg2) $ ERun (tell is)
-    ExecInRange reg  range is   -> instr do
-          execute $ EIf (eiScoreReg reg  $ EIMatches range) $ ERun $ (tell is)
+        MoveNumLit reg lit          -> instr $ setScoreboardForPlayer (objForType reg) (renderReg reg) lit
+        AddLit reg lit              -> instr $ addReg reg lit
+        AddReg reg1 reg2            -> instr $ regOperation reg1 SAdd reg2
+        SubLit reg lit              -> instr $ subReg reg lit
+        SubReg reg1 reg2            -> instr $ regOperation reg1 SSub reg2
+        MulLit reg lit              -> instr $ opLit reg SMul lit
+        MulReg reg1 reg2            -> instr $ regOperation reg1 SMul reg2
+        DivLit reg lit              -> instr $ opLit reg SDiv lit
+        DivReg reg1 reg2            -> instr $ regOperation reg1 SDiv reg2
+        Min reg1 reg2               -> instr $ regOperation reg1 SMin reg2
+        Max reg1 reg2               -> instr $ regOperation reg1 SMax reg2
+        Section name instrs         -> pure . InterModule name . concat <$> (mapM compileInstr instrs)
+        Call section                -> instr $ runFunction ns section
+        ExecEQ reg1 reg2 is         -> instr $ execute $ EIf (eiScoreReg reg1 $ eiEqReg reg2) $ ERun (tell is)
+        ExecLT reg1 reg2 is         -> instr $ execute $ EIf (eiScoreReg reg1 $ eiLtReg reg2) $ ERun (tell is)
+        ExecGT reg1 reg2 is         -> instr $ execute $ EIf (eiScoreReg reg1 $ eiGtReg reg2) $ ERun (tell is)
+        ExecLE reg1 reg2 is         -> instr $ execute $ EIf (eiScoreReg reg1 $ eiLeReg reg2) $ ERun (tell is)
+        ExecGE reg1 reg2 is         -> instr $ execute $ EIf (eiScoreReg reg1 $ eiGeReg reg2) $ ERun (tell is)
+        ExecInRange reg  range is   -> instr do
+              execute $ EIf (eiScoreReg reg  $ EIMatches range) $ ERun $ (tell is)
 
 
-    GetCommandResult reg command -> instr $
-          execute $ EStoreRes (stScoreReg reg) $ ERun $ (tell [command])
+        GetCommandResult reg command -> instr $
+              execute $ EStoreRes (stScoreReg reg) $ ERun $ (tell [command])
 
-    GetBySelector reg selector -> instr do
-          incrementUID
-          scoreboardOperation (objForType reg) ("@e[" <> selector <> ",limit=1]") SAssign uid "UID"
-          scoreboardOperation (objForType reg) (renderReg reg) SAssign uid "UID"
+        GetBySelector reg selector -> instr do
+              incrementUID
+              scoreboardOperation (objForType reg) ("@e[" <> selector <> ",limit=1]") SAssign uid "UID"
+              scoreboardOperation (objForType reg) (renderReg reg) SAssign uid "UID"
 
-    RunCommandAsEntity reg command -> instr do
-          execute $ EAs "@e" $ EIf (EIScore (objForType reg) "@s" $ EIEQ (objForType reg) (renderReg reg)) $ ERun $ (tell [command])
+        RunCommandAsEntity reg command -> instr do
+              execute $ EAs "@e" $ EIf (EIScore (objForType reg) "@s" $ EIEQ (objForType reg) (renderReg reg)) $ ERun $ (tell [command])
 
-    GetInArray reg arr aix -> instr do
-          asArrayElem arr aix $ scoreboardOperation (objForType reg) (renderReg reg) SAssign (objForType reg) "@s"
+        GetInArray reg arr aix -> instr do
+              asArrayElem arr aix $ scoreboardOperation (objForType reg) (renderReg reg) SAssign (objForType reg) "@s"
 
-    SetInArray arr aix reg -> instr $
-          asArrayElemOrNew arr aix $ scoreboardOperation (objForType reg) "@s" SAssign (objForType reg) (renderReg reg)
+        SetInArray arr aix reg -> instr $
+              asArrayElemOrNew arr aix $ scoreboardOperation (objForType reg) "@s" SAssign (objForType reg) (renderReg reg)
 
-    SetScoreboard obj player reg -> instr do
-          scoreboardOperation obj player SAssign (objForType reg) (renderReg reg)
+        SetScoreboard obj player reg -> instr do
+              scoreboardOperation obj player SAssign (objForType reg) (renderReg reg)
     where
         opLit :: (CompInnerC r) => Register 'Number -> SOperation -> Int -> Sem r ()
         opLit r s l = do
