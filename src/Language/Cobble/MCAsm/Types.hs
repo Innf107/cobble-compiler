@@ -30,18 +30,12 @@ data McAsmError = RegisterCastError Text SomeReg deriving (Show, Eq)
 -- | Dangerous!
 -- Used to existentialize a register to allow unsafe casts (see castReg)
 data SomeReg where
-    SomeReg :: Register a -> RegType -> SomeReg
+    SomeReg :: Register a -> SomeReg
 
 deriving instance Show SomeReg
 
-mkSomeReg :: Register a -> SomeReg
-mkSomeReg r = SomeReg r $ case r of
-    NumReg _    -> Number
-    EntityReg _ -> Entity
-    ArrayReg _  -> Array  
-
 instance Eq SomeReg where
-    (SomeReg r1 t1) == (SomeReg r2 t2) = case (r1, r2) of
+    (SomeReg r1) == (SomeReg r2) = case (r1, r2) of
         (NumReg    a, NumReg    b) -> a == b
         (EntityReg a, EntityReg b) -> a == b
         (ArrayReg  a, ArrayReg  b) -> a == b
@@ -59,21 +53,21 @@ class FromSomeReg a where
 -- if the type is known to not change and this function is only used because Haskell's
 -- type system is getting in the way.
 castReg :: (Member (Error McAsmError) r, FromSomeReg b) => Register a -> Sem r (Register b)
-castReg = fromSomeReg . mkSomeReg
+castReg = fromSomeReg . SomeReg
 
 instance FromSomeReg 'Number where
     fromSomeReg = \case
-        SomeReg (NumReg i) Number -> pure $ NumReg i
+        SomeReg (NumReg i) -> pure $ NumReg i
         r -> throw $ RegisterCastError "Number" r
 
 instance FromSomeReg 'Entity where
     fromSomeReg = \case
-        SomeReg (EntityReg i) Entity -> pure $ EntityReg i
+        SomeReg (EntityReg i) -> pure $ EntityReg i
         r -> throw $ RegisterCastError "Entity" r
 
 instance FromSomeReg 'Array where
     fromSomeReg = \case
-        SomeReg (ArrayReg i) Array -> pure $ ArrayReg i
+        SomeReg (ArrayReg i) -> pure $ ArrayReg i
         r -> throw $ RegisterCastError "Array" r
 
 
@@ -202,7 +196,7 @@ instance S.Show Range where
         RBounded minr maxr  ->  show minr <> ".." <> show maxr
 
 instance Eq Instruction where
-    MoveReg r1 r2  == MoveReg r1' r2'  = mkSomeReg r1 == mkSomeReg r1' && mkSomeReg r2 == mkSomeReg r2'
+    MoveReg r1 r2  == MoveReg r1' r2'  = SomeReg r1 == SomeReg r1' && SomeReg r2 == SomeReg r2'
     MoveNumLit r l == MoveNumLit r' l' = r  == r'  && l  == l' 
     AddReg r1 r2   == AddReg r1' r2'   = r1 == r1' && r2 == r2'
     AddLit r l     == AddLit r' l'     = r  == r'  && l  == l' 
@@ -225,8 +219,8 @@ instance Eq Instruction where
     GetCommandResult r f == GetCommandResult r' f' = r == r' && f == f'
     GetBySelector r s == GetBySelector r' s' = r == r' && s == s'
     RunCommandAsEntity r c == RunCommandAsEntity r' c' = r == r' && c == c' 
-    GetInArray r ar ir == GetInArray r' ar' ir' = mkSomeReg r == mkSomeReg r' && ar == ar' && ir == ir'
-    SetInArray ar ir r == SetInArray ar' ir' r' = ar == ar' && ir == ir' && mkSomeReg r == mkSomeReg r' 
+    GetInArray r ar ir == GetInArray r' ar' ir' = SomeReg r == SomeReg r' && ar == ar' && ir == ir'
+    SetInArray ar ir r == SetInArray ar' ir' r' = ar == ar' && ir == ir' && SomeReg r == SomeReg r' 
     SetScoreboard o p r == SetScoreboard o' p' r' = o == o' && p == p' && r == r'
     _ == _ = False 
     
