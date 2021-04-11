@@ -21,7 +21,8 @@ data Register = NumReg    RegId
               | ArrayReg  RegId
               deriving (Show, Eq)
 
-data RegId = IdReg Int
+data RegId = VarReg Int
+           | TempReg Int
            | NamedReg Text
            deriving (Show, Eq)
 
@@ -32,7 +33,8 @@ renderReg = \case
     ArrayReg  i -> "A" <> renderRegId i
 
 renderRegId :: RegId -> Text
-renderRegId (IdReg i) = show i
+renderRegId (VarReg i)      = "V" <> show i
+renderRegId (TempReg i)     = "T" <> show i
 renderRegId (NamedReg name) = name
 
 data Module = Module {
