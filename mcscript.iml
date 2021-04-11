@@ -7,6 +7,8 @@
       <sourceFolder url="file://$MODULE_DIR$/app" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/test" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/.stack-work" />
+      <excludeFolder url="file://$MODULE_DIR$/test/Server/logs" />
+      <excludeFolder url="file://$MODULE_DIR$/test/Server/world" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

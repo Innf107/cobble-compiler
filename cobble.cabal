@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cba9a385c11a670edb759aed4155684c9bb07a5ccb5dff9cfdeedca9e7fa2aa1
+-- hash: b2cb8c07ec10d83f56429cfd14234391f0450d57e8476ba06b7e0850cc77e8ee
 
 name:           cobble
 version:        0.1.0.0
@@ -101,6 +101,7 @@ library
       ExistentialQuantification
       GeneralizedNewtypeDeriving
       InstanceSigs
+      EmptyDataDeriving
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wincomplete-record-updates -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
@@ -167,6 +168,7 @@ executable cobble
       ExistentialQuantification
       GeneralizedNewtypeDeriving
       InstanceSigs
+      EmptyDataDeriving
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
@@ -251,6 +253,7 @@ test-suite cobble-test
       ExistentialQuantification
       GeneralizedNewtypeDeriving
       InstanceSigs
+      EmptyDataDeriving
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5

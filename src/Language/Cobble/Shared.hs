@@ -41,7 +41,10 @@ unqualifyName (QualifiedName ps) = fromMaybe "" $ viaNonEmpty last ps
 
 data Panic = Panic Text 
            | ModuleDependencyNotFound Text
+           | MismatchedRegTypes Text Text
            deriving (Show, Eq)
+
+
 
 data Log = Log LogLevel Text deriving (Show, Eq, Ord)
 
