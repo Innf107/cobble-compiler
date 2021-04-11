@@ -1,5 +1,6 @@
 .stack-work/
 *~
-.idea
+.idea/
+out
 test.cb
 test.zip

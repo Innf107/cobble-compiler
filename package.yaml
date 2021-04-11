@@ -117,3 +117,4 @@ default-extensions:
   - ExistentialQuantification
   - GeneralizedNewtypeDeriving
   - InstanceSigs
+  - EmptyDataDeriving
