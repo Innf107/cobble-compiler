@@ -128,10 +128,10 @@ data TestError = TestMcAsmError McAsmError
         
 runCompInner :: CompEnv
              -> CompState
-             -> Sem '[Reader CompEnv, State CompState, Writer [McFunction], Error McAsmError, Error Panic, Error TestError] a
+             -> Sem '[Reader CompEnv, State CompState, Writer [McFunction], Error McAsmError, Error Panic, Error TestError, Output Log] a
              -> Either TestError ([McFunction], a)
-runCompInner env initialState = run . runError @TestError . mapError TestPanic . mapError TestMcAsmError . runWriter . evalState initialState . runReader env
+runCompInner env initialState = run . runOutputSem (const pass) . runError @TestError . mapError TestPanic . mapError TestMcAsmError . runWriter . evalState initialState . runReader env
 
-evalCompInner :: Sem '[Reader CompEnv, State CompState, Writer [McFunction], Error McAsmError, Error Panic, Error TestError] a
+evalCompInner :: Sem '[Reader CompEnv, State CompState, Writer [McFunction], Error McAsmError, Error Panic, Error TestError, Output Log] a
               -> Either TestError [McFunction]
 evalCompInner = fmap fst . runCompInner (CompEnv True "Test") initialCompState

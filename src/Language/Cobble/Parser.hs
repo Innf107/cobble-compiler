@@ -172,6 +172,6 @@ mTypedIdent = "optionally typed identifier" <??> do
 typeP :: Parser (LexInfo, Type NextPass)
 typeP = "type" <??> do
     (li, i) <- ident
-    pure $ (li,) $ if isLower (T.head i)
+    pure $ (li,) $ if isLower (T.head $ T.takeWhileEnd (/='.') i)
         then TVar i ()
         else TCon i ()

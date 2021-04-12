@@ -35,7 +35,7 @@ isIdentStart :: Char -> Bool
 isIdentStart c = isAlpha c
 
 isIdentLetter :: Char -> Bool
-isIdentLetter c = isAlphaNum c || c `elem` "_"
+isIdentLetter c = isAlphaNum c || c `elem` "_."
 
 reserved :: [String]
 reserved = ["True", "False", "defmacro", "void", "let", "while", "import"]

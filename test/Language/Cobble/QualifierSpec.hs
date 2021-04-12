@@ -226,7 +226,7 @@ dli :: LexInfo
 dli = LexInfo 0 0 "Test"
 
 testQual :: [Scope]
-         -> Sem '[State Int, State [Scope], Error QualificationError] a
+         -> Sem '[State Int, State [Scope], Error QualificationError, Output Log] a
          -> Either QualificationError a
-testQual s = run . runError . evalState (s ++ [Scope "Mod1" [] [] mempty, Scope "Prelude" ["Int", "Bool"] [] (fromList [("Int", KStar), ("Bool", KStar)])]) . evalState 0
+testQual s = run . runOutputSem (const pass) . runError . evalState (s ++ [Scope "Mod1" [] [] mempty, Scope "prims" ["Int", "Bool"] [] (fromList [("Int", KStar), ("Bool", KStar)])]) . evalState 0
 

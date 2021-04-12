@@ -27,7 +27,6 @@ panicFunNotFoundTooLate v = do
 
 data CompileState = CompileState {
         _frames :: NonEmpty Frame
-      , _lastReg :: Int
       , _functions :: Map (Name 'Codegen) Function
     } deriving (Show, Eq)
 
@@ -35,13 +34,14 @@ initialCompileState :: CompileState
 initialCompileState = CompileState {
       _frames = Frame {
         _varRegs=mempty
+      , _lastReg=0
       } :| []
-    , _lastReg = 0
-     , _functions = mempty
+    , _functions = mempty 
     }
 
 data Frame = Frame {
         _varRegs :: Map (Name 'Codegen) Register
+    ,   _lastReg :: Int
     } deriving (Show, Eq)
 
 data Function = Function {
@@ -50,7 +50,7 @@ data Function = Function {
     } deriving (Show, Eq)
 
 emptyFrame :: Frame
-emptyFrame = Frame mempty
+emptyFrame = Frame mempty 0
 
 stackReg :: Register
 stackReg = ArrayReg $ NamedReg "STACK"
@@ -74,7 +74,7 @@ compile (S.Module _deps modname stmnts) = log LogVerbose ("STARTING COBBLE CODEG
                                        >> A.Module modname . fst <$> runWriterAssocR (traverse compileStatement stmnts)
 
 newReg :: (CompileC r) => (Int -> RegId) -> Sem r RegId
-newReg c = modify (& lastReg +~ 1) >> get <&> c . (^. lastReg)
+newReg c = (get <&> c . (^. frames . head1 . lastReg)) <* modify (& frames . head1 . lastReg +~ 1)
 
 newRegForType :: (CompileC r) => (Int -> RegId) -> Type 'Codegen -> Sem r Register
 newRegForType c t = case rtType t of
@@ -108,18 +108,19 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
             Nothing -> panicFunNotFoundTooLate fname
         Just rt -> void $ compileExprToReg (FCall rt li fname args)
 
-    -- TODO: Offset varregs by the amount of pars
+
     DefVoid () _li name pars body -> do
         modify (& functions . at name ?~ Function {_params=pars, _returnType=Nothing})
         tell . pure . A.Section name . fst =<< runWriterAssocR do
-            regs <- traverse (\(_, t) -> newRegForType VarReg t) pars -- TODO: Really VarReg?
             modify (& frames %~ (emptyFrame |:))
+            regs <- traverse (\(_, t) -> newRegForType VarReg t) pars
             modify (& frames . head1 . varRegs .~ fromList (zip (map fst pars) regs))
             traverse_ compileStatement body
+            modify (& frames %~ unsafeTail)
     DefFun () _li name pars body retExp t -> do
         modify (& functions . at name ?~ Function {_params=pars, _returnType=Just t})
         tell . pure . A.Section name . fst =<< runWriterAssocR do
-            regs <- traverse (\(_, pt) -> newRegForType VarReg pt) pars -- TODO: Really VarReg?
+            regs <- traverse (\(_, pt) -> newRegForType VarReg pt) pars
             modify (& frames %~ (emptyFrame |:))
             modify (& frames . head1 . varRegs .~ fromList (zip (map fst pars) regs))
             traverse_ compileStatement body
@@ -164,6 +165,7 @@ writeArgs args = do
     ress <- traverse compileExprToReg args
     zipWithM_ (\r i -> tell [MoveReg (mkRegFromRep (regRep r) (VarReg i)) r]) ress [0..]
 
+-- TODO: Initialize empty stack elements and write with `SetInArray`
 saveFrame :: (CompileC r, Member (Writer [Instruction]) r) => Frame -> Sem r ()
 saveFrame f = traverse_ pushRegToStack (toList $ f ^. varRegs)
 
@@ -172,7 +174,7 @@ restoreFrame f = traverse_ popRegFromStack (reverse $ toList $ f ^. varRegs)
 
 pushRegToStack :: (CompileC r, Member (Writer [Instruction]) r) => Register -> Sem r()
 pushRegToStack r = tell [
-        SetInArray stackReg stackPTRReg r
+        SetInArrayOrNew stackReg stackPTRReg r
     ,   AddLit stackPTRReg 1
     ]
       
@@ -180,6 +182,7 @@ popRegFromStack :: (CompileC r, Member (Writer [Instruction]) r) => Register -> 
 popRegFromStack r = tell [
         SubLit stackPTRReg 1
     ,   GetInArray r stackReg stackPTRReg
+    ,   DestroyInArray stackReg stackPTRReg
     ]
 
 returnReg :: Rep -> Register
@@ -190,10 +193,10 @@ returnReg = \case
 
 rtType :: Type 'Codegen -> Rep
 rtType = \case
-    TCon "Prelude.Int" KStar    -> RepNum
-    TCon "Prelude.Bool" KStar   -> RepNum
-    TCon "Prelude.Entity" KStar -> RepEntity
-    _                           -> RepArray
+    TCon "prims.Int" KStar    -> RepNum
+    TCon "prims.Bool" KStar   -> RepNum
+    TCon "prims.Entity" KStar -> RepEntity
+    _                   -> RepArray
 
 regRep :: Register -> Rep
 regRep = \case

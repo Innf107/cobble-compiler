@@ -53,6 +53,7 @@ data LogLevel = LogWarning
               | LogVerbose     
               | LogDebug        
               | LogDebugVerbose
+              | LogDebugVeryVerbose
               deriving (Show, Eq, Ord, Enum, Read)
 
 log :: (Member (Output Log) r) => LogLevel -> Text -> Sem r ()

@@ -73,14 +73,14 @@ compileAll files = do
 
     orderedMods :: [(S.Module 'SolveModules, [Text])] <- mapError ModuleError $ findCompilationOrder asts
 
-    fmap join $ evalState mempty $ traverse compileAndAnnotateSig orderedMods
+    fmap join $ evalState (one ("prims", primModSig)) $ traverse compileAndAnnotateSig orderedMods
 
 compileAndAnnotateSig :: (ControllerC r, Member (State (Map (S.Name 'QualifyNames) ModSig)) r)
                       => (S.Module 'SolveModules, [S.Name 'SolveModules])
                       -> Sem r [CompiledModule]
 compileAndAnnotateSig (m, deps) = do
     annotatedMod :: (S.Module 'QualifyNames) <- S.Module
-        <$> fromList <$> traverse (\d -> (makeQName d,) <$> getDep d) deps
+        <$> fromList <$> traverse (\d -> (makeQName d,) <$> getDep d) ("prims" : deps)
         <*> pure (S.moduleName m)
         <*> pure (map coercePass (moduleStatements m))
     (compMod, sig) <- compileWithSig annotatedMod
@@ -97,13 +97,13 @@ compileWithSig :: (ControllerC r)
                -> Sem r ([CompiledModule], ModSig)
 compileWithSig m = do
     let qualScopes =
-            map (\(dname, dsig) -> Scope {
+            {-map (\(dname, dsig) -> Scope {
                     _prefix=dname
                 ,   _typeNames=map unqualifyName $ keys (exportedStructs dsig)
                 ,   _varFunNames=map unqualifyName $ keys (exportedVars dsig) ++ keys (exportedFunctions dsig)
-                ,   _typeKinds=todo mempty})
+                ,   _typeKinds=M.mapKeys unqualifyName $ fmap (const kStar) (exportedStructs dsig)})
                 (M.toList $ xModule m)
-            ++ [Scope (makeQName $ S.moduleName m) mempty mempty mempty]
+            ++-} [Scope (makeQName $ S.moduleName m) mempty mempty mempty]
     let tcState = foldMap (\dsig -> TCState {
                     varTypes=exportedVars dsig
                 ,   funReturnTypes=M.mapMaybe snd $ exportedFunctions dsig
@@ -139,3 +139,9 @@ getModName :: FilePath -> Text
 getModName = toText . FP.dropExtension . L.last . segments
 
 
+primModSig :: ModSig
+primModSig = ModSig {
+        exportedFunctions = mempty
+    ,   exportedVars = mempty
+    ,   exportedStructs = fromList [("prims.Int", []), ("prims.Bool", []), ("prims.Entity", [])]
+    }

@@ -114,6 +114,9 @@ compileInstr i = do
             assertRegArray arr  
             asArrayElem arr aix $ scoreboardOperation (objForReg reg) "@s" SAssign (objForReg reg) (renderReg reg)
 
+        DestroyInArray arr aix -> instr do
+            asArrayElem arr aix $ rawCommand "kill @s"
+
         SetScoreboard obj player reg -> instr do
             assertRegNumber reg
             scoreboardOperation obj player SAssign regs (renderReg reg)

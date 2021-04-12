@@ -35,6 +35,8 @@ data ModSig = ModSig {
 ,   exportedStructs :: Map (QualifiedName) [(QualifiedName, Type 'Codegen)]
 } deriving (Generic, Typeable) -- Instances for @Eq@ and @Data@ are defined in Language.Cobble.Types.AST.Codegen
 
+type Dependencies = Map QualifiedName ModSig
+
 instance Semigroup ModSig where ModSig vs fs ts <> ModSig vs' fs' ts' = ModSig (vs <> vs') (fs <> fs') (ts <> ts')
 instance Monoid ModSig where mempty = ModSig mempty mempty mempty
 
@@ -119,8 +121,8 @@ class TyLit n where
     tyBoolT :: n
     
 instance TyLit QualifiedName where
-    tyIntT = "Prelude.Int"
-    tyBoolT = "Prelude.Bool"
+    tyIntT = "prims.Int"
+    tyBoolT = "prims.Bool"
 instance TyLit Text where
     tyIntT = "Int"
     tyBoolT = "Bool"

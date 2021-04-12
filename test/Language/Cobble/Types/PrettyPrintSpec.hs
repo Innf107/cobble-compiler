@@ -67,7 +67,7 @@ spec = do
                     prettyPrint (Var () dli "x" :: Expr 'Typecheck) `shouldBe` "x"
             context "For the Codegen pass" do
                 it "adds the type information in a comment" do
-                    prettyPrint (Var intT dli "x" :: Expr 'Codegen) `shouldBe` "x {-: Prelude.Int (:: *)-}"
+                    prettyPrint (Var intT dli "x" :: Expr 'Codegen) `shouldBe` "x {-: prims.Int (:: *)-}"
                     prettyPrint (Var (TCon "T" KStar) dli "x" :: Expr 'Codegen) `shouldBe` "x {-: T (:: *)-}"
         describe "FCall" do
             context "For all unchanged passes" do
@@ -76,10 +76,10 @@ spec = do
                     prettyPrint (FCall () dli "f" [Var () dli "x", IntLit () dli 5] :: Expr 'Typecheck) `shouldBe` "f(x, 5)"
             context "For the Codegen pass" do
                 it "adds the type information in a comment" do
-                    prettyPrint (FCall intT dli "f" [] :: Expr 'Codegen) `shouldBe` "f() {-: Prelude.Int (:: *)-}"
+                    prettyPrint (FCall intT dli "f" [] :: Expr 'Codegen) `shouldBe` "f() {-: prims.Int (:: *)-}"
                 it "adds type information for its arguments" do
                     prettyPrint (FCall intT dli "f" [Var intT dli "x", IntLit () dli 5] :: Expr 'Codegen)
-                        `shouldBe` "f(x {-: Prelude.Int (:: *)-}, 5) {-: Prelude.Int (:: *)-}"
+                        `shouldBe` "f(x {-: prims.Int (:: *)-}, 5) {-: prims.Int (:: *)-}"
     describe "PrettyPrint on Statements" do
         pass -- TODO
 

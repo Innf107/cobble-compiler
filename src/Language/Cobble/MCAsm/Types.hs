@@ -83,6 +83,8 @@ data Instruction =
     --             ^array ^index   ^writing register
       | SetScoreboard Objective Text Register
     --                           ^player
+      | DestroyInArray Register Register
+    --                 ^array   ^index
       deriving (Show, Eq)
 
 

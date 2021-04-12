@@ -50,6 +50,7 @@ printLog maxLevel (Log lvl o) = when (lvl <= maxLevel)
             LogVerbose -> "\ESC[38;2;0;128;128m\STX[VERBOSE] "
             LogDebug -> "\ESC[38;2;0;225;0m\STX[DEBUG] "
             LogDebugVerbose -> "\ESC[38;2;0;128;0m\STX[DEBUG VERBOSE] "
+            LogDebugVeryVerbose -> "\ESC[38;2;0;100;0m\STX[DEBUG VERY VERBOSE] "
 
 -- TODO
 failWithCompError :: CompilationError -> IO a
