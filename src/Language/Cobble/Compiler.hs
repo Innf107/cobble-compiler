@@ -7,9 +7,11 @@ import Language.Cobble.Util
 
 import Language.Cobble.Types as S
 
-import Language.Cobble.MCAsm.Types as A hiding (Name)
+import Language.Cobble.Codegen.Types hiding (PrimOpEnv(..))
+import Language.Cobble.Codegen.Types qualified as P (PrimOpEnv(..))
+import Language.Cobble.Codegen.PrimOps
 
-type CompileC r = Members '[State CompileState, Error Panic, Error McAsmError, Output Log] r
+import Language.Cobble.MCAsm.Types as A hiding (Name)
 
 panic :: (Member (Error Panic) r) => Text -> Sem r a
 panic = throw . Panic
@@ -25,11 +27,6 @@ panicFunNotFoundTooLate v = do
     st <- get
     panic $ "Function " <> show v <> " not found. This should have been caught earlier!\n    State: " <> show st
 
-data CompileState = CompileState {
-        _frames :: NonEmpty Frame
-      , _functions :: Map (Name 'Codegen) Function
-    } deriving (Show, Eq)
-
 initialCompileState :: CompileState
 initialCompileState = CompileState {
       _frames = Frame {
@@ -39,15 +36,6 @@ initialCompileState = CompileState {
     , _functions = mempty 
     }
 
-data Frame = Frame {
-        _varRegs :: Map (Name 'Codegen) Register
-    ,   _lastReg :: Int
-    } deriving (Show, Eq)
-
-data Function = Function {
-      _params :: [(Name 'Codegen, Type 'Codegen)]
-    , _returnType :: Maybe (Type 'Codegen)
-    } deriving (Show, Eq)
 
 emptyFrame :: Frame
 emptyFrame = Frame mempty 0
@@ -98,15 +86,18 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
                 exprReg <- compileExprToReg expr
                 tell [MoveReg varReg exprReg]
                 
-    CallFun () li fname args -> get <&> (^? functions . ix fname . returnType . _Just) >>= \case
-        Nothing -> get <&> (^? functions . ix fname . params) >>= \case
-            Just ps -> do
-                frame <- gets (^. frames . head1)
-                saveFrame frame
-                tell [Call fname]
-                restoreFrame frame
-            Nothing -> panicFunNotFoundTooLate fname
-        Just rt -> void $ compileExprToReg (FCall rt li fname args)
+    CallFun () li fname args -> case lookup fname primOps of
+        Just (_, _, primOpF) -> void $ primOpF primOpEnv args
+        Nothing -> gets (^? functions . ix fname . returnType . _Just) >>= \case
+            Nothing -> get <&> (^? functions . ix fname . params) >>= \case
+                Just ps -> do
+                    frame <- gets (^. frames . head1)
+                    saveFrame frame
+                    writeArgs args
+                    tell [Call fname]
+                    restoreFrame frame
+                Nothing -> panicFunNotFoundTooLate fname
+            Just rt -> void $ compileExprToReg (FCall rt li fname args)
 
 
     DefVoid () _li name pars body -> do
@@ -142,22 +133,24 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
             tell [MoveReg retReg vReg]
             pure $ retReg
     -- (FloatT, FloatLit i) -> pure [MoveNumReg (NumReg reg)]
-    (FCall t _li fname args) -> do
-        get <&> (^. functions . at fname) >>= \case
-            Nothing -> panicFunNotFoundTooLate fname
-            Just f -> do
-                frame <- gets (^. frames . head1)
-                saveFrame frame
-                
-                writeArgs args
+    (FCall t _li fname args) -> case lookup fname primOps of
+        Just (_, _, primOpF) -> primOpF primOpEnv args
+        Nothing -> do
+            get <&> (^. functions . at fname) >>= \case
+                Nothing -> panicFunNotFoundTooLate fname
+                Just f -> do
+                    frame <- gets (^. frames . head1)
+                    saveFrame frame
 
-                tell [Call fname]
+                    writeArgs args
 
-                restoreFrame frame
-                case (f ^. returnType) of
-                    Nothing -> panic' "Called a void function as an expression" [show fname]
-                    Just t' | t' /= t -> panic' "Return type of function does not match fcall expr return type" [show fname, show t, show t']
-                    Just _ -> pure $ returnReg (rtType t)
+                    tell [Call fname]
+
+                    restoreFrame frame
+                    case (f ^. returnType) of
+                        Nothing -> panic' "Called a void function as an expression" [show fname]
+                        Just t' | t' /= t -> panic' "Return type of function does not match fcall expr return type" [show fname, show t, show t']
+                        Just _ -> pure $ returnReg (rtType t)
     ExprX x _li -> absurd x
 
 writeArgs :: (CompileC r, Member (Writer [Instruction]) r) => [Expr 'Codegen] -> Sem r ()
@@ -218,3 +211,9 @@ mkRegFromRep r i = case r of
 
 
 data Rep = RepNum | RepEntity | RepArray deriving (Show, Eq)
+
+primOpEnv :: (Member (Writer [Instruction]) r, CompileC r) => P.PrimOpEnv r
+primOpEnv = P.PrimOpEnv {
+        compileExprToReg
+    ,   newReg
+    }

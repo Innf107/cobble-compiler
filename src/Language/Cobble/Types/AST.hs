@@ -95,6 +95,10 @@ data Type (p :: Pass) = TCon (Name p) (XKind p)
                       | TApp (Type p) (Type p)
                       | TVar (Name p) (XKind p)
 
+(-:>) :: (IsString (Name p), IsKind (XKind p)) => Type p -> Type p -> Type p
+t1 -:> t2 = TApp (TApp (TCon "->" (kFun kStar (kFun kStar kStar))) t1) t2 
+infixr 5 -:>
+
 type family XKind (p :: Pass)
 
 type FileName = Text

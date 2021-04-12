@@ -6,6 +6,8 @@ import Language.Cobble.Compiler
 import Language.Cobble.Types
 import Language.Cobble.MCAsm.Types
 
+import Language.Cobble.Codegen.Types
+
 import Test.Hspec
 
 spec :: Spec

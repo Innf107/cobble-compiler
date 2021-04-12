@@ -32,7 +32,7 @@ isOpLetter :: Char -> Bool
 isOpLetter = flip elem "+-*/~^!?.|<>$&=#:;,"
 
 isIdentStart :: Char -> Bool
-isIdentStart c = isAlpha c
+isIdentStart c = isAlpha c || c `elem` "_"
 
 isIdentLetter :: Char -> Bool
 isIdentLetter c = isAlphaNum c || c `elem` "_."

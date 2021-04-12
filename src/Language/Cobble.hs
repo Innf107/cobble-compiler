@@ -32,6 +32,9 @@ import Language.Cobble.MCAsm.Types as A
 
 import Language.Cobble.MCAsm.McFunction
 
+import Language.Cobble.Codegen.PrimOps
+import Language.Cobble.Codegen.Types
+
 import Data.Map qualified as M
 import Data.List qualified as L
 import System.FilePath qualified as FP
@@ -141,7 +144,9 @@ getModName = toText . FP.dropExtension . L.last . segments
 
 primModSig :: ModSig
 primModSig = ModSig {
-        exportedFunctions = mempty
+        exportedFunctions = fmap (\(ps, ret, _) -> (ps,ret)) $ primOps 
+            @'[Output Log, Writer [Instruction], Error Panic, State CompileState, Error McAsmError]
+            -- The type application is only necessary to satisfy the type checker since the value depending on the type of 'r' is ignored
     ,   exportedVars = mempty
     ,   exportedStructs = fromList [("prims.Int", []), ("prims.Bool", []), ("prims.Entity", [])]
     }

@@ -119,7 +119,7 @@ qualifyStatement s = log LogDebugVerbose ("QUALIFYING STATEMENT: " <> show s) >>
     SetScoreboard () li obj pl e -> SetScoreboard () li obj pl <$> qualifyExp e
     StatementX x _li -> case x of
 
-qualifyExp :: (QualifyC r) => Expr 'QualifyNames -> Sem r (Expr NextPass)
+qualifyExp :: (QualifyC r, Member (Reader (Map QualifiedName ModSig)) r) => Expr 'QualifyNames -> Sem r (Expr NextPass)
 qualifyExp e = do
     log LogDebugVerbose ("QUALIFYING EXPR: " <> show e)
     res <- go
@@ -153,11 +153,13 @@ qualifyType li t = log LogDebugVeryVerbose ("QUALIFYING TYPE: " <> show t) >> qt
                     _ -> throw $ EarlyKindMismatch t1 t2
             TVar v ()   -> pure $ TVar (QualifiedName [v]) k
 
-lookupName :: (QualifyC r) => Text -> LexInfo -> Sem r QualifiedName
-lookupName n li = get @[Scope] >>= \scopes -> do
+lookupName :: (QualifyC r, Member (Reader (Map QualifiedName ModSig)) r) => Text -> LexInfo -> Sem r QualifiedName
+lookupName n li = get @[Scope] >>= \scopes -> ask >>= \deps -> do
     log LogDebugVeryVerbose ("LOOKING UP NAME '" <> show n <> "' IN " <> show scopes)
-    maybe (throw (NameNotFound li n)) pure (flip asumMap scopes $ \s -> whenAlt (n `elem` _varFunNames s) (_prefix s .: n))
-
+    maybe (throw (NameNotFound li n)) pure $
+        (flip asumMap scopes $ \s -> whenAlt (n `elem` _varFunNames s) (_prefix s .: n))
+        <|> flip asumMap (M.toList deps) (\(modName, ModSig{exportedFunctions, exportedVars}) 
+            -> if (modName .: n) `member` (M.keysSet exportedFunctions <> M.keysSet exportedVars) then Just (modName .: n) else Nothing)
 lookupTypeName :: (QualifyC r, Member (Reader (Map QualifiedName ModSig)) r) => Text -> LexInfo -> Sem r QualifiedName
 lookupTypeName n li = get @[Scope] >>= \scopes -> ask >>= \deps -> do
     log LogDebugVeryVerbose ("LOOKING UP Type '" <> show n <> "' IN " <> show scopes <> " AND " <> show deps)

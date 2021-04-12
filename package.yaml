@@ -118,3 +118,4 @@ default-extensions:
   - GeneralizedNewtypeDeriving
   - InstanceSigs
   - EmptyDataDeriving
+  - RecordWildCards
