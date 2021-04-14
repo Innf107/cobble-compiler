@@ -27,7 +27,7 @@ data Module (p :: Pass) = Module
 type family XModule (p :: Pass)
 
 -- | The signature of a module contains
--- everything that a module exports
+-- everything that it exports
 -- (Variables, Functions, Types, etc.)
 data ModSig = ModSig {
     exportedVars :: Map QualifiedName (Type 'Codegen)
