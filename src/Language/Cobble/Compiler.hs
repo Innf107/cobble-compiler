@@ -76,7 +76,7 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
         nr <- newRegForType VarReg (getType expr)
         modify (& frames . head1 . varRegs . at name ?~ nr)
 
-        compileStatement (AssignT li name expr)
+        compileStatement (Assign () li name expr)
 
     Assign () _li name expr -> do
         mvarReg <- get <&> join . (^? frames . head1 . varRegs . at name)
@@ -85,7 +85,22 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
             Just varReg -> do
                 exprReg <- compileExprToReg expr
                 tell [MoveReg varReg exprReg]
-                
+
+    IfS (name, ifID) _li c th mel -> do
+        cr <- compileExprToReg c
+        let elPostfix = maybe [] (const [MoveNumLit elseReg 0]) mel
+        tell . pure . A.Section (name .: ("-then" <> show ifID)) =<< (<>elPostfix) . fst <$> runWriterAssocR (traverse compileStatement th)
+        case mel of
+            Just el -> do
+                tell . pure . A.Section (name .: ("-else" <> show ifID)) =<< fst <$> runWriterAssocR (traverse compileStatement el)
+                tell [MoveNumLit elseReg 1
+                    , CallInRange cr (RBounded 1 1) (name .: ("-then" <> show ifID))
+                    , CallInRange elseReg (RBounded 1 1) (name .: ("-else" <> show ifID))
+                    ]
+
+            Nothing -> do
+                tell [CallInRange cr (RBounded 1 1) (name .: ("-then" <> show ifID))]
+
     CallFun () li fname args -> case lookup fname primOps of
         Just (_, _, primOpF) -> void $ primOpF primOpEnv args
         Nothing -> gets (^? functions . ix fname . returnType . _Just) >>= \case
@@ -177,6 +192,9 @@ popRegFromStack r = tell [
     ,   GetInArray r stackReg stackPTRReg
     ,   DestroyInArray stackReg stackPTRReg
     ]
+
+elseReg :: Register
+elseReg = NumReg (NamedReg "ELSE")
 
 returnReg :: Rep -> Register
 returnReg = \case

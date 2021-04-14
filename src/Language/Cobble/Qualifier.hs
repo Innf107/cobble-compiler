@@ -105,8 +105,18 @@ qualifyStatement s = log LogDebugVerbose ("QUALIFYING STATEMENT: " <> show s) >>
         e' <- qualifyExp e
         pure $ Assign () li n' e'
 
+    IfS () li c th el -> do
+        ifID <- newUID
+        let thName = (("-then" <>) . show) ifID 
+        let elName = (("-else" <>) . show) ifID
+        c' <- qualifyExp c
+        th' <- localPref (.: thName) $ traverse qualifyStatement th
+        el' <- traverse (localPref (.: elName) . traverse qualifyStatement) el
+        name <- askPref
+        pure $ IfS (name, ifID) li c' th' el'
+
     While () li c body -> do
-        whileName <- (("@while" <>) . show) <$> newUID
+        whileName <- (("-while" <>) . show) <$> newUID
         c' <- qualifyExp c
         body' <- localPref (.: whileName) $ traverse qualifyStatement body
         pure $ While () li c' body'

@@ -79,6 +79,12 @@ compileInstr i = do
         Max reg1 reg2               -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> regOperation reg1 SMax reg2
         Section name instrs         -> pure . InterModule name . concat <$> (mapM compileInstr instrs)
         Call section                -> instr $ runFunction ns section
+        CallEQ reg1 reg2 f          -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiEqReg reg2) $ ERun (runFunction ns f))
+        CallLT reg1 reg2 f          -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiLtReg reg2) $ ERun (runFunction ns f))
+        CallGT reg1 reg2 f          -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiGtReg reg2) $ ERun (runFunction ns f))
+        CallLE reg1 reg2 f          -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiLeReg reg2) $ ERun (runFunction ns f))
+        CallGE reg1 reg2 f          -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiGeReg reg2) $ ERun (runFunction ns f))
+        CallInRange reg range f     -> instr $ assertRegNumber reg  >> execute (EIf (eiScoreReg reg  $ EIMatches range) $ ERun $ (runFunction ns f))
         ExecEQ reg1 reg2 is         -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiEqReg reg2) $ ERun (tell is))
         ExecLT reg1 reg2 is         -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiLtReg reg2) $ ERun (tell is))
         ExecGT reg1 reg2 is         -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiGtReg reg2) $ ERun (tell is))

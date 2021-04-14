@@ -141,8 +141,8 @@ spec = do
                     Right [
                       Decl () dli "Mod1.x" (Just intT) (IntLit () dli 5)
                     , While () dli (BoolLit () dli True) [
-                        Decl () dli "Mod1.@while1.x" (Just intT) (IntLit () dli 6)
-                      , Assign () dli "Mod1.@while1.x" (Var () dli "Mod1.@while1.x")
+                        Decl () dli "Mod1.-while1.x" (Just intT) (IntLit () dli 6)
+                      , Assign () dli "Mod1.-while1.x" (Var () dli "Mod1.-while1.x")
                       ]
                     , Assign () dli "Mod1.x" (Var () dli "Mod1.x")
                     ]

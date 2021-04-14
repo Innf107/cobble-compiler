@@ -19,7 +19,7 @@ import Language.Cobble.Prelude
 type NameSpace = Text
 
 
-class HasType t p where
+class HasType t p | t -> p where
     getType :: t -> Type p
 
 instance HasType (Expr 'Codegen) 'Codegen where
@@ -30,4 +30,6 @@ instance HasType (Expr 'Codegen) 'Codegen where
         BoolLit () _ _ -> boolT
         ExprX v _ -> absurd v
         
+instance HasType (Type p) p where
+    getType = id
         

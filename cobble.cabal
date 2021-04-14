@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 52f34295ab68666733423e1d918d3091ac01c8aeaa265b849df6a465febf91c3
+-- hash: f28b86b1450984f100de2d7f170ba57d876a94e8254bee9932d9aa0db620d1e5
 
 name:           cobble
 version:        0.1.0.0
@@ -105,6 +105,7 @@ library
       InstanceSigs
       EmptyDataDeriving
       RecordWildCards
+      FunctionalDependencies
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wincomplete-record-updates -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
@@ -173,6 +174,7 @@ executable cobble
       InstanceSigs
       EmptyDataDeriving
       RecordWildCards
+      FunctionalDependencies
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
@@ -259,6 +261,7 @@ test-suite cobble-test
       InstanceSigs
       EmptyDataDeriving
       RecordWildCards
+      FunctionalDependencies
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5

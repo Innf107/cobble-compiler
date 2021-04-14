@@ -62,6 +62,13 @@ data Instruction =
       | Section Name [Instruction]
       | Call    Name
 
+      | CallInRange Register Range Name
+      | CallEQ Register Register Name
+      | CallLT Register Register Name
+      | CallGT Register Register Name
+      | CallLE Register Register Name
+      | CallGE Register Register Name
+      
       | ExecInRange Register Range [McFunction]
       | ExecEQ Register Register [McFunction]
       | ExecLT Register Register [McFunction]

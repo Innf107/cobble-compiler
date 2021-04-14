@@ -74,7 +74,7 @@ module_ :: Text -> Parser (Module NextPass)
 module_ mname = "module" <??> Module () mname <$> statements
 
 statement :: Parser (Statement NextPass)
-statement = "statement" <??> try callFun <|> defVoid <|> defFun <|> decl <|> assign <|> while {- <|> defStruct -} <|> setScoreboard
+statement = "statement" <??> try callFun <|> defVoid <|> try defFun <|> decl <|> assign <|> ifS <|> while {- <|> defStruct -} <|> setScoreboard
 
 expr :: Parser (Expr NextPass)
 expr = "expr" <??> uncurry (IntLit ()) <$> intLit <|> boollit <|> try fcall <|> var
@@ -125,6 +125,13 @@ assign = "variable assignment" <??> do
     e <- expr
     pure $ Assign () li vname e
 
+ifS :: Parser (Statement NextPass)
+ifS = "if statement" <??> IfS ()
+    <$> reserved "if"
+    <*> expr
+    <*> statementBody
+    <*> optionMaybe (reserved "else" *> statementBody)
+
 while :: Parser (Statement NextPass)
 while = "while statement" <??> do
     li <- reserved "while"
@@ -139,7 +146,7 @@ setScoreboard = "scoreboard assignment" <??> do
     li <- reserved "score"
     obj <- ident'
     player <- ident'
-    reservedOp' "=" 
+    reservedOp' "="
     ex <- expr
     pure $ SetScoreboard () li (Objective obj) player ex
 

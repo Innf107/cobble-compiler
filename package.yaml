@@ -119,3 +119,4 @@ default-extensions:
   - InstanceSigs
   - EmptyDataDeriving
   - RecordWildCards
+  - FunctionalDependencies

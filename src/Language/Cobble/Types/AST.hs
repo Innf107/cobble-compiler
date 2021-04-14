@@ -55,6 +55,7 @@ data Statement (p :: Pass) =
 --                                                          ^ last expr
     | Decl (XDecl p) LexInfo (Name p) (Maybe (Type p)) (Expr p)
     | Assign (XAssign p) LexInfo (Name p) (Expr p)
+    | IfS (XIfS p) LexInfo (Expr p) [Statement p] (Maybe [Statement p])
     | While (XWhile p) LexInfo (Expr p) [Statement p]
     | DefStruct (XDefStruct p) LexInfo (Name p) [(Name p, Type p)]
     | SetScoreboard (XSetScoreboard p) LexInfo Objective Text (Expr p)
@@ -68,6 +69,7 @@ type family XDefFun         (p :: Pass)
 type family XImport         (p :: Pass)
 type family XDecl           (p :: Pass)
 type family XAssign         (p :: Pass)
+type family XIfS            (p :: Pass)
 type family XWhile          (p :: Pass)
 type family XDefStruct      (p :: Pass)
 type family XSetScoreboard  (p :: Pass)
