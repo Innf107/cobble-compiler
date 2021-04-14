@@ -115,8 +115,8 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
             modify (& frames %~ (emptyFrame |:))
             modify (& frames . head1 . varRegs .~ fromList (zip (map fst pars) regs))
             traverse_ compileStatement body
-            modify (& frames %~ unsafeTail)
             res <- compileExprToReg retExp
+            modify (& frames %~ unsafeTail)
             tell [MoveReg (returnReg (regRep res)) res]
     S.SetScoreboard () _li obj player ex -> do
         r <- compileExprToReg ex
