@@ -33,10 +33,10 @@ makeDataPack options ms = fromArchive <$> do
     -- TODO: Include data/minecraft/tags/functions/load.mcfunction, clean module and init module
 
 packMcMeta :: DataPackOptions -> LByteString
-packMcMeta options = mconcat [
+packMcMeta options = mconcat $ map (<> "\n") [
       "{"
     , "    \"pack\":{"
-    , "         \"pack_format\":6"
+    , "         \"pack_format\":6,"
     , "         \"description\": \"" <> encodeUtf8 (description options) <> "\""
     , "    }"
     , "}"
