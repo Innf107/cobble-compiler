@@ -44,6 +44,7 @@ type instance XImport 'QualifyNames = ()
 type instance XDefVoid 'QualifyNames = ()
 type instance XDecl 'QualifyNames = ()
 type instance XAssign 'QualifyNames = ()
+type instance XIfS 'QualifyNames = ()
 type instance XWhile 'QualifyNames = ()
 type instance XDefStruct 'QualifyNames = ()
 type instance XSetScoreboard 'QualifyNames = ()
@@ -53,6 +54,7 @@ type instance XStatement 'QualifyNames = Void
 type instance XFCall 'QualifyNames = ()
 type instance XIntLit 'QualifyNames = ()
 type instance XBoolLit 'QualifyNames = ()
+type instance XIfE 'QualifyNames = ()
 type instance XVar 'QualifyNames = ()
 type instance XExpr 'QualifyNames = Void
 

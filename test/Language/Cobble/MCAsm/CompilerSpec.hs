@@ -185,7 +185,7 @@ spec = do
             it "SetEntityInArray" $ pass @IO  --  ^
             it "SetArrayInArray"  $ pass @IO  --  ^
     describe "hoistModules" do
-        it "Preserves order" do
+        it "Preserves statement order" do
             evalAsm (hoistModules (InterModule "SomeSection" [
                     InterInstructions [
                         McFunction "say 1"
@@ -209,9 +209,19 @@ spec = do
                 ]))
                 `shouldBe`
                 Right [   CompiledModule "SomeSection" (unlines ["say 1","say 2","say 6","say 7"])
-                      ,   CompiledModule "SomeSection.InnerSection" (unlines ["say 3", "say 4"])
-                      ,   CompiledModule "SomeSection.InnerSection.InnerInnerSection" "say 5"
+                      ,   CompiledModule "InnerSection" (unlines ["say 3", "say 4"])
+                      ,   CompiledModule "InnerInnerSection" "say 5\n"
                       ]
+        it "is NOT related to the parent section" do
+            evalAsm (hoistModules (InterModule "SomeSection" [
+                    InterModule "InnerSection" [
+                        InterModule "InnerInnerSection" []
+                    ]
+                ])) `shouldBe` Right [
+                    CompiledModule "SomeSection" ""
+                ,   CompiledModule "InnerSection" ""
+                ,   CompiledModule "InnerInnerSection" ""
+                ]
 
 data TestError = TestMcAsmError McAsmError
                | TestPanic Panic

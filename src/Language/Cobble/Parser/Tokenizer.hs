@@ -38,13 +38,16 @@ isIdentLetter :: Char -> Bool
 isIdentLetter c = isAlphaNum c || c `elem` "_."
 
 reserved :: [String]
-reserved = ["True", "False", "defmacro", "void", "let", "while", "import"]
+reserved = ["True", "False", "defmacro", "void", "let", "if", "then", "else", "while", "import", "score"]
 
 reservedOps :: [String]
 reservedOps = [":", ";", ",", "=", "=>"]
 
 isParen :: Char -> Bool
 isParen = (`elem`"()[]{}")
+
+isNumPrefix :: Char -> Bool
+isNumPrefix c = c `elem` "+-"
 
 data LexicalError = LexicalError LexInfo LexicalErrorData deriving (Show, Eq)
 
@@ -74,6 +77,9 @@ askChar = do
             else
                 modify (\ts -> ts{column=column ts + 1})
             pure $ Just c
+
+peekChar :: (TokenizeC r, Member (State [Char]) r) => Sem r (Maybe Char)
+peekChar = viaNonEmpty head <$> get 
 
 putS :: (TokenizeC r) => TokenState -> Sem r ()
 putS ts = do
@@ -114,10 +120,11 @@ tokenize' input = fmap fst $ runWriterAssocR $ evalState input $ go
     where
         go :: (TokenizeC r, Members [Writer [Token], State [Char]] r) => Sem r ()
         go = gets fst >>= \case
-            Default -> askChar >>= \case
+            Default -> askChar >>= \mc -> peekChar >>= \nc -> case mc of
                 Nothing -> pass
                 Just c -> if
                     | isIdentStart c -> putStart (InIdent [c]) >> go
+                    | isNumPrefix c && fromMaybe False (isDigit <$> nc) -> putStart (InIntLit [c]) >> go
                     | isOpStart c -> putStart (InOp [c]) >> go
                     | isDigit c -> putStart (InIntLit [c]) >> go
                     | isWhiteSpace c -> go

@@ -27,7 +27,7 @@ data Module (p :: Pass) = Module
 type family XModule (p :: Pass)
 
 -- | The signature of a module contains
--- everything that a module exports
+-- everything that it exports
 -- (Variables, Functions, Types, etc.)
 data ModSig = ModSig {
     exportedVars :: Map QualifiedName (Type 'Codegen)
@@ -55,6 +55,7 @@ data Statement (p :: Pass) =
 --                                                          ^ last expr
     | Decl (XDecl p) LexInfo (Name p) (Maybe (Type p)) (Expr p)
     | Assign (XAssign p) LexInfo (Name p) (Expr p)
+    | IfS (XIfS p) LexInfo (Expr p) [Statement p] (Maybe [Statement p])
     | While (XWhile p) LexInfo (Expr p) [Statement p]
     | DefStruct (XDefStruct p) LexInfo (Name p) [(Name p, Type p)]
     | SetScoreboard (XSetScoreboard p) LexInfo Objective Text (Expr p)
@@ -68,6 +69,7 @@ type family XDefFun         (p :: Pass)
 type family XImport         (p :: Pass)
 type family XDecl           (p :: Pass)
 type family XAssign         (p :: Pass)
+type family XIfS            (p :: Pass)
 type family XWhile          (p :: Pass)
 type family XDefStruct      (p :: Pass)
 type family XSetScoreboard  (p :: Pass)
@@ -79,12 +81,14 @@ data Expr (p :: Pass) =
     | IntLit (XIntLit p) LexInfo Int
           --  | FloatLit Double Text TODO: Needs Standard Library (Postfixes?)
     | BoolLit (XBoolLit p) LexInfo Bool
+    | IfE (XIfE p) LexInfo (Expr p) (Expr p) (Expr p)
     | Var (XVar p) LexInfo (Name p)
     | ExprX (XExpr p) LexInfo
 
 type family XFCall (p :: Pass)
 type family XIntLit (p :: Pass)
 type family XBoolLit (p :: Pass)
+type family XIfE (p :: Pass)
 type family XVar (p :: Pass)
 type family XExpr (p :: Pass)
 
@@ -176,6 +180,7 @@ type ExprCoercible p1 p2 = ( XFCall p1   ~ XFCall p2
                          , XIntLit p1  ~ XIntLit p2
                          , Name p1     ~ Name p2
                          , XBoolLit p1 ~ XBoolLit p2
+                         , XIfE p1     ~ XIfE p2
                          , XVar p1     ~ XVar p2
                          , XExpr p1    ~ XExpr p2
                          )
@@ -185,6 +190,7 @@ instance (ExprCoercible p1 p2) => CoercePass Expr p1 p2 where
         FCall x l n as -> FCall x l n (map coercePass as)
         IntLit x l i   -> IntLit x l i
         BoolLit x l b  -> BoolLit x l b
+        IfE x l c t e  -> IfE x l (coercePass c) (coercePass t) (coercePass e)
         Var x l v      -> Var x l v
         ExprX x l      -> ExprX x l
         
@@ -196,6 +202,7 @@ type StatementCoercible p1 p2 = ( ExprCoercible p1 p2
                                 , XImport p1 ~ XImport p2
                                 , XDecl p1 ~ XDecl p2
                                 , XAssign p1 ~ XAssign p2
+                                , XIfS p1 ~ XIfS p2
                                 , XWhile p1 ~ XWhile p2
                                 , XDefStruct p1 ~ XDefStruct p2
                                 , XSetScoreboard p1 ~ XSetScoreboard p2
@@ -210,6 +217,7 @@ instance (StatementCoercible p1 p2) => CoercePass Statement p1 p2 where
         Import x l n -> Import x l n
         Decl x l n mt e -> Decl x l n (fmap coercePass mt) (coercePass e)
         Assign x l n e -> Assign x l n (coercePass e)
+        IfS x l c th el -> IfS x l (coercePass c) (map coercePass th) (map coercePass <$> el)
         While x l c b -> While x l (coercePass c) (map coercePass b)
         DefStruct x l n fs -> DefStruct x l n (map (second coercePass) fs)
         SetScoreboard x l o t e -> SetScoreboard x l o t (coercePass e)

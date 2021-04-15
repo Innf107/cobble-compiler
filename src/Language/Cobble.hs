@@ -135,6 +135,7 @@ makePartialSig = \case
     Import () _ _               -> mempty
     Assign () _ _ _             -> mempty
     While () _ _ _              -> mempty
+    IfS _ _ _ _ _               -> mempty
     S.SetScoreboard () _ _ _ _  -> mempty
     StatementX v _              -> absurd v
 

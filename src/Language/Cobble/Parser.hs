@@ -74,15 +74,14 @@ module_ :: Text -> Parser (Module NextPass)
 module_ mname = "module" <??> Module () mname <$> statements
 
 statement :: Parser (Statement NextPass)
-statement = "statement" <??> try callFun <|> defVoid <|> try defFun <|> decl <|> assign <|> while {- <|> defStruct -}
+statement = "statement" <??> callFun <|> defVoid <|> defFun <|> decl <|> assign <|> ifS <|> while {- <|> defStruct -} <|> setScoreboard
 
 expr :: Parser (Expr NextPass)
-expr = "expr" <??> uncurry (IntLit ()) <$> intLit <|> boollit <|> try fcall <|> var
+expr = "expr" <??> uncurry (IntLit ()) <$> intLit <|> boollit <|> ifE <|> fcall <|> var
 
 callFun :: Parser (Statement NextPass)
 callFun = "toplevel function call" <??> do
-    (li, fname) <- ident
-    paren' "("
+    (li, fname) <- try $ ident <* paren' "("
     ps <- expr `sepBy` reservedOp' ","
     paren' ")"
     pure $ CallFun () li fname ps
@@ -100,9 +99,7 @@ defVoid = "void definition" <??> do
 
 defFun :: Parser (Statement NextPass)
 defFun = "function definition" <??> do
-    (li, t) <- typeP
-    fname <- ident'
-    paren' "("
+    ((li, t), fname) <- try $ (,) <$> typeP <*> ident' <* paren' "("
     ps <- map (\(_x, y, z) -> (y, z)) <$> typedIdent `sepBy` (reservedOp ",")
     paren' ")"
     b <- option [] statementBody
@@ -125,6 +122,13 @@ assign = "variable assignment" <??> do
     e <- expr
     pure $ Assign () li vname e
 
+ifS :: Parser (Statement NextPass)
+ifS = "if statement" <??> IfS ()
+    <$> reserved "if"
+    <*> expr
+    <*> statementBody
+    <*> optionMaybe (reserved "else" *> statementBody)
+
 while :: Parser (Statement NextPass)
 while = "while statement" <??> do
     li <- reserved "while"
@@ -134,10 +138,18 @@ while = "while statement" <??> do
     b <- statementBody
     pure $ While () li e b
 
+setScoreboard :: Parser (Statement NextPass)
+setScoreboard = "scoreboard assignment" <??> do
+    li <- reserved "score"
+    obj <- ident'
+    player <- ident'
+    reservedOp' "="
+    ex <- expr
+    pure $ SetScoreboard () li (Objective obj) player ex
+
 fcall :: Parser (Expr NextPass)
 fcall = "function call" <??> do
-    (li, fname) <- ident
-    paren' "("
+    (li, fname) <- try $ ident <* paren' "("
     ps <- expr `sepBy` reservedOp' ","
     paren' ")"
     pure $ FCall () li fname ps
@@ -146,6 +158,12 @@ boollit :: Parser (Expr NextPass)
 boollit = "boolean literal" <??> choice [ reserved "True" >>= \li -> pure $ BoolLit () li True
                  , reserved "False" >>= \li -> pure $ BoolLit () li False
                  ]
+
+ifE :: Parser (Expr NextPass)
+ifE = "if expression" <??> IfE ()
+    <$> reserved "if" <*> expr
+    <*> (reserved "then" *> expr)
+    <*> (reserved "else" *> expr)
 
 var :: Parser (Expr NextPass)
 var = "variable" <??> uncurry (Var ()) <$> ident

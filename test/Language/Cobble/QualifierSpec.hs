@@ -141,8 +141,8 @@ spec = do
                     Right [
                       Decl () dli "Mod1.x" (Just intT) (IntLit () dli 5)
                     , While () dli (BoolLit () dli True) [
-                        Decl () dli "Mod1.@while1.x" (Just intT) (IntLit () dli 6)
-                      , Assign () dli "Mod1.@while1.x" (Var () dli "Mod1.@while1.x")
+                        Decl () dli "Mod1.-while1.x" (Just intT) (IntLit () dli 6)
+                      , Assign () dli "Mod1.-while1.x" (Var () dli "Mod1.-while1.x")
                       ]
                     , Assign () dli "Mod1.x" (Var () dli "Mod1.x")
                     ]
@@ -226,7 +226,12 @@ dli :: LexInfo
 dli = LexInfo 0 0 "Test"
 
 testQual :: [Scope]
-         -> Sem '[State Int, State [Scope], Error QualificationError, Output Log] a
+         -> Sem '[State Int, State [Scope], Error QualificationError, Output Log, Reader Dependencies] a
          -> Either QualificationError a
-testQual s = run . runOutputSem (const pass) . runError . evalState (s ++ [Scope "Mod1" [] [] mempty, Scope "prims" ["Int", "Bool"] [] (fromList [("Int", KStar), ("Bool", KStar)])]) . evalState 0
+testQual = testQual' mempty
 
+testQual' :: Dependencies 
+         -> [Scope]
+         -> Sem '[State Int, State [Scope], Error QualificationError, Output Log, Reader Dependencies] a
+         -> Either QualificationError a
+testQual' deps s = run . runReader deps . runOutputSem (const pass) . runError . evalState (s ++ [Scope "Mod1" [] [] mempty, Scope "prims" ["Int", "Bool"] [] (fromList [("Int", KStar), ("Bool", KStar)])]) . evalState 0

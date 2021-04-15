@@ -41,8 +41,6 @@ deriving instance Generic  (Type 'Codegen)
 deriving instance Data     (Type 'Codegen)
 deriving instance Typeable (Type 'Codegen)
 
-makeSynonyms 'Codegen ''Statement "T"
-
 pattern FCallT :: Type 'Codegen -> LexInfo -> Name 'Codegen -> [Expr 'Codegen] -> Expr 'Codegen
 pattern FCallT t l n ps <- FCall t l n ps
     where
@@ -72,6 +70,7 @@ type instance XDefFun 'Codegen = ()
 type instance XImport 'Codegen = ()
 type instance XDecl 'Codegen = ()
 type instance XAssign 'Codegen = ()
+type instance XIfS 'Codegen = (QualifiedName, Int)
 type instance XWhile 'Codegen = ()
 type instance XDefStruct 'Codegen = ()
 type instance XSetScoreboard 'Codegen = ()
@@ -80,6 +79,7 @@ type instance XStatement 'Codegen = Void
 type instance XFCall 'Codegen = Type 'Codegen
 type instance XIntLit 'Codegen = ()
 type instance XBoolLit 'Codegen = ()
+type instance XIfE 'Codegen = (QualifiedName, Int)
 type instance XVar 'Codegen = Type 'Codegen
 type instance XExpr 'Codegen = Void
 

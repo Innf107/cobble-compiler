@@ -41,6 +41,7 @@ type instance XImport        'SolveModules = ()
 type instance XDefVoid       'SolveModules = ()
 type instance XDecl          'SolveModules = ()
 type instance XAssign        'SolveModules = ()
+type instance XIfS           'SolveModules = ()
 type instance XWhile         'SolveModules = ()
 type instance XDefStruct     'SolveModules = ()
 type instance XSetScoreboard 'SolveModules = ()
@@ -50,6 +51,7 @@ type instance XStatement     'SolveModules = Void
 type instance XFCall   'SolveModules = ()
 type instance XIntLit  'SolveModules = ()
 type instance XBoolLit 'SolveModules = ()
+type instance XIfE     'SolveModules = ()
 type instance XVar     'SolveModules = ()
 type instance XExpr    'SolveModules = Void
 
