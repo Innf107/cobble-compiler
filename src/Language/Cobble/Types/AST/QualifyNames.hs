@@ -54,6 +54,7 @@ type instance XStatement 'QualifyNames = Void
 type instance XFCall 'QualifyNames = ()
 type instance XIntLit 'QualifyNames = ()
 type instance XBoolLit 'QualifyNames = ()
+type instance XIfE 'QualifyNames = ()
 type instance XVar 'QualifyNames = ()
 type instance XExpr 'QualifyNames = Void
 

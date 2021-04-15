@@ -79,6 +79,7 @@ type instance XStatement 'Codegen = Void
 type instance XFCall 'Codegen = Type 'Codegen
 type instance XIntLit 'Codegen = ()
 type instance XBoolLit 'Codegen = ()
+type instance XIfE 'Codegen = (QualifiedName, Int)
 type instance XVar 'Codegen = Type 'Codegen
 type instance XExpr 'Codegen = Void
 

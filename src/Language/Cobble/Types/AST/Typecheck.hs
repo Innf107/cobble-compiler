@@ -52,11 +52,10 @@ type instance XStatement     'Typecheck = Void
 type instance XFCall   'Typecheck = ()
 type instance XIntLit  'Typecheck = ()
 type instance XBoolLit 'Typecheck = ()
+type instance XIfE     'Typecheck = (QualifiedName, Int)
 type instance XVar     'Typecheck = ()
 type instance XExpr    'Typecheck = Void
 
 type instance Name 'Typecheck = QualifiedName
 
 type instance XKind 'Typecheck = Kind
-
-makeSynonyms 'Typecheck ''Expr "U"

@@ -27,6 +27,7 @@ instance HasType (Expr 'Codegen) 'Codegen where
         FCall x _ _ _ -> x
         Var x _ _ -> x
         IntLit () _ _ -> intT
+        IfE _ _ _ th _ -> getType th
         BoolLit () _ _ -> boolT
         ExprX v _ -> absurd v
         

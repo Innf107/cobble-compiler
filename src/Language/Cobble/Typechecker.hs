@@ -18,6 +18,8 @@ data TypeError = VarDoesNotExist LexInfo (Name NextPass)
                | WrongAssignType LexInfo (Name NextPass) (Type NextPass) (Type NextPass)
 --                                    ^ expected
                | WrongIfType LexInfo (Type NextPass)
+               | WrongIfEType LexInfo (Type NextPass)
+               | DifferentIfETypes LexInfo (Type NextPass) (Type NextPass)
                | WrongSetScoreboardType LexInfo Objective Text (Type NextPass)
                | CannotUnify (Type NextPass) (Type NextPass)
                | OccursCheck (Name 'Typecheck) (Type NextPass)
@@ -146,6 +148,14 @@ typeOf = \case
         if (exprTypes == fargs)
         then (\x -> FCallT x l fname exprs') <$> getFunReturnType l fname
         else throw $ WrongFunArgs l fname fargs exprTypes
+    IfE x l c th el -> do
+        c' <- typeOf c
+        when (getType c' /= boolT) $ throw $ WrongIfEType l (getType c')
+        th' <- typeOf th
+        el' <- typeOf el
+        if (getType th' == getType el')
+        then pure (IfE x l c' th' el')
+        else throw $ DifferentIfETypes l (getType th') (getType el')
     Var () l vname -> (\x -> VarT x l vname) <$> getVarType l vname
     ExprX x _l -> case x of
 

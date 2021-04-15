@@ -97,7 +97,6 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
                     , CallInRange cr (RBounded 1 1) (name .: ("-then" <> show ifID))
                     , CallInRange elseReg (RBounded 1 1) (name .: ("-else" <> show ifID))
                     ]
-
             Nothing -> do
                 tell [CallInRange cr (RBounded 1 1) (name .: ("-then" <> show ifID))]
 
@@ -166,6 +165,17 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
                         Nothing -> panic' "Called a void function as an expression" [show fname]
                         Just t' | t' /= t -> panic' "Return type of function does not match fcall expr return type" [show fname, show t, show t']
                         Just _ -> pure $ returnReg (rtType t)
+    IfE (name, ifID) _li c th el -> do
+        cr <- compileExprToReg c
+        resReg <- newRegForType TempReg (getType th)
+        tell . pure . A.Section (name .: ("-then-e" <> show ifID)) =<< (\(is, r) -> is <> [MoveNumLit elseReg 0, MoveReg resReg r]) <$> runWriterAssocR (compileExprToReg th)
+        tell . pure . A.Section (name .: ("-else-e" <> show ifID)) =<< (\(is, r) -> is <> [MoveReg resReg r]) <$> runWriterAssocR (compileExprToReg el)
+        tell [MoveNumLit elseReg 1
+            , CallInRange cr (RBounded 1 1) (name .: ("-then-e" <> show ifID))
+            , CallInRange elseReg (RBounded 1 1) (name .: ("-else-e" <> show ifID))
+            ]
+        pure resReg
+                
     ExprX x _li -> absurd x
 
 writeArgs :: (CompileC r, Member (Writer [Instruction]) r) => [Expr 'Codegen] -> Sem r ()

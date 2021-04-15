@@ -74,15 +74,14 @@ module_ :: Text -> Parser (Module NextPass)
 module_ mname = "module" <??> Module () mname <$> statements
 
 statement :: Parser (Statement NextPass)
-statement = "statement" <??> try callFun <|> defVoid <|> try defFun <|> decl <|> assign <|> ifS <|> while {- <|> defStruct -} <|> setScoreboard
+statement = "statement" <??> callFun <|> defVoid <|> defFun <|> decl <|> assign <|> ifS <|> while {- <|> defStruct -} <|> setScoreboard
 
 expr :: Parser (Expr NextPass)
-expr = "expr" <??> uncurry (IntLit ()) <$> intLit <|> boollit <|> try fcall <|> var
+expr = "expr" <??> uncurry (IntLit ()) <$> intLit <|> boollit <|> ifE <|> fcall <|> var
 
 callFun :: Parser (Statement NextPass)
 callFun = "toplevel function call" <??> do
-    (li, fname) <- ident
-    paren' "("
+    (li, fname) <- try $ ident <* paren' "("
     ps <- expr `sepBy` reservedOp' ","
     paren' ")"
     pure $ CallFun () li fname ps
@@ -100,9 +99,7 @@ defVoid = "void definition" <??> do
 
 defFun :: Parser (Statement NextPass)
 defFun = "function definition" <??> do
-    (li, t) <- typeP
-    fname <- ident'
-    paren' "("
+    ((li, t), fname) <- try $ (,) <$> typeP <*> ident' <* paren' "("
     ps <- map (\(_x, y, z) -> (y, z)) <$> typedIdent `sepBy` (reservedOp ",")
     paren' ")"
     b <- option [] statementBody
@@ -152,8 +149,7 @@ setScoreboard = "scoreboard assignment" <??> do
 
 fcall :: Parser (Expr NextPass)
 fcall = "function call" <??> do
-    (li, fname) <- ident
-    paren' "("
+    (li, fname) <- try $ ident <* paren' "("
     ps <- expr `sepBy` reservedOp' ","
     paren' ")"
     pure $ FCall () li fname ps
@@ -162,6 +158,12 @@ boollit :: Parser (Expr NextPass)
 boollit = "boolean literal" <??> choice [ reserved "True" >>= \li -> pure $ BoolLit () li True
                  , reserved "False" >>= \li -> pure $ BoolLit () li False
                  ]
+
+ifE :: Parser (Expr NextPass)
+ifE = "if expression" <??> IfE ()
+    <$> reserved "if" <*> expr
+    <*> (reserved "then" *> expr)
+    <*> (reserved "else" *> expr)
 
 var :: Parser (Expr NextPass)
 var = "variable" <??> uncurry (Var ()) <$> ident
