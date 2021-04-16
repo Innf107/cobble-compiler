@@ -88,16 +88,16 @@ spec = do
         it "gives the correct result with arguments" do
             evalCompInner (summonMarkerWithTags [Tag "A", Tag "B"])
                 `shouldBe`
-                Right [McFunction "summon minecraft:area_effect_cloud 0 0 0 {Duration: 2147483647, Tags:[A,B]}"]
+                Right [McFunction "summon minecraft:marker 0 0 0 {Tags:[A,B]}"]
         it "gives the correct result without arguments" do
             evalCompInner (summonMarkerWithTags [])
                 `shouldBe`
-                Right [McFunction "summon minecraft:area_effect_cloud 0 0 0 {Duration: 2147483647, Tags:[]}"]
+                Right [McFunction "summon minecraft:marker 0 0 0 {Tags:[]}"]
     describe "summonMarkerAtWithTags" do
         it "behaves like summonMarkerWithTags bit with a position" do
             evalCompInner (summonMarkerAtWithTags (Abs 1) (Abs 2) (Rel 3) [Tag "A", Tag "B"])
                 `shouldBe`
-                Right [McFunction "summon minecraft:area_effect_cloud 1 2 ~3 {Duration: 2147483647, Tags:[A,B]}"]
+                Right [McFunction "summon minecraft:marker 1 2 ~3 {Tags:[A,B]}"]
     describe "removeTag" do
         it "gives the correct result" do
             evalCompInner (removeTag (Tag "A") "@e[tag=A]")
@@ -134,4 +134,4 @@ runCompInner env initialState = run . runOutputSem (const pass) . runError @Test
 
 evalCompInner :: Sem '[Reader CompEnv, State CompState, Writer [McFunction], Error McAsmError, Error Panic, Error TestError, Output Log] a
               -> Either TestError [McFunction]
-evalCompInner = fmap fst . runCompInner (CompEnv True "Test") initialCompState
+evalCompInner = fmap fst . runCompInner (CompEnv True "Test" target117) initialCompState

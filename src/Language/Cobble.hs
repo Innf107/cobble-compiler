@@ -28,7 +28,8 @@ import Language.Cobble.Prelude.Parser (ParseError, parse)
 import Language.Cobble.Typechecker as TC
 
 import Language.Cobble.MCAsm.Compiler as A
-import Language.Cobble.MCAsm.Types as A
+import Language.Cobble.MCAsm.Types hiding (target)
+import Language.Cobble.MCAsm.Types qualified as A
 
 import Language.Cobble.MCAsm.McFunction
 
@@ -61,6 +62,7 @@ data CompileOpts = CompileOpts {
       name::Text
     , debug::Bool
     , dataPackOpts::DataPackOptions
+    , target::Target
     }
 
 compileToDataPack :: (ControllerC r, Members '[Time] r) => [FilePath] -> Sem r LByteString
@@ -113,7 +115,7 @@ compileWithSig m = do
                 ,   funArgs=map snd . fst <$> exportedFunctions dsig
                 })
                 (xModule m)
-    compEnv <- asks \CompileOpts{name, debug} -> CompEnv {nameSpace=name, debug}
+    compEnv <- asks \CompileOpts{name, debug, target} -> CompEnv {nameSpace=name, debug, A.target=target}
     qMod  <- mapError QualificationError $ evalState qualScopes $ qualify m
     tcMod <- mapError TypeError $ evalState tcState $ typecheckModule qMod
     asmMod <- mapError AsmError $ evalState initialCompileState $ S.compile tcMod

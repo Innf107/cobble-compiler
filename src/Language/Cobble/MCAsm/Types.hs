@@ -117,6 +117,7 @@ initialCompState = CompState {
 data CompEnv = CompEnv {
     debug::Bool
   , nameSpace::Text
+  , target::Target
 }
 
 newtype McFunction = McFunction { runMcFunction :: Text } deriving (Show, Eq)

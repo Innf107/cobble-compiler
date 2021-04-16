@@ -1,7 +1,8 @@
 module Language.Cobble.Packager where
 
 import Language.Cobble.Prelude
-import Language.Cobble.MCAsm.Types
+import Language.Cobble.Types
+import Language.Cobble.MCAsm.Types hiding (target)
 import Language.Cobble.Util.Polysemy.Time
 
 import Codec.Archive.Zip
@@ -11,10 +12,8 @@ type PackageC (r :: EffectRow) = Members '[Time] r
 data DataPackOptions = DataPackOptions {
         name::Text
       , description::Text
+      , target::Target
     }
-
-dataPackOptions :: Text -> Text -> DataPackOptions
-dataPackOptions = DataPackOptions
 
 makeDataPack :: forall r. (PackageC r) => DataPackOptions -> [CompiledModule] -> Sem r LByteString
 makeDataPack options ms = fromArchive <$> do
@@ -36,7 +35,7 @@ packMcMeta :: DataPackOptions -> LByteString
 packMcMeta options = mconcat $ map (<> "\n") [
       "{"
     , "    \"pack\":{"
-    , "         \"pack_format\":6,"
+    , "         \"pack_format\":" <> show (packFormat $ target $ options) <> ","
     , "         \"description\": \"" <> encodeUtf8 (description options) <> "\""
     , "    }"
     , "}"

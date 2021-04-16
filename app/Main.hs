@@ -4,6 +4,7 @@ module Main where
 
 import Language.Cobble.Prelude hiding (argument)
 import Language.Cobble
+import Language.Cobble.Types
 import Language.Cobble.Packager
 
 import Options.Applicative
@@ -25,21 +26,24 @@ runCobble = \case
     Compile co -> runCompile co
 
 runCompile :: CompileCmdOpts -> IO ()
-runCompile CompileCmdOpts{compFiles, debug, packageName, description, logLevel} = do
+runCompile CompileCmdOpts{compFiles, debug, packageName, description, logLevel, target} = do
     let opts = CompileOpts {
             name=packageName
         ,   debug
         ,   dataPackOpts = DataPackOptions {
                 name=packageName
             ,   description
-            }                   
+            ,   target
+            }            
+        ,   target       
         }
     (logs, edatapackBS) <- runControllerC opts (timeToIO $ compileToDataPack compFiles)
     traverse_ (printLog logLevel) logs
     case edatapackBS of
         Left e -> failWithCompError e
         Right datapackBS -> writeFileLBS (toString packageName <> ".zip") datapackBS
-
+-- /summon minecraft:marker ~ ~ ~ {Tags:[ARRAY, TEMP]}
+-- /summon minecraft:marker ~ ~ ~ {Tags:[ARRAY,TEMP]}
 printLog :: LogLevel -> Log -> IO ()
 printLog maxLevel (Log lvl o) = when (lvl <= maxLevel)
     $ putTextLn (logPrefix lvl <> o <> "\ESC[0m")
@@ -64,6 +68,7 @@ data CompileCmdOpts = CompileCmdOpts {
     , debug :: Bool
     , logLevel :: LogLevel
     , description :: Text
+    , target :: Target
     } deriving (Show, Eq)
 
 compileOpts :: Parser CompileCmdOpts
@@ -73,3 +78,10 @@ compileOpts = CompileCmdOpts
     <*> switch (long "debug" <> help "Debug mode keeps additional information at runtime")
     <*> option auto (long "log-level" <> metavar "LEVEL" <> value LogInfo <> help "Controls how much information is logged (LogWarning | LogInfo | LogVerbose | LogDebug | LogDebugVerbose)")
     <*> strOption (long "description" <> short 'd' <> metavar "DESCRIPTION" <> help "The datapack description for the datapack's pack.mcmeta")
+    <*> option parseTarget (long "target" <> short 't' <> metavar "TARGET" <> help "The Minecraft version targeted by this datapack")
+
+parseTarget :: ReadM Target
+parseTarget = eitherReader $ \case
+    "1.16" -> pure target116
+    "1.17" -> pure target117
+    _ -> Left "Supported targets are: 1.16 | 1.17"

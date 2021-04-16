@@ -27,7 +27,11 @@ spec = do
             ,   CompiledModule "mod1.test" "say Module1.Test"
             ]
         testPackOptions :: DataPackOptions
-        testPackOptions = dataPackOptions "test" "test description"
+        testPackOptions = DataPackOptions {
+            name="test"
+        ,   description="test description" 
+        ,   target=target117
+        }
 
 shouldContainAnyOrder :: (Eq a) => [a] -> [a] -> Expectation
 shouldContainAnyOrder xs ys = all (\y -> y `elem` xs) ys `shouldBe` True

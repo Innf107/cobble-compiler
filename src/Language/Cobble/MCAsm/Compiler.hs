@@ -15,6 +15,7 @@ import Language.Cobble.MCAsm.McFunction
 initialize :: (CompC r) => Sem r IntermediateResult
 initialize = InterModule "init" <$> instr do
         rawCommand "gamerule maxCommandChainLength 2147483647"
+        rawCommand "forceload add 0 0" 
         addScoreboardObjective regs
         addScoreboardObjective eptr
         addScoreboardObjective aptr

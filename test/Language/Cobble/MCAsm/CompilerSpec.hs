@@ -6,7 +6,7 @@ import Language.Cobble.MCAsm.Types
 import Language.Cobble.MCAsm.Compiler
 
 import Test.Hspec
-import Language.Cobble.Shared (Panic, Log)
+import Language.Cobble.Shared (Panic, Log, target117)
 
 spec :: Spec
 spec = do
@@ -185,7 +185,7 @@ spec = do
                     `shouldBe` Right [InterInstructions $ map McFunction [
                         "scoreboard players set NELSE REGS 1"
                     ,   "execute as @e[tag=ARRAY] if score @s AELEM = AV1 APTR if score @s IX = NV2 REGS run scoreboard players set NELSE REGS 0"
-                    ,   "execute if score NELSE REGS matches 1..1 run summon minecraft:area_effect_cloud 0 0 0 {Duration: 2147483647, Tags:[ARRAY,TEMP]}"
+                    ,   "execute if score NELSE REGS matches 1..1 run summon minecraft:marker 0 0 0 {Tags:[ARRAY,TEMP]}"
                     ,   "scoreboard players operation @e[tag=TEMP] AELEM = AV1 APTR"
                     ,   "scoreboard players operation @e[tag=TEMP] IX = NV2 REGS"
                     ,   "tag @e[tag=TEMP] remove TEMP"
@@ -252,4 +252,4 @@ runAsm env initialState = run . runOutputSem (const pass) . runError @TestError 
 
 evalAsm :: Sem '[Reader CompEnv, State CompState, Error Panic, Error McAsmError, Error TestError, Output Log] a
         -> Either TestError a
-evalAsm = runAsm (CompEnv False "test") initialCompState
+evalAsm = runAsm (CompEnv False "test" target117) initialCompState

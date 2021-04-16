@@ -50,10 +50,13 @@ summonMarkerWithTags :: (CompInnerC r) => [Tag] -> Sem r ()
 summonMarkerWithTags = summonMarkerAtWithTags 0 0 0
 
 summonMarkerAtWithTags :: (CompInnerC r) => Pos -> Pos -> Pos -> [Tag] -> Sem r ()
-summonMarkerAtWithTags x y z tags = rawCommand $ "summon minecraft:area_effect_cloud " <> T.unwords [show x, show y, show z]
+summonMarkerAtWithTags x y z tags = asks (markerType . target) >>= \case
+            MarkerCloud -> rawCommand $ "summon minecraft:area_effect_cloud " <> T.unwords [show x, show y, show z]
                                 <> " {Duration: 2147483647, Tags:["
                                 <> T.intercalate "," (map renderTag tags)
                                 <> "]}"
+            MarkerEntity -> rawCommand $ "summon minecraft:marker " <> T.unwords [show x, show y, show z]
+                                <> " {Tags:[" <> T.intercalate "," (map renderTag tags) <> "]}"
 
 removeTag :: (CompInnerC r) => Tag -> Text -> Sem r ()
 removeTag tag ent = rawCommand $ "tag " <> ent <> " remove " <> renderTag tag

@@ -58,3 +58,22 @@ data LogLevel = LogWarning
 
 log :: (Member (Output Log) r) => LogLevel -> Text -> Sem r ()
 log l t = output (Log l t)
+
+data Target = Target {
+    markerType :: MarkerType
+,   packFormat :: Int
+} deriving (Show, Eq)
+
+target116, target117 :: Target
+target116 = Target {
+    markerType = MarkerCloud
+,   packFormat = 6
+}
+target117 = Target {
+    markerType = MarkerEntity
+,   packFormat = 7
+}
+
+
+data MarkerType = MarkerEntity | MarkerCloud deriving (Show, Eq)
+
