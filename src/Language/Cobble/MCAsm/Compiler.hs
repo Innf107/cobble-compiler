@@ -126,7 +126,7 @@ compileInstr i = do
         SetScoreboard obj player reg -> instr do
             assertRegNumber reg
             scoreboardOperation obj player SAssign regs (renderReg reg)
-        RawCommand cmd -> instr $ rawCommand cmd 
+        RawCommand cmd -> instr $ rawCommand cmd
     where
         opLit :: (CompInnerC r) => Register -> SOperation -> Int -> Sem r ()
         opLit r s l = do
@@ -142,12 +142,14 @@ instr = fmap (pure . InterInstructions . fst) . runWriterAssocR
 
 
 asArrayElemOrNew :: (CompInnerC r) => Register -> Register -> Sem r () -> Sem r ()
-asArrayElemOrNew areg ixreg mcf = asArrayElemOrIfNotPresent areg ixreg mcf do
-      summonMarkerWithTags [arrayTag, tempTag]
-      moveScoreboard aelem ("@e[tag=" <> renderTag tempTag <> "]") aptr (renderReg areg)
-      moveScoreboard ix ("@e[tag=" <> renderTag tempTag <> "]") regs (renderReg ixreg)
-      removeTag tempTag ("@e[tag=" <> renderTag tempTag <> "]") 
-      mcf
+asArrayElemOrNew areg ixreg mcf = do
+    setReg elseReg 1
+    asArrayElem areg ixreg $ setReg elseReg 0
+    execute $ EIf (eiScoreReg elseReg $ EIMatches (RBounded 1 1)) $ ERun $ summonMarkerWithTags [arrayTag, tempTag]
+    moveScoreboard aelem ("@e[tag=" <> renderTag tempTag <> "]") aptr (renderReg areg)
+    moveScoreboard ix ("@e[tag=" <> renderTag tempTag <> "]") regs (renderReg ixreg)
+    removeTag tempTag ("@e[tag=" <> renderTag tempTag <> "]")
+    asArrayElem areg ixreg mcf
 
 
 asArrayElemOrIfNotPresent :: (CompInnerC r) => Register -> Register -> Sem r () -> Sem r () -> Sem r ()

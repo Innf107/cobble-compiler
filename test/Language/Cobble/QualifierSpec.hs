@@ -40,13 +40,13 @@ spec = do
                     DefVoid () dli "f" [("x", intT)] []
                     ))
                     `shouldBe`
-                    Right (DefVoid () dli "Mod1.f" [("Mod1.@fun_f.x", intT)] [])
+                    Right (DefVoid () dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [])
             it "starts a new qualification context in its body" do
                 testQual [] (qualifyStatement (
                     DefVoid () dli "f" [] [Decl () dli "x" Nothing (IntLit () dli 5)]
                     ))
                     `shouldBe`
-                    Right (DefVoid () dli "Mod1.f" [] [Decl () dli "Mod1.@fun_f.x" Nothing (IntLit () dli 5)])
+                    Right (DefVoid () dli "Mod1.f" [] [Decl () dli "Mod1.-fun_f.x" Nothing (IntLit () dli 5)])
             it "is added to the names in the current Scope" do
                 testQual [] (traverse qualifyStatement [
                       DefVoid () dli "f" [] [CallFun () dli "f" []]
@@ -62,38 +62,38 @@ spec = do
                     DefVoid () dli "f" [("x", intT)] [Decl () dli "y" Nothing (Var () dli "x")]
                     ))
                     `shouldBe`
-                    Right (DefVoid () dli "Mod1.f" [("Mod1.@fun_f.x", intT)] [Decl () dli "Mod1.@fun_f.y" Nothing (Var () dli "Mod1.@fun_f.x")])
+                    Right (DefVoid () dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [Decl () dli "Mod1.-fun_f.y" Nothing (Var () dli "Mod1.-fun_f.x")])
         describe "DefFun" do
             it "carries over the previous qualification context" do
                 testQual [] (qualifyStatement (
                     DefFun () dli "f" [("x", intT)] [] (IntLit () dli 5) intT
                     ))
                     `shouldBe`
-                    Right (DefFun () dli "Mod1.f" [("Mod1.@fun_f.x", intT)] [] (IntLit () dli 5) intT)
+                    Right (DefFun () dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [] (IntLit () dli 5) intT)
             it "starts a new qualification context in its body" do
                 testQual [] (qualifyStatement (
                     DefFun () dli "f" [] [Decl () dli "x" Nothing (IntLit () dli 5)] (IntLit () dli 5) intT
                     ))
                     `shouldBe`
-                    Right (DefFun () dli "Mod1.f" [] [Decl () dli "Mod1.@fun_f.x" Nothing (IntLit () dli 5)] (IntLit () dli 5) intT)
+                    Right (DefFun () dli "Mod1.f" [] [Decl () dli "Mod1.-fun_f.x" Nothing (IntLit () dli 5)] (IntLit () dli 5) intT)
             it "keeps its parameters in scope for the body and return expression" do
                 testQual [] (qualifyStatement (
                     DefFun () dli "f" [("x", intT)] [Decl () dli "y" Nothing (Var () dli "x")] (Var () dli "x") intT
                     ))
                     `shouldBe`
-                    Right (DefFun () dli "Mod1.f" [("Mod1.@fun_f.x", intT)] [Decl () dli "Mod1.@fun_f.y" Nothing (Var () dli "Mod1.@fun_f.x")] (Var () dli "Mod1.@fun_f.x") intT)
+                    Right (DefFun () dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [Decl () dli "Mod1.-fun_f.y" Nothing (Var () dli "Mod1.-fun_f.x")] (Var () dli "Mod1.-fun_f.x") intT)
             it "starts a new qualification context in its return expression" do
                 testQual [] (qualifyStatement (
                     DefFun () dli "f" [("x", intT)] [] (Var () dli "x") intT
                     ))
                     `shouldBe`
-                    Right (DefFun () dli "Mod1.f" [("Mod1.@fun_f.x", intT)] [] (Var () dli "Mod1.@fun_f.x") intT)
+                    Right (DefFun () dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [] (Var () dli "Mod1.-fun_f.x") intT)
             it "keeps variables from its body in scope for the return expression" do
                 testQual [] (qualifyStatement (
                     DefFun () dli "f" [] [Decl () dli "y" Nothing (IntLit () dli 5)] (Var () dli "y") intT
                     ))
                     `shouldBe`
-                    Right (DefFun () dli "Mod1.f" [] [Decl () dli "Mod1.@fun_f.y" Nothing (IntLit () dli 5)] (Var () dli "Mod1.@fun_f.y") intT)
+                    Right (DefFun () dli "Mod1.f" [] [Decl () dli "Mod1.-fun_f.y" Nothing (IntLit () dli 5)] (Var () dli "Mod1.-fun_f.y") intT)
             it "is added to the names in the current Scope" do
                 testQual [] (traverse qualifyStatement [
                       DefFun() dli "f" [] [CallFun () dli "f" []] (FCall () dli "f" []) intT

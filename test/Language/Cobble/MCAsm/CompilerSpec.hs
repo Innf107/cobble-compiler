@@ -179,6 +179,23 @@ spec = do
                     `shouldBe` Right [InterInstructions [
                         McFunction "scoreboard players operation AV1 APTR = AV2 APTR"
                     ]]
+        describe "SetInArrayOrNew" do
+            it "creates a new member entity if it does not exist and sets its score" do
+                evalAsm (compileInstr (SetInArrayOrNew (ArrayReg $ VarReg 1) (NumReg $ VarReg 2) (NumReg $ VarReg 3)))
+                    `shouldBe` Right [InterInstructions $ map McFunction [
+                        "scoreboard players set NELSE REGS 1"
+                    ,   "execute as @e[tag=ARRAY] if score @s AELEM = AV1 APTR if score @s IX = NV2 REGS run scoreboard players set NELSE REGS 0"
+                    ,   "execute if score NELSE REGS matches 1..1 run summon minecraft:area_effect_cloud 0 0 0 {Duration: 2147483647, Tags:[ARRAY,TEMP]}"
+                    ,   "scoreboard players operation @e[tag=TEMP] AELEM = AV1 APTR"
+                    ,   "scoreboard players operation @e[tag=TEMP] IX = NV2 REGS"
+                    ,   "tag @e[tag=TEMP] remove TEMP"
+                    ,   "execute as @e[tag=ARRAY] if score @s AELEM = AV1 APTR if score @s IX = NV2 REGS run scoreboard players operation @s REGS = NV3 REGS"
+                    ]]
+                    {-
+                    scoreboard players set NELSE REGS 0
+                    execute as @e[tag=ARRAY] if score @s AELEM = AV1 APTR if score @s IX = NV2 REGS run scoreboard players set NELSE REGS 1
+                    execute if score NELSE REGS matches 1..1 run summon minecraft:area_effect_cloud 0 0 0 {Duration: 2147483647, Tags:[ARRAY,TEMP]}
+                    -}
 
         describe "TODO" do
             it "SetNumInArray"    $ pass @IO  -- Potentially has to spawn a new marker before setting (should include ARRAY tag)
