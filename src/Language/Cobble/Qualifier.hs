@@ -128,7 +128,12 @@ qualifyStatement s = log LogDebugVerbose ("QUALIFYING STATEMENT: " <> show s) >>
         pure $ DefStruct () li n' fs'
     Import () li modName -> pure $ Import () li (makeQName modName)
     SetScoreboard () li obj pl e -> SetScoreboard () li obj pl <$> qualifyExp e
+    LogS li segs -> LogS li <$> traverse (qualifyLogSeg li) segs
     StatementX x _li -> case x of
+
+qualifyLogSeg :: (QualifyC r,  Member (Reader Dependencies) r) => LexInfo -> LogSegment 'QualifyNames -> Sem r (LogSegment NextPass)
+qualifyLogSeg _li (LogText t) = pure $ LogText t
+qualifyLogSeg li (LogVar v) = LogVar <$> lookupName v li
 
 qualifyExp :: (QualifyC r, Member (Reader Dependencies) r) => Expr 'QualifyNames -> Sem r (Expr NextPass)
 qualifyExp e = do

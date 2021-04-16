@@ -90,6 +90,7 @@ data Instruction =
     --             ^array ^index   ^writing register
       | SetScoreboard Objective Text Register
     --                           ^player
+      | RawCommand Text
       | DestroyInArray Register Register
     --                 ^array   ^index
       deriving (Show, Eq)

@@ -11,6 +11,8 @@ import Language.Cobble.Codegen.Types hiding (PrimOpEnv(..))
 import Language.Cobble.Codegen.Types qualified as P (PrimOpEnv(..))
 import Language.Cobble.Codegen.PrimOps
 
+import Data.Text qualified as T
+
 import Language.Cobble.MCAsm.Types as A hiding (Name)
 
 panic :: (Member (Error Panic) r) => Text -> Sem r a
@@ -135,6 +137,19 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
     S.SetScoreboard () _li obj player ex -> do
         r <- compileExprToReg ex
         tell [A.SetScoreboard obj player r]
+    LogS _li segs -> do
+        segs' <- traverse renderLogSeg segs
+        tell [A.RawCommand $ "tellraw @a [" <> T.intercalate ", " segs' <> "]"]
+    Import () _ _ -> pass
+    DefStruct () _ _ _ -> pass
+    StatementX x _ -> absurd x
+
+renderLogSeg :: (CompileC r) => LogSegment 'Codegen -> Sem r Text
+renderLogSeg (LogText t) = pure $ "{\"text\":\""<> t <>"\"}"
+renderLogSeg (LogVar v) = get <&> join . (^? frames . head1 . varRegs . at v) >>= \case
+                                  Nothing -> panicVarNotFoundTooLate v
+                                  Just vReg -> pure $ T.intercalate "," $ ["REGS", "EPTR", "APTR"] & map (\s ->
+                                    "{\"score\":{\"name\":\""<> renderReg vReg <>"\",\"objective\":\"" <> s <> "\"}}")
 
 compileExprToReg :: (Member (Writer [Instruction]) r, CompileC r) => Expr 'Codegen -> Sem r Register
 compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e & \case

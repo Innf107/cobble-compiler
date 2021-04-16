@@ -137,6 +137,7 @@ makePartialSig = \case
     While () _ _ _              -> mempty
     IfS _ _ _ _ _               -> mempty
     S.SetScoreboard () _ _ _ _  -> mempty
+    LogS _ _                    -> mempty
     StatementX v _              -> absurd v
 
 getModName :: FilePath -> Text

@@ -133,6 +133,7 @@ typecheck = \case
         if (getType @_ @'Codegen ex' /= intT)
         then throw (WrongSetScoreboardType l obj player (getType ex'))
         else pure (SetScoreboard () l obj player ex')
+    LogS l segs -> pure $ LogS l $ map coercePass segs
     Import () l modName -> pure $ Import () l modName
     StatementX x _l -> case x of
 

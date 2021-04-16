@@ -126,6 +126,7 @@ compileInstr i = do
         SetScoreboard obj player reg -> instr do
             assertRegNumber reg
             scoreboardOperation obj player SAssign regs (renderReg reg)
+        RawCommand cmd -> instr $ rawCommand cmd 
     where
         opLit :: (CompInnerC r) => Register -> SOperation -> Int -> Sem r ()
         opLit r s l = do

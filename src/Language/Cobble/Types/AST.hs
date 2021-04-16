@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell#-}
+{-# LANGUAGE UndecidableInstances #-}
 module Language.Cobble.Types.AST where
 
 import Language.Cobble.Prelude
@@ -58,10 +59,25 @@ data Statement (p :: Pass) =
     | IfS (XIfS p) LexInfo (Expr p) [Statement p] (Maybe [Statement p])
     | While (XWhile p) LexInfo (Expr p) [Statement p]
     | DefStruct (XDefStruct p) LexInfo (Name p) [(Name p, Type p)]
+    -- | /Temporary/ Statement until ConstStrs are implemented.
     | SetScoreboard (XSetScoreboard p) LexInfo Objective Text (Expr p)
+    -- | /Temporary/ Statement until ConstStrs are implemented. Does not need extensions.
+    | LogS LexInfo [LogSegment p]
 --                                                       ^player
     | StatementX (XStatement p) LexInfo
 
+data LogSegment p = LogText Text
+                  | LogVar (Name p)
+
+deriving instance (Typeable (Name p))         => Typeable (LogSegment p)
+deriving instance (Typeable p, Data (Name p)) => Data (LogSegment p)
+deriving instance Generic (LogSegment p)
+deriving instance Show (Name p) => Show (LogSegment p)
+deriving instance Eq (Name p) => Eq (LogSegment p)
+
+instance (Name p1 ~ Name p2) => CoercePass LogSegment p1 p2 where
+    coercePass (LogText t) = LogText t
+    coercePass (LogVar n) = LogVar n
 
 type family XCallFun        (p :: Pass)
 type family XDefVoid        (p :: Pass)
@@ -221,6 +237,7 @@ instance (StatementCoercible p1 p2) => CoercePass Statement p1 p2 where
         While x l c b -> While x l (coercePass c) (map coercePass b)
         DefStruct x l n fs -> DefStruct x l n (map (second coercePass) fs)
         SetScoreboard x l o t e -> SetScoreboard x l o t (coercePass e)
+        LogS l segs -> LogS l (map coercePass segs)
         StatementX x l -> StatementX x l
         
 type ModuleCoercible p1 p2 = ( StatementCoercible p1 p2
