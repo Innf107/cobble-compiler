@@ -53,7 +53,7 @@ hoistModules (InterModule mn ins) = makeModulesInner mn ins
 compile :: (CompC r) => [Module] -> Sem r [CompiledModule]
 compile mods = do
     log LogVerbose "STARTING MCASM Codegen"
-    fmap concat $ join $ mapM hoistModules <$> ((++) <$> sequenceA [initialize,clean] <*> mapM compileModule mods)
+    fmap concat $ mapM hoistModules =<< ((++) <$> sequenceA [initialize,clean] <*> mapM compileModule mods)
 
 compileModule :: (CompC r) => Module -> Sem r IntermediateResult
 compileModule (Module {moduleName, moduleInstructions}) = do
@@ -85,17 +85,17 @@ compileInstr i = do
         CallGT reg1 reg2 f          -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiGtReg reg2) $ ERun (runFunction ns f))
         CallLE reg1 reg2 f          -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiLeReg reg2) $ ERun (runFunction ns f))
         CallGE reg1 reg2 f          -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiGeReg reg2) $ ERun (runFunction ns f))
-        CallInRange reg range f     -> instr $ assertRegNumber reg  >> execute (EIf (eiScoreReg reg  $ EIMatches range) $ ERun $ (runFunction ns f))
+        CallInRange reg range f     -> instr $ assertRegNumber reg  >> execute (EIf (eiScoreReg reg  $ EIMatches range) $ ERun (runFunction ns f))
         ExecEQ reg1 reg2 is         -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiEqReg reg2) $ ERun (tell is))
         ExecLT reg1 reg2 is         -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiLtReg reg2) $ ERun (tell is))
         ExecGT reg1 reg2 is         -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiGtReg reg2) $ ERun (tell is))
         ExecLE reg1 reg2 is         -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiLeReg reg2) $ ERun (tell is))
         ExecGE reg1 reg2 is         -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiGeReg reg2) $ ERun (tell is))
-        ExecInRange reg range is    -> instr $ assertRegNumber reg  >> execute (EIf (eiScoreReg reg  $ EIMatches range) $ ERun $ (tell is))
+        ExecInRange reg range is    -> instr $ assertRegNumber reg  >> execute (EIf (eiScoreReg reg  $ EIMatches range) $ ERun (tell is))
 
 
         GetCommandResult reg command -> instr $
-              assertRegNumber reg >> (execute $ EStoreRes (stScoreReg reg) $ ERun $ (tell [command]))
+              assertRegNumber reg >> execute (EStoreRes (stScoreReg reg) $ ERun (tell [command]))
 
         GetBySelector reg selector -> instr do
               assertRegEntity reg
