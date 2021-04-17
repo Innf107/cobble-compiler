@@ -34,13 +34,14 @@ initialCompileState = CompileState {
       _frames = Frame {
         _varRegs=mempty
       , _lastReg=0
+      , _regs=[]
       } :| []
     , _functions = mempty 
     }
 
 
 emptyFrame :: Frame
-emptyFrame = Frame mempty 0
+emptyFrame = Frame mempty 0 []
 
 stackReg :: Register
 stackReg = ArrayReg $ NamedReg "STACK"
@@ -63,14 +64,18 @@ compile :: (CompileC r) => S.Module 'Codegen -> Sem r A.Module
 compile (S.Module _deps modname stmnts) = log LogVerbose ("STARTING COBBLE CODEGEN FOR MODULE: " <> show modname) 
                                        >> A.Module modname . fst <$> runWriterAssocR (traverse compileStatement stmnts)
 
-newReg :: (CompileC r) => (Int -> RegId) -> Sem r RegId
-newReg c = (get <&> c . (^. frames . head1 . lastReg)) <* modify (& frames . head1 . lastReg +~ 1)
+newReg :: (CompileC r) => (Int -> RegId) -> (RegId -> Register) -> Sem r Register
+newReg c r = do
+    reg <- get <&> r . c . (^. frames . head1 . lastReg)
+    modify (& frames . head1 . lastReg +~ 1)
+    modify (& frames . head1 . regs %~ (reg:))
+    pure reg
 
 newRegForType :: (CompileC r) => (Int -> RegId) -> Type 'Codegen -> Sem r Register
 newRegForType c t = case rtType t of
-    RepNum    -> NumReg    <$> newReg c
-    RepEntity -> EntityReg <$> newReg c
-    RepArray  -> ArrayReg  <$> newReg c
+    RepNum    -> newReg c NumReg
+    RepEntity -> newReg c EntityReg
+    RepArray  -> newReg c ArrayReg
 
 compileStatement :: forall r. (Member (Writer [Instruction]) r, CompileC r) => S.Statement 'Codegen -> Sem r ()
 compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >>) $ s & \case
@@ -120,16 +125,18 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
         modify (& functions . at name ?~ Function {_params=pars, _returnType=Nothing})
         tell . pure . A.Section name . fst =<< runWriterAssocR do
             modify (& frames %~ (emptyFrame |:))
-            regs <- traverse (\(_, t) -> newRegForType VarReg t) pars
-            modify (& frames . head1 . varRegs .~ fromList (zip (map fst pars) regs))
+            parRegs <- traverse (\(_, t) -> newRegForType VarReg t) pars
+            modify (& frames . head1 . varRegs .~ fromList (zip (map fst pars) parRegs))
+            modify (& frames . head1 . regs .~ parRegs)
             traverse_ compileStatement body
             modify (& frames %~ unsafeTail)
     DefFun () _li name pars body retExp t -> do
         modify (& functions . at name ?~ Function {_params=pars, _returnType=Just t})
         tell . pure . A.Section name . fst =<< runWriterAssocR do
-            regs <- traverse (\(_, pt) -> newRegForType VarReg pt) pars
+            parRegs <- traverse (\(_, pt) -> newRegForType VarReg pt) pars
             modify (& frames %~ (emptyFrame |:))
-            modify (& frames . head1 . varRegs .~ fromList (zip (map fst pars) regs))
+            modify (& frames . head1 . varRegs .~ fromList (zip (map fst pars) parRegs))
+            modify (& frames . head1 . regs .~ parRegs)
             traverse_ compileStatement body
             res <- compileExprToReg retExp
             modify (& frames %~ unsafeTail)
@@ -153,8 +160,8 @@ renderLogSeg (LogVar v) = get <&> join . (^? frames . head1 . varRegs . at v) >>
 
 compileExprToReg :: (Member (Writer [Instruction]) r, CompileC r) => Expr 'Codegen -> Sem r Register
 compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e & \case
-    (IntLit () _li i)  -> NumReg <$> newReg TempReg >>= \reg -> tell [MoveNumLit reg i] $> reg
-    (BoolLit () _li b) -> NumReg <$> newReg TempReg >>= \reg -> tell [MoveNumLit reg (bool 0 1 b)] $> reg
+    (IntLit () _li i)  -> newReg TempReg NumReg >>= \reg -> tell [MoveNumLit reg i] $> reg
+    (BoolLit () _li b) -> newReg TempReg NumReg >>= \reg -> tell [MoveNumLit reg (bool 0 1 b)] $> reg
     (Var t _li n) -> get <&> join . (^? frames . head1 . varRegs . at n) >>= \case
         Nothing -> panicVarNotFoundTooLate n
         Just vReg -> do
@@ -200,10 +207,10 @@ writeArgs args = do
 
 -- TODO: Initialize empty stack elements and write with `SetInArray`
 saveFrame :: (CompileC r, Member (Writer [Instruction]) r) => Frame -> Sem r ()
-saveFrame f = traverse_ pushRegToStack (toList $ f ^. varRegs)
+saveFrame f = traverse_ pushRegToStack (toList $ f ^. regs)
 
 restoreFrame :: (CompileC r, Member (Writer [Instruction]) r) => Frame -> Sem r ()
-restoreFrame f = traverse_ popRegFromStack (reverse $ toList $ f ^. varRegs)
+restoreFrame f = traverse_ popRegFromStack (reverse $ toList $ f ^. regs)
 
 pushRegToStack :: (CompileC r, Member (Writer [Instruction]) r) => Register -> Sem r()
 pushRegToStack r = tell [

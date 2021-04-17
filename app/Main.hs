@@ -42,8 +42,7 @@ runCompile CompileCmdOpts{compFiles, debug, packageName, description, logLevel, 
     case edatapackBS of
         Left e -> failWithCompError e
         Right datapackBS -> writeFileLBS (toString packageName <> ".zip") datapackBS
--- /summon minecraft:marker ~ ~ ~ {Tags:[ARRAY, TEMP]}
--- /summon minecraft:marker ~ ~ ~ {Tags:[ARRAY,TEMP]}
+
 printLog :: LogLevel -> Log -> IO ()
 printLog maxLevel (Log lvl o) = when (lvl <= maxLevel)
     $ putTextLn (logPrefix lvl <> o <> "\ESC[0m")

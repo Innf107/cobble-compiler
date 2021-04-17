@@ -14,6 +14,7 @@ data CompileState = CompileState {
 data Frame = Frame {
         _varRegs :: Map (Name 'Codegen) Register
     ,   _lastReg :: Int
+    ,   _regs :: [Register]
     } deriving (Show, Eq)
 
 data Function = Function {
@@ -29,5 +30,5 @@ type PrimOpF r = PrimOpEnv r -> [Expr 'Codegen] -> Sem r Register
 
 data PrimOpEnv r = PrimOpEnv {
         compileExprToReg :: Expr 'Codegen -> Sem r Register
-    ,   newReg :: (Int -> RegId) -> Sem r RegId
+    ,   newReg :: (Int -> RegId) -> (RegId -> Register) -> Sem r Register
     }

@@ -19,7 +19,7 @@ _add :: (PrimOpC r) => PrimOpF r
 _add PrimOpEnv{..} args = do
     aregs <- traverse compileExprToReg args
     let [r1, r2] = aregs
-    res <- NumReg <$> newReg TempReg
+    res <- newReg TempReg NumReg
     tell [MoveReg res r1, AddReg res r2]
     pure res
     
@@ -27,7 +27,7 @@ _le :: (PrimOpC r) => PrimOpF r
 _le PrimOpEnv{..} args = do
     aregs <- traverse compileExprToReg args
     let [r1, r2] = aregs
-    res <- NumReg <$> newReg TempReg
+    res <- newReg TempReg NumReg
     tell [MoveNumLit res 0, ExecLE r1 r2 [McFunction $ "scoreboard players set " <> renderReg res <> " REGS 1"]] --TODO
     pure res 
     
