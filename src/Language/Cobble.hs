@@ -9,7 +9,7 @@ module Language.Cobble (
     , ControllerC
     ) where
 
-import Language.Cobble.Prelude hiding ((<.>), readFile)
+import Language.Cobble.Prelude hiding ((<.>), readFile, writeFile)
 
 import Language.Cobble.Compiler as S
 import Language.Cobble.Types as S
@@ -38,6 +38,7 @@ import Language.Cobble.Codegen.Types
 
 import Data.Map qualified as M
 import Data.List qualified as L
+import Data.Text qualified as T
 import System.FilePath qualified as FP
 
 data CompilationError = LexError LexicalError
@@ -57,12 +58,12 @@ runControllerC :: CompileOpts
                -> IO ([Log], Either CompilationError a)
 runControllerC opts = runM . outputToIOMonoidAssocR pure . fileSystemIO . runReader opts . runError . mapError ControllerPanic
 
--- TODO
 data CompileOpts = CompileOpts {
       name::Text
     , debug::Bool
     , dataPackOpts::DataPackOptions
     , target::Target
+    , ddumpAsm::Bool
     }
 
 compileToDataPack :: (ControllerC r, Members '[Time] r) => [FilePath] -> Sem r LByteString
@@ -101,14 +102,7 @@ compileWithSig :: (ControllerC r)
                => S.Module 'QualifyNames
                -> Sem r ([CompiledModule], ModSig)
 compileWithSig m = do
-    let qualScopes =
-            {-map (\(dname, dsig) -> Scope {
-                    _prefix=dname
-                ,   _typeNames=map unqualifyName $ keys (exportedStructs dsig)
-                ,   _varFunNames=map unqualifyName $ keys (exportedVars dsig) ++ keys (exportedFunctions dsig)
-                ,   _typeKinds=M.mapKeys unqualifyName $ fmap (const kStar) (exportedStructs dsig)})
-                (M.toList $ xModule m)
-            ++-} [Scope (makeQName $ S.moduleName m) mempty mempty mempty]
+    let qualScopes = [Scope (makeQName $ S.moduleName m) mempty mempty mempty]
     let tcState = foldMap (\dsig -> TCState {
                     varTypes=exportedVars dsig
                 ,   funReturnTypes=M.mapMaybe snd $ exportedFunctions dsig
@@ -116,11 +110,18 @@ compileWithSig m = do
                 })
                 (xModule m)
     compEnv <- asks \CompileOpts{name, debug, target} -> CompEnv {nameSpace=name, debug, A.target=target}
+
     qMod  <- mapError QualificationError $ evalState qualScopes $ qualify m
+
     tcMod <- mapError TypeError $ evalState tcState $ typecheckModule qMod
+
     asmMod <- mapError AsmError $ evalState initialCompileState $ S.compile tcMod
+    asks ddumpAsm >>= flip when (writeFile (show (A.moduleName asmMod) <> ".mamod") (showAsmDump asmMod))
+
     compMods <- mapError AsmError $ evalState initialCompState $ runReader compEnv $ A.compile [asmMod]
+
     let sig = extractSig tcMod
+
     pure (compMods, sig)
 
 -- TODO: Move to own module
@@ -154,3 +155,19 @@ primModSig = ModSig {
     ,   exportedVars = mempty
     ,   exportedStructs = fromList [("prims.Int", []), ("prims.Bool", []), ("prims.Entity", [])]
     }
+
+
+
+showAsmDump :: A.Module -> Text
+showAsmDump (A.Module imname iminstrs) = go imname iminstrs 0
+    where
+        go :: A.Name -> [Instruction] -> Int -> Text
+        go mname minstr i = indent i $
+            ["[" <> show mname <> "]"] ++ (minstr & map \case
+                Section n is -> go n is (i + 1)
+                inst -> show inst
+                )
+        indent :: Int -> [Text] -> Text
+        indent i = T.unlines . map (T.replicate i "    " <>)
+
+

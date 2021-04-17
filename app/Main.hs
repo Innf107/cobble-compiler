@@ -26,7 +26,7 @@ runCobble = \case
     Compile co -> runCompile co
 
 runCompile :: CompileCmdOpts -> IO ()
-runCompile CompileCmdOpts{compFiles, debug, packageName, description, logLevel, target} = do
+runCompile CompileCmdOpts{compFiles, debug, packageName, description, logLevel, target, ddumpAsm} = do
     let opts = CompileOpts {
             name=packageName
         ,   debug
@@ -36,6 +36,7 @@ runCompile CompileCmdOpts{compFiles, debug, packageName, description, logLevel, 
             ,   target
             }            
         ,   target       
+        ,   ddumpAsm 
         }
     (logs, edatapackBS) <- runControllerC opts (timeToIO $ compileToDataPack compFiles)
     traverse_ (printLog logLevel) logs
@@ -68,6 +69,7 @@ data CompileCmdOpts = CompileCmdOpts {
     , logLevel :: LogLevel
     , description :: Text
     , target :: Target
+    , ddumpAsm :: Bool
     } deriving (Show, Eq)
 
 compileOpts :: Parser CompileCmdOpts
@@ -78,6 +80,7 @@ compileOpts = CompileCmdOpts
     <*> option auto (long "log-level" <> metavar "LEVEL" <> value LogInfo <> help "Controls how much information is logged (LogWarning | LogInfo | LogVerbose | LogDebug | LogDebugVerbose)")
     <*> strOption (long "description" <> short 'd' <> metavar "DESCRIPTION" <> help "The datapack description for the datapack's pack.mcmeta")
     <*> option parseTarget (long "target" <> short 't' <> metavar "TARGET" <> help "The Minecraft version targeted by this datapack")
+    <*> switch (long "ddump-asm" <> help "Write the intermediate ASM to a file")
 
 parseTarget :: ReadM Target
 parseTarget = eitherReader $ \case

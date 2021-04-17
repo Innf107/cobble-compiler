@@ -183,10 +183,13 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
                     tell [Call fname]
 
                     restoreFrame frame
+                    
+                    ret <- newRegForType TempReg t
+                    tell [MoveReg ret (returnReg (rtType t))]
                     case (f ^. returnType) of
                         Nothing -> panic' "Called a void function as an expression" [show fname]
                         Just t' | t' /= t -> panic' "Return type of function does not match fcall expr return type" [show fname, show t, show t']
-                        Just _ -> pure $ returnReg (rtType t)
+                        Just _ -> pure $ ret
     IfE (name, ifID) _li c th el -> do
         cr <- compileExprToReg c
         resReg <- newRegForType TempReg (getType th)
