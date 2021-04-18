@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f28b86b1450984f100de2d7f170ba57d876a94e8254bee9932d9aa0db620d1e5
+-- hash: 2f0dbaa0a714d2f17b32f8c6c1e25d5bdf8cd3951b9ea240daf1f848d4397d3d
 
 name:           cobble
 version:        0.1.0.0
@@ -57,6 +57,7 @@ library
       Language.Cobble.Util.Polysemy.FileSystem
       Language.Cobble.Util.Polysemy.Time
       Lib
+      Network.RCON.Minecraft
   other-modules:
       Paths_cobble
   hs-source-dirs:
@@ -109,6 +110,9 @@ library
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wincomplete-record-updates -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
+    , bytestring
+    , cereal
+    , connection
     , containers
     , directory
     , filepath
@@ -116,6 +120,7 @@ library
     , parsec
     , polysemy
     , polysemy-plugin
+    , random
     , relude
     , template-haskell
     , text
@@ -178,7 +183,10 @@ executable cobble
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , bytestring
+    , cereal
     , cobble
+    , connection
     , containers
     , directory
     , filepath
@@ -187,6 +195,7 @@ executable cobble
     , parsec
     , polysemy
     , polysemy-plugin
+    , random
     , relude
     , template-haskell
     , text
@@ -211,7 +220,6 @@ test-suite cobble-test
       Language.Cobble.Types.PrettyPrintSpec
       Language.Cobble.TypesSpec
       Language.CobbleSpec
-      Rcon
       Server
       Spec
       Paths_cobble

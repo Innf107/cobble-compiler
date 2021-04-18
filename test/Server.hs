@@ -1,13 +1,10 @@
-{-#LANGUAGE NoImplicitPrelude, OverloadedStrings, NamedFieldPuns, DataKinds, LambdaCase, BlockArguments #-}
-{-# LANGUAGE FlexibleInstances, TypeApplications #-}
-{-# LANGUAGE FlexibleContexts #-}
 module Server where
 
 import Language.Cobble.Prelude
 import Language.Cobble.Types
 import Language.Cobble
 import Lib
-import Rcon
+import Network.RCON.Minecraft
 
 import qualified Data.Either as E
 

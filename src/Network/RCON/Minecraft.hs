@@ -1,6 +1,4 @@
-{-# LANGUAGE NoImplicitPrelude, GeneralisedNewtypeDeriving, DeriveGeneric #-}
-{-# LANGUAGE ScopedTypeVariables, TypeApplications, OverloadedStrings #-}
-module Rcon (
+module Network.RCON.Minecraft (
       Rcon
     , ServerInfo(..)
     , runRcon
