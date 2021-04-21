@@ -1,6 +1,8 @@
 module Language.Cobble (
       compileAll
+    , compileContents
     , compileToDataPack
+    , compileContentsToDataPack
     , runControllerC
     , LogLevel(..)
     , Log(..)
@@ -61,21 +63,37 @@ runControllerC opts = runM . outputToIOMonoidAssocR pure . fileSystemIO . runRea
 data CompileOpts = CompileOpts {
       name::Text
     , debug::Bool
-    , dataPackOpts::DataPackOptions
+    , description::Text
     , target::Target
     , ddumpAsm::Bool
+    }
+
+askDataPackOpts :: (Member (Reader CompileOpts) r) => Sem r DataPackOptions
+askDataPackOpts = ask <&> \(CompileOpts{name, description, target}) -> DataPackOptions {
+        name
+    ,   description
+    ,   target
     }
 
 compileToDataPack :: (ControllerC r, Members '[Time] r) => [FilePath] -> Sem r LByteString
 compileToDataPack files = do
     cmods <- compileAll files
-    opts <- asks dataPackOpts
+    opts <- askDataPackOpts
+    makeDataPack opts cmods
+
+compileContentsToDataPack :: (ControllerC r, Members '[Time] r) => [(FilePath, Text)] -> Sem r LByteString
+compileContentsToDataPack files = do
+    cmods <- compileContents files
+    opts <- askDataPackOpts
     makeDataPack opts cmods
 
 compileAll :: (ControllerC r) => [FilePath] -> Sem r [CompiledModule]
-compileAll files = do
-    tokens <- traverse (\fn -> mapError LexError $ tokenizeError (toText fn) =<< readFile fn) files
-    asts   <- traverse (\(ts, n) -> mapError ParseError $ fromEither $ parse (module_ (getModName n)) n ts) (zip tokens files)
+compileAll files = compileContents =<< traverse (\x -> (x,) <$> readFile x) files
+
+compileContents :: (ControllerC r) => [(FilePath, Text)] -> Sem r [CompiledModule]
+compileContents contents = do
+    tokens <- traverse (\(fn, content) -> mapError LexError $ tokenizeError (toText fn) content) contents
+    asts   <- traverse (\(ts, n) -> mapError ParseError $ fromEither $ parse (module_ (getModName n)) n ts) (zip tokens (map fst contents))
 
     orderedMods :: [(S.Module 'SolveModules, [Text])] <- mapError ModuleError $ findCompilationOrder asts
 

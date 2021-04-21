@@ -30,11 +30,7 @@ runCompile CompileCmdOpts{compFiles, debug, packageName, description, logLevel, 
     let opts = CompileOpts {
             name=packageName
         ,   debug
-        ,   dataPackOpts = DataPackOptions {
-                name=packageName
-            ,   description
-            ,   target
-            }            
+        ,   description
         ,   target       
         ,   ddumpAsm 
         }

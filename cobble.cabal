@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2f0dbaa0a714d2f17b32f8c6c1e25d5bdf8cd3951b9ea240daf1f848d4397d3d
+-- hash: fb6408c7f79ffc868b17b74a3a8b0c70af0376a7b834d67856c42e04116cd708
 
 name:           cobble
 version:        0.1.0.0
@@ -221,6 +221,7 @@ test-suite cobble-test
       Language.Cobble.TypesSpec
       Language.CobbleSpec
       Server
+      Server.Framework
       Spec
       Paths_cobble
   hs-source-dirs:
