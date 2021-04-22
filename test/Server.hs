@@ -100,6 +100,14 @@ futureAdditions =
                 ,   "score TestScore TestPlayer = id(42);"
                 ])
                 42
+        ,   testSingleModScore "Forward references for functions"
+                (mconcat [
+                    "Int even (x: Int) => if _le(x, 0) then True else odd(_add(x, -1));"
+                ,   "Int odd (x: Int) => if _le(x, 0) then False else even(_add(x, -1));"
+                ,   "let x = if even(42) then 1 else -1;"
+                ,   "score TestScore TestPlayer = x;"
+                ])
+                1
         ]
 
 

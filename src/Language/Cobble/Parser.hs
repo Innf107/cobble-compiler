@@ -74,7 +74,7 @@ module_ :: Text -> Parser (Module NextPass)
 module_ mname = "module" <??> Module () mname <$> statements
 
 statement :: Parser (Statement NextPass)
-statement = "statement" <??> callFun <|> defVoid <|> defFun <|> decl <|> assign <|> ifS <|> while {- <|> defStruct -} <|> setScoreboard <|> logS
+statement = "statement" <??> callFun <|> defVoid <|> defFun <|> decl <|> assign <|> ifS <|> while <|> defStruct <|> setScoreboard <|> logS
 
 expr :: Parser (Expr NextPass)
 expr = "expr" <??> uncurry (IntLit ()) <$> intLit <|> boollit <|> ifE <|> fcall <|> var <|> withParen expr
@@ -138,6 +138,12 @@ while = "while statement" <??> do
     b <- statementBody
     pure $ While () li e b
 
+defStruct :: Parser (Statement NextPass)
+defStruct = "struct definition" <??> DefStruct ()
+    <$> reserved "struct"
+    <*> ident'
+    <*> between (paren' "{") (paren' "}") (typedIdent' `sepBy` (reservedOp' ","))
+
 setScoreboard :: Parser (Statement NextPass)
 setScoreboard = "scoreboard assignment" <??> do
     li <- reserved "score"
@@ -192,6 +198,9 @@ typedIdent = "typed identifier" <??> do
     reservedOp' ":"
     (_, t) <- typeP
     pure (li, n, t)
+
+typedIdent' :: Parser (Text, Type NextPass)
+typedIdent' = (\(_, y, z) -> (y, z)) <$> typedIdent
 
 mTypedIdent :: Parser (LexInfo, Text, Maybe (Type NextPass))
 mTypedIdent = "optionally typed identifier" <??> do

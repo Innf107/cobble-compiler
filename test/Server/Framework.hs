@@ -50,42 +50,43 @@ expectScore :: Text -> Text -> Int -> ExpectInner
 expectScore score player val = ExpectExact (player <> " has " <> show val <> " [" <> score <> "]")
 
 testWithServer :: [Test] -> IO ()
-testWithServer categories = (logLn "Starting server for tests (Make sure *:25565 and *:25575 are unused)" >>) $ runWithServer
-    $ runRcon (ServerInfo {serverHost="localhost", serverPort=25575, serverPassword="test"}) $ for_ categories \(Test desc program tests) -> do
-    liftIO do
-        cwd <- getCurrentDirectory <&> (</> "test/Server")
+testWithServer categories = do
+    cwd <- getCurrentDirectory <&> (</> "test/Server")
 
-        logLn "Resetting 'world' to 'worldTEMPLATE'"
-        removeDirectoryRecursive $ cwd </> "world"
-        copyFileOrDirectory True (cwd </> "worldTEMPLATE") (cwd </> "world")
+    logLn "Resetting 'world' to 'worldTEMPLATE'"
+    removeDirectoryRecursive $ cwd </> "world"
+    copyFileOrDirectory True (cwd </> "worldTEMPLATE") (cwd </> "world")
 
-        logLn "Compiling Cobble code"
-        
-    let opts = CompileOpts {
-        name="test"
-    ,   debug=True
-    ,   target=target116
-    ,   ddumpAsm=False
-    ,   description="testing"
-    }
-    (logs, edatapack) <- liftIO $ runControllerC opts $ timeToIO $ compileContentsToDataPack (map (\(TModule x y) -> (x, y)) program)
-    case edatapack of
-        Left err -> liftIO do
-            timeText <- toText . DTime.formatTime DTime.defaultTimeLocale "\n[%d/%m/%Y %H:%M:%S]\n" <$> DTime.getCurrentTime
-            appendFileText "tests.log" (timeText <> show err <> "\nLOGS:" <> mconcat (map show logs))
-            failLn (desc <> ": COMPILATION FAILURE! " <> show err)
-        Right dp -> do
-            liftIO $ writeFileLBS ("test/Server/world/datapacks/" <> "test.zip") dp >> logLn "Successfully compiled"
-            liftIO $ logLn "Running tests"
-            success <- getAll . mconcat <$> forM (zip [(1 :: Int)..] tests) \(i, (TestQuery query expectation)) -> do
-                sendCommand "reload"
-                sendCommand "test:clean"
-                sendCommand "test:init"
-                ress <- traverse sendCommand query
-                liftIO $ if (ress `matchesExpectation` expectation)
-                    then pure $ All True
-                    else failLn (desc <> "[" <> show i <> "]: FAILED!!!\n    Expected: " <> showExpectation expectation <> "\n    Got: " <> show ress) >> pure (All False)
-            when success $ liftIO $ successLn (desc <> ": passed")
+    logLn "Starting server for tests (Make sure *:25565 and *:25575 are unused)" 
+    runWithServer
+        $ runRcon (ServerInfo {serverHost="localhost", serverPort=25575, serverPassword="test"})
+        $ for_ categories \(Test desc program tests) -> do
+        let opts = CompileOpts {
+            name="test"
+        ,   debug=True
+        ,   target=target116
+        ,   ddumpAsm=False
+        ,   description="testing"
+        }
+        liftIO $ logLn "Compiling Cobble code"
+        (logs, edatapack) <- liftIO $ runControllerC opts $ timeToIO $ compileContentsToDataPack (map (\(TModule x y) -> (x, y)) program)
+        case edatapack of
+            Left err -> liftIO do
+                timeText <- toText . DTime.formatTime DTime.defaultTimeLocale "\n[%d/%m/%Y %H:%M:%S]\n" <$> DTime.getCurrentTime
+                appendFileText "tests.log" (timeText <> show err <> "\nLOGS:" <> mconcat (map show logs))
+                failLn (desc <> ": COMPILATION FAILURE! " <> show err)
+            Right dp -> do
+                liftIO $ writeFileLBS ("test/Server/world/datapacks/" <> "test.zip") dp >> logLn "Successfully compiled"
+                liftIO $ logLn "Running tests"
+                success <- getAll . mconcat <$> forM (zip [(1 :: Int)..] tests) \(i, (TestQuery query expectation)) -> do
+                    sendCommand "reload"
+                    sendCommand "test:clean"
+                    sendCommand "test:init"
+                    ress <- traverse sendCommand query
+                    liftIO $ if (ress `matchesExpectation` expectation)
+                        then pure $ All True
+                        else failLn (desc <> "[" <> show i <> "]: FAILED!!!\n    Expected: " <> showExpectation expectation <> "\n    Got: " <> show ress) >> pure (All False)
+                when success $ liftIO $ successLn (desc <> ": passed")
 
 matchesExpectation :: [Text] -> Expectation -> Bool
 matchesExpectation res = \case
