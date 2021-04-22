@@ -17,6 +17,9 @@ import System.IO hiding (putStrLn, print)
 import Control.Concurrent (threadDelay)
 import Control.Exception (bracket)
 
+
+import qualified Data.Map as M
+import qualified Data.Text as T
 import qualified Data.Time as DTime
 
 type Description = Text
@@ -29,20 +32,25 @@ data TModule = TModule FilePath Text deriving (Show, Eq)
 
 data TestQuery = TestQuery Query Expectation deriving (Show, Eq)
 
-test :: Description -> TModule -> [TestQuery] -> Test 
-test desc = Test desc . pure 
+test :: Description -> TModule -> [TestQuery] -> Test
+test desc = Test desc . pure
 
 testSingleMod' :: Description -> Text -> [Text] -> [TestQuery] -> Test
-testSingleMod' desc src setup queries = Test desc [TModule "test.cb" src] (TestQuery (setup <> ["function test:test"]) DontExpect : queries) 
+testSingleMod' desc src setup queries = Test desc [TModule "test.cb" src] (TestQuery (setup <> ["function test:test"]) DontExpect : queries)
 
 testSingleMod :: Description -> Text -> [TestQuery] -> Test
 testSingleMod desc src queries = testSingleMod' desc src [] queries
+
+testSingleModScore :: Description -> Text -> Int -> Test
+testSingleModScore desc src val = testSingleMod' desc src 
+    ["scoreboard objectives remove TestScore", "scoreboard objectives add TestScore dummy"] 
+    [TestQuery ["scoreboard players get TestPlayer TestScore"] $ ExpectLast $ expectScore "TestScore" "TestPlayer" val]
 
 expectScore :: Text -> Text -> Int -> ExpectInner
 expectScore score player val = ExpectExact (player <> " has " <> show val <> " [" <> score <> "]")
 
 testWithServer :: [Test] -> IO ()
-testWithServer categories = (logLn "Starting server for tests (Make sure *:25565 and *:25575 are unused)" >>) $ runWithServer 
+testWithServer categories = (logLn "Starting server for tests (Make sure *:25565 and *:25575 are unused)" >>) $ runWithServer
     $ runRcon (ServerInfo {serverHost="localhost", serverPort=25575, serverPassword="test"}) $ for_ categories \(Test desc program tests) -> do
     liftIO do
         cwd <- getCurrentDirectory <&> (</> "test/Server")
@@ -52,31 +60,32 @@ testWithServer categories = (logLn "Starting server for tests (Make sure *:25565
         copyFileOrDirectory True (cwd </> "worldTEMPLATE") (cwd </> "world")
 
         logLn "Compiling Cobble code"
-        let opts = CompileOpts {
-            name="test"
-        ,   debug=True
-        ,   target=target116
-        ,   ddumpAsm=False
-        ,   description="testing"
-        }
-        (logs, edatapack) <- runControllerC opts $ timeToIO $ compileContentsToDataPack (map (\(TModule x y) -> (x, y)) program)
-        case edatapack of
-            Right dp -> writeFileLBS ("test/Server/world/datapacks/" <> "test.zip") dp >> logLn "Successfully compiled"
-            Left err -> do
-                timeText <- toText . DTime.formatTime DTime.defaultTimeLocale "\n[%d/%m/%Y %H:%M:%S]\n" <$> DTime.getCurrentTime
-                appendFileText "tests.log" (timeText <> show err <> "\nLOGS:" <> mconcat (map show logs))
-                fail (show err)
-
-        logLn "Running tests"
-    success <- getAll . mconcat <$> forM (zip [1..] tests) \(i, (TestQuery query expectation)) -> do
-        sendCommand "reload"
-        sendCommand "test:clean"
-        sendCommand "test:init"
-        ress <- traverse sendCommand query
-        liftIO $ if (ress `matchesExpectation` expectation)
-            then pure $ All True
-            else failLn (desc <> "[" <> show i <> "]: FAILED!!!\n    Expected: " <> showExpectation expectation <> "\n    Got: " <> show ress) >> pure (All False)
-    when success $ liftIO $ successLn (desc <> ": passed")
+        
+    let opts = CompileOpts {
+        name="test"
+    ,   debug=True
+    ,   target=target116
+    ,   ddumpAsm=False
+    ,   description="testing"
+    }
+    (logs, edatapack) <- liftIO $ runControllerC opts $ timeToIO $ compileContentsToDataPack (map (\(TModule x y) -> (x, y)) program)
+    case edatapack of
+        Left err -> liftIO do
+            timeText <- toText . DTime.formatTime DTime.defaultTimeLocale "\n[%d/%m/%Y %H:%M:%S]\n" <$> DTime.getCurrentTime
+            appendFileText "tests.log" (timeText <> show err <> "\nLOGS:" <> mconcat (map show logs))
+            failLn (desc <> ": COMPILATION FAILURE! " <> show err)
+        Right dp -> do
+            liftIO $ writeFileLBS ("test/Server/world/datapacks/" <> "test.zip") dp >> logLn "Successfully compiled"
+            liftIO $ logLn "Running tests"
+            success <- getAll . mconcat <$> forM (zip [(1 :: Int)..] tests) \(i, (TestQuery query expectation)) -> do
+                sendCommand "reload"
+                sendCommand "test:clean"
+                sendCommand "test:init"
+                ress <- traverse sendCommand query
+                liftIO $ if (ress `matchesExpectation` expectation)
+                    then pure $ All True
+                    else failLn (desc <> "[" <> show i <> "]: FAILED!!!\n    Expected: " <> showExpectation expectation <> "\n    Got: " <> show ress) >> pure (All False)
+            when success $ liftIO $ successLn (desc <> ": passed")
 
 matchesExpectation :: [Text] -> Expectation -> Bool
 matchesExpectation res = \case
@@ -95,12 +104,12 @@ showExpectation = \case
     ExpectAll i -> "All matching: " <> showExpectationInner i
     ExpectList is -> "Matching pairwise: " <> show (map showExpectationInner is)
     DontExpect -> "Nothing in particular"
-    
+
 showExpectationInner :: ExpectInner -> Text
 showExpectationInner = \case
     ExpectExact t -> "Exact match: '" <> t <> "'"
 
-  
+
 data Expectation = ExpectLast (ExpectInner)
                  | ExpectAll  (ExpectInner)
                  | ExpectList [ExpectInner]
@@ -134,4 +143,5 @@ logLn t = hPutStrLn stderr ("\ESC[38;2;120;120;120m\STX" <> toString t <> "\ESC[
 waitUntil :: IO Bool -> IO ()
 waitUntil m = m >>= bool (waitUntil m) pass
 
-
+whenFlag :: Monoid m => Text -> Bool -> [(String, String)] -> m -> m
+whenFlag flag def env v = if T.toCaseFold (toText $ lookupDefault (show def) (toString ("TEST" <> flag)) (M.fromList env)) == T.toCaseFold "true" then v else mempty

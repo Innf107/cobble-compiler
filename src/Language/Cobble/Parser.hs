@@ -77,7 +77,7 @@ statement :: Parser (Statement NextPass)
 statement = "statement" <??> callFun <|> defVoid <|> defFun <|> decl <|> assign <|> ifS <|> while {- <|> defStruct -} <|> setScoreboard <|> logS
 
 expr :: Parser (Expr NextPass)
-expr = "expr" <??> uncurry (IntLit ()) <$> intLit <|> boollit <|> ifE <|> fcall <|> var
+expr = "expr" <??> uncurry (IntLit ()) <$> intLit <|> boollit <|> ifE <|> fcall <|> var <|> withParen expr
 
 callFun :: Parser (Statement NextPass)
 callFun = "toplevel function call" <??> do
@@ -205,3 +205,6 @@ typeP = "type" <??> do
     pure $ (li,) $ if isLower (T.head $ T.takeWhileEnd (/='.') i)
         then TVar i ()
         else TCon i ()
+
+withParen :: Parser a -> Parser a
+withParen a = paren "(" *> a <* paren ")"
