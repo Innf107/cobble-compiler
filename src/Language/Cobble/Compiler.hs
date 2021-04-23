@@ -111,7 +111,7 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
         Just (_, _, primOpF) -> void $ primOpF primOpEnv args
         Nothing -> gets (^? functions . ix fname . returnType . _Just) >>= \case
             Nothing -> get <&> (^? functions . ix fname . params) >>= \case
-                Just ps -> do
+                Just _ps -> do
                     frame <- gets (^. frames . head1)
                     saveFrame frame
                     writeArgs args
@@ -122,7 +122,7 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
 
     CallFun () li ex _args -> panic' "Cannot indirectly call a function yet. This is *NOT* a bug" [show ex, show li]
 
-    DefVoid () _li name pars body -> do
+    {-DefVoid () _li name pars body -> do
         modify (& functions . at name ?~ Function {_params=pars, _returnType=Nothing})
         tell . pure . A.Section name . fst =<< runWriterAssocR do
             modify (& frames %~ (emptyFrame |:))
@@ -130,7 +130,7 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
             modify (& frames . head1 . varRegs .~ fromList (zip (map fst pars) parRegs))
             modify (& frames . head1 . regs .~ parRegs)
             traverse_ compileStatement body
-            modify (& frames %~ unsafeTail)
+            modify (& frames %~ unsafeTail)-}
     DefFun () _li name pars body retExp t -> do
         modify (& functions . at name ?~ Function {_params=pars, _returnType=Just t})
         tell . pure . A.Section name . fst =<< runWriterAssocR do
@@ -191,6 +191,7 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
                         Nothing -> panic' "Called a void function as an expression" [show fname]
                         Just t' | t' /= t -> panic' "Return type of function does not match fcall expr return type" [show fname, show t, show t']
                         Just _ -> pure $ ret
+    FCall _t li ex _as -> panic' "Cannot indirectly call a function yet. This is *NOT* a bug" [show ex, show li]
     IfE (name, ifID) _li c th el -> do
         cr <- compileExprToReg c
         resReg <- newRegForType TempReg (getType th)

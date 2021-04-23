@@ -69,7 +69,7 @@ qualifyStatement s = log LogDebugVerbose ("QUALIFYING STATEMENT: " <> show s) >>
     CallFun () li f args -> CallFun () li
                         <$> qualifyExp f
                         <*> traverse qualifyExp args
-    DefVoid () li n ps body -> do
+    {-DefVoid () li n ps body -> do
         n' <- askPref <&> (.: n)
         innerN <- askPref <&> (.: ("-fun_" <> n))
         addName li n
@@ -79,7 +79,7 @@ qualifyStatement s = log LogDebugVerbose ("QUALIFYING STATEMENT: " <> show s) >>
                 <$> traverse (bitraverse (pure . (innerN .:)) (qualifyType li)) ps
                 <*> traverse qualifyStatement body
         pure $ DefVoid () li n' ps' body'
-
+    -}
 
     DefFun () li n ps body le t -> do
         n' <- askPref <&> (.: n)

@@ -37,32 +37,32 @@ spec = do
         describe "DefVoid" do
             it "carries over the previous qualification context" do
                 testQual [] (qualifyStatement (
-                    DefVoid () dli "f" [("x", intT)] []
+                    DefFun () dli "f" [("x", intT)] [] (UnitLit dli) unitT
                     ))
                     `shouldBe`
-                    Right (DefVoid () dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [])
+                    Right (DefFun () dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [] (UnitLit dli) unitT)
             it "starts a new qualification context in its body" do
                 testQual [] (qualifyStatement (
-                    DefVoid () dli "f" [] [Decl () dli "x" Nothing (IntLit () dli 5)]
+                    DefFun () dli "f" [] [Decl () dli "x" Nothing (IntLit () dli 5)] (UnitLit dli) unitT
                     ))
                     `shouldBe`
-                    Right (DefVoid () dli "Mod1.f" [] [Decl () dli "Mod1.-fun_f.x" Nothing (IntLit () dli 5)])
+                    Right (DefFun () dli "Mod1.f" [] [Decl () dli "Mod1.-fun_f.x" Nothing (IntLit () dli 5)] (UnitLit dli) unitT)
             it "is added to the names in the current Scope" do
                 testQual [] (traverse qualifyStatement [
-                      DefVoid () dli "f" [] [CallFun () dli (Var () dli "f") []]
+                      DefFun () dli "f" [] [CallFun () dli (Var () dli "f") []] (UnitLit dli) unitT
                     , CallFun () dli (Var () dli "f") []
                     ])
                     `shouldBe`
                     Right [
-                      DefVoid () dli "Mod1.f" [] [CallFun () dli (Var () dli "Mod1.f") []]
+                      DefFun () dli "Mod1.f" [] [CallFun () dli (Var () dli "Mod1.f") []] (UnitLit dli) unitT
                     , CallFun () dli (Var () dli "Mod1.f") []
                     ]
             it "keeps its parameters in scope for the body" do
                 testQual [] (qualifyStatement (
-                    DefVoid () dli "f" [("x", intT)] [Decl () dli "y" Nothing (Var () dli "x")]
+                    DefFun () dli "f" [("x", intT)] [Decl () dli "y" Nothing (Var () dli "x")] (UnitLit dli) unitT
                     ))
                     `shouldBe`
-                    Right (DefVoid () dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [Decl () dli "Mod1.-fun_f.y" Nothing (Var () dli "Mod1.-fun_f.x")])
+                    Right (DefFun () dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [Decl () dli "Mod1.-fun_f.y" Nothing (Var () dli "Mod1.-fun_f.x")] (UnitLit dli) unitT)
         describe "DefFun" do
             it "carries over the previous qualification context" do
                 testQual [] (qualifyStatement (
@@ -167,9 +167,9 @@ spec = do
                     ]
             it "does not bleed into the outer scope" do
                 testQual [] (traverse qualifyStatement [
-                      DefVoid () dli "f" [] [
+                      DefFun () dli "f" [] [
                         DefStruct () dli "SomeStruct" []
-                      ]
+                      ] (UnitLit dli) unitT
                       , Decl () dli "x" (Just (TCon "SomeStruct" ())) (IntLit () dli 42)
                     ])
                     `shouldBe`

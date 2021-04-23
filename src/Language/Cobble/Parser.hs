@@ -74,10 +74,13 @@ module_ :: Text -> Parser (Module NextPass)
 module_ mname = "module" <??> Module () mname <$> statements
 
 statement :: Parser (Statement NextPass)
-statement = "statement" <??> callFun <|> defVoid <|> defFun <|> decl <|> assign <|> ifS <|> while <|> defStruct <|> setScoreboard <|> logS
+statement = "statement" <??> defVoid <|> defFun <|> decl <|> assign <|> ifS <|> while <|> defStruct <|> setScoreboard <|> logS <|> callFun
 
 expr :: Parser (Expr NextPass)
-expr = "expr" <??> uncurry (IntLit ()) <$> intLit <|> boollit <|> ifE <|> fcall <|> var <|> withParen expr
+expr = "expr" <??> fcall <|> expr'
+
+expr' :: Parser (Expr NextPass)
+expr' = "expr (no fcall)" <??> uncurry (IntLit ()) <$> intLit <|> boollit <|> ifE <|> var <|> withParen expr
 
 callFun :: Parser (Statement NextPass)
 callFun = "toplevel function call" <??> do
@@ -95,7 +98,7 @@ defVoid = "void definition" <??> do
     ps <- map (\(_x, y, z) -> (y, z)) <$> typedIdent `sepBy` (reservedOp ",")
     paren' ")"
     b <- statementBody
-    pure $ DefVoid () li fname ps b
+    pure $ DefFun () li fname ps b (UnitLit li) unitT
 
 defFun :: Parser (Statement NextPass)
 defFun = "function definition" <??> do
@@ -167,7 +170,7 @@ logS = "log statement" <??> LogS <$>
 
 fcall :: Parser (Expr NextPass)
 fcall = "function call" <??> do
-    (li, fname) <- (\x -> (getLexInfo x, x)) <$> expr <* paren' "("
+    (li, fname) <- (\x -> (getLexInfo x, x)) <$> try (expr' <* paren' "(")
     ps <- expr `sepBy` reservedOp' ","
     paren' ")"
     pure $ FCall () li fname ps

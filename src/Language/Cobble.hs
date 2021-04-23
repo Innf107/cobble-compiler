@@ -149,7 +149,7 @@ extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
 makePartialSig :: S.Statement 'Codegen -> ModSig
 makePartialSig = \case
     Decl () _ n _ e             -> mempty {exportedVars = one (n, getType e)}
-    DefVoid () _ n ps _         -> mempty {exportedFunctions = one (n,(ps, Nothing))}
+    --DefVoid () _ n ps _         -> mempty {exportedFunctions = one (n,(ps, Nothing))}
     DefFun () _ n ps _ _ t      -> mempty {exportedFunctions = one (n,(ps, Just t))}
     DefStruct () _ n fs         -> mempty {exportedStructs = one (n, fs)}
     CallFun () _ _ _            -> mempty

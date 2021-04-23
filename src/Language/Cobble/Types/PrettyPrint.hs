@@ -34,10 +34,10 @@ instance (PrettyPrintExt p, PrettyPrint (Name p), Show (Statement p), Show (Expr
     prettyPrint = \case
         s@(CallFun _ _ n args) -> prettyPrintExtSt s
                     ?. prettyPrint n <> " (" <> T.intercalate "," (map prettyPrint args) <> ")"
-        s@(DefVoid _ _ n ps b) -> prettyPrintExtSt s
+        {-s@(DefVoid _ _ n ps b) -> prettyPrintExtSt s
                     ?. "void " <> prettyPrint n <> "(" <>
                     T.intercalate ","  (map (\(pn, pt) -> prettyPrint pn <> ": " <> prettyPrint pt) ps) <> ")"
-                    <> "\n{\n" <> T.unlines (map prettyPrint b) <> "\n}"
+                    <> "\n{\n" <> T.unlines (map prettyPrint b) <> "\n}"-}
         s@(DefFun _ _ n ps b r t) -> prettyPrintExtSt s
                     ?. prettyPrint t <> " " <> prettyPrint n <> " ("
                     <> T.intercalate "," (map (\(pn, pt) -> prettyPrint pn <> ": " <> prettyPrint pt) ps)

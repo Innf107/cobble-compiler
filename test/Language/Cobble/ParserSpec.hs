@@ -19,11 +19,11 @@ spec = do
             it "parses correct inputs without parameters and an empty body" do
                 testParse defVoid "void proc(){}"
                     `shouldBe`
-                    Right (DefVoid () (LexInfo 1 1 "Test") "proc" [] [])
+                    Right (DefFun () (LexInfo 1 1 "Test") "proc" [] [] (UnitLit (LexInfo 1 1 "Test")) unitT)
             it "parses correctly with inputs" do
                 testParse defVoid "void proc(x : Int, y: Bool){}"
                     `shouldBe`
-                    Right (DefVoid () (LexInfo 1 1 "Test") "proc" [("x", intT), ("y", boolT)] [])
+                    Right (DefFun () (LexInfo 1 1 "Test") "proc" [("x", intT), ("y", boolT)] [] (UnitLit (LexInfo 1 1 "Test")) unitT)
             it "parses correctly with a body" do
                 testParse defVoid (T.unlines [
                       "void proc()"
@@ -33,14 +33,14 @@ spec = do
                     , "}"
                     ])
                     `shouldBe`
-                    Right (DefVoid () (LexInfo 1 1 "Test") "proc" [] [
+                    Right (DefFun () (LexInfo 1 1 "Test") "proc" [] [
                           Decl () (LexInfo 3 5 "Test") "x" Nothing (IntLit () (LexInfo 3 13 "Test") 5)
                         , Assign () (LexInfo 4 5 "Test") "x" (IntLit () (LexInfo 4 9 "Test") 6)
-                        ])
+                        ] (UnitLit (LexInfo 1 1 "Test")) unitT)
             it "can be chosen by statement" do
                 testParse statement "void proc(){}"
                     `shouldBe`
-                    Right (DefVoid () (LexInfo 1 1 "Test") "proc" [] [])
+                    Right (DefFun () (LexInfo 1 1 "Test") "proc" [] [] (UnitLit (LexInfo 1 1 "Test")) unitT)
         describe "defFun" do
             it "parses correct inputs without params and an empty body (with braces)" do
                 testParse defFun "Int f(){} => 5"

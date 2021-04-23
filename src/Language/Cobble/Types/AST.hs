@@ -50,7 +50,7 @@ data Pass = SolveModules
 
 data Statement (p :: Pass) =
       CallFun (XCallFun p) LexInfo (Expr p) [Expr p]
-    | DefVoid (XDefVoid p) LexInfo (Name p) [(Name p, Type p)] [Statement p]
+    -- | DefVoid (XDefVoid p) LexInfo (Name p) [(Name p, Type p)] [Statement p]
     | DefFun  (XDefFun p)  LexInfo (Name p) [(Name p, Type p)] [Statement p] (Expr p) (Type p)
     | Import  (XImport p)  LexInfo (Name p) -- TODO: qualified? exposing?
 --                                                          ^ last expr
@@ -96,6 +96,7 @@ data Expr (p :: Pass) =
       FCall (XFCall p) LexInfo (Expr p) [Expr p]
     | IntLit (XIntLit p) LexInfo Int
           --  | FloatLit Double Text TODO: Needs Standard Library (Postfixes?)
+    | UnitLit LexInfo --TODO: Replace with variable in 'base'
     | BoolLit (XBoolLit p) LexInfo Bool
     | IfE (XIfE p) LexInfo (Expr p) (Expr p) (Expr p)
     | Var (XVar p) LexInfo (Name p)
@@ -143,17 +144,21 @@ instance S.Show Kind where
 class TyLit n where
     tyIntT :: n
     tyBoolT :: n
+    tyUnitT :: n 
     
 instance TyLit QualifiedName where
     tyIntT = "prims.Int"
     tyBoolT = "prims.Bool"
+    tyUnitT = "prims.Unit"
 instance TyLit Text where
     tyIntT = "Int"
     tyBoolT = "Bool"
+    tyUnitT = "Unit"
 
-intT, boolT :: (IsKind (XKind p), TyLit (Name p)) => Type p
+intT, boolT, unitT :: (IsKind (XKind p), TyLit (Name p)) => Type p
 intT  = TCon tyIntT (fromKind KStar)
 boolT = TCon tyBoolT (fromKind KStar)
+unitT = TCon tyUnitT (fromKind KStar)
 
 class IsKind t where 
     kFun :: t -> t -> t
@@ -228,7 +233,7 @@ type StatementCoercible p1 p2 = ( ExprCoercible p1 p2
 instance (StatementCoercible p1 p2) => CoercePass Statement p1 p2 where
     coercePass = \case
         CallFun x l f as -> CallFun x l (coercePass f) (map coercePass as)
-        DefVoid x l n ps b -> DefVoid x l n (map (second coercePass) ps) (map coercePass b)
+        --DefVoid x l n ps b -> DefVoid x l n (map (second coercePass) ps) (map coercePass b)
         DefFun x l n ps b r rt -> DefFun x l n (map (second coercePass) ps) (map coercePass b) (coercePass r) (coercePass rt)
         Import x l n -> Import x l n
         Decl x l n mt e -> Decl x l n (fmap coercePass mt) (coercePass e)

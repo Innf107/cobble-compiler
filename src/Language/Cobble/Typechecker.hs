@@ -93,11 +93,11 @@ typecheck = \case
         if (exprTypes /= fargs)
             then throw $ WrongFunArgs l fname fargs exprTypes
             else pure (CallFun () l (Var (foldr (-:>) retT fargs) fli fname) exprs')
-    DefVoid () l fname (conv -> args) stmnts -> do
+    {-DefVoid () l fname (conv -> args) stmnts -> do
         insertFunArgs fname (map snd args)
         for_ args (uncurry insertVarType)
         stmnts' <- traverse typecheck stmnts
-        pure (DefVoid () l fname args stmnts')
+        pure (DefVoid () l fname args stmnts')-}
     DefFun () l fname (conv -> args) stmnts lastexpr (conv -> t) -> do
         insertFunArgs fname (map snd args)
         for_ args (uncurry insertVarType)

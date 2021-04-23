@@ -72,13 +72,13 @@ spec = do
         describe "FCall" do
             context "For all unchanged passes" do
                 it "displays the function call like a C-like language " do
-                    prettyPrint (FCall () dli "f" [Var () dli "x", IntLit () dli 5] :: Expr 'QualifyNames) `shouldBe` "f(x, 5)"
-                    prettyPrint (FCall () dli "f" [Var () dli "x", IntLit () dli 5] :: Expr 'Typecheck) `shouldBe` "f(x, 5)"
+                    prettyPrint (FCall () dli (Var () dli "f") [Var () dli "x", IntLit () dli 5] :: Expr 'QualifyNames) `shouldBe` "f(x, 5)"
+                    prettyPrint (FCall () dli (Var () dli "f") [Var () dli "x", IntLit () dli 5] :: Expr 'Typecheck) `shouldBe` "f(x, 5)"
             context "For the Codegen pass" do
                 it "adds the type information in a comment" do
-                    prettyPrint (FCall intT dli "f" [] :: Expr 'Codegen) `shouldBe` "f() {-: prims.Int (:: *)-}"
+                    prettyPrint (FCall intT dli (Var (unitT -:> intT) dli "f") [] :: Expr 'Codegen) `shouldBe` "f() {-: prims.Int (:: *)-}"
                 it "adds type information for its arguments" do
-                    prettyPrint (FCall intT dli "f" [Var intT dli "x", IntLit () dli 5] :: Expr 'Codegen)
+                    prettyPrint (FCall intT dli (Var (intT -:> intT -:> intT) dli "f") [Var intT dli "x", IntLit () dli 5] :: Expr 'Codegen)
                         `shouldBe` "f(x {-: prims.Int (:: *)-}, 5) {-: prims.Int (:: *)-}"
     describe "PrettyPrint on Statements" do
         pass -- TODO
