@@ -66,8 +66,8 @@ qualifyMod (Module deps n sts) = log LogVerbose ("QUALIFYING MODULE: " <> n) >> 
 
 qualifyStatement :: (QualifyC r, Member (Reader Dependencies) r) => Statement 'QualifyNames -> Sem r (Statement NextPass)
 qualifyStatement s = log LogDebugVerbose ("QUALIFYING STATEMENT: " <> show s) >> case s of
-    CallFun () li n args -> CallFun () li
-                        <$> lookupName n li
+    CallFun () li f args -> CallFun () li
+                        <$> qualifyExp f
                         <*> traverse qualifyExp args
     DefVoid () li n ps body -> do
         n' <- askPref <&> (.: n)
@@ -143,10 +143,10 @@ qualifyExp e = do
     pure res
     where
         go = case e of
-            FCall () li fname ps -> do
-                fname' <- lookupName fname li
+            FCall () li f ps -> do
+                f' <- qualifyExp f
                 ps' <- traverse qualifyExp ps
-                pure $ FCall () li fname' ps'
+                pure $ FCall () li f' ps'
             IntLit () li i -> pure $ IntLit () li i
             BoolLit () li b -> pure $ BoolLit () li b
             IfE () li c th el -> do

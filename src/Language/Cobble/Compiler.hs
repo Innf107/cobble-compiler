@@ -107,7 +107,7 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
             Nothing -> do
                 tell [CallInRange cr (RBounded 1 1) (name .: ("-then" <> show ifID))]
 
-    CallFun () li fname args -> case lookup fname primOps of
+    CallFun () li f@(Var _vt _vli fname) args -> case lookup fname primOps of
         Just (_, _, primOpF) -> void $ primOpF primOpEnv args
         Nothing -> gets (^? functions . ix fname . returnType . _Just) >>= \case
             Nothing -> get <&> (^? functions . ix fname . params) >>= \case
@@ -118,8 +118,9 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
                     tell [Call fname]
                     restoreFrame frame
                 Nothing -> panicFunNotFoundTooLate fname
-            Just rt -> void $ compileExprToReg (FCall rt li fname args)
+            Just rt -> void $ compileExprToReg (FCall rt li f args)
 
+    CallFun () li ex _args -> panic' "Cannot indirectly call a function yet. This is *NOT* a bug" [show ex, show li]
 
     DefVoid () _li name pars body -> do
         modify (& functions . at name ?~ Function {_params=pars, _returnType=Nothing})
@@ -169,7 +170,7 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
             tell [MoveReg retReg vReg]
             pure $ retReg
     -- (FloatT, FloatLit i) -> pure [MoveNumReg (NumReg reg)]
-    (FCall t _li fname args) -> case lookup fname primOps of
+    (FCall t _li (Var _ _vli fname) args) -> case lookup fname primOps of
         Just (_, _, primOpF) -> primOpF primOpEnv args
         Nothing -> do
             get <&> (^. functions . at fname) >>= \case

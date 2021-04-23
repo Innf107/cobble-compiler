@@ -80,17 +80,19 @@ runModuleTypecheck = run
 typecheckModule :: (TypecheckC r) => Module 'Typecheck -> Sem r (Module NextPass)
 typecheckModule (Module deps mname instrs) = Module deps mname <$> traverse typecheck instrs
 
-typecheck :: (TypecheckC r) => Statement 'Typecheck -> Sem r (Statement NextPass)
+typecheck :: (TypecheckC r) => Statement Typecheck -> Sem r (Statement NextPass)
 typecheck = \case
-    CallFun () l fname exprs -> do
+    CallFun () l (Var () fli fname) exprs -> do
         fargs <- getFunArgs l fname
         exprs' <- traverse typeOf exprs
         
         let exprTypes = map getType exprs'
         
+        retT <- getFunReturnType l fname
+        
         if (exprTypes /= fargs)
             then throw $ WrongFunArgs l fname fargs exprTypes
-            else pure (CallFun () l fname exprs')
+            else pure (CallFun () l (Var (foldr (-:>) retT fargs) fli fname) exprs')
     DefVoid () l fname (conv -> args) stmnts -> do
         insertFunArgs fname (map snd args)
         for_ args (uncurry insertVarType)
@@ -139,15 +141,16 @@ typecheck = \case
 
 typeOf :: (TypecheckC r) => Expr 'Typecheck -> Sem r (Expr NextPass)
 typeOf = \case
-    IntLit () l x -> pure $ IntLitT l x
+    IntLit () l x -> pure $ IntLit () l x
     -- FloatLit x -> pure (FloatLit x, FloatT)
-    BoolLit () l x -> pure $ BoolLitT l x
-    FCall () l fname exprs -> do
+    BoolLit () l x -> pure $ BoolLit () l x
+    FCall () l (Var () fli fname) exprs -> do
         fargs <- getFunArgs l fname
+        retT <- getFunReturnType l fname
         exprs' <- traverse typeOf exprs
         let exprTypes = map getType exprs'
         if (exprTypes == fargs)
-        then (\x -> FCallT x l fname exprs') <$> getFunReturnType l fname
+        then (\x -> FCall x l (Var (foldr (-:>) retT fargs) fli fname) exprs') <$> getFunReturnType l fname
         else throw $ WrongFunArgs l fname fargs exprTypes
     IfE x l c th el -> do
         c' <- typeOf c
@@ -157,7 +160,7 @@ typeOf = \case
         if (getType th' == getType el')
         then pure (IfE x l c' th' el')
         else throw $ DifferentIfETypes l (getType th') (getType el')
-    Var () l vname -> (\x -> VarT x l vname) <$> getVarType l vname
+    Var () l vname -> (\x -> Var x l vname) <$> getVarType l vname
     ExprX x _l -> case x of
 
 

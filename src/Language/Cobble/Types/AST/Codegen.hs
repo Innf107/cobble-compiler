@@ -41,27 +41,6 @@ deriving instance Generic  (Type 'Codegen)
 deriving instance Data     (Type 'Codegen)
 deriving instance Typeable (Type 'Codegen)
 
-pattern FCallT :: Type 'Codegen -> LexInfo -> Name 'Codegen -> [Expr 'Codegen] -> Expr 'Codegen
-pattern FCallT t l n ps <- FCall t l n ps
-    where
-        FCallT t l n ps = FCall t l n ps
-
-pattern IntLitT :: LexInfo -> Int -> Expr 'Codegen
-pattern IntLitT l i <- IntLit _ l i
-    where
-        IntLitT l i = IntLit () l i
-
-pattern BoolLitT :: LexInfo -> Bool -> Expr 'Codegen
-pattern BoolLitT l b <- BoolLit _ l b
-    where
-        BoolLitT l b = BoolLit () l b
-
-pattern VarT :: Type 'Codegen -> LexInfo -> Name 'Codegen -> Expr 'Codegen
-pattern VarT t l v <- Var t l v
-    where
-        VarT t l v = Var t l v
-
-
 type instance XModule 'Codegen = Map (Name 'Codegen) ModSig
 
 type instance XCallFun 'Codegen = () -- TODO: Should this keep the return type?

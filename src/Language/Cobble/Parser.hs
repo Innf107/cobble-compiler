@@ -81,10 +81,10 @@ expr = "expr" <??> uncurry (IntLit ()) <$> intLit <|> boollit <|> ifE <|> fcall 
 
 callFun :: Parser (Statement NextPass)
 callFun = "toplevel function call" <??> do
-    (li, fname) <- try $ ident <* paren' "("
+    (li, f) <- (\x -> (getLexInfo x, x)) <$> expr <* paren' "("
     ps <- expr `sepBy` reservedOp' ","
     paren' ")"
-    pure $ CallFun () li fname ps
+    pure $ CallFun () li f ps
 
 
 defVoid :: Parser (Statement NextPass)
@@ -167,10 +167,11 @@ logS = "log statement" <??> LogS <$>
 
 fcall :: Parser (Expr NextPass)
 fcall = "function call" <??> do
-    (li, fname) <- try $ ident <* paren' "("
+    (li, fname) <- (\x -> (getLexInfo x, x)) <$> expr <* paren' "("
     ps <- expr `sepBy` reservedOp' ","
     paren' ")"
     pure $ FCall () li fname ps
+   
    
 boollit :: Parser (Expr NextPass)
 boollit = "boolean literal" <??> choice [ reserved "True" >>= \li -> pure $ BoolLit () li True

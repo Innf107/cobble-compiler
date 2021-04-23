@@ -64,7 +64,7 @@ spec = do
                     `shouldBe`
                     Right (DefFun () (LexInfo 1 1 "Test") "someFunction" [("x", intT)]
                         [ Decl () (LexInfo 3 5 "Test") "y" Nothing (Var () (LexInfo 3 13 "Test") "x")]
-                        (FCall () (LexInfo 4 6 "Test") "f" [Var () (LexInfo 4 8 "Test") "y"]) intT)
+                        (FCall () (LexInfo 4 6 "Test") (Var () (LexInfo 4 6 "Test") "f") [Var () (LexInfo 4 8 "Test") "y"]) intT)
             it "can be chosen by statement" do
                 testParse statement (T.unlines [
                       "Int someFunction(x: Int)"
@@ -75,7 +75,7 @@ spec = do
                     `shouldBe`
                     Right (DefFun () (LexInfo 1 1 "Test") "someFunction" [("x", intT)]
                         [ Decl () (LexInfo 3 5 "Test") "y" Nothing (Var () (LexInfo 3 13 "Test") "x")]
-                        (FCall () (LexInfo 4 6 "Test") "f" [Var () (LexInfo 4 8 "Test") "y"]) intT)
+                        (FCall () (LexInfo 4 6 "Test") (Var () (LexInfo 4 6 "Test") "f") [Var () (LexInfo 4 8 "Test") "y"]) intT)
         describe "decl" do
             it "parses correct inputs without a type sig" do
                 testParse decl "let x = 5"
@@ -138,24 +138,24 @@ spec = do
             it "parses correct inputs without parameters" do
                 testParse fcall "f()"
                     `shouldBe`
-                    Right (FCall () (LexInfo 1 1 "Test") "f" [])
+                    Right (FCall () (LexInfo 1 1 "Test") (Var () (LexInfo 1 1 "Test") "f") [])
             it "parses correct inputs with parameters" do
                 testParse fcall "f(1, True)"
                     `shouldBe`
-                    Right (FCall () (LexInfo 1 1 "Test") "f" [IntLit () (LexInfo 1 3 "Test") 1
+                    Right (FCall () (LexInfo 1 1 "Test") (Var () (LexInfo 1 1 "Test") "f") [IntLit () (LexInfo 1 3 "Test") 1
                         , BoolLit () (LexInfo 1 6 "Test") True])
             it "correctly handles nested function calls" do
                 testParse fcall "f(1, g(2))"
                     `shouldBe`
-                    Right (FCall () (LexInfo 1 1 "Test") "f" [IntLit () (LexInfo 1 3 "Test") 1
-                            , FCall () (LexInfo 1 6 "Test") "g" [IntLit () (LexInfo 1 8 "Test") 2]])
+                    Right (FCall () (LexInfo 1 1 "Test") (Var () (LexInfo 1 1 "Test") "f") [IntLit () (LexInfo 1 3 "Test") 1
+                            , FCall () (LexInfo 1 6 "Test") (Var () (LexInfo 1 6 "Test") "g") [IntLit () (LexInfo 1 8 "Test") 2]])
             it "can be chosen by expr" do
                 testParse expr "f()"
                     `shouldBe`
-                    Right (FCall () (LexInfo 1 1 "Test") "f" [])
+                    Right (FCall () (LexInfo 1 1 "Test") (Var () (LexInfo 1 1 "Test") "f") [])
                 testParse expr "f(1, True)"
                     `shouldBe`
-                    Right (FCall () (LexInfo 1 1 "Test") "f" [IntLit () (LexInfo 1 3 "Test") 1
+                    Right (FCall () (LexInfo 1 1 "Test") (Var () (LexInfo 1 1 "Test") "f") [IntLit () (LexInfo 1 3 "Test") 1
                         , BoolLit () (LexInfo 1 6 "Test") True])
         describe "intLit" do
             it "parses correct inputs" do

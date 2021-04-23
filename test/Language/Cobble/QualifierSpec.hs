@@ -12,28 +12,28 @@ spec = do
         describe "CallFun" do
             it "finds the function name in the surrounding context" do
                 testQual [Scope "Mod2" [] ["f"] mempty] (qualifyStatement (
-                    CallFun () dli "f" []
+                    CallFun () dli (Var () dli "f") []
                     ))
                     `shouldBe`
-                    Right (CallFun () dli "Mod2.f" [])
+                    Right (CallFun () dli (Var () dli "Mod2.f") [])
             it "does not use a type name" do
                 testQual [Scope "Mod2" ["f"] [] mempty] (qualifyStatement (
-                    CallFun () dli "f" []
+                    CallFun () dli (Var () dli "f") []
                     ))
                     `shouldBe`
                     Left (NameNotFound dli "f")
             it "throws an error if the type is not found" do
                 testQual [Scope "Mod2" [] ["g"] mempty] (qualifyStatement (
-                    CallFun () dli "f" []
+                    CallFun () dli (Var () dli "f") []
                     ))
                     `shouldBe`
                     Left (NameNotFound dli "f")
             it "does not start a new qualification context for its parameters" do
                 testQual [Scope "Mod2" [] ["f", "x"] mempty, Scope "Mod1" [] ["y"] mempty] (qualifyStatement (
-                    CallFun () dli "f" [Var () dli "x", Var () dli "y"]
+                    CallFun () dli (Var () dli "f") [Var () dli "x", Var () dli "y"]
                     ))
                     `shouldBe`
-                    Right (CallFun () dli "Mod2.f" [Var () dli "Mod2.x", Var () dli "Mod1.y"])
+                    Right (CallFun () dli (Var () dli "Mod2.f") [Var () dli "Mod2.x", Var () dli "Mod1.y"])
         describe "DefVoid" do
             it "carries over the previous qualification context" do
                 testQual [] (qualifyStatement (
@@ -49,13 +49,13 @@ spec = do
                     Right (DefVoid () dli "Mod1.f" [] [Decl () dli "Mod1.-fun_f.x" Nothing (IntLit () dli 5)])
             it "is added to the names in the current Scope" do
                 testQual [] (traverse qualifyStatement [
-                      DefVoid () dli "f" [] [CallFun () dli "f" []]
-                    , CallFun () dli "f" []
+                      DefVoid () dli "f" [] [CallFun () dli (Var () dli "f") []]
+                    , CallFun () dli (Var () dli "f") []
                     ])
                     `shouldBe`
                     Right [
-                      DefVoid () dli "Mod1.f" [] [CallFun () dli "Mod1.f" []]
-                    , CallFun () dli "Mod1.f" []
+                      DefVoid () dli "Mod1.f" [] [CallFun () dli (Var () dli "Mod1.f") []]
+                    , CallFun () dli (Var () dli "Mod1.f") []
                     ]
             it "keeps its parameters in scope for the body" do
                 testQual [] (qualifyStatement (
@@ -96,13 +96,13 @@ spec = do
                     Right (DefFun () dli "Mod1.f" [] [Decl () dli "Mod1.-fun_f.y" Nothing (IntLit () dli 5)] (Var () dli "Mod1.-fun_f.y") intT)
             it "is added to the names in the current Scope" do
                 testQual [] (traverse qualifyStatement [
-                      DefFun() dli "f" [] [CallFun () dli "f" []] (FCall () dli "f" []) intT
-                    , CallFun () dli "f" []
+                      DefFun() dli "f" [] [CallFun () dli (Var () dli "f") []] (FCall () dli (Var () dli "f") []) intT
+                    , CallFun () dli (Var () dli "f") []
                     ])
                     `shouldBe`
                     Right [
-                      DefFun () dli "Mod1.f" [] [CallFun () dli "Mod1.f" []] (FCall () dli "Mod1.f" []) intT
-                    , CallFun () dli "Mod1.f" []
+                      DefFun () dli "Mod1.f" [] [CallFun () dli (Var () dli "Mod1.f") []] (FCall () dli (Var () dli "Mod1.f") []) intT
+                    , CallFun () dli (Var () dli "Mod1.f") []
                     ]
         describe "Decl" do
             it "is added to the names in the current scope" do
@@ -178,16 +178,16 @@ spec = do
         describe "FCall" do
             it "finds the function name from the outer scope" do
                 testQual [Scope "Mod2" [] ["f"] mempty] (qualifyExp (
-                        FCall () dli "f" []
+                        FCall () dli (Var () dli "f") []
                     ))
                     `shouldBe`
-                    Right (FCall () dli "Mod2.f" [])
+                    Right (FCall () dli (Var () dli "Mod2.f") [])
             it "fully qualifies its arguments" do
                 testQual [Scope "Mod2" [] ["f", "x"] mempty] (qualifyExp (
-                    FCall () dli "f" [(Var () dli "x"), (Var () dli "f")]
+                    FCall () dli (Var () dli "f") [(Var () dli "x"), (Var () dli "f")]
                     ))
                     `shouldBe`
-                    Right (FCall () dli "Mod2.f" [Var () dli "Mod2.x", Var () dli "Mod2.f"])
+                    Right (FCall () dli (Var () dli "Mod2.f") [Var () dli "Mod2.x", Var () dli "Mod2.f"])
         describe "IntLit" do
             it "is completely unaffected" do
                 testQual [] (qualifyExp (IntLit () dli 42))

@@ -49,7 +49,7 @@ data Pass = SolveModules
 
 
 data Statement (p :: Pass) =
-      CallFun (XCallFun p) LexInfo (Name p) [Expr p]
+      CallFun (XCallFun p) LexInfo (Expr p) [Expr p]
     | DefVoid (XDefVoid p) LexInfo (Name p) [(Name p, Type p)] [Statement p]
     | DefFun  (XDefFun p)  LexInfo (Name p) [(Name p, Type p)] [Statement p] (Expr p) (Type p)
     | Import  (XImport p)  LexInfo (Name p) -- TODO: qualified? exposing?
@@ -93,7 +93,7 @@ type family XStatement      (p :: Pass)
 
 
 data Expr (p :: Pass) =
-      FCall (XFCall p) LexInfo (Name p) [Expr p]
+      FCall (XFCall p) LexInfo (Expr p) [Expr p]
     | IntLit (XIntLit p) LexInfo Int
           --  | FloatLit Double Text TODO: Needs Standard Library (Postfixes?)
     | BoolLit (XBoolLit p) LexInfo Bool
@@ -203,7 +203,7 @@ type ExprCoercible p1 p2 = ( XFCall p1   ~ XFCall p2
 
 instance (ExprCoercible p1 p2) => CoercePass Expr p1 p2 where
     coercePass = \case
-        FCall x l n as -> FCall x l n (map coercePass as)
+        FCall x l f as -> FCall x l (coercePass f) (map coercePass as)
         IntLit x l i   -> IntLit x l i
         BoolLit x l b  -> BoolLit x l b
         IfE x l c t e  -> IfE x l (coercePass c) (coercePass t) (coercePass e)
@@ -227,7 +227,7 @@ type StatementCoercible p1 p2 = ( ExprCoercible p1 p2
         
 instance (StatementCoercible p1 p2) => CoercePass Statement p1 p2 where
     coercePass = \case
-        CallFun x l n as -> CallFun x l n (map coercePass as)
+        CallFun x l f as -> CallFun x l (coercePass f) (map coercePass as)
         DefVoid x l n ps b -> DefVoid x l n (map (second coercePass) ps) (map coercePass b)
         DefFun x l n ps b r rt -> DefFun x l n (map (second coercePass) ps) (map coercePass b) (coercePass r) (coercePass rt)
         Import x l n -> Import x l n
@@ -245,4 +245,18 @@ type ModuleCoercible p1 p2 = ( StatementCoercible p1 p2
                              )
 instance (ModuleCoercible p1 p2, StatementCoercible p1 p2) => CoercePass Module p1 p2 where
     coercePass (Module x n sts) = Module x n (map coercePass sts) 
+
+
+class HasLexInfo t where
+    getLexInfo :: t -> LexInfo
+
+instance HasLexInfo (Expr p) where
+    getLexInfo = \case
+        FCall _ li _ _      -> li
+        IntLit _ li _       -> li
+        BoolLit _ li _      -> li
+        IfE _ li _ _ _      -> li
+        Var _ li _          -> li
+        ExprX _ li          -> li
+        
 

@@ -82,7 +82,7 @@ spec = do
             it "is available inside the body (allows for recursion)" do
                 runTypecheck [DefVoid () l "f" [] [CallFun () l "f" []]]
                     `shouldBe`
-                    Right [DefVoid () l "f" [] [CallFun () l "f" []]]
+                    Right [DefVoid () l "f" [] [CallFun () l (Var () l "f") []]]
         context "with parameters" do
             it "makes its parameters available in its body" do
                 runTypecheck [DefVoid () l "f" [("x", intT)] [Decl () l "y" (Just intT) (Var () l "x")]]
