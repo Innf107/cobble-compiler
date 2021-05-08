@@ -27,8 +27,8 @@ spec = do
             runTypecheck [Decl () l "x" (Just intT) (BoolLit () l True)] `shouldBe` Left (WrongDeclType l "x" intT boolT)
             runTypecheck [Decl () l "y" (Just boolT) (IntLit () l 45)] `shouldBe` Left (WrongDeclType l "y" boolT intT)
         it "propagates errors" do
-            runTypecheck [Decl () l "x" (Just intT) (FCall () l (Var () l "doesNotExist") [])] `shouldBe` Left (FunctionDoesNotExist l "doesNotExist")
-            runTypecheck [Decl () l "y" (Just boolT) (FCall () l (Var () l "doesNotExist") [])] `shouldBe` Left (FunctionDoesNotExist l "doesNotExist")
+            runTypecheck [Decl () l "x" (Just intT) (FCall () l (Var () l "doesNotExist") [])] `shouldBe` Left (VarDoesNotExist l "doesNotExist")
+            runTypecheck [Decl () l "y" (Just boolT) (FCall () l (Var () l "doesNotExist") [])] `shouldBe` Left (VarDoesNotExist l "doesNotExist")
     describe "Assign" do
         context "when a variable was previosly declared" do
             it "does not fail for correct types" do
@@ -55,10 +55,10 @@ spec = do
             it "propagates errors in the assigned expression" do
                 runTypecheck [Decl () l "x" (Just intT) (IntLit () l 5), Assign () l "x" (FCall () l (Var () l "doesNotExist") [])]
                     `shouldBe`
-                    Left (FunctionDoesNotExist l "doesNotExist")
+                    Left (VarDoesNotExist l "doesNotExist")
                 runTypecheck [Decl () l "x" (Just boolT) (BoolLit () l False), Assign () l "x" (FCall () l (Var () l "doesNotExist") [])]
                     `shouldBe`
-                    Left (FunctionDoesNotExist l "doesNotExist")
+                    Left (VarDoesNotExist l "doesNotExist")
         context "with a free variable" do
             it "fails" do
                 runTypecheck [Assign () l "x" (IntLit () l 3)] `shouldSatisfy` isLeft
@@ -79,10 +79,20 @@ spec = do
                 runTypecheck [DefFun () l "f" [] [Decl () l "x" (Just intT) (IntLit () l 5), Assign () l "x" (BoolLit () l False)] (UnitLit l) unitT]
                     `shouldBe`
                     Left (WrongAssignType l "x" intT boolT)
+            it "has the right function type" do
+                runTypecheck [
+                        DefFun () l "f" [("x", intT)] [] (UnitLit l) unitT
+                    ,   Decl () l "x" (Just (intT -:> unitT)) (Var () l "f")
+                    ]
+                    `shouldBe`
+                    Right [
+                        DefFun () l "f" [("x", intT)] [] (UnitLit l) unitT
+                    ,   Decl () l "x" (Just (intT -:> unitT)) (Var (intT -:> unitT) l "f")
+                    ]
             it "is available inside the body (allows for recursion)" do
                 runTypecheck [DefFun () l "f" [] [CallFun () l (Var () l "f") []] (UnitLit l) unitT]
                     `shouldBe`
-                    Right [DefFun () l "f" [] [CallFun () l (Var (unitT -:> unitT) l "f") []] (UnitLit l) unitT]
+                    Right [DefFun () l "f" [] [CallFun () l (Var (unitT) l "f") [(UnitLit l)]] (UnitLit l) unitT]
         context "with parameters" do
             it "makes its parameters available in its body" do
                 runTypecheck [DefFun () l "f" [("x", intT)] [Decl () l "y" (Just intT) (Var () l "x")] (UnitLit l) unitT]
@@ -109,7 +119,7 @@ spec = do
             it "propagates errors in the last expression" do
                 runTypecheck [DefFun () l "f" [] [Decl () l "x" (Just intT) (IntLit () l 5)] (FCall () l (Var () l "doesNotExist") []) intT]
                     `shouldBe`
-                    Left (FunctionDoesNotExist l "doesNotExist")
+                    Left (VarDoesNotExist l "doesNotExist")
             it "makes its local variables available in the last expression" do
                 runTypecheck [DefFun () l "f" [] [Decl () l "x" (Just intT) (IntLit () l 3)] (Var () l "x") intT]
                     `shouldBe`
@@ -149,15 +159,47 @@ spec = do
                         DefFun () l "f" [("x", intT)] [] (IntLit () l 10) intT
                     ,   CallFun () l (Var (intT -:> intT) l "f") [IntLit () l 34]                    
                     ]
+    describe "FCall" do
+        it "accepts matching parameters" do
+            runTypecheck [
+                    DefFun () l "f" [("x", intT)] [] (BoolLit () l True) boolT
+                ,   Decl () l "y" Nothing (FCall () l (Var () l "f") [IntLit () l 5])
+                ]
+                `shouldBe` Right [
+                    DefFun () l "f" [("x", intT)] [] (BoolLit () l True) boolT
+                ,   Decl () l "y" Nothing (FCall boolT l (Var (intT -:> boolT) l "f") [IntLit () l 5])
+                ]
+        it "rejects mismatched parameters" do
+            runTypecheck [
+                    DefFun () l "f" [("x", intT)] [] (BoolLit () l True) boolT
+                ,   Decl () l "y" Nothing (FCall () l (Var () l "f") [BoolLit () l True])
+                ]
+                `shouldBe` Left (WrongFunArgs l (Just "f") [intT] [boolT])
+        it "accepts matching return types" do
+            runTypecheck [
+                DefFun () l "f" [("x", intT)] [] (BoolLit () l True) boolT
+                ,   Decl () l "y" (Just boolT) (FCall () l (Var () l "f") [IntLit () l 5])
+                ] 
+                `shouldBe` Right [
+                    DefFun () l "f" [("x", intT)] [] (BoolLit () l True) boolT
+                ,   Decl () l "y" (Just boolT) (FCall boolT l (Var (intT -:> boolT) l "f") [IntLit () l 5])
+                ]
+        it "rejects mismatched return types" do
+            runTypecheck [
+                DefFun () l "f" [("x", intT)] [] (BoolLit () l True) boolT
+                ,   Decl () l "y" (Just intT) (FCall () l (Var () l "f") [IntLit () l 5])
+                ] 
+                `shouldBe` Left (WrongDeclType l "y" intT boolT)
+
 
 emptyTCState :: TCState
-emptyTCState = TCState mempty mempty mempty
+emptyTCState = TCState mempty
 
 runTypecheck :: [Statement 'Typecheck] -> Either TypeError [Statement NextPass]
 runTypecheck = fmap snd . runTypecheck' emptyTCState
 
 runTypecheck' :: TCState -> [Statement 'Typecheck] -> Either TypeError (TCState, [Statement NextPass])
-runTypecheck' tcstate = run . runError . runState tcstate . traverse typecheck
+runTypecheck' tcstate = run . runError . runState tcstate . ignoreOutput @TypeWarning . traverse typecheck
 
 dummyLex :: LexInfo
 dummyLex = LexInfo 0 0 "DUMMY"

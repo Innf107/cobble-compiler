@@ -123,15 +123,13 @@ compileWithSig m = do
     let qualScopes = [Scope (makeQName $ S.moduleName m) mempty mempty mempty]
     let tcState = foldMap (\dsig -> TCState {
                     varTypes=exportedVars dsig
-                ,   funReturnTypes=M.mapMaybe snd $ exportedFunctions dsig
-                ,   funArgs=map snd . fst <$> exportedFunctions dsig
                 })
                 (xModule m)
     compEnv <- asks \CompileOpts{name, debug, target} -> CompEnv {nameSpace=name, debug, A.target=target}
 
     qMod  <- mapError QualificationError $ evalState qualScopes $ qualify m
 
-    tcMod <- mapError TypeError $ evalState tcState $ typecheckModule qMod
+    tcMod <- mapError TypeError $ evalState tcState $ runOutputSem (log LogWarning . displayTWarning) $ typecheckModule qMod
 
     asmMod <- mapError AsmError $ evalState initialCompileState $ S.compile tcMod
     asks ddumpAsm >>= flip when (writeFile (show (A.moduleName asmMod) <> ".mamod") (showAsmDump asmMod))
@@ -142,7 +140,9 @@ compileWithSig m = do
 
     pure (compMods, sig)
 
--- TODO: Move to own module
+displayTWarning :: TypeWarning -> Text
+displayTWarning = show
+
 extractSig :: S.Module 'Codegen -> ModSig
 extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
 
@@ -150,7 +150,7 @@ makePartialSig :: S.Statement 'Codegen -> ModSig
 makePartialSig = \case
     Decl () _ n _ e             -> mempty {exportedVars = one (n, getType e)}
     --DefVoid () _ n ps _         -> mempty {exportedFunctions = one (n,(ps, Nothing))}
-    DefFun () _ n ps _ _ t      -> mempty {exportedFunctions = one (n,(ps, Just t))}
+    DefFun () _ n ps _ _ t      -> mempty {exportedVars = one (n, foldr (-:>) t (map snd ps))}
     DefStruct () _ n fs         -> mempty {exportedStructs = one (n, fs)}
     CallFun () _ _ _            -> mempty
     Import () _ _               -> mempty
@@ -171,8 +171,9 @@ primModSig = ModSig {
             @'[Output Log, Writer [Instruction], Error Panic, State CompileState, Error McAsmError]
             -- The type application is only necessary to satisfy the type checker since the value depending on the type of 'r' is ignored
     ,   exportedVars = mempty
-    ,   exportedStructs = fromList [("prims.Int", []), ("prims.Bool", []), ("prims.Entity", [])]
+    ,   exportedStructs = fromList [("prims.Int", []), ("prims.Bool", []), ("prims.Entity", []), ("prims.Unit", [])]
     }
+
 
 
 

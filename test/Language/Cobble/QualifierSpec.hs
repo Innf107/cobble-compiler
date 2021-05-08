@@ -234,4 +234,4 @@ testQual' :: Dependencies
          -> [Scope]
          -> Sem '[State Int, State [Scope], Error QualificationError, Output Log, Reader Dependencies] a
          -> Either QualificationError a
-testQual' deps s = run . runReader deps . runOutputSem (const pass) . runError . evalState (s ++ [Scope "Mod1" [] [] mempty, Scope "prims" ["Int", "Bool"] [] (fromList [("Int", KStar), ("Bool", KStar)])]) . evalState 0
+testQual' deps s = run . runReader deps . runOutputSem (const pass) . runError . evalState (s ++ [Scope "Mod1" [] [] mempty, Scope "prims" ["Int", "Bool", "Unit"] [] (fromList [("Int", KStar), ("Bool", KStar), ("Unit", KStar)])]) . evalState 0

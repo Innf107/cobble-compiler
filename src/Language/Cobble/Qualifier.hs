@@ -149,6 +149,7 @@ qualifyExp e = do
                 pure $ FCall () li f' ps'
             IntLit () li i -> pure $ IntLit () li i
             BoolLit () li b -> pure $ BoolLit () li b
+            UnitLit li -> pure $ UnitLit li
             IfE () li c th el -> do
                 ifeID <- newUID
                 let thName = "-then-e" <> show ifeID

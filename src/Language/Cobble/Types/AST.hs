@@ -120,6 +120,9 @@ data Type (p :: Pass) = TCon (Name p) (XKind p)
 t1 -:> t2 = TApp (TApp (TCon "->" (kFun kStar (kFun kStar kStar))) t1) t2 
 infixr 5 -:>
 
+pattern (:->) :: (IsString (Name p), Eq (Name p), XKind p ~ Kind) => Type p -> Type p -> Type p
+pattern (:->) t1 t2 = TApp (TApp (TCon "->" (KFun KStar (KFun KStar KStar))) t1) t2
+
 type family XKind (p :: Pass)
 
 type FileName = Text
@@ -211,6 +214,7 @@ instance (ExprCoercible p1 p2) => CoercePass Expr p1 p2 where
         FCall x l f as -> FCall x l (coercePass f) (map coercePass as)
         IntLit x l i   -> IntLit x l i
         BoolLit x l b  -> BoolLit x l b
+        UnitLit l      -> UnitLit l
         IfE x l c t e  -> IfE x l (coercePass c) (coercePass t) (coercePass e)
         Var x l v      -> Var x l v
         ExprX x l      -> ExprX x l
@@ -260,6 +264,7 @@ instance HasLexInfo (Expr p) where
         FCall _ li _ _      -> li
         IntLit _ li _       -> li
         BoolLit _ li _      -> li
+        UnitLit li          -> li
         IfE _ li _ _ _      -> li
         Var _ li _          -> li
         ExprX _ li          -> li
