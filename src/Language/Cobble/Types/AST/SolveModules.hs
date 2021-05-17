@@ -35,24 +35,18 @@ deriving instance Typeable (Type 'SolveModules)
   
 type instance XModule 'SolveModules = ()
   
-type instance XCallFun       'SolveModules = ()
-type instance XDefFun        'SolveModules = ()
+type instance XDef           'SolveModules = ()
 type instance XImport        'SolveModules = ()
-type instance XDefVoid       'SolveModules = ()
-type instance XDecl          'SolveModules = ()
-type instance XAssign        'SolveModules = ()
-type instance XIfS           'SolveModules = ()
-type instance XWhile         'SolveModules = ()
 type instance XDefStruct     'SolveModules = ()
-type instance XSetScoreboard 'SolveModules = ()
 type instance XStatement     'SolveModules = Void
 
 
 type instance XFCall   'SolveModules = ()
 type instance XIntLit  'SolveModules = ()
 type instance XBoolLit 'SolveModules = ()
-type instance XIfE     'SolveModules = ()
+type instance XIf      'SolveModules = ()
 type instance XVar     'SolveModules = ()
+type instance XLet     'SolveModules = ()
 type instance XExpr    'SolveModules = Void
 
 type instance Name 'SolveModules = Text

@@ -16,6 +16,8 @@ import Data.Generics.Uniplate.Data
 
 import GHC.Show qualified as S
 
+import qualified Unsafe.Coerce 
+
 type family Name (p :: Pass)
 
 -- Top level module.
@@ -49,21 +51,11 @@ data Pass = SolveModules
 
 
 data Statement (p :: Pass) =
-      CallFun (XCallFun p) LexInfo (Expr p) [Expr p]
-    -- | DefVoid (XDefVoid p) LexInfo (Name p) [(Name p, Type p)] [Statement p]
-    | DefFun  (XDefFun p)  LexInfo (Name p) [(Name p, Type p)] [Statement p] (Expr p) (Type p)
-    | Import  (XImport p)  LexInfo (Name p) -- TODO: qualified? exposing?
---                                                          ^ last expr
-    | Decl (XDecl p) LexInfo (Name p) (Maybe (Type p)) (Expr p)
-    | Assign (XAssign p) LexInfo (Name p) (Expr p)
-    | IfS (XIfS p) LexInfo (Expr p) [Statement p] (Maybe [Statement p])
-    | While (XWhile p) LexInfo (Expr p) [Statement p]
-    | DefStruct (XDefStruct p) LexInfo (Name p) [(Name p, Type p)]
-    -- | /Temporary/ Statement until ConstStrs are implemented.
-    | SetScoreboard (XSetScoreboard p) LexInfo Objective Text (Expr p)
-    -- | /Temporary/ Statement until ConstStrs are implemented. Does not need extensions.
-    | LogS LexInfo [LogSegment p]
---                                                       ^player
+      Def        (XDef p)       LexInfo (Name p) [(Name p, Type p)] (Expr p) (Type p)
+
+    | Import     (XImport p)    LexInfo (Name p) -- TODO: qualified? exposing?
+
+    | DefStruct  (XDefStruct p) LexInfo (Name p) [(Name p, Type p)]
     | StatementX (XStatement p) LexInfo
 
 data LogSegment p = LogText Text
@@ -76,19 +68,12 @@ deriving instance Show (Name p) => Show (LogSegment p)
 deriving instance Eq (Name p) => Eq (LogSegment p)
 
 instance (Name p1 ~ Name p2) => CoercePass LogSegment p1 p2 where
-    coercePass (LogText t) = LogText t
-    coercePass (LogVar n) = LogVar n
+    _coercePass (LogText t) = LogText t
+    _coercePass (LogVar n) = LogVar n
 
-type family XCallFun        (p :: Pass)
-type family XDefVoid        (p :: Pass)
-type family XDefFun         (p :: Pass)
+type family XDef            (p :: Pass)
 type family XImport         (p :: Pass)
-type family XDecl           (p :: Pass)
-type family XAssign         (p :: Pass)
-type family XIfS            (p :: Pass)
-type family XWhile          (p :: Pass)
 type family XDefStruct      (p :: Pass)
-type family XSetScoreboard  (p :: Pass)
 type family XStatement      (p :: Pass)
 
 
@@ -98,16 +83,18 @@ data Expr (p :: Pass) =
           --  | FloatLit Double Text TODO: Needs Standard Library (Postfixes?)
     | UnitLit LexInfo --TODO: Replace with variable in 'base'
     | BoolLit (XBoolLit p) LexInfo Bool
-    | IfE (XIfE p) LexInfo (Expr p) (Expr p) (Expr p)
-    | Var (XVar p) LexInfo (Name p)
+    | If    (XIf p) LexInfo (Expr p) (Expr p) (Expr p)
+    | Let   (XLet p) LexInfo (Name p) (Expr p) (Expr p)
+    | Var   (XVar p) LexInfo (Name p)
     | ExprX (XExpr p) LexInfo
 
-type family XFCall (p :: Pass)
-type family XIntLit (p :: Pass)
+type family XFCall   (p :: Pass)
+type family XIntLit  (p :: Pass)
 type family XBoolLit (p :: Pass)
-type family XIfE (p :: Pass)
-type family XVar (p :: Pass)
-type family XExpr (p :: Pass)
+type family XIf      (p :: Pass)
+type family XLet     (p :: Pass)
+type family XVar     (p :: Pass)
+type family XExpr    (p :: Pass)
 
 data Kind = KStar | KFun Kind Kind deriving (Eq, Generic, Data, Typeable)
 
@@ -189,71 +176,63 @@ kind = \case
     
       
 class CoercePass t p1 p2 where
-    coercePass :: t p1 -> t p2
+    _coercePass :: t p1 -> t p2
+        
+{-#NOINLINE coercePass#-}
+coercePass :: (CoercePass t p1 p2) => t p1 -> t p2
+coercePass = _coercePass
+{-# RULES "coercePass/coercePass" forall x. coercePass x = Unsafe.Coerce.unsafeCoerce x#-}
         
 type TypeCoercible p1 p2 = (Name p1 ~ Name p2
                            , XKind p1 ~ XKind p2)  
 
 instance TypeCoercible p1 p2 => CoercePass Type p1 p2 where
-    coercePass = \case
+    _coercePass = \case
         TCon n k -> TCon n k
         TApp t1 t2 -> TApp (coercePass t1) (coercePass t2)
         TVar n k -> TVar n k
 
-type ExprCoercible p1 p2 = ( XFCall p1   ~ XFCall p2
-                         , XIntLit p1  ~ XIntLit p2
-                         , Name p1     ~ Name p2
-                         , XBoolLit p1 ~ XBoolLit p2
-                         , XIfE p1     ~ XIfE p2
-                         , XVar p1     ~ XVar p2
-                         , XExpr p1    ~ XExpr p2
+type ExprCoercible p1 p2 = ( XFCall p1   ~ XFCall   p2
+                         , XIntLit  p1   ~ XIntLit  p2
+                         , Name     p1   ~ Name     p2
+                         , XBoolLit p1   ~ XBoolLit p2
+                         , XIf      p1   ~ XIf      p2
+                         , XLet     p1   ~ XLet     p2
+                         , XVar     p1   ~ XVar     p2
+                         , XExpr    p1   ~ XExpr    p2
                          )
 
 instance (ExprCoercible p1 p2) => CoercePass Expr p1 p2 where
-    coercePass = \case
+    _coercePass = \case
         FCall x l f as -> FCall x l (coercePass f) (map coercePass as)
         IntLit x l i   -> IntLit x l i
         BoolLit x l b  -> BoolLit x l b
         UnitLit l      -> UnitLit l
-        IfE x l c t e  -> IfE x l (coercePass c) (coercePass t) (coercePass e)
+        If x l c th el -> If x l (coercePass c) (coercePass th) (coercePass el)
+        Let x l v e b  -> Let x l v (coercePass e) (coercePass b)
         Var x l v      -> Var x l v
         ExprX x l      -> ExprX x l
         
 type StatementCoercible p1 p2 = ( ExprCoercible p1 p2
                                 , TypeCoercible p1 p2
-                                , XCallFun p1 ~ XCallFun p2
-                                , XDefVoid p1 ~ XDefVoid p2
-                                , XDefFun p1 ~ XDefFun p2
-                                , XImport p1 ~ XImport p2
-                                , XDecl p1 ~ XDecl p2
-                                , XAssign p1 ~ XAssign p2
-                                , XIfS p1 ~ XIfS p2
-                                , XWhile p1 ~ XWhile p2
+                                , XDef       p1 ~ XDef    p2 
+                                , XImport    p1 ~ XImport p2
                                 , XDefStruct p1 ~ XDefStruct p2
-                                , XSetScoreboard p1 ~ XSetScoreboard p2
                                 , XStatement p1 ~ XStatement p2
                                 )
         
 instance (StatementCoercible p1 p2) => CoercePass Statement p1 p2 where
-    coercePass = \case
-        CallFun x l f as -> CallFun x l (coercePass f) (map coercePass as)
-        --DefVoid x l n ps b -> DefVoid x l n (map (second coercePass) ps) (map coercePass b)
-        DefFun x l n ps b r rt -> DefFun x l n (map (second coercePass) ps) (map coercePass b) (coercePass r) (coercePass rt)
+    _coercePass = \case
+        Def x l f ps e t -> Def x l f (map (second coercePass) ps) (coercePass e) (coercePass t)
         Import x l n -> Import x l n
-        Decl x l n mt e -> Decl x l n (fmap coercePass mt) (coercePass e)
-        Assign x l n e -> Assign x l n (coercePass e)
-        IfS x l c th el -> IfS x l (coercePass c) (map coercePass th) (map coercePass <$> el)
-        While x l c b -> While x l (coercePass c) (map coercePass b)
         DefStruct x l n fs -> DefStruct x l n (map (second coercePass) fs)
-        SetScoreboard x l o t e -> SetScoreboard x l o t (coercePass e)
-        LogS l segs -> LogS l (map coercePass segs)
         StatementX x l -> StatementX x l
         
 type ModuleCoercible p1 p2 = ( StatementCoercible p1 p2
                              , XModule p1 ~ XModule p2
                              )
 instance (ModuleCoercible p1 p2, StatementCoercible p1 p2) => CoercePass Module p1 p2 where
-    coercePass (Module x n sts) = Module x n (map coercePass sts) 
+    _coercePass (Module x n sts) = Module x n (map coercePass sts) 
 
 
 class HasLexInfo t where
@@ -265,7 +244,8 @@ instance HasLexInfo (Expr p) where
         IntLit _ li _       -> li
         BoolLit _ li _      -> li
         UnitLit li          -> li
-        IfE _ li _ _ _      -> li
+        If _ li _ _ _       -> li
+        Let _ li _ _ _      -> li
         Var _ li _          -> li
         ExprX _ li          -> li
         

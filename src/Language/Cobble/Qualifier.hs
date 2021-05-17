@@ -66,69 +66,24 @@ qualifyMod (Module deps n sts) = log LogVerbose ("QUALIFYING MODULE: " <> n) >> 
 
 qualifyStatement :: (QualifyC r, Member (Reader Dependencies) r) => Statement 'QualifyNames -> Sem r (Statement NextPass)
 qualifyStatement s = log LogDebugVerbose ("QUALIFYING STATEMENT: " <> show s) >> case s of
-    CallFun () li f args -> CallFun () li
-                        <$> qualifyExp f
-                        <*> traverse qualifyExp args
-    {-DefVoid () li n ps body -> do
+    Def () li n ps e t -> do
         n' <- askPref <&> (.: n)
         innerN <- askPref <&> (.: ("-fun_" <> n))
         addName li n
-        (ps', body') <- localPref (.: ("-fun_" <> n)) $ do
+        (ps', le') <- localPref (.: ("-fun_" <> n)) $ do
             traverse_ (addName li . fst) ps
             (,)
                 <$> traverse (bitraverse (pure . (innerN .:)) (qualifyType li)) ps
-                <*> traverse qualifyStatement body
-        pure $ DefVoid () li n' ps' body'
-    -}
-
-    DefFun () li n ps body le t -> do
-        n' <- askPref <&> (.: n)
-        innerN <- askPref <&> (.: ("-fun_" <> n))
-        addName li n
-        (ps', body', le') <- localPref (.: ("-fun_" <> n)) $ do
-            traverse_ (addName li . fst) ps
-            (,,)
-                <$> traverse (bitraverse (pure . (innerN .:)) (qualifyType li)) ps
-                <*> traverse qualifyStatement body
-                <*> qualifyExp le
+                <*> qualifyExp e
         t' <- qualifyType li t
-        pure $ DefFun () li n' ps' body' le' t'
+        pure $ Def () li n' ps' le' t'
 
-    Decl () li n mt e -> do
-        n' <- askPref <&> (.: n)
-        addName li n
-        mt' <- traverse (qualifyType li) mt
-        e' <- qualifyExp e
-        pure $ Decl () li n' mt' e'
-        
-    Assign () li n e -> do
-        n' <- lookupName n li
-        e' <- qualifyExp e
-        pure $ Assign () li n' e'
-
-    IfS () li c th el -> do
-        ifID <- newUID
-        let thName = "-then" <> show ifID 
-        let elName = "-else" <> show ifID
-        c' <- qualifyExp c
-        th' <- localPref (.: thName) $ traverse qualifyStatement th
-        el' <- traverse (localPref (.: elName) . traverse qualifyStatement) el
-        name <- askPref
-        pure $ IfS (name, ifID) li c' th' el'
-
-    While () li c body -> do
-        whileName <- (("-while" <>) . show) <$> newUID
-        c' <- qualifyExp c
-        body' <- localPref (.: whileName) $ traverse qualifyStatement body
-        pure $ While () li c' body'
     DefStruct () li n fs -> do
         n' <- askPref <&> (.: n)
         addType li n KStar
         fs' <- localPref (.: n) $ traverse (bitraverse (\x -> askPref <&> (\a -> a .: x)) (qualifyType li)) fs
         pure $ DefStruct () li n' fs'
     Import () li modName -> pure $ Import () li (makeQName modName)
-    SetScoreboard () li obj pl e -> SetScoreboard () li obj pl <$> qualifyExp e
-    LogS li segs -> LogS li <$> traverse (qualifyLogSeg li) segs
     StatementX x _li -> case x of
 
 qualifyLogSeg :: (QualifyC r,  Member (Reader Dependencies) r) => LexInfo -> LogSegment 'QualifyNames -> Sem r (LogSegment NextPass)
@@ -150,7 +105,7 @@ qualifyExp e = do
             IntLit () li i -> pure $ IntLit () li i
             BoolLit () li b -> pure $ BoolLit () li b
             UnitLit li -> pure $ UnitLit li
-            IfE () li c th el -> do
+            If  () li c th el -> do
                 ifeID <- newUID
                 let thName = "-then-e" <> show ifeID
                 let elName = "-else-e" <> show ifeID
@@ -158,7 +113,8 @@ qualifyExp e = do
                 th' <- localPref (.: thName) $ qualifyExp th
                 el' <- localPref (.: elName) $ qualifyExp el
                 name <- askPref
-                pure (IfE (name, ifeID) li c' th' el')
+                pure (If (name, ifeID) li c' th' el')
+            
             Var () li vname -> Var () li <$> lookupName vname li
             ExprX x _li -> case x of
 

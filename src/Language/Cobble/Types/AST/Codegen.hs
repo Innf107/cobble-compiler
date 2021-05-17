@@ -43,24 +43,18 @@ deriving instance Typeable (Type 'Codegen)
 
 type instance XModule 'Codegen = Map (Name 'Codegen) ModSig
 
-type instance XCallFun 'Codegen = () -- TODO: Should this keep the return type?
-type instance XDefVoid 'Codegen = ()
-type instance XDefFun 'Codegen = ()
-type instance XImport 'Codegen = ()
-type instance XDecl 'Codegen = ()
-type instance XAssign 'Codegen = ()
-type instance XIfS 'Codegen = (QualifiedName, Int)
-type instance XWhile 'Codegen = ()
+type instance XDef     'Codegen = ()
+type instance XImport  'Codegen = ()
 type instance XDefStruct 'Codegen = ()
-type instance XSetScoreboard 'Codegen = ()
 type instance XStatement 'Codegen = Void
 
-type instance XFCall 'Codegen = Type 'Codegen
-type instance XIntLit 'Codegen = ()
+type instance XFCall   'Codegen = Type 'Codegen
+type instance XIntLit  'Codegen = ()
 type instance XBoolLit 'Codegen = ()
-type instance XIfE 'Codegen = (QualifiedName, Int)
-type instance XVar 'Codegen = Type 'Codegen
-type instance XExpr 'Codegen = Void
+type instance XIf      'Codegen = (QualifiedName, Int)
+type instance XVar     'Codegen = Type 'Codegen
+type instance XLet     'Codegen = ()
+type instance XExpr    'Codegen = Void
 
 type instance Name 'Codegen = QualifiedName
 

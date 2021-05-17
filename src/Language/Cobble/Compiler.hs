@@ -79,58 +79,7 @@ newRegForType c t = case rtType t of
 
 compileStatement :: forall r. (Member (Writer [Instruction]) r, CompileC r) => S.Statement 'Codegen -> Sem r ()
 compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >>) $ s & \case
-    Decl () li name _ expr -> do
-        nr <- newRegForType VarReg (getType expr)
-        modify (& frames . head1 . varRegs . at name ?~ nr)
-
-        compileStatement (Assign () li name expr)
-
-    Assign () _li name expr -> do
-        mvarReg <- get <&> join . (^? frames . head1 . varRegs . at name)
-        case mvarReg of
-            Nothing -> panicVarNotFoundTooLate name
-            Just varReg -> do
-                exprReg <- compileExprToReg expr
-                tell [MoveReg varReg exprReg]
-
-    IfS (name, ifID) _li c th mel -> do
-        cr <- compileExprToReg c
-        let elPostfix = maybe [] (const [MoveNumLit elseReg 0]) mel
-        tell . pure . A.Section (name .: ("-then" <> show ifID)) =<< (<>elPostfix) . fst <$> runWriterAssocR (traverse compileStatement th)
-        case mel of
-            Just el -> do
-                tell . pure . A.Section (name .: ("-else" <> show ifID)) =<< fst <$> runWriterAssocR (traverse compileStatement el)
-                tell [MoveNumLit elseReg 1
-                    , CallInRange cr (RBounded 1 1) (name .: ("-then" <> show ifID))
-                    , CallInRange elseReg (RBounded 1 1) (name .: ("-else" <> show ifID))
-                    ]
-            Nothing -> do
-                tell [CallInRange cr (RBounded 1 1) (name .: ("-then" <> show ifID))]
-
-    CallFun () li f@(Var _vt _vli fname) args -> case lookup fname primOps of
-        Just (_, _, primOpF) -> void $ primOpF primOpEnv args
-        Nothing -> gets (^? functions . ix fname . returnType . _Just) >>= \case
-            Nothing -> get <&> (^? functions . ix fname . params) >>= \case
-                Just _ps -> do
-                    frame <- gets (^. frames . head1)
-                    saveFrame frame
-                    writeArgs args
-                    tell [Call fname]
-                    restoreFrame frame
-                Nothing -> panicFunNotFoundTooLate fname
-            Just rt -> void $ compileExprToReg (FCall rt li f args)
-
-    CallFun () li ex _args -> panic' "Cannot indirectly call a function yet. This is *NOT* a bug" [show ex, show li]
-
-    {-DefVoid () _li name pars body -> do
-        modify (& functions . at name ?~ Function {_params=pars, _returnType=Nothing})
-        tell . pure . A.Section name . fst =<< runWriterAssocR do
-            modify (& frames %~ (emptyFrame |:))
-            parRegs <- traverse (\(_, t) -> newRegForType VarReg t) pars
-            modify (& frames . head1 . varRegs .~ fromList (zip (map fst pars) parRegs))
-            modify (& frames . head1 . regs .~ parRegs)
-            traverse_ compileStatement body
-            modify (& frames %~ unsafeTail)-}
+    {-
     DefFun () _li name pars body retExp t -> do
         modify (& functions . at name ?~ Function {_params=pars, _returnType=Just t})
         tell . pure . A.Section name . fst =<< runWriterAssocR do
@@ -142,12 +91,7 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
             res <- compileExprToReg retExp
             modify (& frames %~ unsafeTail)
             tell [MoveReg (returnReg (regRep res)) res]
-    S.SetScoreboard () _li obj player ex -> do
-        r <- compileExprToReg ex
-        tell [A.SetScoreboard obj player r]
-    LogS _li segs -> do
-        segs' <- traverse renderLogSeg segs
-        tell [A.RawCommand $ "tellraw @a [" <> T.intercalate ", " segs' <> "]"]
+    -}
     Import () _ _ -> pass
     DefStruct () _ _ _ -> pass
     StatementX x _ -> absurd x
@@ -192,7 +136,7 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
                         Just t' | t' /= t -> panic' "Return type of function does not match fcall expr return type" [show fname, show t, show t']
                         Just _ -> pure $ ret
     FCall _t li ex _as -> panic' "Cannot indirectly call a function yet. This is *NOT* a bug" [show ex, show li]
-    IfE (name, ifID) _li c th el -> do
+    If (name, ifID) _li c th el -> do
         cr <- compileExprToReg c
         resReg <- newRegForType TempReg (getType th)
         tell . pure . A.Section (name .: ("-then-e" <> show ifID)) =<< (\(is, r) -> is <> [MoveNumLit elseReg 0, MoveReg resReg r]) <$> runWriterAssocR (compileExprToReg th)

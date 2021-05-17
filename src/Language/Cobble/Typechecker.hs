@@ -55,22 +55,7 @@ typecheckModule (Module deps mname instrs) = Module deps mname <$> traverse type
 
 typecheck :: (TypecheckC r) => Statement Typecheck -> Sem r (Statement NextPass)
 typecheck = \case
-    CallFun () l f exprs -> do
-        f' <- typeOf f
-        (fargs, retT) <- maybe (throw (NotEnoughFunArgs (genericLength exprs) (getType f'))) pure 
-            $ splitFunType (genericLength exprs) (getType f')
-
-        exprs' <- traverse typeOf exprs
-        
-        let exprTypes = map getType exprs'
-        
-        if (exprTypes /= fargs)
-            then throw $ WrongFunArgs l (tryGetFunName f) fargs exprTypes
-            else do
-                case retT of
-                    (_ :-> _) -> output (WarnIgnoredFunRetType l retT)
-                    _ -> pass
-                pure (CallFun () l f' exprs')
+    {-
     DefFun () l fname (conv -> args) stmnts lastexpr (conv -> retT) -> do
         
         let ftype = foldr (-:>) retT (map snd args)
@@ -83,35 +68,8 @@ typecheck = \case
         if (getType lastexpr' == retT)
         then pure (DefFun () l fname args stmnts' lastexpr' retT)
         else throw (WrongReturnType l fname retT (getType lastexpr'))
-    Decl () l vname (Just (conv -> t)) expr -> do
-        expr' <- typeOf expr
-        if (getType expr' == t)
-        then insertVarType vname t >> pure (Decl () l vname (Just t) expr')
-        else throw (WrongDeclType l vname t (getType expr'))
-    Decl () l vname Nothing expr -> do
-        expr' <- typeOf expr
-        insertVarType vname (getType expr') >> pure (Decl () l vname Nothing expr')
-    Assign () l vname expr -> do
-        varT <- getVarType l vname
-        expr' <- typeOf expr
-        if (varT == getType expr')
-        then pure (Assign () l vname expr')
-        else throw (WrongAssignType l vname varT (getType expr'))
-    IfS ni l cond th el -> IfS ni l
-        <$> (typeOf cond >>= \c -> if getType c == boolT then pure c else throw (WrongIfType l (getType c)))
-        <*> traverse typecheck th
-        <*> traverse (traverse typecheck) el
-    While () l cond stmnts -> do
-        cond' <- typeOf cond
-        stmnts' <- traverse typecheck stmnts
-        pure (While () l cond' stmnts')
+    -}
     DefStruct () l name (conv -> fields) -> pure $ DefStruct () l name fields -- TODO: Add to state map
-    SetScoreboard () l obj player ex -> do
-        ex' <- typeOf ex
-        if (getType @_ @'Codegen ex' /= intT)
-        then throw (WrongSetScoreboardType l obj player (getType ex'))
-        else pure (SetScoreboard () l obj player ex')
-    LogS l segs -> pure $ LogS l $ map coercePass segs
     Import () l modName -> pure $ Import () l modName
     StatementX x _l -> case x of
 
@@ -133,13 +91,13 @@ typeOf = \case
         if (exprTypes == fargs)
         then pure $ FCall retT l f' exprs'
         else throw $ WrongFunArgs l (tryGetFunName f) fargs exprTypes
-    IfE x l c th el -> do
+    If x l c th el -> do
         c' <- typeOf c
         when (getType c' /= boolT) $ throw $ WrongIfEType l (getType c')
         th' <- typeOf th
         el' <- typeOf el
         if (getType th' == getType el')
-        then pure (IfE x l c' th' el')
+        then pure (If x l c' th' el')
         else throw $ DifferentIfETypes l (getType th') (getType el')
     Var () l vname -> (\x -> Var x l vname) <$> getVarType l vname
     ExprX x _l -> case x of

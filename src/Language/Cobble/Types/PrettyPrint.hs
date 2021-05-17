@@ -32,23 +32,10 @@ instance PrettyPrint QualifiedName where prettyPrint = show
 instance (PrettyPrintExt p, PrettyPrint (Name p), Show (Statement p), Show (Expr p), PrettyPrint (Type p))
     => PrettyPrint (Statement p) where
     prettyPrint = \case
-        s@(CallFun _ _ n args) -> prettyPrintExtSt s
-                    ?. prettyPrint n <> " (" <> T.intercalate "," (map prettyPrint args) <> ")"
         {-s@(DefVoid _ _ n ps b) -> prettyPrintExtSt s
                     ?. "void " <> prettyPrint n <> "(" <>
                     T.intercalate ","  (map (\(pn, pt) -> prettyPrint pn <> ": " <> prettyPrint pt) ps) <> ")"
                     <> "\n{\n" <> T.unlines (map prettyPrint b) <> "\n}"-}
-        s@(DefFun _ _ n ps b r t) -> prettyPrintExtSt s
-                    ?. prettyPrint t <> " " <> prettyPrint n <> " ("
-                    <> T.intercalate "," (map (\(pn, pt) -> prettyPrint pn <> ": " <> prettyPrint pt) ps)
-                    <> ")"
-                    <> "\n{\n" <> T.unlines (map prettyPrint b) <> "\n} => " <> prettyPrint r
-        s@(Decl _ _ n mt e) -> prettyPrintExtSt s
-                    ?. "let " <> prettyPrint n <> (maybe "" (\t -> ": " <> prettyPrint t) mt) <> " = " <> prettyPrint e
-        s@(Assign _ _ n e) -> prettyPrintExtSt s
-                    ?. prettyPrint n <> " = " <> prettyPrint e
-        s@(While _ _ c b) -> prettyPrintExtSt s
-                    ?. "while (" <> prettyPrint c <> ")\n{\n" <> T.unlines (map prettyPrint b) <> "\n}"
         s@(DefStruct _ _ n ts) -> prettyPrintExtSt s
                     ?. "struct " <> prettyPrint n <> "\n{\n" <> T.unlines (map (\(tn, tt) -> prettyPrint tn <> ": " <> prettyPrint tt) ts)
                     <> "\n}\n"

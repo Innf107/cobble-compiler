@@ -37,22 +37,16 @@ deriving instance Data    (Type 'Typecheck)
 
 type instance XModule 'Typecheck = Map (Name 'Codegen) ModSig
   
-type instance XCallFun       'Typecheck = ()
-type instance XDefVoid       'Typecheck = ()
+type instance XDef           'Typecheck = ()
 type instance XImport        'Typecheck = ()
-type instance XDefFun        'Typecheck = ()
-type instance XDecl          'Typecheck = ()
-type instance XAssign        'Typecheck = ()
-type instance XIfS           'Typecheck = (QualifiedName, Int)
-type instance XWhile         'Typecheck = ()
 type instance XDefStruct     'Typecheck = ()
-type instance XSetScoreboard 'Typecheck = ()
 type instance XStatement     'Typecheck = Void
 
 type instance XFCall   'Typecheck = ()
 type instance XIntLit  'Typecheck = ()
 type instance XBoolLit 'Typecheck = ()
-type instance XIfE     'Typecheck = (QualifiedName, Int)
+type instance XIf      'Typecheck = (QualifiedName, Int)
+type instance XLet     'Typecheck = ()
 type instance XVar     'Typecheck = ()
 type instance XExpr    'Typecheck = Void
 
