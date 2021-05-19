@@ -120,7 +120,7 @@ fcallOrVar = "function call" <??> do
     args <- many expr'
     case args of
         [] -> pure f
-        _  -> pure $ FCall () (getLexInfo f) f args
+        (a:as)  -> pure $ FCall () (getLexInfo f) f (a :| as)
    
    
 boollit :: Parser (Expr NextPass)

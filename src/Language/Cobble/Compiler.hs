@@ -115,7 +115,7 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
             pure $ retReg
     -- (FloatT, FloatLit i) -> pure [MoveNumReg (NumReg reg)]
     (FCall t _li (Var _ _vli fname) args) -> case lookup fname primOps of
-        Just (_, _, primOpF) -> primOpF primOpEnv args
+        Just (_, _, primOpF) -> primOpF primOpEnv (toList args)
         Nothing -> do
             get <&> (^. functions . at fname) >>= \case
                 Nothing -> panicFunNotFoundTooLate fname
@@ -123,7 +123,7 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
                     frame <- gets (^. frames . head1)
                     saveFrame frame
 
-                    writeArgs args
+                    writeArgs (toList args)
 
                     tell [Call fname]
 

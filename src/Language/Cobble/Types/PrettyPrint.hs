@@ -45,7 +45,7 @@ instance (PrettyPrintExt p, PrettyPrint (Name p), Show (Expr p)) => PrettyPrint 
     prettyPrint = \case
         e@(IntLit _ _ i) -> prettyPrintExtEx e ?. show i
         e@(BoolLit _ _ b) -> prettyPrintExtEx e ?. bool "false" "true" b
-        e@(FCall _ _ n as) -> prettyPrintExtEx e ?. prettyPrint n <> "(" <> T.intercalate ", " (map prettyPrint as) <> ")"
+        e@(FCall _ _ n as) -> prettyPrintExtEx e ?. prettyPrint n <> "(" <> T.intercalate ", " (map prettyPrint (toList as)) <> ")"
         e@(Var _ _ n) -> prettyPrintExtEx e ?. prettyPrint n
         e -> prettyPrintExtEx e ?. error ("Cannot PrettyPrint '" <> show e <> "'")
 
@@ -72,6 +72,6 @@ instance PrettyPrintExt 'Codegen where
     prettyPrintExtSt _ = Nothing
     prettyPrintExtEx = \case
         Var t _ n -> Just $ prettyPrint n <> " {-: " <> prettyPrint t <> "-}"
-        FCall t _ n ps -> Just $ prettyPrint n <> "(" <> T.intercalate ", " (map prettyPrint ps) <> ") {-: "
+        FCall t _ n ps -> Just $ prettyPrint n <> "(" <> T.intercalate ", " (map prettyPrint (toList ps)) <> ") {-: "
                             <> prettyPrint t <> "-}"
         _ -> Nothing

@@ -78,7 +78,7 @@ type family XStatement      (p :: Pass)
 
 
 data Expr (p :: Pass) =
-      FCall (XFCall p) LexInfo (Expr p) [Expr p]
+      FCall (XFCall p) LexInfo (Expr p) (NonEmpty (Expr p))
     | IntLit (XIntLit p) LexInfo Int
           --  | FloatLit Double Text TODO: Needs Standard Library (Postfixes?)
     | UnitLit LexInfo --TODO: Replace with variable in 'base'
@@ -204,7 +204,7 @@ type ExprCoercible p1 p2 = ( XFCall p1   ~ XFCall   p2
 
 instance (ExprCoercible p1 p2) => CoercePass Expr p1 p2 where
     _coercePass = \case
-        FCall x l f as -> FCall x l (coercePass f) (map coercePass as)
+        FCall x l f as -> FCall x l (coercePass f) (fmap coercePass as)
         IntLit x l i   -> IntLit x l i
         BoolLit x l b  -> BoolLit x l b
         UnitLit l      -> UnitLit l

@@ -81,16 +81,16 @@ typeOf = \case
     UnitLit l -> pure $ UnitLit l
     FCall () l f exprs -> do
         f' <- typeOf f
-        (fargs, retT) <- maybe (throw (NotEnoughFunArgs (genericLength exprs) (getType f'))) pure 
-            $ splitFunType (genericLength exprs) (getType f')
+        (fargs, retT) <- maybe (throw (NotEnoughFunArgs (fromIntegral (length (exprs))) (getType f'))) pure 
+            $ splitFunType (fromIntegral (length (exprs))) (getType f')
         
         exprs' <- traverse typeOf exprs
         
-        let exprTypes = map getType exprs'
+        let exprTypes = fmap getType exprs'
 
-        if (exprTypes == fargs)
+        if (toList exprTypes == fargs)
         then pure $ FCall retT l f' exprs'
-        else throw $ WrongFunArgs l (tryGetFunName f) fargs exprTypes
+        else throw $ WrongFunArgs l (tryGetFunName f) fargs (toList exprTypes)
     If x l c th el -> do
         c' <- typeOf c
         when (getType c' /= boolT) $ throw $ WrongIfEType l (getType c')
