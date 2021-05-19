@@ -51,7 +51,7 @@ data Pass = SolveModules
 
 
 data Statement (p :: Pass) =
-      Def        (XDef p)       LexInfo (Name p) [(Name p, Type p)] (Expr p) (Type p)
+      Def        (XDef p)       LexInfo (Name p) [Name p] (Expr p) (Type p)
 
     | Import     (XImport p)    LexInfo (Name p) -- TODO: qualified? exposing?
 
@@ -223,7 +223,7 @@ type StatementCoercible p1 p2 = ( ExprCoercible p1 p2
         
 instance (StatementCoercible p1 p2) => CoercePass Statement p1 p2 where
     _coercePass = \case
-        Def x l f ps e t -> Def x l f (map (second coercePass) ps) (coercePass e) (coercePass t)
+        Def x l f ps e t -> Def x l f ps (coercePass e) (coercePass t)
         Import x l n -> Import x l n
         DefStruct x l n fs -> DefStruct x l n (map (second coercePass) fs)
         StatementX x l -> StatementX x l

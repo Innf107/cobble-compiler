@@ -77,23 +77,35 @@ statement :: Parser (Statement NextPass)
 statement = "statement" <??> def -- <|> importS
 
 expr :: Parser (Expr NextPass)
-expr = "expr" <??> fcall <|> expr'
+expr = "expr" <??> fcallOrVar <|> expr'
 
 expr' :: Parser (Expr NextPass)
 expr' = "expr (no fcall)" <??> uncurry (IntLit ()) <$> intLit <|> boollit <|> ifE <|> var <|> withParen expr
 
 
-
-
 def :: Parser (Statement NextPass)
-def = "function definition" <??> do
-    ((li, t), fname) <- try $ (,) <$> typeP <*> ident' <* paren' "("
-    ps <- map (\(_x, y, z) -> (y, z)) <$> typedIdent `sepBy` (reservedOp ",")
-    paren' ")"
-    reservedOp' "=>"
-    ret <- expr
-    pure $ Def () li fname ps  ret t
+def = "definition" <??> do
+    (li, sigName, ty) <- signature 
+    reservedOp' ";"
+    name <- ident'
+    when (name /= sigName) $ fail "Function definition does not immediately follow its type signature"
+    
+    params <- many ident'
 
+    reservedOp' "="
+    e <- expr
+    pure $ Def () li name params e ty
+
+
+signature :: Parser (LexInfo, Name NextPass, Type NextPass)
+signature = "type signature" <??> do
+    (li, i) <- ident
+    reservedOp' "::"
+    (_, t) <- typeP
+    pure (li, i, t)
+
+signature' :: Parser (Name NextPass, Type NextPass)
+signature' = fmap (\(_, n, t) -> (n, t)) signature
 
 defStruct :: Parser (Statement NextPass)
 defStruct = "struct definition" <??> DefStruct ()
@@ -102,12 +114,13 @@ defStruct = "struct definition" <??> DefStruct ()
     <*> between (paren' "{") (paren' "}") (typedIdent' `sepBy` (reservedOp' ","))
 
 
-fcall :: Parser (Expr NextPass)
-fcall = "function call" <??> do
-    (li, fname) <- (\x -> (getLexInfo x, x)) <$> try (expr' <* paren' "(")
-    ps <- expr `sepBy` reservedOp' ","
-    paren' ")"
-    pure $ FCall () li fname ps
+fcallOrVar :: Parser (Expr NextPass)
+fcallOrVar = "function call" <??> do
+    f <- expr'
+    args <- many expr'
+    case args of
+        [] -> pure f
+        _  -> pure $ FCall () (getLexInfo f) f args
    
    
 boollit :: Parser (Expr NextPass)
@@ -124,34 +137,36 @@ ifE = "if expression" <??> If ()
 var :: Parser (Expr NextPass)
 var = "variable" <??> uncurry (Var ()) <$> ident
 
-statementBody :: Parser [Statement NextPass]
-statementBody = paren' "{" *> statements <* paren "}"
-
 statements :: Parser [Statement NextPass]
 statements = many (statement <* reservedOp ";")
 
 typedIdent :: Parser (LexInfo, Text, Type NextPass)
 typedIdent = "typed identifier" <??> do
     (li, n) <- ident 
-    reservedOp' ":"
+    reservedOp' "::"
     (_, t) <- typeP
     pure (li, n, t)
 
 typedIdent' :: Parser (Text, Type NextPass)
 typedIdent' = (\(_, y, z) -> (y, z)) <$> typedIdent
 
-mTypedIdent :: Parser (LexInfo, Text, Maybe (Type NextPass))
-mTypedIdent = "optionally typed identifier" <??> do
-        (li, n) <- ident
-        mt <- optionMaybe $ reservedOp' ":" >> snd <$> typeP
-        pure (li, n, mt)
-
 typeP :: Parser (LexInfo, Type NextPass)
 typeP = "type" <??> do
+    (li, t1) <- namedType
+    functionType li t1 <|> pure (li, t1)
+
+namedType :: Parser (LexInfo, Type NextPass)
+namedType = do
     (li, i) <- ident
     pure $ (li,) $ if isLower (T.head $ T.takeWhileEnd (/='.') i)
         then TVar i ()
         else TCon i ()
+
+functionType :: LexInfo -> Type NextPass -> Parser (LexInfo, Type NextPass)
+functionType li tyA = do
+    reservedOp' "->"
+    (_, tyB) <- typeP
+    pure (li, tyA -:> tyB)
 
 withParen :: Parser a -> Parser a
 withParen a = paren "(" *> a <* paren ")"

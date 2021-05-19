@@ -41,7 +41,7 @@ reserved :: [String]
 reserved = ["True", "False", "void", "let", "if", "then", "else", "while", "import", "struct", "score", "log"]
 
 reservedOps :: [String]
-reservedOps = [":", ";", ",", "=", "=>"]
+reservedOps = [":", "::", ";", ",", "=", "=>", "->"]
 
 isParen :: Char -> Bool
 isParen = (`elem`"()[]{}")

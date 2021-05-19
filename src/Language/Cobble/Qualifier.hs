@@ -71,9 +71,9 @@ qualifyStatement s = log LogDebugVerbose ("QUALIFYING STATEMENT: " <> show s) >>
         innerN <- askPref <&> (.: ("-fun_" <> n))
         addName li n
         (ps', le') <- localPref (.: ("-fun_" <> n)) $ do
-            traverse_ (addName li . fst) ps
+            traverse_ (addName li) ps
             (,)
-                <$> traverse (bitraverse (pure . (innerN .:)) (qualifyType li)) ps
+                <$> traverse (pure . (innerN .:)) ps
                 <*> qualifyExp e
         t' <- qualifyType li t
         pure $ Def () li n' ps' le' t'
