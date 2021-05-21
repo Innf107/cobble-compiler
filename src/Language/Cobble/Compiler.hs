@@ -223,9 +223,17 @@ data Rep = RepNum | RepEntity | RepArray deriving (Show, Eq)
 unitReg :: Register
 unitReg = NumReg (NamedReg "UNIT")
 
+trueReg :: Register
+trueReg = NumReg (NamedReg "TRUE")
+
+falseReg :: Register
+falseReg = NumReg (NamedReg "FALSE")
+
 primOpEnv :: (Member (Writer [Instruction]) r, CompileC r) => P.PrimOpEnv r
 primOpEnv = P.PrimOpEnv {
         compileExprToReg
     ,   newReg
     ,   unitReg
+    ,   trueReg
+    ,   falseReg
     }
