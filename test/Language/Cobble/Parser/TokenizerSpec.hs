@@ -25,7 +25,7 @@ spec = do
         it "handles reserved identifiers" do
             map tokData <$> tokenize "Test" "this Falsee is a True import bool"
                 `shouldBe`
-                Right [Ident "this", Ident "Falsee", Ident "is", Ident "a", Reserved "True", Reserved "import", Ident "bool"]
+                Right [Ident "this", Ident "Falsee", Ident "is", Ident "a", Ident "True", Reserved "import", Ident "bool"]
         it "handles reserved operators" do
             map tokData <$> tokenize "Test" "x : y := 4;"
                 `shouldBe`
@@ -34,7 +34,7 @@ spec = do
             tokenize "Test" "this is also\n True + //-/ (12 * 23 )"
                 `shouldBe`
                 Right [Token (LexInfo 1 1 "Test") (Ident "this"), Token (LexInfo 1 6 "Test") (Ident "is"),
-                       Token (LexInfo 1 9 "Test") (Ident "also"), Token (LexInfo 2 2 "Test") (Reserved "True"),
+                       Token (LexInfo 1 9 "Test") (Ident "also"), Token (LexInfo 2 2 "Test") (Ident "True"),
                        Token (LexInfo 2 7 "Test") (Operator "+"), Token (LexInfo 2 9 "Test") (Operator "//-/"),
                        Token (LexInfo 2 14 "Test") (Paren "("), Token (LexInfo 2 15 "Test") (IntLiteral 12),
                        Token (LexInfo 2 18 "Test") (Operator "*"), Token (LexInfo 2 20 "Test") (IntLiteral 23), 

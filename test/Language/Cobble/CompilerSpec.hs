@@ -11,7 +11,8 @@ import Language.Cobble.Codegen.Types
 import Test.Hspec
 
 spec :: Spec
-spec = do
+spec = pass
+    {- do
     describe "statements" do
         describe "Decl" do
             pass
@@ -20,7 +21,7 @@ spec = do
                 compileTest [Assign () dli "test.x" (IntLit () dli 23)]
                     `shouldBe`
                     Left (TestPanic $ Panic "Variable test.x not found. This should have been caught earlier!")
-
+-}
 
 data TestError = TestPanic Panic
                | TestMcAsmError McAsmError

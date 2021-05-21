@@ -12,8 +12,8 @@ import Test.Hspec
 
 spec :: Spec
 spec = do
-    describe "statement" do
-        describe "callFun" pass
+    describe "statement" pass
+        {-describe "callFun" pass
         -- TODO
         describe "defVoid" do
             it "parses correct inputs without parameters and an empty body" do
@@ -132,9 +132,9 @@ spec = do
                     Right (While () (LexInfo 1 1 "Test") (BoolLit () (LexInfo 1 7 "Test") True) [
                           Decl () (LexInfo 3 5 "Test") "x" Nothing (IntLit () (LexInfo 3 13 "Test") 5)
                         , Assign () (LexInfo 4 5 "Test") "x" (IntLit () (LexInfo 4 9 "Test") 6)
-                        ])
+                        ])-}
     describe "expr" do
-        describe "fcall" do
+        {-describe "fcall" do
             it "parses correct inputs without parameters" do
                 testParse fcall "f()"
                     `shouldBe`
@@ -149,14 +149,15 @@ spec = do
                     `shouldBe`
                     Right (FCall () (LexInfo 1 1 "Test") (Var () (LexInfo 1 1 "Test") "f") [IntLit () (LexInfo 1 3 "Test") 1
                             , FCall () (LexInfo 1 6 "Test") (Var () (LexInfo 1 6 "Test") "g") [IntLit () (LexInfo 1 8 "Test") 2]])
-            it "can be chosen by expr" do
+                            -}
+            {-it "can be chosen by expr" do
                 testParse expr "f()"
                     `shouldBe`
                     Right (FCall () (LexInfo 1 1 "Test") (Var () (LexInfo 1 1 "Test") "f") [])
                 testParse expr "f(1, True)"
                     `shouldBe`
                     Right (FCall () (LexInfo 1 1 "Test") (Var () (LexInfo 1 1 "Test") "f") [IntLit () (LexInfo 1 3 "Test") 1
-                        , BoolLit () (LexInfo 1 6 "Test") True])
+                        , BoolLit () (LexInfo 1 6 "Test") True])-}
         describe "intLit" do
             it "parses correct inputs" do
                 testParse intLit "5432"
@@ -166,13 +167,13 @@ spec = do
                 testParse expr "54321"
                     `shouldBe`
                     Right (IntLit () (LexInfo 1 1 "Test") 54321)
-        describe "boolLit" do
+        {-describe "boolLit" do
             it "parses correct inputs" do
                 testParse boollit "True" `shouldBe` Right (BoolLit () (LexInfo 1 1 "Test") True)
                 testParse boollit "False" `shouldBe` Right (BoolLit () (LexInfo 1 1 "Test") False)
             it "can be chosen by expr" do
                 testParse expr "True" `shouldBe` Right (BoolLit () (LexInfo 1 1 "Test") True)
-                testParse expr "False" `shouldBe` Right (BoolLit () (LexInfo 1 1 "Test") False)
+                testParse expr "False" `shouldBe` Right (BoolLit () (LexInfo 1 1 "Test") False) -}
         describe "var" do
             it "parses correct inputs" do
                 testParse var "x" `shouldBe` Right (Var () (LexInfo 1 1 "Test") "x")

@@ -9,7 +9,7 @@ import Test.Hspec as S
 spec :: Spec
 spec = do
     describe "qualifyStatement" do
-        describe "CallFun" do
+        {-describe "CallFun" do
             it "finds the function name in the surrounding context" do
                 testQual [Scope "Mod2" [] ["f"] mempty] (qualifyStatement (
                     CallFun () dli (Var () dli "f") []
@@ -145,7 +145,7 @@ spec = do
                       , Assign () dli "Mod1.-while1.x" (Var () dli "Mod1.-while1.x")
                       ]
                     , Assign () dli "Mod1.x" (Var () dli "Mod1.x")
-                    ]
+                    ] -}
         describe "DefStruct" do
             it "correctly qualifies its field types" do
                 testQual [] (qualifyStatement (DefStruct () dli "SomeStruct" [("x", intT)]))
@@ -155,7 +155,7 @@ spec = do
                 testQual [] (qualifyStatement (DefStruct () dli "SomeStruct" [("f", TCon "SomeStruct" ())]))
                     `shouldBe`
                     Right (DefStruct () dli "Mod1.SomeStruct" [("Mod1.SomeStruct.f", TCon "Mod1.SomeStruct" KStar)])
-            it "is added to the type names in the current scopes" do
+            {-it "is added to the type names in the current scopes" do
                 testQual [] (traverse qualifyStatement [
                       DefStruct () dli "SomeStruct" []
                     , Decl () dli "x" (Just (TCon "SomeStruct" ())) (IntLit () dli 42)
@@ -173,8 +173,8 @@ spec = do
                       , Decl () dli "x" (Just (TCon "SomeStruct" ())) (IntLit () dli 42)
                     ])
                     `shouldBe`
-                    Left (TypeNotFound dli "SomeStruct")
-    describe "qualifyExpr" do
+                    Left (TypeNotFound dli "SomeStruct") -}
+    {-describe "qualifyExpr" do
         describe "FCall" do
             it "finds the function name from the outer scope" do
                 testQual [Scope "Mod2" [] ["f"] mempty] (qualifyExp (
@@ -187,17 +187,17 @@ spec = do
                     FCall () dli (Var () dli "f") [(Var () dli "x"), (Var () dli "f")]
                     ))
                     `shouldBe`
-                    Right (FCall () dli (Var () dli "Mod2.f") [Var () dli "Mod2.x", Var () dli "Mod2.f"])
+                    Right (FCall () dli (Var () dli "Mod2.f") [Var () dli "Mod2.x", Var () dli "Mod2.f"])  -}
         describe "IntLit" do
             it "is completely unaffected" do
                 testQual [] (qualifyExp (IntLit () dli 42))
                     `shouldBe`
                     Right (IntLit () dli 42)
-        describe "BoolLit" do
+        {-describe "BoolLit" do
             it "is completely unaffected" do
                 testQual [] (qualifyExp (BoolLit () dli True))
                     `shouldBe`
-                    Right (BoolLit () dli True)
+                    Right (BoolLit () dli True) -}
         describe "Var" do
             it "finds its name in the surrounding environment" do
                 testQual [Scope "Mod2" [] ["x"] mempty] (qualifyExp (Var () dli "x"))
@@ -213,10 +213,10 @@ spec = do
             testQual [Scope "Mod" [] [] mempty] (qualifyMod (Module mempty "MyMod" []))
                 `shouldBe`
                 Right (Module mempty "MyMod" [])
-        it "prefixes all statements" do
+        {-it "prefixes all statements" do
             testQual [Scope "Mod" [] [] mempty] (qualifyMod (Module mempty "MyMod" [Decl () dli "x" Nothing (IntLit () dli 5)]))
                 `shouldBe`
-                Right (Module mempty "MyMod" [Decl () dli "Mod.x" Nothing (IntLit () dli 5)])
+                Right (Module mempty "MyMod" [Decl () dli "Mod.x" Nothing (IntLit () dli 5)]) -}
     describe "qualifyType" do
         pass
 

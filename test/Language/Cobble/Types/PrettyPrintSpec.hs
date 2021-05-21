@@ -51,6 +51,7 @@ spec = do
                     prettyPrint (IntLit () dli 42 :: Expr 'QualifyNames) `shouldBe` "42"
                     prettyPrint (IntLit () dli 42 :: Expr 'Typecheck) `shouldBe` "42"
                     prettyPrint (IntLit () dli 42 :: Expr 'Codegen) `shouldBe` "42"
+        {-
         describe "BoolLit" do
             context "For all unchanged passes" do
                 it "converts the literal to a text (lowercase)" do
@@ -59,7 +60,7 @@ spec = do
                     prettyPrint (BoolLit () dli True :: Expr 'Typecheck) `shouldBe` "true"
                     prettyPrint (BoolLit () dli False :: Expr 'Typecheck) `shouldBe` "false"
                     prettyPrint (BoolLit () dli True :: Expr 'Codegen) `shouldBe` "true"
-                    prettyPrint (BoolLit () dli False :: Expr 'Codegen) `shouldBe` "false"
+                    prettyPrint (BoolLit () dli False :: Expr 'Codegen) `shouldBe` "false"-}
         describe "Var" do
             context "For all unchanged passes" do
                 it "just takes the variable name" do
@@ -69,6 +70,7 @@ spec = do
                 it "adds the type information in a comment" do
                     prettyPrint (Var intT dli "x" :: Expr 'Codegen) `shouldBe` "x {-: prims.Int (:: *)-}"
                     prettyPrint (Var (TCon "T" KStar) dli "x" :: Expr 'Codegen) `shouldBe` "x {-: T (:: *)-}"
+        {-
         describe "FCall" do
             context "For all unchanged passes" do
                 it "displays the function call like a C-like language " do
@@ -82,7 +84,7 @@ spec = do
                         `shouldBe` "f(x {-: prims.Int (:: *)-}, 5) {-: prims.Int (:: *)-}"
     describe "PrettyPrint on Statements" do
         pass -- TODO
-
+-}
 
 dli :: LexInfo
 dli = LexInfo 0 0 "Test"
