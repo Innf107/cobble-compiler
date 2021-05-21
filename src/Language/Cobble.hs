@@ -148,8 +148,8 @@ extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
 
 makePartialSig :: S.Statement 'Codegen -> ModSig
 makePartialSig = \case
-    Def () _ n _ _ t            -> mempty {exportedVars = one (n, t)}
-    DefStruct () _ n fs         -> mempty {exportedStructs = one (n, fs)}
+    Def _ _ n _ _ t            -> mempty {exportedVars = one (n, t)}
+    DefStruct () _ n fs         -> mempty {exportedTypes = one (n, (KStar, RecordType fs))} -- TODO: Change Kind when polymorphism is implemented
     Import () _ _               -> mempty
     StatementX v _              -> absurd v
 
@@ -159,11 +159,15 @@ getModName = toText . FP.dropExtension . L.last . segments
 
 primModSig :: ModSig
 primModSig = ModSig {
-        exportedFunctions = fmap (\(ps, ret, _) -> (ps,ret)) $ primOps 
-            @'[Output Log, Writer [Instruction], Error Panic, State CompileState, Error McAsmError]
-            -- The type application is only necessary to satisfy the type checker since the value depending on the type of 'r' is ignored
-    ,   exportedVars = mempty
-    ,   exportedStructs = fromList [("prims.Int", []), ("prims.Bool", []), ("prims.Entity", []), ("prims.Unit", [])]
+        exportedVars = fmap fst $ primOps @'[Output Log, Writer [Instruction], Error Panic, State CompileState, Error McAsmError]
+            -- The type application is only necessary to satisfy the type checker since the value depending on the type 'r' is ignored
+    ,   exportedTypes = fromList [
+              ("prims.Int", (KStar, BuiltInType))
+            , ("prims.Bool", (KStar, BuiltInType))
+            , ("prims.Entity", (KStar, BuiltInType))
+            , ("prims.Unit", (KStar, BuiltInType))
+            , ("prims.->", (KStar `KFun` KStar `KFun` KStar, BuiltInType))
+            ]
     }
 
 

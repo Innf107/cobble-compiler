@@ -9,7 +9,7 @@ type NextPass = 'Codegen
 data TypeError = VarDoesNotExist LexInfo (Name NextPass)
                --  | FunctionDoesNotExist LexInfo (Name NextPass) -- Unused since functions are now treated as plain exprs
                | WrongFunArgs LexInfo (Maybe (Name NextPass)) [Type NextPass] [Type NextPass]
-               | NotEnoughFunArgs Natural (Type NextPass)
+               | TooManyFunArgs Natural (Type NextPass)
 --                                       ^ expected
                | WrongReturnType LexInfo (Name NextPass) (Type NextPass) (Type NextPass)
 --                                         ^ expected
@@ -69,22 +69,31 @@ typecheck = \case
         then pure (DefFun () l fname args stmnts' lastexpr' retT)
         else throw (WrongReturnType l fname retT (getType lastexpr'))
     -}
-    DefStruct () l name (conv -> fields) -> pure $ DefStruct () l name fields -- TODO: Add to state map
+    Def () l name ps body ty -> do
+        insertVarType name (coercePass ty)
+        case splitFunType (genericLength ps) (coercePass ty) of
+            Nothing -> throw $ TooManyFunArgs (genericLength ps) (coercePass ty)
+            Just (ptys, retTy) -> do
+                zipWithM_ (insertVarType) ps ptys
+                body' <- tcExpr body
+                if (getType body' == retTy)
+                then pure $ Def retTy l name (zip ps ptys) body' (coercePass ty)
+                else throw (WrongReturnType l name retTy (getType body'))
+        
+    DefStruct () l name (conv -> fields) -> pure $ DefStruct () l name fields -- TODO: Add to state map -- or not? (The qualifier does this already right?)
     Import () l modName -> pure $ Import () l modName
     StatementX x _l -> case x of
 
-typeOf :: (TypecheckC r) => Expr 'Typecheck -> Sem r (Expr NextPass)
-typeOf = \case
+tcExpr :: (TypecheckC r) => Expr 'Typecheck -> Sem r (Expr NextPass)
+tcExpr = \case
     IntLit () l x -> pure $ IntLit () l x
     -- FloatLit x -> pure (FloatLit x, FloatT)
-    BoolLit () l x -> pure $ BoolLit () l x
-    UnitLit l -> pure $ UnitLit l
     FCall () l f exprs -> do
-        f' <- typeOf f
-        (fargs, retT) <- maybe (throw (NotEnoughFunArgs (fromIntegral (length (exprs))) (getType f'))) pure 
+        f' <- tcExpr f
+        (fargs, retT) <- maybe (throw (TooManyFunArgs (fromIntegral (length (exprs))) (getType f'))) pure -- TODO: Wrong error message D:
             $ splitFunType (fromIntegral (length (exprs))) (getType f')
         
-        exprs' <- traverse typeOf exprs
+        exprs' <- traverse tcExpr exprs
         
         let exprTypes = fmap getType exprs'
 
@@ -92,10 +101,10 @@ typeOf = \case
         then pure $ FCall retT l f' exprs'
         else throw $ WrongFunArgs l (tryGetFunName f) fargs (toList exprTypes)
     If x l c th el -> do
-        c' <- typeOf c
+        c' <- tcExpr c
         when (getType c' /= boolT) $ throw $ WrongIfEType l (getType c')
-        th' <- typeOf th
-        el' <- typeOf el
+        th' <- tcExpr th
+        el' <- tcExpr el
         if (getType th' == getType el')
         then pure (If x l c' th' el')
         else throw $ DifferentIfETypes l (getType th') (getType el')

@@ -17,6 +17,10 @@ deriving instance Show ModSig
 deriving instance Eq ModSig
 deriving instance Data ModSig
 
+deriving instance Show TypeVariant
+deriving instance Eq TypeVariant
+deriving instance Data TypeVariant
+
 deriving instance Show     (Module 'Codegen)
 deriving instance Eq       (Module 'Codegen)
 deriving instance Generic  (Module 'Codegen)
@@ -43,14 +47,14 @@ deriving instance Typeable (Type 'Codegen)
 
 type instance XModule 'Codegen = Map (Name 'Codegen) ModSig
 
-type instance XDef     'Codegen = ()
+type instance XDef     'Codegen = Type 'Codegen -- Return Type
+type instance XParam   'Codegen = [(Name 'Codegen, Type 'Codegen)]
 type instance XImport  'Codegen = ()
 type instance XDefStruct 'Codegen = ()
 type instance XStatement 'Codegen = Void
 
 type instance XFCall   'Codegen = Type 'Codegen
 type instance XIntLit  'Codegen = ()
-type instance XBoolLit 'Codegen = ()
 type instance XIf      'Codegen = (QualifiedName, Int)
 type instance XVar     'Codegen = Type 'Codegen
 type instance XLet     'Codegen = ()

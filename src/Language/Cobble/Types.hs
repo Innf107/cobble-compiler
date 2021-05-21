@@ -28,7 +28,6 @@ instance HasType (Expr 'Codegen) 'Codegen where
         Var x _ _ -> x
         IntLit () _ _ -> intT
         If _ _ _ th _ -> getType th
-        BoolLit () _ _ -> boolT
         UnitLit _ -> unitT
         Let _ _ _ _ e -> getType e
         ExprX v _ -> absurd v

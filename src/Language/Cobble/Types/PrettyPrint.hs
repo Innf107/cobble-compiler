@@ -44,7 +44,6 @@ instance (PrettyPrintExt p, PrettyPrint (Name p), Show (Statement p), Show (Expr
 instance (PrettyPrintExt p, PrettyPrint (Name p), Show (Expr p)) => PrettyPrint (Expr p) where
     prettyPrint = \case
         e@(IntLit _ _ i) -> prettyPrintExtEx e ?. show i
-        e@(BoolLit _ _ b) -> prettyPrintExtEx e ?. bool "false" "true" b
         e@(FCall _ _ n as) -> prettyPrintExtEx e ?. prettyPrint n <> "(" <> T.intercalate ", " (map prettyPrint (toList as)) <> ")"
         e@(Var _ _ n) -> prettyPrintExtEx e ?. prettyPrint n
         e -> prettyPrintExtEx e ?. error ("Cannot PrettyPrint '" <> show e <> "'")

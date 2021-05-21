@@ -103,7 +103,6 @@ qualifyExp e = do
                 ps' <- traverse qualifyExp ps
                 pure $ FCall () li f' ps'
             IntLit () li i -> pure $ IntLit () li i
-            BoolLit () li b -> pure $ BoolLit () li b
             UnitLit li -> pure $ UnitLit li
             If  () li c th el -> do
                 ifeID <- newUID
@@ -119,43 +118,36 @@ qualifyExp e = do
             ExprX x _li -> case x of
 
 
--- TODO: Fix Kind inference
 qualifyType :: forall r. (QualifyC r, Member (Reader Dependencies) r) => LexInfo -> Type 'QualifyNames -> Sem r (Type NextPass)
-qualifyType li t = log LogDebugVeryVerbose ("QUALIFYING TYPE: " <> show t) >> qtInner KStar t
+qualifyType li t = log LogDebugVeryVerbose ("QUALIFYING TYPE: " <> show t) >> qtInner t
     where 
-        qtInner :: Kind -> Type 'QualifyNames -> Sem r (Type NextPass)
-        qtInner k = \case
+        qtInner :: Type 'QualifyNames -> Sem r (Type NextPass)
+        qtInner = \case
             TCon n ()   -> do
                 TCon <$> lookupTypeName n li <*> lookupKind n li
-            TApp t1 t2  -> do
-                t1' <- qtInner (KStar `KFun` k) t1
-                kind' t1' >>= \case
-                    KFun k1 _k2 -> do
-                        t2' <- qtInner k1 t2
-                        pure $ TApp t1' t2'
-                    _ -> throw $ EarlyKindMismatch t1 t2
-            TVar v ()   -> pure $ TVar (QualifiedName [v]) k
+            TApp t1 t2  -> TApp <$> qtInner t1 <*> qtInner t2
+            TVar v ()   -> pure $ TVar (QualifiedName [v]) KStar -- TODO
 
 lookupName :: (QualifyC r, Member (Reader (Map QualifiedName ModSig)) r) => Text -> LexInfo -> Sem r QualifiedName
 lookupName n li = get @[Scope] >>= \scopes -> ask >>= \deps -> do
     log LogDebugVeryVerbose ("LOOKING UP NAME '" <> show n <> "' IN " <> show scopes)
     maybe (throw (NameNotFound li n)) pure $
         (flip asumMap scopes $ \s -> whenAlt (n `elem` _varFunNames s) (_prefix s .: n))
-        <|> flip asumMap (M.toList deps) (\(modName, ModSig{exportedFunctions, exportedVars}) 
-            -> if (modName .: n) `member` (M.keysSet exportedFunctions <> M.keysSet exportedVars) then Just (modName .: n) else Nothing)
+        <|> flip asumMap (M.toList deps) (\(modName, ModSig{exportedVars}) 
+            -> if (modName .: n) `member` (M.keysSet exportedVars) then Just (modName .: n) else Nothing)
 lookupTypeName :: (QualifyC r, Member (Reader (Map QualifiedName ModSig)) r) => Text -> LexInfo -> Sem r QualifiedName
 lookupTypeName n li = get @[Scope] >>= \scopes -> ask >>= \deps -> do
     log LogDebugVeryVerbose ("LOOKING UP Type '" <> show n <> "' IN " <> show scopes <> " AND " <> show deps)
     maybe (throw (TypeNotFound li n)) pure $
         flip asumMap scopes (\s -> whenAlt (n `elem` _typeNames s) (_prefix s .: n))
-        <|> flip asumMap (M.toList deps) (\(modName, ModSig{exportedStructs}) -> lookup (modName .: n) exportedStructs $> modName .: n)
+        <|> flip asumMap (M.toList deps) (\(modName, ModSig{exportedTypes}) -> lookup (modName .: n) exportedTypes $> modName .: n)
 
 lookupKind :: (QualifyC r, Member (Reader (Map QualifiedName ModSig)) r) => Text -> LexInfo -> Sem r Kind
 lookupKind n li = get @[Scope] >>= \scopes -> ask >>= \deps -> do
     log LogDebugVeryVerbose ("LOOKING UP KIND OF NAME '" <> show n <> "' IN " <> show scopes <> " AND " <> show deps)
     maybe (throw (TypeNotFound li n)) pure $
         flip asumMap scopes $ \s -> lookup n (_typeKinds s)
-        <|> flip asumMap (M.toList deps) (\(modName, ModSig{exportedStructs}) -> lookup (modName .: n) exportedStructs $> kStar)
+        <|> flip asumMap (M.toList deps) (\(modName, ModSig{exportedTypes}) -> fst <$> (lookup (modName .: n) exportedTypes))
 
 
 kind' :: (QualifyC r) => Type NextPass -> Sem r Kind

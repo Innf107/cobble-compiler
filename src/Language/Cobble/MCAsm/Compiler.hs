@@ -235,3 +235,4 @@ moveReg o1 r1 o2 r2 = moveScoreboard o1 (renderReg r1) o2 (renderReg r2)
 
 comment :: Text -> IntermediateResult
 comment = InterInstructions . pure . McFunction . ("#" <>)
+

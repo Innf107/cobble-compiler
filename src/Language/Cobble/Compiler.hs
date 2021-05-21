@@ -92,6 +92,16 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
             modify (& frames %~ unsafeTail)
             tell [MoveReg (returnReg (regRep res)) res]
     -}
+    Def retT _li name ps body ty -> do
+        modify (& functions . at name ?~ Function {_params=ps, _returnType=retT})
+        tell . pure . A.Section name . fst =<< runWriterAssocR do
+            parRegs <- traverse (\(_, pt) -> newRegForType VarReg pt) ps
+            modify (& frames %~ (emptyFrame |:))
+            modify (& frames . head1 . varRegs .~ fromList (zip (map fst ps) parRegs))
+            modify (& frames . head1 . regs .~ parRegs)
+            res <- compileExprToReg body
+            modify (& frames %~ unsafeTail)
+            tell [MoveReg (returnReg (regRep res)) res]
     Import () _ _ -> pass
     DefStruct () _ _ _ -> pass
     StatementX x _ -> absurd x
@@ -103,10 +113,10 @@ renderLogSeg (LogVar v) = get <&> join . (^? frames . head1 . varRegs . at v) >>
                                   Just vReg -> pure $ T.intercalate "," $ ["REGS", "EPTR", "APTR"] & map (\s ->
                                     "{\"score\":{\"name\":\""<> renderReg vReg <>"\",\"objective\":\"" <> s <> "\"}}")
 
-compileExprToReg :: (Member (Writer [Instruction]) r, CompileC r) => Expr 'Codegen -> Sem r Register
+compileExprToReg :: forall r. (Member (Writer [Instruction]) r, CompileC r) => Expr 'Codegen -> Sem r Register
 compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e & \case
     (IntLit () _li i)  -> newReg TempReg NumReg >>= \reg -> tell [MoveNumLit reg i] $> reg
-    (BoolLit () _li b) -> newReg TempReg NumReg >>= \reg -> tell [MoveNumLit reg (bool 0 1 b)] $> reg
+    (UnitLit _li) -> pure unitReg
     (Var t _li n) -> get <&> join . (^? frames . head1 . varRegs . at n) >>= \case
         Nothing -> panicVarNotFoundTooLate n
         Just vReg -> do
@@ -114,8 +124,8 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
             tell [MoveReg retReg vReg]
             pure $ retReg
     -- (FloatT, FloatLit i) -> pure [MoveNumReg (NumReg reg)]
-    (FCall t _li (Var _ _vli fname) args) -> case lookup fname primOps of
-        Just (_, _, primOpF) -> primOpF primOpEnv (toList args)
+    (FCall t _li (Var _ _vli fname) args) -> case lookup fname (primOps @r) of
+        Just (_, primOpF) -> primOpF primOpEnv (toList args)
         Nothing -> do
             get <&> (^. functions . at fname) >>= \case
                 Nothing -> panicFunNotFoundTooLate fname
@@ -132,9 +142,8 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
                     ret <- newRegForType TempReg t
                     tell [MoveReg ret (returnReg (rtType t))]
                     case (f ^. returnType) of
-                        Nothing -> panic' "Called a void function as an expression" [show fname]
-                        Just t' | t' /= t -> panic' "Return type of function does not match fcall expr return type" [show fname, show t, show t']
-                        Just _ -> pure $ ret
+                        t' | t' /= t -> panic' "Return type of function does not match fcall expr return type" [show fname, show t, show t']
+                        _ -> pure $ ret
     FCall _t li ex _as -> panic' "Cannot indirectly call a function yet. This is *NOT* a bug" [show ex, show li]
     If (name, ifID) _li c th el -> do
         cr <- compileExprToReg c
@@ -211,8 +220,12 @@ mkRegFromRep r i = case r of
 
 data Rep = RepNum | RepEntity | RepArray deriving (Show, Eq)
 
+unitReg :: Register
+unitReg = NumReg (NamedReg "UNIT")
+
 primOpEnv :: (Member (Writer [Instruction]) r, CompileC r) => P.PrimOpEnv r
 primOpEnv = P.PrimOpEnv {
         compileExprToReg
     ,   newReg
+    ,   unitReg
     }

@@ -34,14 +34,17 @@ type family XModule (p :: Pass)
 -- (Variables, Functions, Types, etc.)
 data ModSig = ModSig {
     exportedVars :: Map QualifiedName (Type 'Codegen)
-,   exportedFunctions :: Map (QualifiedName) ([(QualifiedName, Type 'Codegen)], Maybe (Type 'Codegen))
-,   exportedStructs :: Map (QualifiedName) [(QualifiedName, Type 'Codegen)]
+,   exportedTypes :: Map QualifiedName (Kind, TypeVariant)
 } deriving (Generic, Typeable) -- Instances for @Eq@ and @Data@ are defined in Language.Cobble.Types.AST.Codegen
+
+data TypeVariant = RecordType [(QualifiedName, Type 'Codegen)]
+                 | BuiltInType
+                 deriving (Generic, Typeable)
 
 type Dependencies = Map QualifiedName ModSig
 
-instance Semigroup ModSig where ModSig vs fs ts <> ModSig vs' fs' ts' = ModSig (vs <> vs') (fs <> fs') (ts <> ts')
-instance Monoid ModSig where mempty = ModSig mempty mempty mempty
+instance Semigroup ModSig where ModSig vs ts <> ModSig vs' ts' = ModSig (vs <> vs') (ts <> ts')
+instance Monoid ModSig where mempty = ModSig mempty mempty
 
 -- | A data kind representing the state of the AST at a certain Compiler pass.
 data Pass = SolveModules
@@ -51,10 +54,8 @@ data Pass = SolveModules
 
 
 data Statement (p :: Pass) =
-      Def        (XDef p)       LexInfo (Name p) [Name p] (Expr p) (Type p)
-
+      Def        (XDef p)       LexInfo (Name p) (XParam p) (Expr p) (Type p)
     | Import     (XImport p)    LexInfo (Name p) -- TODO: qualified? exposing?
-
     | DefStruct  (XDefStruct p) LexInfo (Name p) [(Name p, Type p)]
     | StatementX (XStatement p) LexInfo
 
@@ -72,6 +73,7 @@ instance (Name p1 ~ Name p2) => CoercePass LogSegment p1 p2 where
     _coercePass (LogVar n) = LogVar n
 
 type family XDef            (p :: Pass)
+type family XParam          (p :: Pass)
 type family XImport         (p :: Pass)
 type family XDefStruct      (p :: Pass)
 type family XStatement      (p :: Pass)
@@ -80,9 +82,8 @@ type family XStatement      (p :: Pass)
 data Expr (p :: Pass) =
       FCall (XFCall p) LexInfo (Expr p) (NonEmpty (Expr p))
     | IntLit (XIntLit p) LexInfo Int
+    | UnitLit LexInfo
           --  | FloatLit Double Text TODO: Needs Standard Library (Postfixes?)
-    | UnitLit LexInfo --TODO: Replace with variable in 'base'
-    | BoolLit (XBoolLit p) LexInfo Bool
     | If    (XIf p) LexInfo (Expr p) (Expr p) (Expr p)
     | Let   (XLet p) LexInfo (Name p) (Expr p) (Expr p)
     | Var   (XVar p) LexInfo (Name p)
@@ -90,7 +91,6 @@ data Expr (p :: Pass) =
 
 type family XFCall   (p :: Pass)
 type family XIntLit  (p :: Pass)
-type family XBoolLit (p :: Pass)
 type family XIf      (p :: Pass)
 type family XLet     (p :: Pass)
 type family XVar     (p :: Pass)
@@ -98,17 +98,22 @@ type family XExpr    (p :: Pass)
 
 data Kind = KStar | KFun Kind Kind deriving (Eq, Generic, Data, Typeable)
 
+infixr 5 `KFun`
 
 data Type (p :: Pass) = TCon (Name p) (XKind p)
                       | TApp (Type p) (Type p)
                       | TVar (Name p) (XKind p)
 
-(-:>) :: (IsString (Name p), IsKind (XKind p)) => Type p -> Type p -> Type p
-t1 -:> t2 = TApp (TApp (TCon "->" (kFun kStar (kFun kStar kStar))) t1) t2 
+(-:>) :: (TyLit (Name p), IsKind (XKind p)) => Type p -> Type p -> Type p
+t1 -:> t2 = TApp (TApp (TCon tyFunT (kFun kStar (kFun kStar kStar))) t1) t2
 infixr 5 -:>
 
-pattern (:->) :: (IsString (Name p), Eq (Name p), XKind p ~ Kind) => Type p -> Type p -> Type p
-pattern (:->) t1 t2 = TApp (TApp (TCon "->" (KFun KStar (KFun KStar KStar))) t1) t2
+pattern (:->) :: (Name p ~ QualifiedName, Eq (Name p), XKind p ~ Kind) => Type p -> Type p -> Type p
+pattern (:->) t1 t2 = TApp (TApp (TCon "prims.->" (KFun KStar (KFun KStar KStar))) t1) t2
+
+pattern (:~>) :: (Name p ~ Text, Eq (Name p), XKind p ~ Kind) => Type p -> Type p -> Type p
+pattern (:~>) t1 t2 = TApp (TApp (TCon "->" (KFun KStar (KFun KStar KStar))) t1) t2
+
 
 type family XKind (p :: Pass)
 
@@ -132,18 +137,21 @@ instance S.Show Kind where
     show (KFun k1 k2) = "(" <> show k1 <> " -> " <> show k2 <> ")"
 
 class TyLit n where
-    tyIntT :: n
+    tyIntT  :: n
     tyBoolT :: n
     tyUnitT :: n 
+    tyFunT  :: n
     
 instance TyLit QualifiedName where
-    tyIntT = "prims.Int"
+    tyIntT  = "prims.Int"
     tyBoolT = "prims.Bool"
     tyUnitT = "prims.Unit"
+    tyFunT  = "prims.->"
 instance TyLit Text where
     tyIntT = "Int"
     tyBoolT = "Bool"
     tyUnitT = "Unit"
+    tyFunT  = "->"
 
 intT, boolT, unitT :: (IsKind (XKind p), TyLit (Name p)) => Type p
 intT  = TCon tyIntT (fromKind KStar)
@@ -195,7 +203,6 @@ instance TypeCoercible p1 p2 => CoercePass Type p1 p2 where
 type ExprCoercible p1 p2 = ( XFCall p1   ~ XFCall   p2
                          , XIntLit  p1   ~ XIntLit  p2
                          , Name     p1   ~ Name     p2
-                         , XBoolLit p1   ~ XBoolLit p2
                          , XIf      p1   ~ XIf      p2
                          , XLet     p1   ~ XLet     p2
                          , XVar     p1   ~ XVar     p2
@@ -206,7 +213,6 @@ instance (ExprCoercible p1 p2) => CoercePass Expr p1 p2 where
     _coercePass = \case
         FCall x l f as -> FCall x l (coercePass f) (fmap coercePass as)
         IntLit x l i   -> IntLit x l i
-        BoolLit x l b  -> BoolLit x l b
         UnitLit l      -> UnitLit l
         If x l c th el -> If x l (coercePass c) (coercePass th) (coercePass el)
         Let x l v e b  -> Let x l v (coercePass e) (coercePass b)
@@ -215,7 +221,8 @@ instance (ExprCoercible p1 p2) => CoercePass Expr p1 p2 where
         
 type StatementCoercible p1 p2 = ( ExprCoercible p1 p2
                                 , TypeCoercible p1 p2
-                                , XDef       p1 ~ XDef    p2 
+                                , XDef       p1 ~ XDef    p2
+                                , XParam     p1 ~ XParam  p2
                                 , XImport    p1 ~ XImport p2
                                 , XDefStruct p1 ~ XDefStruct p2
                                 , XStatement p1 ~ XStatement p2
@@ -242,7 +249,6 @@ instance HasLexInfo (Expr p) where
     getLexInfo = \case
         FCall _ li _ _      -> li
         IntLit _ li _       -> li
-        BoolLit _ li _      -> li
         UnitLit li          -> li
         If _ li _ _ _       -> li
         Let _ li _ _ _      -> li

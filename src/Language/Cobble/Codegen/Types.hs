@@ -19,16 +19,19 @@ data Frame = Frame {
 
 data Function = Function {
       _params :: [(Name 'Codegen, Type 'Codegen)]
-    , _returnType :: Maybe (Type 'Codegen)
+    , _returnType :: Type 'Codegen
     } deriving (Show, Eq)
 
 type PrimOpC r = (CompileC r, Member (Writer [Instruction]) r)
 
-type PrimOp r = ([(QualifiedName, Type 'Codegen)], Maybe (Type 'Codegen), PrimOpF r)
+type PrimOp r = (Type 'Codegen, PrimOpF r)
 
 type PrimOpF r = PrimOpEnv r -> [Expr 'Codegen] -> Sem r Register
 
 data PrimOpEnv r = PrimOpEnv {
         compileExprToReg :: Expr 'Codegen -> Sem r Register
     ,   newReg :: (Int -> RegId) -> (RegId -> Register) -> Sem r Register
+    ,   unitReg :: Register
+    ,   trueReg :: Register
+    ,   falseReg :: Register
     }

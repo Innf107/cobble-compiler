@@ -1,5 +1,5 @@
 {-#OPTIONS_GHC -Wno-orphans#-}
-{-# LANGUAGE TemplateHaskell#-}
+{-# LANGUAGE TemplateHaskell, UndecidableInstances#-}
 module Language.Cobble.Types.AST.SolveModules where
   
 import Data.Data
@@ -36,6 +36,7 @@ deriving instance Typeable (Type 'SolveModules)
 type instance XModule 'SolveModules = ()
   
 type instance XDef           'SolveModules = ()
+type instance XParam         'SolveModules = [(Name 'SolveModules)]
 type instance XImport        'SolveModules = ()
 type instance XDefStruct     'SolveModules = ()
 type instance XStatement     'SolveModules = Void
@@ -43,7 +44,6 @@ type instance XStatement     'SolveModules = Void
 
 type instance XFCall   'SolveModules = ()
 type instance XIntLit  'SolveModules = ()
-type instance XBoolLit 'SolveModules = ()
 type instance XIf      'SolveModules = ()
 type instance XVar     'SolveModules = ()
 type instance XLet     'SolveModules = ()

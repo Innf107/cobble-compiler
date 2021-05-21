@@ -70,6 +70,9 @@ intLit = (token' \case
     Token l (IntLiteral i) -> Just (l, i)
     _ -> Nothing) <?> "integer literal"
 
+unitLit :: Parser LexInfo
+unitLit = try (paren "(" <* paren' ")")
+
 module_ :: Text -> Parser (Module NextPass)
 module_ mname = "module" <??> Module () mname <$> statements
 
@@ -80,7 +83,7 @@ expr :: Parser (Expr NextPass)
 expr = "expr" <??> fcallOrVar <|> expr'
 
 expr' :: Parser (Expr NextPass)
-expr' = "expr (no fcall)" <??> uncurry (IntLit ()) <$> intLit <|> boollit <|> ifE <|> var <|> withParen expr
+expr' = "expr (no fcall)" <??> uncurry (IntLit ()) <$> intLit <|> UnitLit <$> unitLit <|> ifE <|> var <|> withParen expr
 
 
 def :: Parser (Statement NextPass)
@@ -122,11 +125,6 @@ fcallOrVar = "function call" <??> do
         [] -> pure f
         (a:as)  -> pure $ FCall () (getLexInfo f) f (a :| as)
    
-   
-boollit :: Parser (Expr NextPass)
-boollit = "boolean literal" <??> choice [ reserved "True" >>= \li -> pure $ BoolLit () li True
-                 , reserved "False" >>= \li -> pure $ BoolLit () li False
-                 ]
 
 ifE :: Parser (Expr NextPass)
 ifE = "if expression" <??> If ()

@@ -39,6 +39,7 @@ deriving instance Typeable (Type 'QualifyNames)
 type instance XModule 'QualifyNames = Map (Name 'Codegen) ModSig
   
 type instance XDef       'QualifyNames = ()
+type instance XParam     'QualifyNames = [Name 'QualifyNames]
 type instance XImport    'QualifyNames = ()
 type instance XDefStruct 'QualifyNames = ()
 type instance XStatement 'QualifyNames = Void
@@ -46,7 +47,6 @@ type instance XStatement 'QualifyNames = Void
 
 type instance XFCall   'QualifyNames = ()
 type instance XIntLit  'QualifyNames = ()
-type instance XBoolLit 'QualifyNames = ()
 type instance XIf      'QualifyNames = ()
 type instance XVar     'QualifyNames = ()
 type instance XLet     'QualifyNames = ()
