@@ -7,7 +7,6 @@ import Data.Generics.Uniplate.Data
   
 import Language.Cobble.Prelude
 import Language.Cobble.Types.AST
-import Language.Cobble.Types.TH
   
 deriving instance Show     (Module 'SolveModules)
 deriving instance Eq       (Module 'SolveModules)

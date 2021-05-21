@@ -8,7 +8,6 @@ import Data.Data
 import Data.Generics.Uniplate.Data
 
 import Language.Cobble.Types.AST
-import Language.Cobble.Types.TH
 import Language.Cobble.Shared
   
 -- Needed for @ModSig@ instances

@@ -7,8 +7,7 @@ import Data.Generics.Uniplate.Data
   
 import Language.Cobble.Prelude
 import Language.Cobble.Types.AST
-import Language.Cobble.Types.TH
-  
+
 -- Needed for @ModSig@ instances
 import Language.Cobble.Types.AST.Codegen
   

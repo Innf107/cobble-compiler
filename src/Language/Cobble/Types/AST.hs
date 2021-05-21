@@ -7,8 +7,6 @@ import Language.Cobble.Util.Convert
 
 import Language.Cobble.Shared
 
-import Language.Cobble.Types.TH
-
 import Language.Cobble.MCAsm.Types (Objective)
 
 import Data.Data
