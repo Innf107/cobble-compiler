@@ -36,15 +36,18 @@ test :: Description -> TModule -> [TestQuery] -> Test
 test desc = Test desc . pure
 
 testSingleMod' :: Description -> Text -> [Text] -> [TestQuery] -> Test
-testSingleMod' desc src setup queries = Test desc [TModule "test.cb" src] (TestQuery (setup <> ["function test:test"]) DontExpect : queries)
+testSingleMod' desc src setup queries = Test desc [TModule "test.cb" src] (TestQuery (setup <> ["function test:test.main"]) DontExpect : queries)
 
 testSingleMod :: Description -> Text -> [TestQuery] -> Test
 testSingleMod desc src queries = testSingleMod' desc src [] queries
 
 testSingleModScore :: Description -> Text -> Int -> Test
 testSingleModScore desc src val = testSingleMod' desc src 
-    ["scoreboard objectives remove TestScore", "scoreboard objectives add TestScore dummy"] 
-    [TestQuery ["scoreboard players get TestPlayer TestScore"] $ ExpectLast $ expectScore "TestScore" "TestPlayer" val]
+    ["scoreboard objectives remove test", "scoreboard objectives add test dummy"] 
+    [TestQuery ["scoreboard players get test test"] $ ExpectLast $ expectScore "test" "test" val]
+
+testExprScore :: Description -> Text -> Int -> Test
+testExprScore desc src = testSingleModScore desc ("main :: Unit; main = _setTestScoreboardUnsafe (" <> src <> ");")
 
 expectScore :: Text -> Text -> Int -> ExpectInner
 expectScore score player val = ExpectExact (player <> " has " <> show val <> " [" <> score <> "]")

@@ -9,77 +9,58 @@ test :: IO ()
 test = do
     env <- getEnvironment
     testWithServer $
-        [   testSingleModScore "A simple setScoreboard"
-                "score TestScore TestPlayer = 5;"
+        [   testExprScore "test setup"
+                "5"
                 5
 
-        ,   testSingleModScore "Variables"
-                (mconcat [
-                    "let x = 5;"
-                ,   "score TestScore TestPlayer = x;"
-                ])
+        ,   testExprScore "simple let"
+                "let x = 5 in x"
                 5
-        ,   testSingleModScore "Assignment"
+        ,   testExprScore "if (then)"
+                "if _le 2 3 then 1 else 2"
+                1
+        ,   testExprScore "if (else)"
+                "if _le 3 2 then 1 else 2"
+                2
+        ,   testSingleModScore "functions"
                 (mconcat [
-                    "let x = 5;"
-                ,   "x = 3;"
-                ,   "score TestScore TestPlayer = x;"
-                ])
-                3
-        ,   testSingleModScore "If Statements without else"
-                (mconcat [
-                    "let x = 5;"
-                ,   "if (_le(x, 6)){"
-                ,   "    x = _add(x, 1);"
-                ,   "};"
-                ,   "if (_le(x, 3)){"
-                ,   "    x = _add(x, -10);"
-                ,   "};"
-                ,   "score TestScore TestPlayer = x;"
-                ])
-                6
-        ,   testSingleModScore "If Statements with else"
-                (mconcat [
-                    "let x = 5;"
-                ,   "if (_le(x, 7)){"
-                ,   "    x = _add(x, 1);"
-                ,   "} else {"
-                ,   "    x = _add(x, -10);"
-                ,   "};"
-                ,   "if (_le(x, -100)){"
-                ,   "    x = _add(x, -20);"
-                ,   "} else {"
-                ,   "    x = _add(x, 2);"
-                ,   "};"
-                ,   "score TestScore TestPlayer = x;"
-                ])
-                8
-        ,   testSingleModScore "Functions"
-                (mconcat [
-                    "Int double(x: Int) => _add(x, x);"
-                ,   "score TestScore TestPlayer = double(3);"
+                    "const :: Int -> Int -> Int;"
+                ,   "const x y = x;"
+                ,   ""
+                ,   "main :: Unit;"
+                ,   "main = _setTestScoreboardUnsafe(const 6 2);"
                 ])
                 6
         ,   testSingleModScore "Linear recursion"
                 (mconcat [
-                    "Int gauss(n: Int) => if _le(n, 1) then 1 else _add(n, gauss(_add(n, -1)));"
-                ,   "score TestScore TestPlayer = gauss(10);"
+                    "gauss :: Int -> Int;"
+                ,   "gauss n = if _le n 1 then 1 else _add n (gauss(_add n -1));"
+                ,   ""
+                ,   "main :: Unit;"
+                ,   "main = _setTestScoreboardUnsafe(gauss(100));"
                 ])
-                55
+                5050
         ,   testSingleModScore "Branch recursion"
                 (mconcat [
-                    "Int fib(n: Int) => if _le(n, 1) then 1 else _add(fib(_add(n, -1)), fib(_add(n, -2)));"
-                ,   "score TestScore TestPlayer = fib(10);"
+                    "fib :: Int -> Int;"
+                ,   "fib n = if _le n 1 then 1 else _add (fib (_add n -1)) (fib (_add n -2));"
+                ,   ""
+                ,   "main :: Unit;"
+                ,   "main = _setTestScoreboardUnsafe(fib(10));"
                 ])
                 89
         ,   testSingleModScore "Struct definition"
                 (mconcat [
                     "struct S {"
-                ,   "    x: Int"
-                ,   ",   y: Bool"
+                ,   "    x :: Int"
+                ,   ",   y :: Bool"
                 ,   "};"
-                ,   "s = S { x=5, y=True };"
-                ,   "score TestScore TestPlayer = s.x;"
+                ,   ""
+                ,   "f :: S -> Int;"
+                ,   "f s = if s.y then s.x else 0;"
+                ,   ""
+                ,   "main :: Unit;"
+                ,   "main = _setTestScoreboardUnsafe(f (S {x = 23, y = True}));"
                 ])
                 5
         ] <> whenFlag "FUTURE" False env futureAdditions
