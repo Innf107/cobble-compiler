@@ -2,7 +2,7 @@
 module Language.Cobble.Parser.TokenizerSpec where
 
 import Language.Cobble.Prelude
-import Language.Cobble.Parser.Tokenizer 
+import Language.Cobble.Parser.Tokenizer
 import Language.Cobble.Types
 
 import Test.Hspec
@@ -33,25 +33,27 @@ spec = do
         it "keeps lexical information" do
             tokenizeTest "this is also\n True + //-/ (12 * 23 )"
                 `shouldBe`
-                Right [Token (LexInfo 1 1 "Test") (Ident "this"), Token (LexInfo 1 6 "Test") (Ident "is"),
-                       Token (LexInfo 1 9 "Test") (Ident "also"), Token (LexInfo 2 2 "Test") (Ident "True"),
-                       Token (LexInfo 2 7 "Test") (Operator "+"), Token (LexInfo 2 9 "Test") (Operator "//-/"),
-                       Token (LexInfo 2 14 "Test") (Paren "("), Token (LexInfo 2 15 "Test") (IntLiteral 12),
-                       Token (LexInfo 2 18 "Test") (Operator "*"), Token (LexInfo 2 20 "Test") (IntLiteral 23), 
-                       Token (LexInfo 2 23 "Test") (Paren ")")]
+                Right [Token (LexInfo (SourcePos 1 1) (SourcePos 1 5) "Test") (Ident "this"),
+                       Token (LexInfo (SourcePos 1 6) (SourcePos 1 8) "Test") (Ident "is"),
+                       Token (LexInfo (SourcePos 1 9) (SourcePos 1 13) "Test") (Ident "also"),
+                       Token (LexInfo (SourcePos 2 2) (SourcePos 2 6) "Test") (Ident "True"),
+                       Token (LexInfo (SourcePos 2 7) (SourcePos 2 8) "Test") (Operator "+"),
+                       Token (LexInfo (SourcePos 2 9) (SourcePos 2 13) "Test") (Operator "//-/"),
+                       Token (LexInfo (SourcePos 2 14) (SourcePos 2 15) "Test") (Paren "("),
+                       Token (LexInfo (SourcePos 2 15) (SourcePos 2 17) "Test") (IntLiteral 12),
+                       Token (LexInfo (SourcePos 2 18) (SourcePos 2 19) "Test") (Operator "*"),
+                       Token (LexInfo (SourcePos 2 20) (SourcePos 2 22) "Test") (IntLiteral 23),
+                       Token (LexInfo (SourcePos 2 23) (SourcePos 2 24) "Test") (Paren ")")]
         it "rejects invalid characters" do
             tokenizeTest "test `"
                 `shouldBe`
-                Left (LexicalError (LexInfo 1 6 "Test") (UnexpectedChar '`' Default))
-            tokenizeTest "test 1ab"
-                `shouldBe`
-                Left (LexicalError (LexInfo 1 7 "Test") (UnexpectedChar 'a' (InIntLit "1")))
+                Left (LexicalError (SourcePos 1 6) "Test" (UnexpectedChar '`' Default))
             tokenizeTest "ident'ifier"
                 `shouldBe`
-                Left (LexicalError (LexInfo 1 6 "Test") (UnexpectedChar '\'' (InIdent "ident")))
+                Left (LexicalError (SourcePos 1 6) "Test" (UnexpectedChar '\'' (InIdent "ident")))
             tokenizeTest "operator +-`+"
                 `shouldBe`
-                Left (LexicalError (LexInfo 1 12 "Test") (UnexpectedChar '`' (InOp "+-")))
+                Left (LexicalError (SourcePos 1 12) "Test" (UnexpectedChar '`' (InOp "+-")))
         it "does not need spaces between identifiers and operators" do
             map tokData <$> tokenizeTest "a+b -c/ de\n*\nf\n"
                 `shouldBe`
@@ -68,5 +70,5 @@ spec = do
           
 
 tokenizeTest :: Text -> Either LexicalError [Token]
-tokenizeTest = run . runError . tokenize "Test" 
+tokenizeTest = run . runError . tokenize "Test"
 

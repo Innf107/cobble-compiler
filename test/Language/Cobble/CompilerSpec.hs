@@ -28,7 +28,7 @@ data TestError = TestPanic Panic
                deriving (Show, Eq)
 
 dli :: LexInfo
-dli = LexInfo 0 0 "Test"
+dli = LexInfo (SourcePos 0 0) (SourcePos 0 0) "Test"
 
 compileTest :: [Statement 'Codegen] -> Either TestError [Instruction]
 compileTest = snd . runCompTest initialCompileState . fmap fst . runWriterAssocR . traverse compileStatement

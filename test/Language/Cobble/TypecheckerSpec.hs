@@ -204,4 +204,4 @@ runTypecheck' :: TCState -> [Statement 'Typecheck] -> Either TypeError (TCState,
 runTypecheck' tcstate = run . runError . runState tcstate . ignoreOutput @TypeWarning . traverse typecheck
 
 dummyLex :: LexInfo
-dummyLex = LexInfo 0 0 "DUMMY"
+dummyLex = LexInfo (SourcePos 0 0) (SourcePos 0 0) "DUMMY"

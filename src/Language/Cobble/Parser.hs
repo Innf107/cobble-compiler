@@ -25,7 +25,7 @@ infix 0 <??>
 token' :: (Token -> Maybe a) -> Parser a
 token' = token
     prettyPrintToken
-    (\(Token LexInfo{line, column, file} _) -> newPos (toString file) line column)
+    (\(Token LexInfo{startPos=SourcePos {line, column}, file} _) -> newPos (toString file) line column)
 
 
 ident :: Parser (LexInfo, Text)

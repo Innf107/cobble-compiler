@@ -87,4 +87,4 @@ spec = do
 -}
 
 dli :: LexInfo
-dli = LexInfo 0 0 "Test"
+dli = LexInfo (SourcePos 0 0) (SourcePos 0 0) "Test"

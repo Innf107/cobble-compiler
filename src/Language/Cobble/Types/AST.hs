@@ -119,9 +119,14 @@ type FileName = Text
 
 
 data LexInfo = LexInfo {
+      startPos :: SourcePos
+    , endPos :: SourcePos
+    , file :: FileName
+    } deriving (Show, Eq, Data, Typeable)
+
+data SourcePos = SourcePos {
       line :: Int
     , column :: Int
-    , file :: FileName
     } deriving (Show, Eq, Data, Typeable)
 
 instance (Name p1 ~ Name p2, XKind p1 ~ XKind p2) => Convert (Type p1) (Type p2) where

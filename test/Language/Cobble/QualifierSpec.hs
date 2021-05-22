@@ -223,7 +223,7 @@ spec = do
 --TODO
 
 dli :: LexInfo
-dli = LexInfo 0 0 "Test"
+dli = LexInfo (SourcePos 0 0) (SourcePos 0 0) "Test"
 
 testQual :: [Scope]
          -> Sem '[State Int, State [Scope], Error QualificationError, Output Log, Reader Dependencies] a
