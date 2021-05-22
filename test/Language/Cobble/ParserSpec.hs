@@ -186,7 +186,7 @@ data TestError = ParseE ParseError
 
 testParse :: Parser a -> Text -> Either TestError a
 testParse p t = do
-    ts <- first LexicalE $ tokenize "Test" t
+    ts <- first LexicalE $ run $ runError $ tokenize "Test" t
     first ParseE $ parse p "Test" ts
 
 

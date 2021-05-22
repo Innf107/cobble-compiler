@@ -77,13 +77,13 @@ module_ :: Text -> Parser (Module NextPass)
 module_ mname = "module" <??> Module () mname <$> statements
 
 statement :: Parser (Statement NextPass)
-statement = "statement" <??> def -- <|> importS
+statement = "statement" <??> def <|> import_
 
 expr :: Parser (Expr NextPass)
-expr = "expr" <??> fcallOrVar <|> expr'
+expr = "expression" <??> fcallOrVar <|> expr'
 
 expr' :: Parser (Expr NextPass)
-expr' = "expr (no fcall)" <??> uncurry (IntLit ()) <$> intLit <|> UnitLit <$> unitLit <|> ifE <|> var <|> withParen expr
+expr' = "expression (no fcall)" <??> uncurry (IntLit ()) <$> intLit <|> UnitLit <$> unitLit <|> ifE <|> var <|> withParen expr
 
 
 def :: Parser (Statement NextPass)
@@ -99,6 +99,13 @@ def = "definition" <??> do
     e <- expr
     pure $ Def () li name params e ty
 
+import_ :: Parser (Statement NextPass)
+import_ = "import" <??> Import ()
+    <$> reserved "import"
+    <*> modName
+
+modName :: Parser (Name NextPass)
+modName = ident'
 
 signature :: Parser (LexInfo, Name NextPass, Type NextPass)
 signature = "type signature" <??> do

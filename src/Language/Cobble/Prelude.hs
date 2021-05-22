@@ -1,3 +1,4 @@
+{-#OPTIONS_GHC -Wno-orphans#-}
 module Language.Cobble.Prelude (
       module Relude
     , module Relude.Extra
@@ -79,6 +80,11 @@ import Control.Lens hiding (
     ,   transform
     )
 
+import qualified Data.DList as D
+import qualified Data.Text as T
+
+import qualified Data.List as L (init, last)
+
 (|:) :: a -> NonEmpty a -> NonEmpty a
 a |: (x :| xs) = a :| (x : xs)
 
@@ -104,3 +110,14 @@ censorM f a = do
     f fo
     pure x
 
+instance Snoc (D.DList a) (D.DList b) a b where
+    _Snoc = prism (uncurry D.snoc) (\dl -> case toList dl of
+        [] -> Left D.empty
+        xs -> Right (fromList (L.init xs), L.last xs)
+      )
+
+instance ToText (D.DList Char) where
+    toText = toText . toList
+
+instance ToText Char where
+    toText = T.singleton

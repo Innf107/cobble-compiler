@@ -38,6 +38,7 @@ dependencies:
 - connection
 - bytestring
 - random
+- dlist
 
 library:
   source-dirs: src

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 05bfe648d2ed2932dbc39e604f5654487e3a0fe20451b6fb932e60da62559cc2
+-- hash: ca2b4463fe60f7ca0a1f05f9c62331be017e8b5faac7f870d2c2b8324cc9cd10
 
 name:           cobble
 version:        0.1.0.0
@@ -114,6 +114,7 @@ library
     , connection
     , containers
     , directory
+    , dlist
     , filepath
     , lens
     , parsec
@@ -188,6 +189,7 @@ executable cobble
     , connection
     , containers
     , directory
+    , dlist
     , filepath
     , lens
     , optparse-applicative
@@ -279,6 +281,7 @@ test-suite cobble-test
     , connection
     , containers
     , directory
+    , dlist
     , filepath
     , hspec
     , lens
