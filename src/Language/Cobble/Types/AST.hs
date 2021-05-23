@@ -127,7 +127,13 @@ data LexInfo = LexInfo {
 data SourcePos = SourcePos {
       line :: Int
     , column :: Int
-    } deriving (Show, Eq, Data, Typeable)
+    } deriving (Show, Eq, Ord, Data, Typeable)
+
+-- | Combines two 'LexInfo's
+-- This assumes that the first one comes before the second
+-- and that they are both part of the same file.
+mergeLexInfo :: LexInfo -> LexInfo -> LexInfo
+mergeLexInfo (LexInfo {startPos, file}) (LexInfo {endPos}) = LexInfo {startPos, endPos, file}
 
 instance (Name p1 ~ Name p2, XKind p1 ~ XKind p2) => Convert (Type p1) (Type p2) where
     conv = \case

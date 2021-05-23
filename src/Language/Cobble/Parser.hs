@@ -71,7 +71,7 @@ intLit = (token' \case
     _ -> Nothing) <?> "integer literal"
 
 unitLit :: Parser LexInfo
-unitLit = try (paren "(" <* paren' ")")
+unitLit = try (mergeLexInfo <$> paren "(" <*> paren ")")
 
 module_ :: Text -> Parser (Module NextPass)
 module_ mname = "module" <??> Module () mname <$> statements
@@ -88,7 +88,7 @@ expr' = "expression (no fcall)" <??> uncurry (IntLit ()) <$> intLit <|> UnitLit 
 
 def :: Parser (Statement NextPass)
 def = "definition" <??> do
-    (li, sigName, ty) <- signature 
+    (liStart, sigName, ty) <- signature 
     reservedOp' ";"
     name <- ident'
     when (name /= sigName) $ fail "Function definition does not immediately follow its type signature"
@@ -97,31 +97,34 @@ def = "definition" <??> do
 
     reservedOp' "="
     e <- expr
-    pure $ Def () li name params e ty
+    pure $ Def () (mergeLexInfo liStart (getLexInfo e)) name params e ty
 
 import_ :: Parser (Statement NextPass)
-import_ = "import" <??> Import ()
-    <$> reserved "import"
-    <*> modName
+import_ = "import" <??> do
+    liStart <- reserved "import"
+    (liEnd, name) <- modName
+    pure (Import () (liStart `mergeLexInfo` liEnd) name)
 
-modName :: Parser (Name NextPass)
-modName = ident'
+modName :: Parser (LexInfo, Name NextPass)
+modName = ident
 
 signature :: Parser (LexInfo, Name NextPass, Type NextPass)
 signature = "type signature" <??> do
-    (li, i) <- ident
+    (liStart, i) <- ident
     reservedOp' "::"
-    (_, t) <- typeP
-    pure (li, i, t)
+    (liEnd, t) <- typeP
+    pure (liStart `mergeLexInfo` liEnd, i, t)
 
 signature' :: Parser (Name NextPass, Type NextPass)
 signature' = fmap (\(_, n, t) -> (n, t)) signature
 
 defStruct :: Parser (Statement NextPass)
-defStruct = "struct definition" <??> DefStruct ()
+defStruct = "struct definition" <??> (\ls n fs le -> DefStruct () (ls `mergeLexInfo` le) n fs)
     <$> reserved "struct"
     <*> ident'
-    <*> between (paren' "{") (paren' "}") (typedIdent' `sepBy` (reservedOp' ","))
+    <* paren' "{" 
+    <*> typedIdent' `sepBy` (reservedOp' ",")
+    <*> paren "}"
 
 
 fcallOrVar :: Parser (Expr NextPass)
@@ -130,11 +133,11 @@ fcallOrVar = "function call" <??> do
     args <- many expr'
     case args of
         [] -> pure f
-        (a:as)  -> pure $ FCall () (getLexInfo f) f (a :| as)
+        (a:as)  -> pure $ FCall () (getLexInfo f `mergeLexInfo` (getLexInfo (last (a :| as)))) f (a :| as)
    
 
 ifE :: Parser (Expr NextPass)
-ifE = "if expression" <??> If ()
+ifE = "if expression" <??> (\liStart te ee -> If () (liStart `mergeLexInfo` (getLexInfo ee)) te ee)
     <$> reserved "if" <*> expr
     <*> (reserved "then" *> expr)
     <*> (reserved "else" *> expr)
@@ -146,32 +149,31 @@ statements :: Parser [Statement NextPass]
 statements = many (statement <* reservedOp ";")
 
 typedIdent :: Parser (LexInfo, Text, Type NextPass)
-typedIdent = "typed identifier" <??> do
-    (li, n) <- ident 
-    reservedOp' "::"
-    (_, t) <- typeP
-    pure (li, n, t)
+typedIdent = "typed identifier" <??> (\(ls, n) (le, t) -> (ls `mergeLexInfo` le, n, t))
+    <$> ident 
+    <*  reservedOp' "::"
+    <*> typeP
 
 typedIdent' :: Parser (Text, Type NextPass)
 typedIdent' = (\(_, y, z) -> (y, z)) <$> typedIdent
 
 typeP :: Parser (LexInfo, Type NextPass)
 typeP = "type" <??> do
-    (li, t1) <- namedType
-    functionType li t1 <|> pure (li, t1)
+    (ls, t1) <- namedType
+    functionType ls t1 <|> pure (ls, t1)
 
 namedType :: Parser (LexInfo, Type NextPass)
 namedType = do
     (li, i) <- ident
-    pure $ (li,) $ if isLower (T.head $ T.takeWhileEnd (/='.') i)
-        then TVar i ()
-        else TCon i ()
+    pure $ if isLower (T.head $ T.takeWhileEnd (/='.') i)
+        then (li, TVar i ())
+        else (li, TCon i ())
 
 functionType :: LexInfo -> Type NextPass -> Parser (LexInfo, Type NextPass)
 functionType li tyA = do
     reservedOp' "->"
-    (_, tyB) <- typeP
-    pure (li, tyA -:> tyB)
+    (le, tyB) <- typeP
+    pure (li `mergeLexInfo` le, tyA -:> tyB)
 
 withParen :: Parser a -> Parser a
 withParen a = paren "(" *> a <* paren ")"
