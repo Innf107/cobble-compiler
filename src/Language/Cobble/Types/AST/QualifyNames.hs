@@ -23,6 +23,12 @@ deriving instance Generic  (Statement 'QualifyNames)
 deriving instance Data     (Statement 'QualifyNames)
 deriving instance Typeable (Statement 'QualifyNames)
   
+deriving instance Show     (Decl 'QualifyNames)
+deriving instance Eq       (Decl 'QualifyNames)
+deriving instance Generic  (Decl 'QualifyNames)
+deriving instance Data     (Decl 'QualifyNames)
+deriving instance Typeable (Decl 'QualifyNames)
+  
 deriving instance Show     (Expr 'QualifyNames)
 deriving instance Eq       (Expr 'QualifyNames)
 deriving instance Generic  (Expr 'QualifyNames)
@@ -38,6 +44,7 @@ deriving instance Typeable (Type 'QualifyNames)
 type instance XModule 'QualifyNames = Map (Name 'Codegen) ModSig
   
 type instance XDef       'QualifyNames = ()
+type instance XDecl      'QualifyNames = ()
 type instance XParam     'QualifyNames = [Name 'QualifyNames]
 type instance XImport    'QualifyNames = ()
 type instance XDefStruct 'QualifyNames = ()

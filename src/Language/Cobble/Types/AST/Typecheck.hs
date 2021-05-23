@@ -24,6 +24,12 @@ deriving instance Eq      (Statement 'Typecheck)
 deriving instance Generic (Statement 'Typecheck)
 deriving instance Data    (Statement 'Typecheck)
 
+deriving instance Show     (Decl 'Typecheck)
+deriving instance Eq       (Decl 'Typecheck)
+deriving instance Generic  (Decl 'Typecheck)
+deriving instance Data     (Decl 'Typecheck)
+deriving instance Typeable (Decl 'Typecheck)
+
 deriving instance Show    (Expr 'Typecheck)
 deriving instance Eq      (Expr 'Typecheck)
 deriving instance Generic (Expr 'Typecheck)
@@ -37,6 +43,7 @@ deriving instance Data    (Type 'Typecheck)
 type instance XModule 'Typecheck = Map (Name 'Codegen) ModSig
   
 type instance XDef           'Typecheck = ()
+type instance XDecl          'Typecheck = ()
 type instance XParam         'Typecheck = [Name 'Codegen]
 type instance XImport        'Typecheck = ()
 type instance XDefStruct     'Typecheck = ()

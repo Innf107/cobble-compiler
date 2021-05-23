@@ -148,7 +148,7 @@ extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
 
 makePartialSig :: S.Statement 'Codegen -> ModSig
 makePartialSig = \case
-    Def _ _ n _ _ t            -> mempty {exportedVars = one (n, t)}
+    Def _ _ (Decl _ n _ _ t)    -> mempty {exportedVars = one (n, t)}
     DefStruct () _ n fs         -> mempty {exportedTypes = one (n, (KStar, RecordType fs))} -- TODO: Change Kind when polymorphism is implemented
     Import () _ _               -> mempty
     StatementX v _              -> absurd v

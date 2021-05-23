@@ -52,10 +52,14 @@ data Pass = SolveModules
 
 
 data Statement (p :: Pass) =
-      Def        (XDef p)       LexInfo (Name p) (XParam p) (Expr p) (Type p)
+      Def        (XDef p)       LexInfo (Decl p)
     | Import     (XImport p)    LexInfo (Name p) -- TODO: qualified? exposing?
     | DefStruct  (XDefStruct p) LexInfo (Name p) [(Name p, Type p)]
     | StatementX (XStatement p) LexInfo
+
+data Decl (p :: Pass) = Decl (XDecl p) (Name p) (XParam p) (Expr p) (Type p)
+
+type family XDecl (p :: Pass)
 
 data LogSegment p = LogText Text
                   | LogVar (Name p)
@@ -228,8 +232,14 @@ instance (ExprCoercible p1 p2) => CoercePass Expr p1 p2 where
         Var x l v      -> Var x l v
         ExprX x l      -> ExprX x l
         
+type DeclCoercible p1 p2 = (ExprCoercible p1 p2, XParam p1 ~ XParam p2, XKind p1 ~ XKind p2, XDecl p1 ~ XDecl p2)
+        
+instance (DeclCoercible p1 p2) => CoercePass Decl p1 p2 where
+  _coercePass (Decl x f ps e t) = Decl x f ps (coercePass e) (coercePass t)
+        
 type StatementCoercible p1 p2 = ( ExprCoercible p1 p2
                                 , TypeCoercible p1 p2
+                                , DeclCoercible p1 p2
                                 , XDef       p1 ~ XDef    p2
                                 , XParam     p1 ~ XParam  p2
                                 , XImport    p1 ~ XImport p2
@@ -239,7 +249,7 @@ type StatementCoercible p1 p2 = ( ExprCoercible p1 p2
         
 instance (StatementCoercible p1 p2) => CoercePass Statement p1 p2 where
     _coercePass = \case
-        Def x l f ps e t -> Def x l f ps (coercePass e) (coercePass t)
+        Def x l d -> Def x l (coercePass d)
         Import x l n -> Import x l n
         DefStruct x l n fs -> DefStruct x l n (map (second coercePass) fs)
         StatementX x l -> StatementX x l

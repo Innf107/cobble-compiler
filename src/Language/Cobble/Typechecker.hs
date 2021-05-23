@@ -69,7 +69,7 @@ typecheck = \case
         then pure (DefFun () l fname args stmnts' lastexpr' retT)
         else throw (WrongReturnType l fname retT (getType lastexpr'))
     -}
-    Def () l name ps body ty -> do
+    Def () l (Decl () name ps body ty) -> do
         insertVarType name (coercePass ty)
         case splitFunType (genericLength ps) (coercePass ty) of
             Nothing -> throw $ TooManyFunArgs (genericLength ps) (coercePass ty)
@@ -77,7 +77,7 @@ typecheck = \case
                 zipWithM_ (insertVarType) ps ptys
                 body' <- tcExpr body
                 if (getType body' == retTy)
-                then pure $ Def retTy l name (zip ps ptys) body' (coercePass ty)
+                then pure $ Def () l (Decl retTy name (zip ps ptys) body' (coercePass ty))
                 else throw (WrongReturnType l name retTy (getType body'))
         
     DefStruct () l name (conv -> fields) -> pure $ DefStruct () l name fields -- TODO: Add to state map -- or not? (The qualifier does this already right?)

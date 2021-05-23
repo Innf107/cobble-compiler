@@ -19,7 +19,13 @@ deriving instance Eq       (Statement 'SolveModules)
 deriving instance Generic  (Statement 'SolveModules)
 deriving instance Data     (Statement 'SolveModules)
 deriving instance Typeable (Statement 'SolveModules)
-  
+
+deriving instance Show     (Decl 'SolveModules)
+deriving instance Eq       (Decl 'SolveModules)
+deriving instance Generic  (Decl 'SolveModules)
+deriving instance Data     (Decl 'SolveModules)
+deriving instance Typeable (Decl 'SolveModules)
+
 deriving instance Show     (Expr 'SolveModules)
 deriving instance Eq       (Expr 'SolveModules)
 deriving instance Generic  (Expr 'SolveModules)
@@ -35,6 +41,7 @@ deriving instance Typeable (Type 'SolveModules)
 type instance XModule 'SolveModules = ()
   
 type instance XDef           'SolveModules = ()
+type instance XDecl          'SolveModules = ()
 type instance XParam         'SolveModules = [(Name 'SolveModules)]
 type instance XImport        'SolveModules = ()
 type instance XDefStruct     'SolveModules = ()

@@ -92,7 +92,7 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
             modify (& frames %~ unsafeTail)
             tell [MoveReg (returnReg (regRep res)) res]
     -}
-    Def retT _li name ps body ty -> do
+    Def () _li (Decl retT name ps body ty) -> do
         modify (& functions . at name ?~ Function {_params=ps, _returnType=retT})
         tell . pure . A.Section name . fst =<< runWriterAssocR do
             parRegs <- traverse (\(_, pt) -> newRegForType VarReg pt) ps

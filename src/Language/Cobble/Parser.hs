@@ -97,7 +97,7 @@ def = "definition" <??> do
 
     reservedOp' "="
     e <- expr
-    pure $ Def () (mergeLexInfo liStart (getLexInfo e)) name params e ty
+    pure $ Def () (mergeLexInfo liStart (getLexInfo e)) (Decl () name params e ty)
 
 import_ :: Parser (Statement NextPass)
 import_ = "import" <??> do
@@ -132,7 +132,7 @@ fcallOrVar = "function call" <??> do
     f <- expr'
     args <- many expr'
     case args of
-        [] -> pure f
+        []      -> pure f
         (a:as)  -> pure $ FCall () (getLexInfo f `mergeLexInfo` (getLexInfo (last (a :| as)))) f (a :| as)
    
 
