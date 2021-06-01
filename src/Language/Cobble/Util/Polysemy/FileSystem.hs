@@ -122,7 +122,7 @@ data PureFSError fd = FileDoesNotExist fd
                     | ParentDirectoryDoesNotExist fd
                     deriving (Show, Eq)
 
-fileSystemToPureState :: (FileDescriptor fd, Members [Error (PureFSError fd), State (PureFS fd fc)] r)
+fileSystemToPureState :: (HasCallStack, FileDescriptor fd, Members [Error (PureFSError fd), State (PureFS fd fc)] r)
                   => Sem (FileSystem fd fc ': r) a
                   -> Sem r a
 fileSystemToPureState = interpret \case
@@ -130,4 +130,4 @@ fileSystemToPureState = interpret \case
     WriteFile fd fc  -> bool (throw (ParentDirectoryDoesNotExist fd)) pass =<< state (swap . writeFilePure fd fc)
     DeleteFile fd    -> bool (throw (FileDoesNotExist fd)) pass =<< state (swap . deleteFilePure fd)
     DoesFileExist fd -> gets (doesFileExistPure fd)
-    
+    _ -> error "fileSystemToPureState: PureFS is not fully implemented"

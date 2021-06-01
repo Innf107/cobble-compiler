@@ -197,11 +197,11 @@ spec = do
 emptyTCState :: TCState
 emptyTCState = TCState mempty
 
-runTypecheck :: [Statement 'Typecheck] -> Either TypeError [Statement NextPass]
-runTypecheck = fmap snd . runTypecheck' emptyTCState
+--runTypecheck :: [Statement 'Typecheck] -> Either TypeError [Statement NextPass]
+--runTypecheck = fmap snd . runTypecheck' emptyTCState
 
-runTypecheck' :: TCState -> [Statement 'Typecheck] -> Either TypeError (TCState, [Statement NextPass])
-runTypecheck' tcstate = run . runError . runState tcstate . ignoreOutput @TypeWarning . traverse typecheck
+--runTypecheck' :: TCState -> [Statement 'Typecheck] -> Either TypeError (TCState, [Statement NextPass])
+--runTypecheck' tcstate = run . runError . runState tcstate . ignoreOutput @TypeWarning . traverse typecheck
 
 dummyLex :: LexInfo
 dummyLex = LexInfo (SourcePos 0 0) (SourcePos 0 0) "DUMMY"

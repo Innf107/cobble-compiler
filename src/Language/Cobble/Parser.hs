@@ -73,6 +73,16 @@ intLit = (token' \case
 unitLit :: Parser LexInfo
 unitLit = try (mergeLexInfo <$> paren "(" <*> paren ")")
 
+letE :: Parser (Expr NextPass)
+letE = "let binding" <??> (\ls n ps e b -> Let () (mergeLexInfo ls (getLexInfo e)) (Decl () n ps e) b)
+    <$> reserved "let"
+    <*> ident'
+    <*> many ident'
+    <*  reservedOp' "="
+    <*> expr
+    <*  reserved "in"
+    <*> expr
+
 module_ :: Text -> Parser (Module NextPass)
 module_ mname = "module" <??> Module () mname <$> statements
 
@@ -83,7 +93,7 @@ expr :: Parser (Expr NextPass)
 expr = "expression" <??> fcallOrVar <|> expr'
 
 expr' :: Parser (Expr NextPass)
-expr' = "expression (no fcall)" <??> uncurry (IntLit ()) <$> intLit <|> UnitLit <$> unitLit <|> ifE <|> var <|> withParen expr
+expr' = "expression (no fcall)" <??> uncurry (IntLit ()) <$> intLit <|> UnitLit <$> unitLit <|> letE <|> ifE <|> var <|> withParen expr
 
 
 def :: Parser (Statement NextPass)
@@ -97,7 +107,7 @@ def = "definition" <??> do
 
     reservedOp' "="
     e <- expr
-    pure $ Def () (mergeLexInfo liStart (getLexInfo e)) (Decl () name params e ty)
+    pure $ Def () (mergeLexInfo liStart (getLexInfo e)) (Decl () name params e) ty
 
 import_ :: Parser (Statement NextPass)
 import_ = "import" <??> do

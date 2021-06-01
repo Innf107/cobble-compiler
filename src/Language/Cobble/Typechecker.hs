@@ -3,6 +3,7 @@ module Language.Cobble.Typechecker where
 import Language.Cobble.Prelude
 import Language.Cobble.Util.Convert
 import Language.Cobble.Types
+import Language.Cobble.Shared
 
 type NextPass = 'Codegen
 
@@ -41,19 +42,19 @@ initialTCState = TCState {
         varTypes = mempty
     }
 
-getVarType :: (TypecheckC r) => LexInfo -> Name 'Typecheck -> Sem r (Type NextPass)
+getVarType :: (Members '[State TCState, Error TypeError] r) => LexInfo -> Name 'Typecheck -> Sem r (Type NextPass)
 getVarType l varName = gets varTypes <&> lookup varName >>= \case
     Nothing -> throw (VarDoesNotExist l varName)
     Just t -> pure t
 
 
-insertVarType :: (TypecheckC r) => Name NextPass -> Type NextPass -> Sem r ()
+insertVarType :: (Members '[State TCState] r) => Name NextPass -> Type NextPass -> Sem r ()
 insertVarType varName t = void $ modify (\s -> s{varTypes=varTypes s & insert varName t})
 
-typecheckModule :: (TypecheckC r) => Module 'Typecheck -> Sem r (Module NextPass)
+typecheckModule :: (TypecheckC r, Members '[Error Panic] r) => Module 'Typecheck -> Sem r (Module NextPass)
 typecheckModule (Module deps mname instrs) = Module deps mname <$> traverse typecheck instrs
 
-typecheck :: (TypecheckC r) => Statement Typecheck -> Sem r (Statement NextPass)
+typecheck :: (TypecheckC r, Members '[Error Panic] r) => Statement Typecheck -> Sem r (Statement NextPass)
 typecheck = \case
     {-
     DefFun () l fname (conv -> args) stmnts lastexpr (conv -> retT) -> do
@@ -69,7 +70,7 @@ typecheck = \case
         then pure (DefFun () l fname args stmnts' lastexpr' retT)
         else throw (WrongReturnType l fname retT (getType lastexpr'))
     -}
-    Def () l (Decl () name ps body ty) -> do
+    Def () l (Decl () name ps body) ty -> do
         insertVarType name (coercePass ty)
         case splitFunType (genericLength ps) (coercePass ty) of
             Nothing -> throw $ TooManyFunArgs (genericLength ps) (coercePass ty)
@@ -77,16 +78,24 @@ typecheck = \case
                 zipWithM_ (insertVarType) ps ptys
                 body' <- tcExpr body
                 if (getType body' == retTy)
-                then pure $ Def () l (Decl retTy name (zip ps ptys) body' (coercePass ty))
+                then pure $ Def () l (Decl retTy name (zip ps ptys) body') (coercePass ty)
                 else throw (WrongReturnType l name retTy (getType body'))
         
     DefStruct () l name (conv -> fields) -> pure $ DefStruct () l name fields -- TODO: Add to state map -- or not? (The qualifier does this already right?)
     Import () l modName -> pure $ Import () l modName
     StatementX x _l -> case x of
 
-tcExpr :: (TypecheckC r) => Expr 'Typecheck -> Sem r (Expr NextPass)
+tcDecl :: (Members '[Error Panic, Error TypeError, State TCState] r) => Decl 'Typecheck -> Sem r (Decl NextPass)
+tcDecl (Decl () vname [] expr) = do
+    expr' <- tcExpr expr
+    insertVarType vname (getType expr')
+    pure (Decl (getType expr') vname [] expr')
+tcDecl (Decl () vname ps _expr) = panic' "Local functions are not possible yet. This is *NOT* a bug" [show vname, show ps]
+
+tcExpr :: (Members '[Error Panic, Error TypeError, State TCState] r) => Expr 'Typecheck -> Sem r (Expr NextPass)
 tcExpr = \case
     IntLit () l x -> pure $ IntLit () l x
+    UnitLit l -> pure $ UnitLit l
     -- FloatLit x -> pure (FloatLit x, FloatT)
     FCall () l f exprs -> do
         f' <- tcExpr f
@@ -109,6 +118,9 @@ tcExpr = \case
         then pure (If x l c' th' el')
         else throw $ DifferentIfETypes l (getType th') (getType el')
     Var () l vname -> (\x -> Var x l vname) <$> getVarType l vname
+    Let () li d body -> Let () li
+        <$> tcDecl d
+        <*> tcExpr body
     ExprX x _l -> case x of
 
 splitFunType :: Natural -> Type NextPass -> Maybe ([Type NextPass], Type NextPass)

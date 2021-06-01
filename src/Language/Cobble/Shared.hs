@@ -44,7 +44,11 @@ data Panic = Panic Text
            | MismatchedRegTypes Text Text
            deriving (Show, Eq)
 
+panic :: (Member (Error Panic) r) => Text -> Sem r a
+panic = throw . Panic
 
+panic' :: (Member (Error Panic) r) => Text -> [Text] -> Sem r a
+panic' t as = panic $ t <> "\n\nContext: \n" <> unlines (map ("    "<>) as)
 
 data Log = Log LogLevel Text deriving (Show, Eq, Ord)
 

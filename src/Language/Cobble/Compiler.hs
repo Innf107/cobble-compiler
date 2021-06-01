@@ -15,12 +15,6 @@ import Data.Text qualified as T
 
 import Language.Cobble.MCAsm.Types as A hiding (Name)
 
-panic :: (Member (Error Panic) r) => Text -> Sem r a
-panic = throw . Panic
-
-panic' :: (Member (Error Panic) r) => Text -> [Text] -> Sem r a
-panic' t as = panic $ t <> "\n\nContext: \n" <> unlines (map ("    "<>) as)
-
 panicVarNotFoundTooLate :: (Member (Error Panic) r) => Name 'Codegen -> Sem r a
 panicVarNotFoundTooLate v = panic $ "Variable " <> show v <> " not found. This should have been caught earlier!" 
 
@@ -92,7 +86,7 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
             modify (& frames %~ unsafeTail)
             tell [MoveReg (returnReg (regRep res)) res]
     -}
-    Def () _li (Decl retT name ps body ty) -> do
+    Def () _li (Decl retT name ps body) _ty -> do
         modify (& functions . at name ?~ Function {_params=ps, _returnType=retT})
         tell . pure . A.Section name . fst =<< runWriterAssocR do
             parRegs <- traverse (\(_, pt) -> newRegForType VarReg pt) ps
@@ -155,7 +149,11 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
             , CallInRange elseReg (RBounded 1 1) (name .: ("-else-e" <> show ifID))
             ]
         pure resReg
-                
+    Let () _li (Decl _t vname [] expr) body -> do
+        exprReg <- compileExprToReg expr
+        modify (& frames . head1 . varRegs . at vname ?~ exprReg)
+        compileExprToReg body
+    Let () _li (Decl _t vname ps _expr) _body -> panic' "Local functions are not supported yet. This is *NOT* a bug" [show vname, show ps]
     ExprX x _li -> absurd x
 
 writeArgs :: (CompileC r, Member (Writer [Instruction]) r) => [Expr 'Codegen] -> Sem r ()

@@ -52,12 +52,12 @@ data Pass = SolveModules
 
 
 data Statement (p :: Pass) =
-      Def        (XDef p)       LexInfo (Decl p)
+      Def        (XDef p)       LexInfo (Decl p) (Type p)
     | Import     (XImport p)    LexInfo (Name p) -- TODO: qualified? exposing?
     | DefStruct  (XDefStruct p) LexInfo (Name p) [(Name p, Type p)]
     | StatementX (XStatement p) LexInfo
 
-data Decl (p :: Pass) = Decl (XDecl p) (Name p) (XParam p) (Expr p) (Type p)
+data Decl (p :: Pass) = Decl (XDecl p) (Name p) (XParam p) (Expr p)
 
 type family XDecl (p :: Pass)
 
@@ -87,7 +87,7 @@ data Expr (p :: Pass) =
     | UnitLit LexInfo
           --  | FloatLit Double Text TODO: Needs Standard Library (Postfixes?)
     | If    (XIf p) LexInfo (Expr p) (Expr p) (Expr p)
-    | Let   (XLet p) LexInfo (Name p) (Expr p) (Expr p)
+    | Let   (XLet p) LexInfo (Decl p) (Expr p)
     | Var   (XVar p) LexInfo (Name p)
     | ExprX (XExpr p) LexInfo
 
@@ -222,20 +222,20 @@ type ExprCoercible p1 p2 = ( XFCall p1   ~ XFCall   p2
                          , XExpr    p1   ~ XExpr    p2
                          )
 
-instance (ExprCoercible p1 p2) => CoercePass Expr p1 p2 where
+instance (ExprCoercible p1 p2, DeclCoercible p1 p2) => CoercePass Expr p1 p2 where
     _coercePass = \case
         FCall x l f as -> FCall x l (coercePass f) (fmap coercePass as)
         IntLit x l i   -> IntLit x l i
         UnitLit l      -> UnitLit l
         If x l c th el -> If x l (coercePass c) (coercePass th) (coercePass el)
-        Let x l v e b  -> Let x l v (coercePass e) (coercePass b)
+        Let x l d b    -> Let x l (coercePass d) (coercePass b)
         Var x l v      -> Var x l v
         ExprX x l      -> ExprX x l
         
 type DeclCoercible p1 p2 = (ExprCoercible p1 p2, XParam p1 ~ XParam p2, XKind p1 ~ XKind p2, XDecl p1 ~ XDecl p2)
         
 instance (DeclCoercible p1 p2) => CoercePass Decl p1 p2 where
-  _coercePass (Decl x f ps e t) = Decl x f ps (coercePass e) (coercePass t)
+  _coercePass (Decl x f ps e) = Decl x f ps (coercePass e)
         
 type StatementCoercible p1 p2 = ( ExprCoercible p1 p2
                                 , TypeCoercible p1 p2
@@ -249,7 +249,7 @@ type StatementCoercible p1 p2 = ( ExprCoercible p1 p2
         
 instance (StatementCoercible p1 p2) => CoercePass Statement p1 p2 where
     _coercePass = \case
-        Def x l d -> Def x l (coercePass d)
+        Def x l d t -> Def x l (coercePass d) (coercePass t)
         Import x l n -> Import x l n
         DefStruct x l n fs -> DefStruct x l n (map (second coercePass) fs)
         StatementX x l -> StatementX x l
@@ -270,7 +270,7 @@ instance HasLexInfo (Expr p) where
         IntLit _ li _       -> li
         UnitLit li          -> li
         If _ li _ _ _       -> li
-        Let _ li _ _ _      -> li
+        Let _ li _ _        -> li
         Var _ li _          -> li
         ExprX _ li          -> li
         

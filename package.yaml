@@ -45,6 +45,7 @@ library:
   ghc-options:
   - -fplugin=Polysemy.Plugin
   - -Wall
+  - -Werror=incomplete-patterns
   - -Wcompat
   - -Wincomplete-uni-patterns
   - -Wno-unused-imports

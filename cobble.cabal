@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ca2b4463fe60f7ca0a1f05f9c62331be017e8b5faac7f870d2c2b8324cc9cd10
+-- hash: 7ee59e9dcc39561cb5fcd03f59427b37b8c829de9ca94287fb3bb9471d698b44
 
 name:           cobble
 version:        0.1.0.0
@@ -106,7 +106,7 @@ library
       EmptyDataDeriving
       RecordWildCards
       FunctionalDependencies
-  ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wincomplete-record-updates -Wredundant-constraints
+  ghc-options: -fplugin=Polysemy.Plugin -Wall -Werror=incomplete-patterns -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wincomplete-record-updates -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
     , bytestring

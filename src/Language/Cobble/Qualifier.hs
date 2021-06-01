@@ -66,7 +66,7 @@ qualifyMod (Module deps n sts) = log LogVerbose ("QUALIFYING MODULE: " <> n) >> 
 
 qualifyStatement :: (QualifyC r, Member (Reader Dependencies) r) => Statement 'QualifyNames -> Sem r (Statement NextPass)
 qualifyStatement s = log LogDebugVerbose ("QUALIFYING STATEMENT: " <> show s) >> case s of
-    Def () li (Decl () n ps e t) -> do
+    Def () li (Decl () n ps e) t -> do
         n' <- askPref <&> (.: n)
         innerN <- askPref <&> (.: ("-fun_" <> n))
         addName li n
@@ -76,7 +76,7 @@ qualifyStatement s = log LogDebugVerbose ("QUALIFYING STATEMENT: " <> show s) >>
                 <$> traverse (pure . (innerN .:)) ps
                 <*> qualifyExp e
         t' <- qualifyType li t
-        pure $ Def () li (Decl () n' ps' le' t')
+        pure $ Def () li (Decl () n' ps' le') t'
 
     DefStruct () li n fs -> do
         n' <- askPref <&> (.: n)
@@ -113,7 +113,17 @@ qualifyExp e = do
                 el' <- localPref (.: elName) $ qualifyExp el
                 name <- askPref
                 pure (If (name, ifeID) li c' th' el')
-            
+            Let () li (Decl () vname ps expr) body -> do
+                vname' <- askPref <&> (.: vname)
+                innerN <- askPref <&> (.: ("-let-" <> vname <> "-body"))
+                addName li vname
+                expr' <- localPref (.: ("-let-" <> show vname')) $ qualifyExp expr
+                (ps', body') <- localPref (.: ("-let-" <> vname <> "-body")) $ do
+                    traverse_ (addName li) ps
+                    (,)
+                        <$> traverse (pure . (innerN .:)) ps
+                        <*> qualifyExp body
+                pure (Let () li (Decl () vname' ps' expr') body')
             Var () li vname -> Var () li <$> lookupName vname li
             ExprX x _li -> case x of
 
