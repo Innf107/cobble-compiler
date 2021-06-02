@@ -141,7 +141,7 @@ runWithServer a = do
                 a)
 
 headerLn :: Text -> IO ()
-headerLn t = putTextLn ("\ESC[38;2;0;255;255m\STX" <> t <> "\n" <> T.replicate (T.length t) "—" <> "\ESC[0m\STX")
+headerLn t = putTextLn ("\n\ESC[38;2;0;255;255m\STX" <> t <> "\n" <> T.replicate (T.length t) "—" <> "\ESC[0m\STX")
 
 successLn :: Text -> IO ()
 successLn t = putTextLn ("\ESC[38;2;0;255;0m\STX" <> t <> "\ESC[0m\STX")

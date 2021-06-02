@@ -1,0 +1,9 @@
+--# simple if true : exprScore 1
+if _le 1 2 then 1 else 2
+
+--# simple if false : exprScore 2
+if _le 2 1 then 1 else 2
+
+--# nested if : exprScore 2
+if _le 1 2 then if _le 3 2 then 1 else 2 else 3
+
