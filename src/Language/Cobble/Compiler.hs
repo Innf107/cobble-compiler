@@ -30,7 +30,7 @@ initialCompileState = CompileState {
       , _lastReg=0
       , _regs=[]
       } :| []
-    , _functions = mempty 
+    , _functions = mempty
     }
 
 
@@ -109,14 +109,13 @@ renderLogSeg (LogVar v) = get <&> join . (^? frames . head1 . varRegs . at v) >>
 
 compileExprToReg :: forall r. (Member (Writer [Instruction]) r, CompileC r) => Expr 'Codegen -> Sem r Register
 compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e & \case
+    -- TODO: Move intlits to program start?
     (IntLit () _li i) -> newReg TempReg NumReg >>= \reg -> tell [MoveNumLit reg i] $> reg
     (UnitLit _li) -> pure unitReg
-    (Var t _li n) -> get <&> join . (^? frames . head1 . varRegs . at n) >>= \case
+    (Var _t _li n) -> get <&> join . (^? frames . head1 . varRegs . at n) >>= \case
         Nothing -> panicVarNotFoundTooLate n
-        Just vReg -> do
-            retReg <- newRegForType TempReg t
-            tell [MoveReg retReg vReg]
-            pure $ retReg
+        Just vReg -> pure $ vReg -- Let's hope this actually works and does not break with recursion
+
     -- (FloatT, FloatLit i) -> pure [MoveNumReg (NumReg reg)]
     (FCall t _li (Var _ _vli fname) args) -> case lookup fname (primOps @r) of
         Just (_, primOpF) -> primOpF primOpEnv (toList args)
