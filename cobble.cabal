@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7ee59e9dcc39561cb5fcd03f59427b37b8c829de9ca94287fb3bb9471d698b44
+-- hash: 3632e24bc8ad23a1f5c4207d35db7795dc830130ab4e88662423ce216f9a5c50
 
 name:           cobble
 version:        0.1.0.0
@@ -209,6 +209,7 @@ test-suite cobble-test
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      FullScale.FileTest
       Language.Cobble.CompilerSpec
       Language.Cobble.MCAsm.CompilerSpec
       Language.Cobble.MCAsm.McFunctionSpec

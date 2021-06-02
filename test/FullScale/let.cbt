@@ -1,0 +1,15 @@
+--# simple let : exprScore 5
+let x = 5 in x
+
+--# nested let : exprScore 16
+let x = 5 in let y = 6 in _add x (let z = _add x y in z)
+
+-- TODO
+--     # branch recursive let : score
+-- fib :: Int -> Int;
+-- fib n = let done = _le n 1 in if done then 1 else let r1 = fib (_add n -1) in let r2 = fib (_add n -2) in _add r1 r2;
+--! 89
+--fib 10
+
+
+

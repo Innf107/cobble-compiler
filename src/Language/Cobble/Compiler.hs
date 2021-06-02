@@ -51,7 +51,7 @@ makeLenses 'Function
 rts :: Sem r A.Module
 rts = do
     pure $ A.Module "RTS" [
-          MoveNumLit stackPTRReg 0 
+            MoveNumLit stackPTRReg 0
         ]
 
 compile :: (CompileC r) => S.Module 'Codegen -> Sem r A.Module
@@ -109,7 +109,7 @@ renderLogSeg (LogVar v) = get <&> join . (^? frames . head1 . varRegs . at v) >>
 
 compileExprToReg :: forall r. (Member (Writer [Instruction]) r, CompileC r) => Expr 'Codegen -> Sem r Register
 compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e & \case
-    (IntLit () _li i)  -> newReg TempReg NumReg >>= \reg -> tell [MoveNumLit reg i] $> reg
+    (IntLit () _li i) -> newReg TempReg NumReg >>= \reg -> tell [MoveNumLit reg i] $> reg
     (UnitLit _li) -> pure unitReg
     (Var t _li n) -> get <&> join . (^? frames . head1 . varRegs . at n) >>= \case
         Nothing -> panicVarNotFoundTooLate n
