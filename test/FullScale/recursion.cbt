@@ -1,0 +1,10 @@
+--# linear recursion : score
+gauss :: Int -> Int;
+gauss n = if _le n 0 then 0 else _add n (gauss (_add n -1));
+
+--! 3
+gauss 2
+
+--! 55
+gauss 10
+
