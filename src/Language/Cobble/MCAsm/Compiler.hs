@@ -22,9 +22,9 @@ initialize = InterModule "init" <$> instr do
         addScoreboardObjective aelem
         addScoreboardObjective uid
         addScoreboardObjective ix
-        setScoreboardForPlayer uid "UID" 0
-        setScoreboardForPlayer regs "TRUE" 1
-        setScoreboardForPlayer regs "FALSE" 0
+        --setScoreboardForPlayer uid "UID" 0
+        setScoreboardForPlayer regs "NTRUE" 1
+        --setScoreboardForPlayer regs "NFALSE" 0
         whenDebug $ setScoreboardSidebar regs
 
 

@@ -1,0 +1,31 @@
+--# _add : score
+--! 4
+_add 2 2
+--! 8
+_add 2 6
+--! 5
+_add 0 5
+--! -2
+_add 2 -4
+
+--# _le : score
+test :: Bool -> Int;
+test b = if b then 1 else 0;
+--! 0
+test (_le 3 2)
+--! 1
+test (_le -1 2)
+--! 1
+test (_le 5 5)
+
+--# _true : score
+test :: Bool -> Int;
+test b = if b then 1 else 0;
+--! 1
+test (_true ())
+
+--# _false : score
+test :: Bool -> Int;
+test b = if b then 1 else 0;
+--! 0
+test (_false ())

@@ -48,12 +48,6 @@ makeLenses 'Frame
 makeLenses 'CompileState
 makeLenses 'Function
 
-rts :: Sem r A.Module
-rts = do
-    pure $ A.Module "RTS" [
-            MoveNumLit stackPTRReg 0
-        ]
-
 compile :: (CompileC r) => S.Module 'Codegen -> Sem r A.Module
 compile (S.Module _deps modname stmnts) = log LogVerbose ("STARTING COBBLE CODEGEN FOR MODULE: " <> show modname) 
                                        >> A.Module modname . fst <$> runWriterAssocR (traverse compileStatement stmnts)
