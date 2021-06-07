@@ -87,11 +87,12 @@ testWithServer categories = do
                 Right dp -> do
                     liftIO $ writeFileLBS ("test/Server/world/datapacks/" <> "test.zip") dp >> logLn "Successfully compiled"
                     liftIO $ logLn "Running tests"
+                    sendCommand "reload"
+                    sendCommand "function test:clean"
+                    sendCommand "function test:init"
                     success <- getAll . mconcat <$> forM (zip [(1 :: Int)..] tests) \(i, (TestQuery query expectation)) -> do
-                        sendCommand "reload"
-                        sendCommand "function test:clean"
-                        sendCommand "function test:init"
                         mress <- sequenceA <$> traverse sendCommand query
+                        print mress
                         case mress of
                             Nothing -> liftIO $ failLn "Timeout on RCON command response" >> pure (All False)
                             Just ress -> liftIO $ if (ress `matchesExpectation` expectation)
