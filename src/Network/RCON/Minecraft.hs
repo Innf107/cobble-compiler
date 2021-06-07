@@ -14,19 +14,25 @@ import qualified Data.Text.Encoding as TE
 import qualified Data.Text as T
 import Data.Serialize
 import Control.Exception (bracket)
+import System.Timeout
+import Control.Concurrent (threadDelay)
 
-
-newtype Rcon a = Rcon {unRcon :: ReaderT Connection IO a}
+newtype Rcon a = Rcon {unRcon :: ReaderT RConEnv IO a}
     deriving (Functor, Applicative, Monad, MonadIO)
 
+data RConEnv = RConEnv {
+      rconConnection :: !Connection
+    , rconResponseTimeout :: !Int
+}
+
 data ServerInfo = ServerInfo {
-      serverHost :: Text
-    , serverPort :: Int
-    , serverPassword :: Text
+      serverHost :: !Text
+    , serverPort :: !Int
+    , serverPassword :: !Text
     }
 
-runRcon :: ServerInfo -> Rcon a -> IO a
-runRcon serverInfo r = do
+runRcon :: ServerInfo -> Int -> Rcon a -> IO a
+runRcon serverInfo respTimeout r = do
     bracket (do
             ctx <- initConnectionContext
             connectTo ctx $ ConnectionParams {
@@ -36,9 +42,9 @@ runRcon serverInfo r = do
                 , connectionUseSocks  = Nothing
                 })
         (connectionClose)
-        (runReaderT (unRcon (sendLogin (serverPassword serverInfo) *> r)))
+        (\con -> runReaderT (unRcon (sendLogin (serverPassword serverInfo) *> r)) $ RConEnv con respTimeout)
 
-sendCommand :: Text -> Rcon Text
+sendCommand :: Text -> Rcon (Maybe Text)
 sendCommand c = do
     pid <- liftIO $ randomIO @Int32
     let payload = encodeUtf8 c
@@ -49,7 +55,7 @@ sendCommand c = do
     , packetType=2
     , packetPayload=payload
     }
-    decodeUtf8 <$> receivePayload
+    fmap decodeUtf8 <$> receivePayload
 
 -- Private definitions
 
@@ -60,24 +66,29 @@ data Packet = Packet {
   , packetPayload::ByteString
 }
 
+askEnv :: Rcon RConEnv
+askEnv = Rcon $ ask
+
+asksEnv :: (RConEnv -> a) -> Rcon a
+asksEnv = Rcon . asks
+
 askConnection :: Rcon Connection
-askConnection = Rcon ask
+askConnection = asksEnv rconConnection
 
 
 serializePacket :: Packet -> ByteString
-serializePacket p = let start = runPut $ traverse_ putInt32le [packetLength p, packetId p, packetType p]
-                    in
-                        start <> packetPayload p <> "\0\0"
+serializePacket p = runPut (traverse_ putInt32le [packetLength p, packetId p, packetType p]) <> packetPayload p <> "\0\0"
 
 sendPacket :: Packet -> Rcon ()
 sendPacket p = do
     c <- askConnection
     liftIO $ connectionPut c (serializePacket p)
 
-receivePayload :: Rcon ByteString
-receivePayload = do
+receivePayload :: Rcon (Maybe ByteString)
+receivePayload =  do
     c <- askConnection
-    liftIO $ do
+    respTimeout <- asksEnv rconResponseTimeout
+    liftIO $ timeout respTimeout do
         len <- readInt32LE <$> connectionGetExact c 4
         rest <- connectionGetExact c (fromIntegral len)
         pure $ B.take (fromIntegral (len - 10)) $ B.drop 8 rest

@@ -65,7 +65,7 @@ testWithServer categories = do
 
     logLn "Starting server for tests (Make sure *:25565 and *:25575 are unused)" 
     runWithServer
-        $ runRcon (ServerInfo {serverHost="localhost", serverPort=25575, serverPassword="test"})
+        $ runRcon (ServerInfo {serverHost="localhost", serverPort=25575, serverPassword="test"}) (10e6)
         $ for_ categories \case
         (Header t) -> liftIO $ headerLn t
         (Error e)  -> liftIO $ failLn e
@@ -89,12 +89,14 @@ testWithServer categories = do
                     liftIO $ logLn "Running tests"
                     success <- getAll . mconcat <$> forM (zip [(1 :: Int)..] tests) \(i, (TestQuery query expectation)) -> do
                         sendCommand "reload"
-                        sendCommand "test:clean"
-                        sendCommand "test:init"
-                        ress <- traverse sendCommand query
-                        liftIO $ if (ress `matchesExpectation` expectation)
-                            then pure $ All True
-                            else failLn (desc <> "[" <> show i <> "]: FAILED!!!\n    Expected: " <> showExpectation expectation <> "\n    Got: " <> show ress) >> pure (All False)
+                        sendCommand "function test:clean"
+                        sendCommand "function test:init"
+                        mress <- sequenceA <$> traverse sendCommand query
+                        case mress of
+                            Nothing -> liftIO $ failLn "Timeout on RCON command response" >> pure (All False)
+                            Just ress -> liftIO $ if (ress `matchesExpectation` expectation)
+                                then pure $ All True
+                                else failLn (desc <> "[" <> show i <> "]: FAILED!!!\n    Expected: " <> showExpectation expectation <> "\n    Got: " <> show ress) >> pure (All False)
                     when success $ liftIO $ successLn (desc <> ": passed")
 
 matchesExpectation :: [Text] -> Expectation -> Bool
@@ -131,7 +133,7 @@ data ExpectInner = ExpectExact Text deriving (Show, Eq)
 runWithServer :: IO a -> IO a
 runWithServer a = do
     cwd <- getCurrentDirectory <&> (</> "test/Server")
-    withCreateProcess ((proc "java" ["-jar", "server.jar", "-nogui"]) {std_out=CreatePipe, cwd=Just cwd})
+    withCreateProcess ((proc "java" [ "-jar", "-Xmx8G" ,"server.jar", "-nogui" ]) {std_out=CreatePipe, cwd=Just cwd})
         (\_ msout _ _ ->  case msout of
             Nothing -> fail "Invalid stdout stream"
             Just sout -> do

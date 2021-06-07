@@ -8,6 +8,40 @@ _add 0 5
 --! -2
 _add 2 -4
 
+--# _sub : score
+--! 4
+_sub 8 4
+--! 0
+_sub 5 5
+--! -5
+_sub 10 15
+
+--# _mul : score
+--! 10
+_mul 2 5
+--! 0
+_mul 0 2
+--! 8
+_mul -2 -4
+--! -2
+_mul -1 2
+
+--# _div : score
+--! 5
+_div 10 2
+--! 2
+_div 5 2
+--! -3
+_div -5 2
+
+--# _mod : score
+--! 2
+_mod 5 3
+--! 2
+_mod 2 7
+--! 1
+_mod -5 3
+
 --# _le : score
 test :: Bool -> Int;
 test b = if b then 1 else 0;

@@ -16,6 +16,10 @@ primOps = M.mapKeys ("prims" .:) $ fromList [
     ,   ("_false", (unitT -:> boolT, _false))
 --      Arithmetic
     ,   ("_add", (intT -:> intT -:> intT, _add))
+    ,   ("_sub", (intT -:> intT -:> intT, _sub))
+    ,   ("_mul", (intT -:> intT -:> intT, _mul))
+    ,   ("_div", (intT -:> intT -:> intT, _div))
+    ,   ("_mod", (intT -:> intT -:> intT, _mod))
 --      Comparison
     ,   ("_le", (intT -:> intT -:> boolT, _le))
 --      Side Effects
@@ -35,7 +39,39 @@ _add PrimOpEnv{..} args = do
     res <- newReg TempReg NumReg
     tell [MoveReg res r1, AddReg res r2]
     pure res
-    
+
+_sub :: (PrimOpC r) => PrimOpF r
+_sub PrimOpEnv{..} args = do
+    aregs <- traverse compileExprToReg args
+    let [r1, r2] = aregs
+    res <- newReg TempReg NumReg
+    tell [MoveReg res r1, SubReg res r2]
+    pure res
+
+_mul :: (PrimOpC r) => PrimOpF r
+_mul PrimOpEnv{..} args = do
+    aregs <- traverse compileExprToReg args
+    let [r1, r2] = aregs
+    res <- newReg TempReg NumReg
+    tell [MoveReg res r1, MulReg res r2]
+    pure res
+
+_div :: (PrimOpC r) => PrimOpF r
+_div PrimOpEnv{..} args = do
+    aregs <- traverse compileExprToReg args
+    let [r1, r2] = aregs
+    res <- newReg TempReg NumReg
+    tell [MoveReg res r1, DivReg res r2]
+    pure res
+
+_mod :: (PrimOpC r) => PrimOpF r
+_mod PrimOpEnv{..} args = do
+    aregs <- traverse compileExprToReg args
+    let [r1, r2] = aregs
+    res <- newReg TempReg NumReg
+    tell [MoveReg res r1, ModReg res r2]
+    pure res
+
 _le :: (PrimOpC r) => PrimOpF r
 _le PrimOpEnv{..} args = do
     aregs <- traverse compileExprToReg args

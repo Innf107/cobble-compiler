@@ -54,6 +54,8 @@ data Instruction =
       | MulLit Register Int
       | DivReg Register Register
       | DivLit Register Int
+      | ModReg Register Register
+      | ModLit Register Int
 
 --    Signum (Register 'Number) -- Signum(x) = Min(Max(x, -1), 1)
       | Min Register Register

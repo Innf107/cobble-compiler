@@ -123,3 +123,5 @@ default-extensions:
   - EmptyDataDeriving
   - RecordWildCards
   - FunctionalDependencies
+  - NumericUnderscores
+  - NumDecimals

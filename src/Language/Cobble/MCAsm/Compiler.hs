@@ -78,6 +78,8 @@ compileInstr i = do
         MulReg reg1 reg2            -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> regOperation reg1 SMul reg2
         DivLit reg lit              -> instr $ assertRegNumber reg >> opLit reg SDiv lit
         DivReg reg1 reg2            -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> regOperation reg1 SDiv reg2
+        ModLit reg lit              -> instr $ assertRegNumber reg >> opLit reg SMod lit
+        ModReg reg1 reg2            -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> regOperation reg1 SMod reg2
         Min reg1 reg2               -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> regOperation reg1 SMin reg2
         Max reg1 reg2               -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> regOperation reg1 SMax reg2
         Section name instrs         -> pure . InterModule name . concat <$> (mapM compileInstr instrs)
