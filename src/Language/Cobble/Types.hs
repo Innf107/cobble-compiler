@@ -24,13 +24,14 @@ class HasType t p | t -> p where
 
 instance HasType (Expr 'Codegen) 'Codegen where
     getType = \case
-        FCall x _ _ _ -> x
-        Var x _ _ -> x
-        IntLit () _ _ -> intT
-        If _ _ _ th _ -> getType th
-        UnitLit _ -> unitT
-        Let _ _ _ b -> getType b
-        ExprX v _ -> absurd v
+        FCall t _ _ _           -> t
+        Var t _ _               -> t
+        IntLit () _ _           -> intT
+        If _ _ _ th _           -> getType th
+        UnitLit _               -> unitT
+        Let _ _ _ b             -> getType b
+        StructConstruct t _ _ _ -> t
+        ExprX v _               -> absurd v
         
 instance HasType (Type p) p where
     getType = id

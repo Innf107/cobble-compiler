@@ -51,12 +51,13 @@ type instance XDefStruct 'QualifyNames = ()
 type instance XStatement 'QualifyNames = Void
 
 
-type instance XFCall   'QualifyNames = ()
-type instance XIntLit  'QualifyNames = ()
-type instance XIf      'QualifyNames = ()
-type instance XVar     'QualifyNames = ()
-type instance XLet     'QualifyNames = ()
-type instance XExpr    'QualifyNames = Void
+type instance XFCall            'QualifyNames = ()
+type instance XIntLit           'QualifyNames = ()
+type instance XIf               'QualifyNames = ()
+type instance XLet              'QualifyNames = ()
+type instance XVar              'QualifyNames = ()
+type instance XStructConstruct  'QualifyNames = ()
+type instance XExpr             'QualifyNames = Void
 
 type instance Name 'QualifyNames = Text
 

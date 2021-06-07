@@ -48,12 +48,13 @@ type instance XDefStruct     'SolveModules = ()
 type instance XStatement     'SolveModules = Void
 
 
-type instance XFCall   'SolveModules = ()
-type instance XIntLit  'SolveModules = ()
-type instance XIf      'SolveModules = ()
-type instance XVar     'SolveModules = ()
-type instance XLet     'SolveModules = ()
-type instance XExpr    'SolveModules = Void
+type instance XFCall            'SolveModules = ()
+type instance XIntLit           'SolveModules = ()
+type instance XIf               'SolveModules = ()
+type instance XLet              'SolveModules = ()
+type instance XVar              'SolveModules = ()
+type instance XStructConstruct  'SolveModules = ()
+type instance XExpr             'SolveModules = Void
 
 type instance Name 'SolveModules = Text
 

@@ -92,7 +92,6 @@ testWithServer categories = do
                     sendCommand "function test:init"
                     success <- getAll . mconcat <$> forM (zip [(1 :: Int)..] tests) \(i, (TestQuery query expectation)) -> do
                         mress <- sequenceA <$> traverse sendCommand query
-                        print mress
                         case mress of
                             Nothing -> liftIO $ failLn "Timeout on RCON command response" >> pure (All False)
                             Just ress -> liftIO $ if (ress `matchesExpectation` expectation)

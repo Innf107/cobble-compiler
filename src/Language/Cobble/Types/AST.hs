@@ -82,21 +82,22 @@ type family XStatement      (p :: Pass)
 
 
 data Expr (p :: Pass) =
-      FCall (XFCall p) LexInfo (Expr p) (NonEmpty (Expr p))
-    | IntLit (XIntLit p) LexInfo Int
-    | UnitLit LexInfo
-          --  | FloatLit Double Text TODO: Needs Standard Library (Postfixes?)
-    | If    (XIf p) LexInfo (Expr p) (Expr p) (Expr p)
-    | Let   (XLet p) LexInfo (Decl p) (Expr p)
-    | Var   (XVar p) LexInfo (Name p)
-    | ExprX (XExpr p) LexInfo
+      FCall           (XFCall p) LexInfo (Expr p) (NonEmpty (Expr p))
+    | IntLit          (XIntLit p) LexInfo Int
+    | UnitLit         LexInfo
+    | If              (XIf p) LexInfo (Expr p) (Expr p) (Expr p)
+    | Let             (XLet p) LexInfo (Decl p) (Expr p)
+    | Var             (XVar p) LexInfo (Name p)
+    | StructConstruct (XStructConstruct p) LexInfo (Name p) [(Name p, Expr p)]
+    | ExprX           (XExpr p) LexInfo
 
-type family XFCall   (p :: Pass)
-type family XIntLit  (p :: Pass)
-type family XIf      (p :: Pass)
-type family XLet     (p :: Pass)
-type family XVar     (p :: Pass)
-type family XExpr    (p :: Pass)
+type family XFCall           (p :: Pass)
+type family XIntLit          (p :: Pass)
+type family XIf              (p :: Pass)
+type family XLet             (p :: Pass)
+type family XVar             (p :: Pass)
+type family XStructConstruct (p :: Pass)
+type family XExpr            (p :: Pass)
 
 data Kind = KStar | KFun Kind Kind deriving (Eq, Generic, Data, Typeable)
 
@@ -213,24 +214,26 @@ instance TypeCoercible p1 p2 => CoercePass Type p1 p2 where
         TApp t1 t2 -> TApp (coercePass t1) (coercePass t2)
         TVar n k -> TVar n k
 
-type ExprCoercible p1 p2 = ( XFCall p1   ~ XFCall   p2
-                         , XIntLit  p1   ~ XIntLit  p2
-                         , Name     p1   ~ Name     p2
-                         , XIf      p1   ~ XIf      p2
-                         , XLet     p1   ~ XLet     p2
-                         , XVar     p1   ~ XVar     p2
-                         , XExpr    p1   ~ XExpr    p2
+type ExprCoercible p1 p2 = ( XFCall p1         ~ XFCall   p2
+                         , XIntLit  p1         ~ XIntLit  p2
+                         , Name     p1         ~ Name     p2
+                         , XIf      p1         ~ XIf      p2
+                         , XLet     p1         ~ XLet     p2
+                         , XVar     p1         ~ XVar     p2
+                         , XStructConstruct p1 ~ XStructConstruct p2
+                         , XExpr    p1         ~ XExpr    p2
                          )
 
 instance (ExprCoercible p1 p2, DeclCoercible p1 p2) => CoercePass Expr p1 p2 where
     _coercePass = \case
-        FCall x l f as -> FCall x l (coercePass f) (fmap coercePass as)
-        IntLit x l i   -> IntLit x l i
-        UnitLit l      -> UnitLit l
-        If x l c th el -> If x l (coercePass c) (coercePass th) (coercePass el)
-        Let x l d b    -> Let x l (coercePass d) (coercePass b)
-        Var x l v      -> Var x l v
-        ExprX x l      -> ExprX x l
+        FCall x l f as           -> FCall x l (coercePass f) (fmap coercePass as)
+        IntLit x l i             -> IntLit x l i
+        UnitLit l                -> UnitLit l
+        If x l c th el           -> If x l (coercePass c) (coercePass th) (coercePass el)
+        Let x l d b              -> Let x l (coercePass d) (coercePass b)
+        Var x l v                -> Var x l v
+        StructConstruct x l c fs -> StructConstruct x l c (map (second coercePass) fs)
+        ExprX x l                -> ExprX x l
         
 type DeclCoercible p1 p2 = (ExprCoercible p1 p2, XParam p1 ~ XParam p2, XKind p1 ~ XKind p2, XDecl p1 ~ XDecl p2)
         
@@ -266,12 +269,13 @@ class HasLexInfo t where
 
 instance HasLexInfo (Expr p) where
     getLexInfo = \case
-        FCall _ li _ _      -> li
-        IntLit _ li _       -> li
-        UnitLit li          -> li
-        If _ li _ _ _       -> li
-        Let _ li _ _        -> li
-        Var _ li _          -> li
-        ExprX _ li          -> li
+        FCall _ li _ _           -> li
+        IntLit _ li _            -> li
+        UnitLit li               -> li
+        If _ li _ _ _            -> li
+        Let _ li _ _             -> li
+        Var _ li _               -> li
+        StructConstruct _ li _ _ -> li
+        ExprX _ li               -> li
         
 

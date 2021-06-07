@@ -84,16 +84,16 @@ letE = "let binding" <??> (\ls n ps e b -> Let () (mergeLexInfo ls (getLexInfo e
     <*> expr
 
 module_ :: Text -> Parser (Module NextPass)
-module_ mname = "module" <??> Module () mname <$> statements
+module_ mname = "module" <??> Module () mname <$> statements <* eof
 
 statement :: Parser (Statement NextPass)
-statement = "statement" <??> def <|> import_
+statement = "statement" <??> def <|> defStruct <|> import_
 
 expr :: Parser (Expr NextPass)
 expr = "expression" <??> fcallOrVar <|> expr'
 
 expr' :: Parser (Expr NextPass)
-expr' = "expression (no fcall)" <??> uncurry (IntLit ()) <$> intLit <|> UnitLit <$> unitLit <|> letE <|> ifE <|> var <|> withParen expr
+expr' = "expression (no fcall)" <??> uncurry (IntLit ()) <$> intLit <|> UnitLit <$> unitLit <|> letE <|> ifE <|> structUpdate <|> var <|> withParen expr
 
 
 def :: Parser (Statement NextPass)
@@ -154,6 +154,15 @@ ifE = "if expression" <??> (\liStart te ee -> If () (liStart `mergeLexInfo` (get
 
 var :: Parser (Expr NextPass)
 var = "variable" <??> uncurry (Var ()) <$> ident
+
+structConstruct :: Parser (Expr NextPass)
+structConstruct = "struct construction" <??> (\_ -> undefined)
+    <$> try ident
+    <*  paren' "{"
+    <*> fieldUpdate `sepBy` (reservedOp' ",")
+    <*> paren  "}"
+    where
+        fieldUpdate = (,) <$> ident <* reservedOp' "=" <*> expr
 
 statements :: Parser [Statement NextPass]
 statements = many (statement <* reservedOp ";")

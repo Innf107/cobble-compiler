@@ -49,12 +49,13 @@ type instance XImport        'Typecheck = ()
 type instance XDefStruct     'Typecheck = ()
 type instance XStatement     'Typecheck = Void
 
-type instance XFCall   'Typecheck = ()
-type instance XIntLit  'Typecheck = ()
-type instance XIf      'Typecheck = (QualifiedName, Int)
-type instance XLet     'Typecheck = ()
-type instance XVar     'Typecheck = ()
-type instance XExpr    'Typecheck = Void
+type instance XFCall            'Typecheck = ()
+type instance XIntLit           'Typecheck = ()
+type instance XIf               'Typecheck = (QualifiedName, Int)
+type instance XLet              'Typecheck = ()
+type instance XVar              'Typecheck = ()
+type instance XStructConstruct  'Typecheck = ()
+type instance XExpr             'Typecheck = Void
 
 type instance Name 'Typecheck = QualifiedName
 

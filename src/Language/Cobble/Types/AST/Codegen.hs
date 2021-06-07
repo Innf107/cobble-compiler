@@ -60,12 +60,13 @@ type instance XImport    'Codegen = ()
 type instance XDefStruct 'Codegen = ()
 type instance XStatement 'Codegen = Void
 
-type instance XFCall   'Codegen = Type 'Codegen
-type instance XIntLit  'Codegen = ()
-type instance XIf      'Codegen = (QualifiedName, Int)
-type instance XVar     'Codegen = Type 'Codegen
-type instance XLet     'Codegen = ()
-type instance XExpr    'Codegen = Void
+type instance XFCall            'Codegen = Type 'Codegen
+type instance XIntLit           'Codegen = ()
+type instance XIf               'Codegen = (QualifiedName, Int)
+type instance XLet              'Codegen = ()
+type instance XVar              'Codegen = Type 'Codegen
+type instance XStructConstruct  'Codegen = Type 'Codegen
+type instance XExpr             'Codegen = Void
 
 type instance Name 'Codegen = QualifiedName
 

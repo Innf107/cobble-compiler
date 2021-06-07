@@ -46,11 +46,11 @@ library:
   - -fplugin=Polysemy.Plugin
   - -Wall
   - -Werror=incomplete-patterns
+  - -Werror=incomplete-record-updates
   - -Wcompat
   - -Wincomplete-uni-patterns
   - -Wno-unused-imports
   - -Wno-unticked-promoted-constructors
-  - -Wincomplete-record-updates
   - -Wredundant-constraints
 
 executables:

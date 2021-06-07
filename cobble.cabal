@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3fb15d9ab008d5851fe325f000c04e39daad7bde611c48c7fb714d3deaf04b82
+-- hash: c9616e3d0c7db30b4fab66eae701a857e1ddac31c13f7250c38ad6a390d464b0
 
 name:           cobble
 version:        0.1.0.0
@@ -108,7 +108,7 @@ library
       FunctionalDependencies
       NumericUnderscores
       NumDecimals
-  ghc-options: -fplugin=Polysemy.Plugin -Wall -Werror=incomplete-patterns -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wincomplete-record-updates -Wredundant-constraints
+  ghc-options: -fplugin=Polysemy.Plugin -Wall -Werror=incomplete-patterns -Werror=incomplete-record-updates -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
     , bytestring
