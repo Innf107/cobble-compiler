@@ -1,4 +1,13 @@
---# definition, construction, and getter : score
+--# definition and construction : score
+struct S {
+    x::Int
+,   y::Bool
+};
+
+--! 5
+let s = S{x=3,y=_true ()} in 5
+
+--# getter : score
 struct S {
     x::Int
 ,   y::Bool

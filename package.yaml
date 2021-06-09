@@ -92,6 +92,7 @@ default-extensions:
   - MultiParamTypeClasses
   - PatternSynonyms
   - StandaloneDeriving
+  - StandaloneKindSignatures
   - GADTs
   - ConstraintKinds
   - ScopedTypeVariables
@@ -125,3 +126,4 @@ default-extensions:
   - FunctionalDependencies
   - NumericUnderscores
   - NumDecimals
+  - RoleAnnotations

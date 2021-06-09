@@ -17,8 +17,10 @@ module Language.Cobble.Prelude (
     , ($$)
     , mapFromLeft
     , censorM
+    , HSType
     ) where
 
+import qualified Relude
 import Relude hiding (
       Type
     , ask
@@ -121,3 +123,6 @@ instance ToText (D.DList Char) where
 
 instance ToText Char where
     toText = T.singleton
+    
+type HSType = Relude.Type
+    

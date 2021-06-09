@@ -18,6 +18,7 @@ import Language.Cobble.Types as S
 import Language.Cobble.Parser.Tokenizer as S
 import Language.Cobble.Parser as S
 import Language.Cobble.Qualifier as S
+import Language.Cobble.SemAnalysis as S
 import Language.Cobble.Packager
 import Language.Cobble.ModuleSolver
 import Language.Cobble.Util.Polysemy.Time
@@ -43,13 +44,17 @@ import Data.List qualified as L
 import Data.Text qualified as T
 import System.FilePath qualified as FP
 
+import qualified Control.Exception as Ex
+
 data CompilationError = LexError LexicalError
                       | ParseError ParseError
                       | QualificationError QualificationError
+                      | SemanticError SemanticError
                       | AsmError McAsmError
                       | TypeError TypeError
                       | ModuleError ModuleError
                       | ControllerPanic Panic
+                      | RuntimePanic Text
                       deriving (Show, Eq)
 
 
@@ -58,7 +63,8 @@ type ControllerC r = Members '[Reader CompileOpts, Error CompilationError, Error
 runControllerC :: CompileOpts 
                -> Sem '[Error Panic, Error CompilationError, Reader CompileOpts, FileSystem FilePath Text, Output Log, Embed IO] a
                -> IO ([Log], Either CompilationError a)
-runControllerC opts = runM . outputToIOMonoidAssocR pure . fileSystemIO . runReader opts . runError . mapError ControllerPanic
+runControllerC opts r = (runM . outputToIOMonoidAssocR pure . fileSystemIO . runReader opts . runError . mapError ControllerPanic) r
+        `Ex.catch` (\(Ex.SomeException e) -> pure ([], Left (RuntimePanic (show e))))
 
 data CompileOpts = CompileOpts {
       name::Text
@@ -106,10 +112,11 @@ compileAndAnnotateSig (m, deps) = do
     annotatedMod :: (S.Module 'QualifyNames) <- S.Module
         <$> fromList <$> traverse (\d -> (makeQName d,) <$> getDep d) ("prims" : deps)
         <*> pure (S.moduleName m)
-        <*> pure (map coercePass (moduleStatements m))
+        <*> pure (map (coercePass @(Statement SolveModules) @(Statement QualifyNames) @SolveModules @QualifyNames) (moduleStatements m))
     (compMod, sig) <- compileWithSig annotatedMod
     modify (insert (S.moduleName m) sig)
     pure compMod
+
 
 getDep :: (ControllerC r, Member (State (Map (S.Name 'QualifyNames) ModSig)) r)
        => S.Name 'SolveModules
@@ -120,7 +127,7 @@ compileWithSig :: (ControllerC r)
                => S.Module 'QualifyNames
                -> Sem r ([CompiledModule], ModSig)
 compileWithSig m = do
-    let qualScopes = [Scope (makeQName $ S.moduleName m) mempty mempty mempty]
+    let qualScopes = [Scope (makeQName $ S.moduleName m) mempty mempty mempty mempty]
     let tcState = foldMap (\dsig -> TCState {
                     varTypes=exportedVars dsig
                 })
@@ -129,7 +136,9 @@ compileWithSig m = do
 
     qMod  <- mapError QualificationError $ evalState qualScopes $ qualify m
 
-    tcMod <- mapError TypeError $ evalState tcState $ runOutputSem (log LogWarning . displayTWarning) $ typecheckModule qMod
+    saMod <- mapError SemanticError $ runSemanticAnalysis qMod
+
+    tcMod <- mapError TypeError $ evalState tcState $ runOutputSem (log LogWarning . displayTWarning) $ typecheckModule saMod
 
     asmMod <- mapError AsmError $ evalState initialCompileState $ S.compile tcMod
     asks ddumpAsm >>= flip when (writeFile (show (A.moduleName asmMod) <> ".mamod") (showAsmDump asmMod))

@@ -124,7 +124,10 @@ compileInstr i = do
             assertRegNumber aix
             assertRegArray arr  
             asArrayElem arr aix $ scoreboardOperation (objForReg reg) "@s" SAssign (objForReg reg) (renderReg reg)
-
+        SetNewInArray arr aix reg -> instr do
+            assertRegNumber aix
+            assertRegArray arr
+            asNewArrayElem arr aix $ scoreboardOperation (objForReg reg) "@s" SAssign (objForReg reg) (renderReg reg)
         DestroyInArray arr aix -> instr do
             asArrayElem arr aix $ rawCommand "kill @s"
 
@@ -170,6 +173,14 @@ asArrayElem areg ixreg mcf = execute
                         $ EIf (EIScore aelem "@s" $ EIEQ aptr (renderReg areg))
                         $ EIf (EIScore ix "@s" $ EIEQ regs (renderReg ixreg))
                         $ ERun mcf
+
+asNewArrayElem :: (CompInnerC r) => Register -> Register -> Sem r () -> Sem r ()
+asNewArrayElem areg ixreg mcf = do
+    summonMarkerWithTags [arrayTag, tempTag]
+    moveScoreboard aelem ("@e[tag=" <> renderTag tempTag <> "]") aptr (renderReg areg)
+    moveScoreboard ix ("@e[tag=" <> renderTag tempTag <> "]") regs (renderReg ixreg)
+    removeTag tempTag ("@e[tag=" <> renderTag tempTag <> "]")
+    asArrayElem areg ixreg mcf
 
 whenDebugMonoid :: (CompC r, Monoid a) => Sem r a -> Sem r a
 whenDebugMonoid s = asks debug >>= bool (pure mempty) s

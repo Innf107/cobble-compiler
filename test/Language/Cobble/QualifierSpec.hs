@@ -200,7 +200,7 @@ spec = do
                     Right (BoolLit () dli True) -}
         describe "Var" do
             it "finds its name in the surrounding environment" do
-                testQual [Scope "Mod2" [] ["x"] mempty] (qualifyExp (Var () dli "x"))
+                testQual [Scope "Mod2" [] mempty ["x"] mempty] (qualifyExp (Var () dli "x"))
                    `shouldBe`
                    Right (Var () dli "Mod2.x")
             it "throws an error if the name does not exist" do
@@ -210,7 +210,7 @@ spec = do
 
     describe "qualifyMod" do
         it "does *not* prefix the mod name" do
-            testQual [Scope "Mod" [] [] mempty] (qualifyMod (Module mempty "MyMod" []))
+            testQual [Scope "Mod" [] mempty [] mempty] (qualifyMod (Module mempty "MyMod" []))
                 `shouldBe`
                 Right (Module mempty "MyMod" [])
         {-it "prefixes all statements" do
@@ -234,4 +234,4 @@ testQual' :: Dependencies
          -> [Scope]
          -> Sem '[State Int, State [Scope], Error QualificationError, Output Log, Reader Dependencies] a
          -> Either QualificationError a
-testQual' deps s = run . runReader deps . runOutputSem (const pass) . runError . evalState (s ++ [Scope "Mod1" [] [] mempty, Scope "prims" ["Int", "Bool", "Unit"] [] (fromList [("Int", KStar), ("Bool", KStar), ("Unit", KStar)])]) . evalState 0
+testQual' deps s = run . runReader deps . runOutputSem (const pass) . runError . evalState (s ++ [Scope "Mod1" [] mempty [] mempty, Scope "prims" ["Int", "Bool", "Unit"] mempty [] (fromList [("Int", KStar), ("Bool", KStar), ("Unit", KStar)])]) . evalState 0

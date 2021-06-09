@@ -2,7 +2,9 @@ module Language.Cobble.Typechecker where
 
 import Language.Cobble.Prelude
 import Language.Cobble.Util.Convert
+import Language.Cobble.Util.Bitraversable
 import Language.Cobble.Types
+import Language.Cobble.Types.Lens
 import Language.Cobble.Shared
 
 type NextPass = 'Codegen
@@ -19,7 +21,7 @@ data TypeError = VarDoesNotExist LexInfo (Name NextPass)
                | WrongAssignType LexInfo (Name NextPass) (Type NextPass) (Type NextPass)
 --                                    ^ expected
                | WrongIfType LexInfo (Type NextPass)
-               | WrongIfEType LexInfo (Type NextPass)
+               | WrongRecordConstructionType LexInfo (Name Typecheck) (Type NextPass) (Type NextPass)
                | DifferentIfETypes LexInfo (Type NextPass) (Type NextPass)
                | WrongSetScoreboardType LexInfo Objective Text (Type NextPass)
                | CannotUnify (Type NextPass) (Type NextPass)
@@ -111,7 +113,7 @@ tcExpr = \case
         else throw $ WrongFunArgs l (tryGetFunName f) fargs (toList exprTypes)
     If x l c th el -> do
         c' <- tcExpr c
-        when (getType c' /= boolT) $ throw $ WrongIfEType l (getType c')
+        when (getType c' /= boolT) $ throw $ WrongIfType l (getType c')
         th' <- tcExpr th
         el' <- tcExpr el
         if (getType th' == getType el')
@@ -121,6 +123,12 @@ tcExpr = \case
     Let () li d body -> Let () li
         <$> tcDecl d
         <*> tcExpr body
+    StructConstruct def li cname fields -> do
+        fields' <- traverse (rightM tcExpr) fields
+        -- we can assume that the fields are all present and in the same order as in the struct definition
+        zipWithM_ (\(n, e) (_, coercePass -> t) -> when (getType e /= t) (throw (WrongRecordConstructionType li n t (getType e)))) fields' (view structFields def)
+        let t = TCon cname KStar --TODO?
+        pure $ StructConstruct (coercePass def, t) li cname fields'
     ExprX x _l -> case x of
 
 splitFunType :: Natural -> Type NextPass -> Maybe ([Type NextPass], Type NextPass)

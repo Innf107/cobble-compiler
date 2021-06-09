@@ -94,17 +94,9 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
     DefStruct () _ _ _ -> pass
     StatementX x _ -> absurd x
 
-renderLogSeg :: (CompileC r) => LogSegment 'Codegen -> Sem r Text
-renderLogSeg (LogText t) = pure $ "{\"text\":\""<> t <>"\"}"
-renderLogSeg (LogVar v) = get <&> join . (^? frames . head1 . varRegs . at v) >>= \case
-                                  Nothing -> panicVarNotFoundTooLate v
-                                  Just vReg -> pure $ T.intercalate "," $ ["REGS", "EPTR", "APTR"] & map (\s ->
-                                    "{\"score\":{\"name\":\""<> renderReg vReg <>"\",\"objective\":\"" <> s <> "\"}}")
-
 compileExprToReg :: forall r. (Member (Writer [Instruction]) r, CompileC r) => Expr 'Codegen -> Sem r Register
 compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e & \case
-    -- TODO: Move intlits to program start?
-    (IntLit () _li i) -> newReg TempReg NumReg >>= \reg -> tell [MoveNumLit reg i] $> reg
+    (IntLit () _li i) -> mkIntReg i
     (UnitLit _li) -> pure unitReg
     (Var _t _li n) -> get <&> join . (^? frames . head1 . varRegs . at n) >>= \case
         Nothing -> panicVarNotFoundTooLate n
@@ -147,7 +139,18 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
         modify (& frames . head1 . varRegs . at vname ?~ exprReg)
         compileExprToReg body
     Let () _li (Decl _t vname ps _expr) _body -> panic' "Local functions are not supported yet. This is *NOT* a bug" [show vname, show ps]
+    StructConstruct (_def, t) _li _cname fields -> do
+        -- We can assume that all fields are present in ps and in the same order as in the struct definition
+        fieldRegs <- traverse (compileExprToReg . snd) fields
+        arrReg <- newRegForType TempReg t
+        ixRegs <- traverse mkIntReg [0..length fieldRegs - 1]
+        tell (zipWith (SetNewInArray arrReg) ixRegs fieldRegs)
+        pure arrReg
     ExprX x _li -> absurd x
+
+-- TODO: Move int lit initialization to program start
+mkIntReg :: (CompileC r, Member (Writer [Instruction]) r) => Int -> Sem r Register
+mkIntReg i = newReg TempReg NumReg >>= \reg -> tell [MoveNumLit reg i] $> reg
 
 writeArgs :: (CompileC r, Member (Writer [Instruction]) r) => [Expr 'Codegen] -> Sem r ()
 writeArgs args = do

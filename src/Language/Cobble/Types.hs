@@ -9,6 +9,7 @@ module Language.Cobble.Types
 import Language.Cobble.Types.AST as Export
 import Language.Cobble.Types.AST.SolveModules as Export
 import Language.Cobble.Types.AST.QualifyNames as Export
+import Language.Cobble.Types.AST.SemAnalysis as Export
 import Language.Cobble.Types.AST.Typecheck as Export
 import Language.Cobble.Types.AST.Codegen as Export
 import Language.Cobble.Shared as Export
@@ -24,14 +25,14 @@ class HasType t p | t -> p where
 
 instance HasType (Expr 'Codegen) 'Codegen where
     getType = \case
-        FCall t _ _ _           -> t
-        Var t _ _               -> t
-        IntLit () _ _           -> intT
-        If _ _ _ th _           -> getType th
-        UnitLit _               -> unitT
-        Let _ _ _ b             -> getType b
-        StructConstruct t _ _ _ -> t
-        ExprX v _               -> absurd v
+        FCall t _ _ _                   -> t
+        Var t _ _                       -> t
+        IntLit () _ _                   -> intT
+        If _ _ _ th _                   -> getType th
+        UnitLit _                       -> unitT
+        Let _ _ _ b                     -> getType b
+        StructConstruct (_, t) _ _ _    -> t
+        ExprX v _                       -> absurd v
         
 instance HasType (Type p) p where
     getType = id

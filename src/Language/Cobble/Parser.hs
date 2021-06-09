@@ -93,7 +93,7 @@ expr :: Parser (Expr NextPass)
 expr = "expression" <??> fcallOrVar <|> expr'
 
 expr' :: Parser (Expr NextPass)
-expr' = "expression (no fcall)" <??> uncurry (IntLit ()) <$> intLit <|> UnitLit <$> unitLit <|> letE <|> ifE <|> structUpdate <|> var <|> withParen expr
+expr' = "expression (no fcall)" <??> uncurry (IntLit ()) <$> intLit <|> UnitLit <$> unitLit <|> letE <|> ifE <|> varOrStructConstruct <|> withParen expr
 
 
 def :: Parser (Statement NextPass)
@@ -152,17 +152,25 @@ ifE = "if expression" <??> (\liStart te ee -> If () (liStart `mergeLexInfo` (get
     <*> (reserved "then" *> expr)
     <*> (reserved "else" *> expr)
 
+varOrStructConstruct :: Parser (Expr NextPass)
+varOrStructConstruct = "variable or struct construction" <??> do
+    v <- ident
+    m <- option False (paren' "{" >> pure True)
+    case m of
+        False -> pure $ uncurry (Var ()) v 
+        True -> structConstructRest v
+    where
+        structConstructRest :: (LexInfo, Text) -> Parser (Expr NextPass)
+        structConstructRest (ls, n) = "struct construction" <??> (\fs le -> StructConstruct IgnoreExt (ls `mergeLexInfo` le) n fs)
+            <$> fieldUpdate `sepBy` (reservedOp' ",")
+            <*> paren  "}"
+            where
+                fieldUpdate = (,) <$> ident' <* reservedOp' "=" <*> expr
+
+
 var :: Parser (Expr NextPass)
 var = "variable" <??> uncurry (Var ()) <$> ident
 
-structConstruct :: Parser (Expr NextPass)
-structConstruct = "struct construction" <??> (\_ -> undefined)
-    <$> try ident
-    <*  paren' "{"
-    <*> fieldUpdate `sepBy` (reservedOp' ",")
-    <*> paren  "}"
-    where
-        fieldUpdate = (,) <$> ident <* reservedOp' "=" <*> expr
 
 statements :: Parser [Statement NextPass]
 statements = many (statement <* reservedOp ";")

@@ -87,9 +87,11 @@ data Instruction =
       | GetInArray Register Register Register
     --             ^final   ^array   ^index
       | SetInArrayOrNew Register Register Register
-    --             ^array ^index   ^writing register
+    --                  ^array   ^index   ^writing register
       | SetInArray Register Register Register
-    --             ^array ^index   ^writing register
+    --             ^array   ^index   ^writing register
+      | SetNewInArray Register Register Register
+    --                ^array   ^index   ^writing register
       | SetScoreboard Objective Text Register
     --                           ^player
       | RawCommand Text
