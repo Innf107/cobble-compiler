@@ -17,6 +17,8 @@ import GHC.Show qualified as S
 
 import qualified Unsafe.Coerce 
 
+import qualified Data.Map as M
+
 type family Name (p :: Pass)
 
 type family InstanceRequirements t :: [HSType]
@@ -27,6 +29,7 @@ data Module (p :: Pass) = Module
     , moduleName :: (Name p)
     , moduleStatements :: [Statement p]
     }
+
 
 type instance InstanceRequirements (Module p) = [XModule p, Name p, Statement p]
 
@@ -100,9 +103,11 @@ data Expr (p :: Pass) =
     | Let             (XLet p) LexInfo (Decl p) (Expr p)
     | Var             (XVar p) LexInfo (Name p)
     | StructConstruct (XStructConstruct p) LexInfo (Name p) [(Name p, Expr p)]
+    | StructAccess    (XStructAccess p) LexInfo (Expr p) UnqualifiedName
     | ExprX           (XExpr p) LexInfo
 
-type instance InstanceRequirements (Expr p) = [XFCall p, XIntLit p, XIf p, XLet p, Decl p, XVar p, Name p, XStructConstruct p, XExpr p]
+type instance InstanceRequirements (Expr p) = [XFCall p, XIntLit p, XIf p, XLet p, Decl p, XVar p, Name p,
+        XStructConstruct p, XStructAccess p, XExpr p]
 
 deriving instance (AllC Show             (InstanceRequirements (Expr p))) => Show    (Expr p)
 deriving instance (AllC Eq               (InstanceRequirements (Expr p))) => Eq      (Expr p)
@@ -115,6 +120,7 @@ type family XIf              (p :: Pass)
 type family XLet             (p :: Pass)
 type family XVar             (p :: Pass)
 type family XStructConstruct (p :: Pass)
+type family XStructAccess    (p :: Pass)
 type family XExpr            (p :: Pass)
 
 data Kind = KStar | KFun Kind Kind deriving (Eq, Generic, Data, Typeable)
@@ -242,83 +248,103 @@ coercePass :: (CoercePass t1 t2 p1 p2) => t1 -> t2
 coercePass = _coercePass
 {-# RULES "coercePass/coercePass" forall x. coercePass x = Unsafe.Coerce.unsafeCoerce x#-}
 
-instance {-#OVERLAPPABLE#-} (Coercible (t p1) (t p2)) => CoercePass (t p1) (t p2) p1 p2 where
-    _coercePass = coerce
+newtype Ext (p :: Pass) t = Ext {getExt :: t} deriving (Show, Eq, Generic, Data)
+data IgnoreExt (p :: Pass) = IgnoreExt deriving (Show, Eq, Generic, Data)
+data ExtVoid (p :: Pass) deriving (Show, Eq, Generic, Data)
 
-data IgnoreExt (p :: Pass) = IgnoreExt deriving (Show, Eq)
+absurd :: ExtVoid t -> a
+absurd _ = error "Language.Cobble.Types.AST.absurd"
+
+instance (Coercible t1 t2) => CoercePass (Ext p1 t1) (Ext p2 t2) p1 p2 where
+    _coercePass = coercePass
 
 instance CoercePass (IgnoreExt p1) (IgnoreExt p2) p1 p2 where
     _coercePass = coerce
 
-type TypeCoercible p1 p2 = (Name p1 ~ Name p2
-                           , XKind p1 ~ XKind p2)  
+instance CoercePass (ExtVoid p1) (ExtVoid p2) p1 p2 where
+    _coercePass = absurd
 
-instance TypeCoercible p1 p2 => CoercePass (Type p1) (Type p2) p1 p2 where
+instance (Coercible k1 k2, CoercePass v1 v2 p1 p2, Ord k2) => CoercePass (Map k1 v1) (Map k2 v2) p1 p2 where
+    _coercePass = M.mapKeys coerce . fmap coercePass
+
+
+instance
+    (   Name p1 ~ Name p2
+    ,   CoercePass (Statement p1) (Statement p2) p1 p2
+    ,   CoercePass (XModule p1) (XModule p2) p1 p2
+    )
+    => CoercePass (Module p1) (Module p2) p1 p2 where
+    _coercePass (Module x n sts) = Module (coercePass x) n (map coercePass sts)
+
+instance
+    (   Name p1 ~ Name p2
+    ,   CoercePass (Expr p1) (Expr p2) p1 p2
+    ,   CoercePass (Type p1) (Type p2) p1 p2
+    ,   CoercePass (Decl p1) (Decl p2) p1 p2
+    ,   CoercePass (XDef p1) (XDef p2) p1 p2
+    ,   CoercePass (XParam p1) (XParam p2) p1 p2
+    ,   CoercePass (XImport p1) (XImport p2) p1 p2
+    ,   CoercePass (XDefStruct p1) (XDefStruct p2) p1 p2
+    ,   CoercePass (XStatement p1) (XStatement p2) p1 p2
+    )
+    => CoercePass (Statement p1) (Statement p2) p1 p2 where
+    _coercePass = \case
+        Def x l d t -> Def (coercePass x) l (coercePass d) (coercePass t)
+        Import x l n -> Import (coercePass x) l n
+        DefStruct x l n fs -> DefStruct (coercePass x) l n (map (second coercePass) fs)
+        StatementX x l -> StatementX (coercePass x) l
+
+instance
+    (   Name p1 ~ Name p2
+    ,   CoercePass (XFCall p1) (XFCall p2) p1 p2
+    ,   CoercePass (XIntLit p1) (XIntLit p2) p1 p2
+    ,   CoercePass (XIf p1) (XIf p2) p1 p2
+    ,   CoercePass (XLet p1) (XLet p2) p1 p2
+    ,   CoercePass (XParam p1) (XParam p2) p1 p2
+    ,   CoercePass (XDecl p1) (XDecl p2) p1 p2
+    ,   CoercePass (XVar p1) (XVar p2) p1 p2
+    ,   CoercePass (XStructConstruct p1) (XStructConstruct p2) p1 p2
+    ,   CoercePass (XStructAccess p1) (XStructAccess p2) p1 p2
+    ,   CoercePass (XExpr p1) (XExpr p2) p1 p2
+    )
+    => CoercePass (Expr p1) (Expr p2) p1 p2 where
+    _coercePass = \case
+        FCall x l f as           -> FCall (coercePass x) l (coercePass f) (fmap coercePass as)
+        IntLit x l i             -> IntLit (coercePass x) l i
+        UnitLit l                -> UnitLit l
+        If x l c th el           -> If (coercePass x) l (coercePass c) (coercePass th) (coercePass el)
+        Let x l d b              -> Let (coercePass x) l (coercePass d) (coercePass b)
+        Var x l v                -> Var (coercePass x) l v
+        StructConstruct x l c fs -> StructConstruct (coercePass x) l c (map (second coercePass) fs)
+        StructAccess x l e f     -> StructAccess (coercePass x) l (coercePass e) f
+        ExprX x l                -> ExprX (coercePass x) l
+
+instance
+    (   Name p1 ~ Name p2
+    ,   CoercePass (XDecl p1) (XDecl p2) p1 p2
+    ,   CoercePass (XParam p1) (XParam p2) p1 p2
+    ,   CoercePass (Expr p1) (Expr p2) p1 p2
+    )
+    => CoercePass (Decl p1) (Decl p2) p1 p2 where
+    _coercePass (Decl x f ps e) = Decl (coercePass x) f (coercePass ps) (coercePass e)
+
+
+instance
+    (   Name p1 ~ Name p2
+    ,   XKind p1 ~ XKind p2
+    )
+    => CoercePass (Type p1) (Type p2) p1 p2 where
     _coercePass = \case
         TCon n k -> TCon n k
         TApp t1 t2 -> TApp (coercePass t1) (coercePass t2)
         TVar n k -> TVar n k
 
-
-type ExprCoercible p1 p2 = ( CoercePass (XStructConstruct p1) (XStructConstruct p2) p1 p2
-                         , XFCall p1           ~ XFCall   p2
-                         , XIntLit  p1         ~ XIntLit  p2
-                         , Name     p1         ~ Name     p2
-                         , XIf      p1         ~ XIf      p2
-                         , XLet     p1         ~ XLet     p2
-                         , XVar     p1         ~ XVar     p2
-                         , XExpr    p1         ~ XExpr    p2
-                         )
--- Ugly hack :(
---newtype XStructConstructL p = XStructConstructL (XStructConstruct p)
---instance (XStructConstruct p1 ~ StructDef p1, XStructConstruct p2 ~ StructDef p2, CoercePass StructDef p1 p2)
---    => CoercePass XStructConstructL p1 p2 where
---    _coercePass (XStructConstructL x) = XStructConstructL (coercePass x)
-
-
-instance (ExprCoercible p1 p2, DeclCoercible p1 p2) => CoercePass (Expr p1) (Expr p2) p1 p2 where
-    _coercePass = \case
-        FCall x l f as           -> FCall x l (coercePass f) (fmap coercePass as)
-        IntLit x l i             -> IntLit x l i
-        UnitLit l                -> UnitLit l
-        If x l c th el           -> If x l (coercePass c) (coercePass th) (coercePass el)
-        Let x l d b              -> Let x l (coercePass d) (coercePass b)
-        Var x l v                -> Var x l v
-        StructConstruct x l c fs -> StructConstruct (coercePass  x) l c (map (second coercePass) fs)
-        ExprX x l                -> ExprX x l
-
-type StructDefCoercible p1 p2 = (Name p1 ~ Name p2, TypeCoercible p1 p2)
-
-instance StructDefCoercible p1 p2 => CoercePass (StructDef p1) (StructDef p2) p1 p2 where
+instance
+    (   Name p1 ~ Name p2
+    ,   CoercePass (Type p1) (Type p2) p1 p2
+    )
+    => CoercePass (StructDef p1) (StructDef p2) p1 p2 where
     _coercePass (StructDef n fs) = StructDef n (map (second coercePass) fs)
-
-type DeclCoercible p1 p2 = (ExprCoercible p1 p2, XParam p1 ~ XParam p2, XKind p1 ~ XKind p2, XDecl p1 ~ XDecl p2)
-        
-instance (DeclCoercible p1 p2) => CoercePass (Decl p1) (Decl p2) p1 p2 where
-  _coercePass (Decl x f ps e) = Decl x f ps (coercePass e)
-        
-type StatementCoercible p1 p2 = ( ExprCoercible p1 p2
-                                , TypeCoercible p1 p2
-                                , DeclCoercible p1 p2
-                                , XDef       p1 ~ XDef    p2
-                                , XParam     p1 ~ XParam  p2
-                                , XImport    p1 ~ XImport p2
-                                , XDefStruct p1 ~ XDefStruct p2
-                                , XStatement p1 ~ XStatement p2
-                                )
-        
-instance (StatementCoercible p1 p2) => CoercePass (Statement p1) (Statement p2) p1 p2 where
-    _coercePass = \case
-        Def x l d t -> Def x l (coercePass d) (coercePass t)
-        Import x l n -> Import x l n
-        DefStruct x l n fs -> DefStruct x l n (map (second coercePass) fs)
-        StatementX x l -> StatementX x l
-        
-type ModuleCoercible p1 p2 = ( StatementCoercible p1 p2
-                             , XModule p1 ~ XModule p2
-                             )
-instance (ModuleCoercible p1 p2, StatementCoercible p1 p2) => CoercePass (Module p1) (Module p2) p1 p2 where
-    _coercePass (Module x n sts) = Module x n (map coercePass sts) 
 
 
 class HasLexInfo t where
@@ -333,6 +359,7 @@ instance HasLexInfo (Expr p) where
         Let _ li _ _             -> li
         Var _ li _               -> li
         StructConstruct _ li _ _ -> li
+        StructAccess _ li _ _    -> li
         ExprX _ li               -> li
         
 

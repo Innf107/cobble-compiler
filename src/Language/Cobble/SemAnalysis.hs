@@ -14,7 +14,7 @@ data SemanticError = MissingField LexInfo (Name SemAnalysis)
                    deriving (Show, Eq)
 
 runSemanticAnalysis :: Members '[Error SemanticError] r => Module SemAnalysis -> Sem r (Module NextPass)
-runSemanticAnalysis (Module x n sts) = coercePass . Module x n <$> transformBiM checkAndReorderStructConstruct sts
+runSemanticAnalysis (Module x n sts) = coercePass @(Module SemAnalysis) @(Module NextPass) @SemAnalysis @NextPass . Module x n <$> transformBiM checkAndReorderStructConstruct sts
 
 
 checkAndReorderStructConstruct :: Members '[Error SemanticError] r => Expr SemAnalysis -> Sem r (Expr SemAnalysis)

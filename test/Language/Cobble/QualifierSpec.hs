@@ -12,165 +12,165 @@ spec = do
         {-describe "CallFun" do
             it "finds the function name in the surrounding context" do
                 testQual [Scope "Mod2" [] ["f"] mempty] (qualifyStatement (
-                    CallFun () dli (Var () dli "f") []
+                    CallFun IgnoreExt dli (Var IgnoreExt dli "f") []
                     ))
                     `shouldBe`
-                    Right (CallFun () dli (Var () dli "Mod2.f") [])
+                    Right (CallFun IgnoreExt dli (Var IgnoreExt dli "Mod2.f") [])
             it "does not use a type name" do
                 testQual [Scope "Mod2" ["f"] [] mempty] (qualifyStatement (
-                    CallFun () dli (Var () dli "f") []
+                    CallFun IgnoreExt dli (Var IgnoreExt dli "f") []
                     ))
                     `shouldBe`
                     Left (NameNotFound dli "f")
             it "throws an error if the type is not found" do
                 testQual [Scope "Mod2" [] ["g"] mempty] (qualifyStatement (
-                    CallFun () dli (Var () dli "f") []
+                    CallFun IgnoreExt dli (Var IgnoreExt dli "f") []
                     ))
                     `shouldBe`
                     Left (NameNotFound dli "f")
             it "does not start a new qualification context for its parameters" do
                 testQual [Scope "Mod2" [] ["f", "x"] mempty, Scope "Mod1" [] ["y"] mempty] (qualifyStatement (
-                    CallFun () dli (Var () dli "f") [Var () dli "x", Var () dli "y"]
+                    CallFun IgnoreExt dli (Var IgnoreExt dli "f") [Var IgnoreExt dli "x", Var IgnoreExt dli "y"]
                     ))
                     `shouldBe`
-                    Right (CallFun () dli (Var () dli "Mod2.f") [Var () dli "Mod2.x", Var () dli "Mod1.y"])
+                    Right (CallFun IgnoreExt dli (Var IgnoreExt dli "Mod2.f") [Var IgnoreExt dli "Mod2.x", Var IgnoreExt dli "Mod1.y"])
         describe "DefVoid" do
             it "carries over the previous qualification context" do
                 testQual [] (qualifyStatement (
-                    DefFun () dli "f" [("x", intT)] [] (UnitLit dli) unitT
+                    DefFun IgnoreExt dli "f" [("x", intT)] [] (UnitLit dli) unitT
                     ))
                     `shouldBe`
-                    Right (DefFun () dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [] (UnitLit dli) unitT)
+                    Right (DefFun IgnoreExt dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [] (UnitLit dli) unitT)
             it "starts a new qualification context in its body" do
                 testQual [] (qualifyStatement (
-                    DefFun () dli "f" [] [Decl () dli "x" Nothing (IntLit () dli 5)] (UnitLit dli) unitT
+                    DefFun IgnoreExt dli "f" [] [Decl IgnoreExt dli "x" Nothing (IntLit IgnoreExt dli 5)] (UnitLit dli) unitT
                     ))
                     `shouldBe`
-                    Right (DefFun () dli "Mod1.f" [] [Decl () dli "Mod1.-fun_f.x" Nothing (IntLit () dli 5)] (UnitLit dli) unitT)
+                    Right (DefFun IgnoreExt dli "Mod1.f" [] [Decl IgnoreExt dli "Mod1.-fun_f.x" Nothing (IntLit IgnoreExt dli 5)] (UnitLit dli) unitT)
             it "is added to the names in the current Scope" do
                 testQual [] (traverse qualifyStatement [
-                      DefFun () dli "f" [] [CallFun () dli (Var () dli "f") []] (UnitLit dli) unitT
-                    , CallFun () dli (Var () dli "f") []
+                      DefFun IgnoreExt dli "f" [] [CallFun IgnoreExt dli (Var IgnoreExt dli "f") []] (UnitLit dli) unitT
+                    , CallFun IgnoreExt dli (Var IgnoreExt dli "f") []
                     ])
                     `shouldBe`
                     Right [
-                      DefFun () dli "Mod1.f" [] [CallFun () dli (Var () dli "Mod1.f") []] (UnitLit dli) unitT
-                    , CallFun () dli (Var () dli "Mod1.f") []
+                      DefFun IgnoreExt dli "Mod1.f" [] [CallFun IgnoreExt dli (Var IgnoreExt dli "Mod1.f") []] (UnitLit dli) unitT
+                    , CallFun IgnoreExt dli (Var IgnoreExt dli "Mod1.f") []
                     ]
             it "keeps its parameters in scope for the body" do
                 testQual [] (qualifyStatement (
-                    DefFun () dli "f" [("x", intT)] [Decl () dli "y" Nothing (Var () dli "x")] (UnitLit dli) unitT
+                    DefFun IgnoreExt dli "f" [("x", intT)] [Decl IgnoreExt dli "y" Nothing (Var IgnoreExt dli "x")] (UnitLit dli) unitT
                     ))
                     `shouldBe`
-                    Right (DefFun () dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [Decl () dli "Mod1.-fun_f.y" Nothing (Var () dli "Mod1.-fun_f.x")] (UnitLit dli) unitT)
+                    Right (DefFun IgnoreExt dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [Decl IgnoreExt dli "Mod1.-fun_f.y" Nothing (Var IgnoreExt dli "Mod1.-fun_f.x")] (UnitLit dli) unitT)
         describe "DefFun" do
             it "carries over the previous qualification context" do
                 testQual [] (qualifyStatement (
-                    DefFun () dli "f" [("x", intT)] [] (IntLit () dli 5) intT
+                    DefFun IgnoreExt dli "f" [("x", intT)] [] (IntLit IgnoreExt dli 5) intT
                     ))
                     `shouldBe`
-                    Right (DefFun () dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [] (IntLit () dli 5) intT)
+                    Right (DefFun IgnoreExt dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [] (IntLit IgnoreExt dli 5) intT)
             it "starts a new qualification context in its body" do
                 testQual [] (qualifyStatement (
-                    DefFun () dli "f" [] [Decl () dli "x" Nothing (IntLit () dli 5)] (IntLit () dli 5) intT
+                    DefFun IgnoreExt dli "f" [] [Decl IgnoreExt dli "x" Nothing (IntLit IgnoreExt dli 5)] (IntLit IgnoreExt dli 5) intT
                     ))
                     `shouldBe`
-                    Right (DefFun () dli "Mod1.f" [] [Decl () dli "Mod1.-fun_f.x" Nothing (IntLit () dli 5)] (IntLit () dli 5) intT)
+                    Right (DefFun IgnoreExt dli "Mod1.f" [] [Decl IgnoreExt dli "Mod1.-fun_f.x" Nothing (IntLit IgnoreExt dli 5)] (IntLit IgnoreExt dli 5) intT)
             it "keeps its parameters in scope for the body and return expression" do
                 testQual [] (qualifyStatement (
-                    DefFun () dli "f" [("x", intT)] [Decl () dli "y" Nothing (Var () dli "x")] (Var () dli "x") intT
+                    DefFun IgnoreExt dli "f" [("x", intT)] [Decl IgnoreExt dli "y" Nothing (Var IgnoreExt dli "x")] (Var IgnoreExt dli "x") intT
                     ))
                     `shouldBe`
-                    Right (DefFun () dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [Decl () dli "Mod1.-fun_f.y" Nothing (Var () dli "Mod1.-fun_f.x")] (Var () dli "Mod1.-fun_f.x") intT)
+                    Right (DefFun IgnoreExt dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [Decl IgnoreExt dli "Mod1.-fun_f.y" Nothing (Var IgnoreExt dli "Mod1.-fun_f.x")] (Var IgnoreExt dli "Mod1.-fun_f.x") intT)
             it "starts a new qualification context in its return expression" do
                 testQual [] (qualifyStatement (
-                    DefFun () dli "f" [("x", intT)] [] (Var () dli "x") intT
+                    DefFun IgnoreExt dli "f" [("x", intT)] [] (Var IgnoreExt dli "x") intT
                     ))
                     `shouldBe`
-                    Right (DefFun () dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [] (Var () dli "Mod1.-fun_f.x") intT)
+                    Right (DefFun IgnoreExt dli "Mod1.f" [("Mod1.-fun_f.x", intT)] [] (Var IgnoreExt dli "Mod1.-fun_f.x") intT)
             it "keeps variables from its body in scope for the return expression" do
                 testQual [] (qualifyStatement (
-                    DefFun () dli "f" [] [Decl () dli "y" Nothing (IntLit () dli 5)] (Var () dli "y") intT
+                    DefFun IgnoreExt dli "f" [] [Decl IgnoreExt dli "y" Nothing (IntLit IgnoreExt dli 5)] (Var IgnoreExt dli "y") intT
                     ))
                     `shouldBe`
-                    Right (DefFun () dli "Mod1.f" [] [Decl () dli "Mod1.-fun_f.y" Nothing (IntLit () dli 5)] (Var () dli "Mod1.-fun_f.y") intT)
+                    Right (DefFun IgnoreExt dli "Mod1.f" [] [Decl IgnoreExt dli "Mod1.-fun_f.y" Nothing (IntLit IgnoreExt dli 5)] (Var IgnoreExt dli "Mod1.-fun_f.y") intT)
             it "is added to the names in the current Scope" do
                 testQual [] (traverse qualifyStatement [
-                      DefFun() dli "f" [] [CallFun () dli (Var () dli "f") []] (FCall () dli (Var () dli "f") []) intT
-                    , CallFun () dli (Var () dli "f") []
+                      DefFunIgnoreExt dli "f" [] [CallFun IgnoreExt dli (Var IgnoreExt dli "f") []] (FCall IgnoreExt dli (Var IgnoreExt dli "f") []) intT
+                    , CallFun IgnoreExt dli (Var IgnoreExt dli "f") []
                     ])
                     `shouldBe`
                     Right [
-                      DefFun () dli "Mod1.f" [] [CallFun () dli (Var () dli "Mod1.f") []] (FCall () dli (Var () dli "Mod1.f") []) intT
-                    , CallFun () dli (Var () dli "Mod1.f") []
+                      DefFun IgnoreExt dli "Mod1.f" [] [CallFun IgnoreExt dli (Var IgnoreExt dli "Mod1.f") []] (FCall IgnoreExt dli (Var IgnoreExt dli "Mod1.f") []) intT
+                    , CallFun IgnoreExt dli (Var IgnoreExt dli "Mod1.f") []
                     ]
         describe "Decl" do
             it "is added to the names in the current scope" do
                 testQual [] (traverse qualifyStatement [
-                      Decl () dli "x" Nothing (IntLit () dli 5)
-                    , Decl () dli "y" Nothing (Var () dli "x")
+                      Decl IgnoreExt dli "x" Nothing (IntLit IgnoreExt dli 5)
+                    , Decl IgnoreExt dli "y" Nothing (Var IgnoreExt dli "x")
                     ])
                     `shouldBe`
                     Right [
-                      Decl () dli "Mod1.x" Nothing (IntLit () dli 5)
-                    , Decl () dli "Mod1.y" Nothing (Var () dli "Mod1.x")
+                      Decl IgnoreExt dli "Mod1.x" Nothing (IntLit IgnoreExt dli 5)
+                    , Decl IgnoreExt dli "Mod1.y" Nothing (Var IgnoreExt dli "Mod1.x")
                     ]
         describe "Assign" do
             it "finds the variable from the surrounding environment" do
                 testQual [] (traverse qualifyStatement [
-                      Decl () dli "x" (Just intT) (IntLit () dli 5)
-                    , Assign () dli "x" (Var () dli "x")
+                      Decl IgnoreExt dli "x" (Just intT) (IntLit IgnoreExt dli 5)
+                    , Assign IgnoreExt dli "x" (Var IgnoreExt dli "x")
                     ])
                     `shouldBe`
                     Right [
-                      Decl () dli "Mod1.x" (Just intT) (IntLit () dli 5)
-                    , Assign () dli "Mod1.x" (Var () dli "Mod1.x")
+                      Decl IgnoreExt dli "Mod1.x" (Just intT) (IntLit IgnoreExt dli 5)
+                    , Assign IgnoreExt dli "Mod1.x" (Var IgnoreExt dli "Mod1.x")
                     ]
         --TODO
         describe "While" do
             it "creates a new scope for its body" do
                 testQual [] (traverse qualifyStatement [
-                      Decl () dli "x" (Just intT) (IntLit () dli 5)
-                    , While () dli (BoolLit () dli True) [
-                        Decl () dli "x" (Just intT) (IntLit () dli 6)
-                      , Assign () dli "x" (Var () dli "x")
+                      Decl IgnoreExt dli "x" (Just intT) (IntLit IgnoreExt dli 5)
+                    , While IgnoreExt dli (BoolLit IgnoreExt dli True) [
+                        Decl IgnoreExt dli "x" (Just intT) (IntLit IgnoreExt dli 6)
+                      , Assign IgnoreExt dli "x" (Var IgnoreExt dli "x")
                       ]
-                    , Assign () dli "x" (Var () dli "x")
+                    , Assign IgnoreExt dli "x" (Var IgnoreExt dli "x")
                     ])
                     `shouldBe`
                     Right [
-                      Decl () dli "Mod1.x" (Just intT) (IntLit () dli 5)
-                    , While () dli (BoolLit () dli True) [
-                        Decl () dli "Mod1.-while1.x" (Just intT) (IntLit () dli 6)
-                      , Assign () dli "Mod1.-while1.x" (Var () dli "Mod1.-while1.x")
+                      Decl IgnoreExt dli "Mod1.x" (Just intT) (IntLit IgnoreExt dli 5)
+                    , While IgnoreExt dli (BoolLit IgnoreExt dli True) [
+                        Decl IgnoreExt dli "Mod1.-while1.x" (Just intT) (IntLit IgnoreExt dli 6)
+                      , Assign IgnoreExt dli "Mod1.-while1.x" (Var IgnoreExt dli "Mod1.-while1.x")
                       ]
-                    , Assign () dli "Mod1.x" (Var () dli "Mod1.x")
+                    , Assign IgnoreExt dli "Mod1.x" (Var IgnoreExt dli "Mod1.x")
                     ] -}
         describe "DefStruct" do
             it "correctly qualifies its field types" do
-                testQual [] (qualifyStatement (DefStruct () dli "SomeStruct" [("x", intT)]))
+                testQual [] (qualifyStatement (DefStruct IgnoreExt dli "SomeStruct" [("x", intT)]))
                     `shouldBe`
-                    Right (DefStruct () dli "Mod1.SomeStruct" [("Mod1.SomeStruct.x", intT)])
+                    Right (DefStruct IgnoreExt dli "Mod1.SomeStruct" [("Mod1.SomeStruct.x", intT)])
             it "is available inside its field types (structural recursion)" do -- TODO: Direct structural recursion might have to be detected
-                testQual [] (qualifyStatement (DefStruct () dli "SomeStruct" [("f", TCon "SomeStruct" ())]))
+                testQual [] (qualifyStatement (DefStruct IgnoreExt dli "SomeStruct" [("f", TCon "SomeStruct" ())]))
                     `shouldBe`
-                    Right (DefStruct () dli "Mod1.SomeStruct" [("Mod1.SomeStruct.f", TCon "Mod1.SomeStruct" KStar)])
+                    Right (DefStruct IgnoreExt dli "Mod1.SomeStruct" [("Mod1.SomeStruct.f", TCon "Mod1.SomeStruct" KStar)])
             {-it "is added to the type names in the current scopes" do
                 testQual [] (traverse qualifyStatement [
-                      DefStruct () dli "SomeStruct" []
-                    , Decl () dli "x" (Just (TCon "SomeStruct" ())) (IntLit () dli 42)
+                      DefStruct IgnoreExt dli "SomeStruct" []
+                    , Decl IgnoreExt dli "x" (Just (TCon "SomeStruct" IgnoreExt)) (IntLit IgnoreExt dli 42)
                     ])
                     `shouldBe`
                     Right [
-                      DefStruct () dli "Mod1.SomeStruct" []
-                    , Decl () dli "Mod1.x" (Just (TCon "Mod1.SomeStruct" KStar)) (IntLit () dli 42)
+                      DefStruct IgnoreExt dli "Mod1.SomeStruct" []
+                    , Decl IgnoreExt dli "Mod1.x" (Just (TCon "Mod1.SomeStruct" KStar)) (IntLit IgnoreExt dli 42)
                     ]
             it "does not bleed into the outer scope" do
                 testQual [] (traverse qualifyStatement [
-                      DefFun () dli "f" [] [
-                        DefStruct () dli "SomeStruct" []
+                      DefFun IgnoreExt dli "f" [] [
+                        DefStruct IgnoreExt dli "SomeStruct" []
                       ] (UnitLit dli) unitT
-                      , Decl () dli "x" (Just (TCon "SomeStruct" ())) (IntLit () dli 42)
+                      , Decl IgnoreExt dli "x" (Just (TCon "SomeStruct" IgnoreExt)) (IntLit IgnoreExt dli 42)
                     ])
                     `shouldBe`
                     Left (TypeNotFound dli "SomeStruct") -}
@@ -178,45 +178,45 @@ spec = do
         describe "FCall" do
             it "finds the function name from the outer scope" do
                 testQual [Scope "Mod2" [] ["f"] mempty] (qualifyExp (
-                        FCall () dli (Var () dli "f") []
+                        FCall IgnoreExt dli (Var IgnoreExt dli "f") []
                     ))
                     `shouldBe`
-                    Right (FCall () dli (Var () dli "Mod2.f") [])
+                    Right (FCall IgnoreExt dli (Var IgnoreExt dli "Mod2.f") [])
             it "fully qualifies its arguments" do
                 testQual [Scope "Mod2" [] ["f", "x"] mempty] (qualifyExp (
-                    FCall () dli (Var () dli "f") [(Var () dli "x"), (Var () dli "f")]
+                    FCall IgnoreExt dli (Var IgnoreExt dli "f") [(Var IgnoreExt dli "x"), (Var IgnoreExt dli "f")]
                     ))
                     `shouldBe`
-                    Right (FCall () dli (Var () dli "Mod2.f") [Var () dli "Mod2.x", Var () dli "Mod2.f"])  -}
+                    Right (FCall IgnoreExt dli (Var IgnoreExt dli "Mod2.f") [Var IgnoreExt dli "Mod2.x", Var IgnoreExt dli "Mod2.f"])  -}
         describe "IntLit" do
             it "is completely unaffected" do
-                testQual [] (qualifyExp (IntLit () dli 42))
+                testQual [] (qualifyExp (IntLit IgnoreExt dli 42))
                     `shouldBe`
-                    Right (IntLit () dli 42)
+                    Right (IntLit IgnoreExt dli 42)
         {-describe "BoolLit" do
             it "is completely unaffected" do
-                testQual [] (qualifyExp (BoolLit () dli True))
+                testQual [] (qualifyExp (BoolLit IgnoreExt dli True))
                     `shouldBe`
-                    Right (BoolLit () dli True) -}
+                    Right (BoolLit IgnoreExt dli True) -}
         describe "Var" do
             it "finds its name in the surrounding environment" do
-                testQual [Scope "Mod2" [] mempty ["x"] mempty] (qualifyExp (Var () dli "x"))
+                testQual [Scope "Mod2" [] mempty ["x"] mempty] (qualifyExp (Var IgnoreExt dli "x"))
                    `shouldBe`
-                   Right (Var () dli "Mod2.x")
+                   Right (Var IgnoreExt dli "Mod2.x")
             it "throws an error if the name does not exist" do
-                testQual [] (qualifyExp (Var () dli "x"))
+                testQual [] (qualifyExp (Var IgnoreExt dli "x"))
                     `shouldBe`
                     Left (NameNotFound dli "x")
 
     describe "qualifyMod" do
         it "does *not* prefix the mod name" do
-            testQual [Scope "Mod" [] mempty [] mempty] (qualifyMod (Module mempty "MyMod" []))
+            testQual [Scope "Mod" [] mempty [] mempty] (qualifyMod (Module (Ext mempty) "MyMod" []))
                 `shouldBe`
-                Right (Module mempty "MyMod" [])
+                Right (Module (Ext mempty) "MyMod" [])
         {-it "prefixes all statements" do
-            testQual [Scope "Mod" [] [] mempty] (qualifyMod (Module mempty "MyMod" [Decl () dli "x" Nothing (IntLit () dli 5)]))
+            testQual [Scope "Mod" [] [] mempty] (qualifyMod (Module mempty "MyMod" [Decl IgnoreExt dli "x" Nothing (IntLit IgnoreExt dli 5)]))
                 `shouldBe`
-                Right (Module mempty "MyMod" [Decl () dli "Mod.x" Nothing (IntLit () dli 5)]) -}
+                Right (Module mempty "MyMod" [Decl IgnoreExt dli "Mod.x" Nothing (IntLit IgnoreExt dli 5)]) -}
     describe "qualifyType" do
         pass
 

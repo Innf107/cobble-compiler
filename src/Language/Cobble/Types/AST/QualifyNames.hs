@@ -8,23 +8,24 @@ import Data.Generics.Uniplate.Data
 import Language.Cobble.Prelude
 import Language.Cobble.Types.AST
     
-type instance XModule 'QualifyNames = Map (Name 'Codegen) ModSig
+type instance XModule 'QualifyNames = Ext QualifyNames (Map (Name 'Codegen) ModSig)
   
-type instance XDef       'QualifyNames = ()
-type instance XDecl      'QualifyNames = ()
-type instance XParam     'QualifyNames = [Name 'QualifyNames]
-type instance XImport    'QualifyNames = ()
-type instance XDefStruct 'QualifyNames = ()
-type instance XStatement 'QualifyNames = Void
+type instance XDef       'QualifyNames = IgnoreExt QualifyNames
+type instance XDecl      'QualifyNames = IgnoreExt QualifyNames
+type instance XParam     'QualifyNames = Ext QualifyNames [Name QualifyNames]
+type instance XImport    'QualifyNames = IgnoreExt QualifyNames
+type instance XDefStruct 'QualifyNames = IgnoreExt QualifyNames
+type instance XStatement 'QualifyNames = ExtVoid QualifyNames
 
 
-type instance XFCall            'QualifyNames = ()
-type instance XIntLit           'QualifyNames = ()
-type instance XIf               'QualifyNames = ()
-type instance XLet              'QualifyNames = ()
-type instance XVar              'QualifyNames = ()
-type instance XStructConstruct  'QualifyNames = IgnoreExt 'QualifyNames
-type instance XExpr             'QualifyNames = Void
+type instance XFCall            'QualifyNames = IgnoreExt QualifyNames
+type instance XIntLit           'QualifyNames = IgnoreExt QualifyNames
+type instance XIf               'QualifyNames = IgnoreExt QualifyNames
+type instance XLet              'QualifyNames = IgnoreExt QualifyNames
+type instance XVar              'QualifyNames = IgnoreExt QualifyNames
+type instance XStructConstruct  'QualifyNames = IgnoreExt QualifyNames
+type instance XStructAccess     'QualifyNames = IgnoreExt QualifyNames
+type instance XExpr             'QualifyNames = ExtVoid QualifyNames
 
 type instance Name 'QualifyNames = Text
 

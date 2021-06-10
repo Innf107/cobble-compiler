@@ -8,23 +8,24 @@ import Data.Generics.Uniplate.Data
 import Language.Cobble.Prelude
 import Language.Cobble.Types.AST
     
-type instance XModule 'SolveModules = ()
+type instance XModule 'SolveModules = IgnoreExt SolveModules
   
-type instance XDef           'SolveModules = ()
-type instance XDecl          'SolveModules = ()
-type instance XParam         'SolveModules = [(Name 'SolveModules)]
-type instance XImport        'SolveModules = ()
-type instance XDefStruct     'SolveModules = ()
-type instance XStatement     'SolveModules = Void
+type instance XDef           'SolveModules = IgnoreExt SolveModules
+type instance XDecl          'SolveModules = IgnoreExt SolveModules
+type instance XParam         'SolveModules = Ext SolveModules [(Name 'SolveModules)]
+type instance XImport        'SolveModules = IgnoreExt SolveModules
+type instance XDefStruct     'SolveModules = IgnoreExt SolveModules
+type instance XStatement     'SolveModules = ExtVoid SolveModules
 
 
-type instance XFCall            'SolveModules = ()
-type instance XIntLit           'SolveModules = ()
-type instance XIf               'SolveModules = ()
-type instance XLet              'SolveModules = ()
-type instance XVar              'SolveModules = ()
+type instance XFCall            'SolveModules = IgnoreExt SolveModules
+type instance XIntLit           'SolveModules = IgnoreExt SolveModules
+type instance XIf               'SolveModules = IgnoreExt SolveModules
+type instance XLet              'SolveModules = IgnoreExt SolveModules
+type instance XVar              'SolveModules = IgnoreExt SolveModules
 type instance XStructConstruct  'SolveModules = IgnoreExt SolveModules
-type instance XExpr             'SolveModules = Void
+type instance XStructAccess     'SolveModules = IgnoreExt 'SolveModules
+type instance XExpr             'SolveModules = ExtVoid SolveModules
 
 type instance Name 'SolveModules = Text
 

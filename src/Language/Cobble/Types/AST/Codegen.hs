@@ -20,23 +20,24 @@ deriving instance Show TypeVariant
 deriving instance Eq TypeVariant
 deriving instance Data TypeVariant
 
-type instance XModule 'Codegen = Map (Name 'Codegen) ModSig
+type instance XModule 'Codegen = Ext Codegen (Map (Name 'Codegen) ModSig)
 
-type instance XDecl      'Codegen = Type 'Codegen
-type instance XParam     'Codegen = [(Name 'Codegen, Type 'Codegen)]
+type instance XDecl      'Codegen = Ext Codegen (Type 'Codegen)
+type instance XParam     'Codegen = Ext Codegen [(Name 'Codegen, Type 'Codegen)]
 
-type instance XDef       'Codegen = () -- Return Type
-type instance XImport    'Codegen = ()
-type instance XDefStruct 'Codegen = ()
-type instance XStatement 'Codegen = Void
+type instance XDef       'Codegen = IgnoreExt Codegen
+type instance XImport    'Codegen = IgnoreExt Codegen
+type instance XDefStruct 'Codegen = IgnoreExt Codegen
+type instance XStatement 'Codegen = ExtVoid Codegen
 
-type instance XFCall            'Codegen = Type 'Codegen
-type instance XIntLit           'Codegen = ()
-type instance XIf               'Codegen = (QualifiedName, Int)
-type instance XLet              'Codegen = ()
-type instance XVar              'Codegen = Type 'Codegen
-type instance XStructConstruct  'Codegen = (StructDef 'Codegen, Type 'Codegen)
-type instance XExpr             'Codegen = Void
+type instance XFCall            'Codegen = Ext Codegen (Type 'Codegen)
+type instance XIntLit           'Codegen = IgnoreExt Codegen
+type instance XIf               'Codegen = Ext Codegen (QualifiedName, Int)
+type instance XLet              'Codegen = IgnoreExt Codegen
+type instance XVar              'Codegen = Ext Codegen (Type 'Codegen)
+type instance XStructConstruct  'Codegen = Ext Codegen (StructDef 'Codegen, Type 'Codegen)
+type instance XStructAccess     'Codegen = Ext Codegen (StructDef 'Codegen, Type 'Codegen)
+type instance XExpr             'Codegen = ExtVoid Codegen
 
 type instance Name 'Codegen = QualifiedName
 

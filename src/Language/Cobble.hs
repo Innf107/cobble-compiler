@@ -110,7 +110,7 @@ compileAndAnnotateSig :: (ControllerC r, Member (State (Map (S.Name 'QualifyName
                       -> Sem r [CompiledModule]
 compileAndAnnotateSig (m, deps) = do
     annotatedMod :: (S.Module 'QualifyNames) <- S.Module
-        <$> fromList <$> traverse (\d -> (makeQName d,) <$> getDep d) ("prims" : deps)
+        <$> Ext . fromList <$> traverse (\d -> (makeQName d,) <$> getDep d) ("prims" : deps)
         <*> pure (S.moduleName m)
         <*> pure (map (coercePass @(Statement SolveModules) @(Statement QualifyNames) @SolveModules @QualifyNames) (moduleStatements m))
     (compMod, sig) <- compileWithSig annotatedMod
@@ -131,7 +131,7 @@ compileWithSig m = do
     let tcState = foldMap (\dsig -> TCState {
                     varTypes=exportedVars dsig
                 })
-                (xModule m)
+                (getExt $ xModule m)
     compEnv <- asks \CompileOpts{name, debug, target} -> CompEnv {nameSpace=name, debug, A.target=target}
 
     qMod  <- mapError QualificationError $ evalState qualScopes $ qualify m
@@ -158,8 +158,8 @@ extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
 makePartialSig :: S.Statement 'Codegen -> ModSig
 makePartialSig = \case
     Def _ _ (Decl _ n _ _) t    -> mempty {exportedVars = one (n, t)}
-    DefStruct () _ n fs         -> mempty {exportedTypes = one (n, (KStar, RecordType fs))} -- TODO: Change Kind when polymorphism is implemented
-    Import () _ _               -> mempty
+    DefStruct IgnoreExt _ n fs  -> mempty {exportedTypes = one (n, (KStar, RecordType fs))} -- TODO: Change Kind when polymorphism is implemented
+    Import IgnoreExt _ _        -> mempty
     StatementX v _              -> absurd v
 
 getModName :: FilePath -> Text

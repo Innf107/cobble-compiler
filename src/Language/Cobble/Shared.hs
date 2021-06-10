@@ -13,6 +13,8 @@ import qualified GHC.Show as S
 
 data QualifiedName = QualifiedName {qualComponents::[Text]} deriving (Eq, Ord, Generic, Data, Typeable)
 
+type UnqualifiedName = Text
+
 instance S.Show QualifiedName where
     show = toString . T.intercalate "." . qualComponents
 
@@ -35,9 +37,8 @@ makeQName :: Text -> QualifiedName
 makeQName "" = QualifiedName []
 makeQName t  = QualifiedName $ T.split (=='.') t
 
-unqualifyName :: QualifiedName -> Text
+unqualifyName :: QualifiedName -> UnqualifiedName
 unqualifyName (QualifiedName ps) = fromMaybe "" $ viaNonEmpty last ps
-
 
 data Panic = Panic Text 
            | ModuleDependencyNotFound Text

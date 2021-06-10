@@ -20,6 +20,9 @@ data TypeError = VarDoesNotExist LexInfo (Name NextPass)
 --                                  ^ expected
                | WrongAssignType LexInfo (Name NextPass) (Type NextPass) (Type NextPass)
 --                                    ^ expected
+               | StructAccessOnNonStructType LexInfo (Type NextPass) UnqualifiedName
+               | StructDoesNotContainField LexInfo (Type NextPass) UnqualifiedName
+--                                                    ^ Type name     ^ field
                | WrongIfType LexInfo (Type NextPass)
                | WrongRecordConstructionType LexInfo (Name Typecheck) (Type NextPass) (Type NextPass)
                | DifferentIfETypes LexInfo (Type NextPass) (Type NextPass)
@@ -54,7 +57,7 @@ insertVarType :: (Members '[State TCState] r) => Name NextPass -> Type NextPass 
 insertVarType varName t = void $ modify (\s -> s{varTypes=varTypes s & insert varName t})
 
 typecheckModule :: (TypecheckC r, Members '[Error Panic] r) => Module 'Typecheck -> Sem r (Module NextPass)
-typecheckModule (Module deps mname instrs) = Module deps mname <$> traverse typecheck instrs
+typecheckModule (Module (Ext deps) mname instrs) = Module (Ext deps) mname <$> traverse typecheck instrs
 
 typecheck :: (TypecheckC r, Members '[Error Panic] r) => Statement Typecheck -> Sem r (Statement NextPass)
 typecheck = \case
@@ -72,7 +75,7 @@ typecheck = \case
         then pure (DefFun () l fname args stmnts' lastexpr' retT)
         else throw (WrongReturnType l fname retT (getType lastexpr'))
     -}
-    Def () l (Decl () name ps body) ty -> do
+    Def IgnoreExt l (Decl IgnoreExt name (Ext ps) body) ty -> do
         insertVarType name (coercePass ty)
         case splitFunType (genericLength ps) (coercePass ty) of
             Nothing -> throw $ TooManyFunArgs (genericLength ps) (coercePass ty)
@@ -80,26 +83,26 @@ typecheck = \case
                 zipWithM_ (insertVarType) ps ptys
                 body' <- tcExpr body
                 if (getType body' == retTy)
-                then pure $ Def () l (Decl retTy name (zip ps ptys) body') (coercePass ty)
+                then pure $ Def IgnoreExt l (Decl (Ext retTy) name (Ext $ zip ps ptys) body') (coercePass ty)
                 else throw (WrongReturnType l name retTy (getType body'))
         
-    DefStruct () l name (conv -> fields) -> pure $ DefStruct () l name fields -- TODO: Add to state map -- or not? (The qualifier does this already right?)
-    Import () l modName -> pure $ Import () l modName
+    DefStruct IgnoreExt l name (conv -> fields) -> pure $ DefStruct IgnoreExt l name fields -- TODO: Add to state map -- or not? (The qualifier does this already right?)
+    Import IgnoreExt l modName -> pure $ Import IgnoreExt l modName
     StatementX x _l -> case x of
 
 tcDecl :: (Members '[Error Panic, Error TypeError, State TCState] r) => Decl 'Typecheck -> Sem r (Decl NextPass)
-tcDecl (Decl () vname [] expr) = do
+tcDecl (Decl IgnoreExt vname (Ext []) expr) = do
     expr' <- tcExpr expr
     insertVarType vname (getType expr')
-    pure (Decl (getType expr') vname [] expr')
-tcDecl (Decl () vname ps _expr) = panic' "Local functions are not possible yet. This is *NOT* a bug" [show vname, show ps]
+    pure (Decl (Ext (getType expr')) vname (Ext []) expr')
+tcDecl (Decl IgnoreExt vname ps _expr) = panic' "Local functions are not possible yet. This is *NOT* a bug" [show vname, show ps]
 
 tcExpr :: (Members '[Error Panic, Error TypeError, State TCState] r) => Expr 'Typecheck -> Sem r (Expr NextPass)
 tcExpr = \case
-    IntLit () l x -> pure $ IntLit () l x
+    IntLit IgnoreExt l x -> pure $ IntLit IgnoreExt l x
     UnitLit l -> pure $ UnitLit l
     -- FloatLit x -> pure (FloatLit x, FloatT)
-    FCall () l f exprs -> do
+    FCall IgnoreExt l f exprs -> do
         f' <- tcExpr f
         (fargs, retT) <- maybe (throw (TooManyFunArgs (fromIntegral (length (exprs))) (getType f'))) pure -- TODO: Wrong error message D:
             $ splitFunType (fromIntegral (length (exprs))) (getType f')
@@ -109,7 +112,7 @@ tcExpr = \case
         let exprTypes = fmap getType exprs'
 
         if (toList exprTypes == fargs)
-        then pure $ FCall retT l f' exprs'
+        then pure $ FCall (Ext retT) l f' exprs'
         else throw $ WrongFunArgs l (tryGetFunName f) fargs (toList exprTypes)
     If x l c th el -> do
         c' <- tcExpr c
@@ -117,10 +120,10 @@ tcExpr = \case
         th' <- tcExpr th
         el' <- tcExpr el
         if (getType th' == getType el')
-        then pure (If x l c' th' el')
+        then pure (If (coerce x) l c' th' el')
         else throw $ DifferentIfETypes l (getType th') (getType el')
-    Var () l vname -> (\x -> Var x l vname) <$> getVarType l vname
-    Let () li d body -> Let () li
+    Var IgnoreExt l vname -> (\t -> Var (Ext t) l vname) <$> getVarType l vname
+    Let IgnoreExt li d body -> Let IgnoreExt li
         <$> tcDecl d
         <*> tcExpr body
     StructConstruct def li cname fields -> do
@@ -128,8 +131,17 @@ tcExpr = \case
         -- we can assume that the fields are all present and in the same order as in the struct definition
         zipWithM_ (\(n, e) (_, coercePass -> t) -> when (getType e /= t) (throw (WrongRecordConstructionType li n t (getType e)))) fields' (view structFields def)
         let t = TCon cname KStar --TODO?
-        pure $ StructConstruct (coercePass def, t) li cname fields'
-    ExprX x _l -> case x of
+        pure $ StructConstruct (Ext (coercePass def, t)) li cname fields'
+    StructAccess possibleStructs li strEx fname -> do
+        strEx' <- tcExpr strEx
+        let ty = getType strEx'
+        case ty of
+            TCon tyName _ -> do
+                structDef <- note (StructAccessOnNonStructType li ty fname) $ lookup tyName possibleStructs
+                structFieldType <- note (StructDoesNotContainField li ty fname) $ preview (unqualifiedFieldType fname) structDef
+                pure $ StructAccess (Ext (coercePass @_ @_ @Typecheck @Codegen structDef, coercePass structFieldType)) li strEx' fname
+            _ -> throw (StructAccessOnNonStructType li ty fname)
+    ExprX x _l -> absurd x
 
 splitFunType :: Natural -> Type NextPass -> Maybe ([Type NextPass], Type NextPass)
 splitFunType 0 t = Just ([], t)
@@ -137,7 +149,7 @@ splitFunType argCount (t :-> ts) = splitFunType (argCount - 1) ts <&> \(as, ret)
 splitFunType _ _ = Nothing
 
 tryGetFunName :: Expr 'Typecheck -> Maybe (Name 'Typecheck)
-tryGetFunName (Var () _l n) = Just n
+tryGetFunName (Var IgnoreExt _l n) = Just n
 tryGetFunName _ = Nothing
 
 type Subst = [(Name 'Typecheck, Type NextPass)]
@@ -165,5 +177,6 @@ bindVar u k t
     | u `elem` tv t         = throw (OccursCheck u t)
     | Right k /= kind t     = throw (KindMismatch (TVar u k) t)
     | otherwise             = pure [(u, t)]
+
 
 

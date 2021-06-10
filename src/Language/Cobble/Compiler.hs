@@ -23,6 +23,10 @@ panicFunNotFoundTooLate v = do
     st <- get
     panic $ "Function " <> show v <> " not found. This should have been caught earlier!\n    State: " <> show st
 
+panicStructFieldNotFoundTooLate :: Name 'Codegen -> UnqualifiedName -> Panic
+panicStructFieldNotFoundTooLate cname fname = Panic $ "Struct field '" <> show fname <> "' does not exist on record '"
+                                            <> show cname <> "'. This should have been caught earlier!"
+
 initialCompileState :: CompileState
 initialCompileState = CompileState {
       _frames = Frame {
@@ -80,7 +84,7 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
             modify (& frames %~ unsafeTail)
             tell [MoveReg (returnReg (regRep res)) res]
     -}
-    Def () _li (Decl retT name ps body) _ty -> do
+    Def IgnoreExt _li (Decl (Ext retT) name (Ext ps) body) _ty -> do
         modify (& functions . at name ?~ Function {_params=ps, _returnType=retT})
         tell . pure . A.Section name . fst =<< runWriterAssocR do
             parRegs <- traverse (\(_, pt) -> newRegForType VarReg pt) ps
@@ -90,20 +94,20 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
             res <- compileExprToReg body
             modify (& frames %~ unsafeTail)
             tell [MoveReg (returnReg (regRep res)) res]
-    Import () _ _ -> pass
-    DefStruct () _ _ _ -> pass
+    Import IgnoreExt _ _ -> pass
+    DefStruct IgnoreExt _ _ _ -> pass
     StatementX x _ -> absurd x
 
 compileExprToReg :: forall r. (Member (Writer [Instruction]) r, CompileC r) => Expr 'Codegen -> Sem r Register
 compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e & \case
-    (IntLit () _li i) -> mkIntReg i
+    (IntLit IgnoreExt _li i) -> mkIntReg i
     (UnitLit _li) -> pure unitReg
     (Var _t _li n) -> get <&> join . (^? frames . head1 . varRegs . at n) >>= \case
         Nothing -> panicVarNotFoundTooLate n
         Just vReg -> pure $ vReg -- Let's hope this actually works and does not break with recursion
 
     -- (FloatT, FloatLit i) -> pure [MoveNumReg (NumReg reg)]
-    (FCall t _li (Var _ _vli fname) args) -> case lookup fname (primOps @r) of
+    (FCall (Ext t) _li (Var _ _vli fname) args) -> case lookup fname (primOps @r) of
         Just (_, primOpF) -> primOpF primOpEnv (toList args)
         Nothing -> do
             get <&> (^. functions . at fname) >>= \case
@@ -124,7 +128,7 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
                         t' | t' /= t -> panic' "Return type of function does not match fcall expr return type" [show fname, show t, show t']
                         _ -> pure $ ret
     FCall _t li ex _as -> panic' "Cannot indirectly call a function yet. This is *NOT* a bug" [show ex, show li]
-    If (name, ifID) _li c th el -> do
+    If (Ext (name, ifID)) _li c th el -> do
         cr <- compileExprToReg c
         resReg <- newRegForType TempReg (getType th)
         tell . pure . A.Section (name .: ("-then-e" <> show ifID)) =<< (\(is, r) -> is <> [MoveNumLit elseReg 0, MoveReg resReg r]) <$> runWriterAssocR (compileExprToReg th)
@@ -134,18 +138,26 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
             , CallInRange elseReg (RBounded 1 1) (name .: ("-else-e" <> show ifID))
             ]
         pure resReg
-    Let () _li (Decl _t vname [] expr) body -> do
+    Let IgnoreExt _li (Decl _t vname (Ext []) expr) body -> do
         exprReg <- compileExprToReg expr
         modify (& frames . head1 . varRegs . at vname ?~ exprReg)
         compileExprToReg body
-    Let () _li (Decl _t vname ps _expr) _body -> panic' "Local functions are not supported yet. This is *NOT* a bug" [show vname, show ps]
-    StructConstruct (_def, t) _li _cname fields -> do
+    Let IgnoreExt _li (Decl _t vname (Ext ps) _expr) _body -> panic' "Local functions are not supported yet. This is *NOT* a bug" [show vname, show ps]
+    StructConstruct (Ext (_def, t)) _li _cname fields -> do
         -- We can assume that all fields are present in ps and in the same order as in the struct definition
         fieldRegs <- traverse (compileExprToReg . snd) fields
         arrReg <- newRegForType TempReg t
         ixRegs <- traverse mkIntReg [0..length fieldRegs - 1]
         tell (zipWith (SetNewInArray arrReg) ixRegs fieldRegs)
         pure arrReg
+    StructAccess (Ext (def, t)) _li cex fieldName -> do
+        fieldIndex <- note (panicStructFieldNotFoundTooLate (view structName def) fieldName)
+                    $ findIndexOf (structFields . folded) (\(x,_) -> unqualifyName x == fieldName) def
+        structReg <- compileExprToReg cex
+        ixReg <- mkIntReg fieldIndex
+        resReg <- newRegForType VarReg t
+        tell [GetInArray resReg structReg ixReg]
+        pure resReg
     ExprX x _li -> absurd x
 
 -- TODO: Move int lit initialization to program start

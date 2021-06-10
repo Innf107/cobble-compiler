@@ -74,7 +74,7 @@ unitLit :: Parser LexInfo
 unitLit = try (mergeLexInfo <$> paren "(" <*> paren ")")
 
 letE :: Parser (Expr NextPass)
-letE = "let binding" <??> (\ls n ps e b -> Let () (mergeLexInfo ls (getLexInfo e)) (Decl () n ps e) b)
+letE = "let binding" <??> (\ls n ps e b -> Let IgnoreExt (mergeLexInfo ls (getLexInfo e)) (Decl IgnoreExt n (Ext ps) e) b)
     <$> reserved "let"
     <*> ident'
     <*> many ident'
@@ -84,16 +84,26 @@ letE = "let binding" <??> (\ls n ps e b -> Let () (mergeLexInfo ls (getLexInfo e
     <*> expr
 
 module_ :: Text -> Parser (Module NextPass)
-module_ mname = "module" <??> Module () mname <$> statements <* eof
+module_ mname = "module" <??> Module IgnoreExt mname <$> statements <* eof
 
 statement :: Parser (Statement NextPass)
 statement = "statement" <??> def <|> defStruct <|> import_
 
 expr :: Parser (Expr NextPass)
-expr = "expression" <??> fcallOrVar <|> expr'
+expr = "expression" <??> do
+        f <- expr'
+        args <- many expr'
+        case args of
+            []      -> pure f
+            (a:as)  -> pure $ FCall IgnoreExt (getLexInfo f `mergeLexInfo` (getLexInfo (last (a :| as)))) f (a :| as)
 
 expr' :: Parser (Expr NextPass)
-expr' = "expression (no fcall)" <??> uncurry (IntLit ()) <$> intLit <|> UnitLit <$> unitLit <|> letE <|> ifE <|> varOrStructConstruct <|> withParen expr
+expr' = "expression (no fcall)" <??> (\e mf -> maybe e (\(le, fname) -> StructAccess IgnoreExt (getLexInfo e `mergeLexInfo` le) e fname) mf)
+    <$> expr''
+    <*> optionMaybe (reservedOp' "." *> ident) 
+
+expr'' :: Parser (Expr NextPass)
+expr'' = "expression (no fcall / struct access)" <??> uncurry (IntLit IgnoreExt) <$> intLit <|> UnitLit <$> unitLit <|> letE <|> ifE <|> varOrStructConstruct <|> withParen expr
 
 
 def :: Parser (Statement NextPass)
@@ -107,13 +117,13 @@ def = "definition" <??> do
 
     reservedOp' "="
     e <- expr
-    pure $ Def () (mergeLexInfo liStart (getLexInfo e)) (Decl () name params e) ty
+    pure $ Def IgnoreExt (mergeLexInfo liStart (getLexInfo e)) (Decl IgnoreExt name (Ext params) e) ty
 
 import_ :: Parser (Statement NextPass)
 import_ = "import" <??> do
     liStart <- reserved "import"
     (liEnd, name) <- modName
-    pure (Import () (liStart `mergeLexInfo` liEnd) name)
+    pure (Import IgnoreExt (liStart `mergeLexInfo` liEnd) name)
 
 modName :: Parser (LexInfo, Name NextPass)
 modName = ident
@@ -129,25 +139,16 @@ signature' :: Parser (Name NextPass, Type NextPass)
 signature' = fmap (\(_, n, t) -> (n, t)) signature
 
 defStruct :: Parser (Statement NextPass)
-defStruct = "struct definition" <??> (\ls n fs le -> DefStruct () (ls `mergeLexInfo` le) n fs)
+defStruct = "struct definition" <??> (\ls n fs le -> DefStruct IgnoreExt (ls `mergeLexInfo` le) n fs)
     <$> reserved "struct"
     <*> ident'
     <* paren' "{" 
     <*> typedIdent' `sepBy` (reservedOp' ",")
     <*> paren "}"
-
-
-fcallOrVar :: Parser (Expr NextPass)
-fcallOrVar = "function call" <??> do
-    f <- expr'
-    args <- many expr'
-    case args of
-        []      -> pure f
-        (a:as)  -> pure $ FCall () (getLexInfo f `mergeLexInfo` (getLexInfo (last (a :| as)))) f (a :| as)
    
 
 ifE :: Parser (Expr NextPass)
-ifE = "if expression" <??> (\liStart te ee -> If () (liStart `mergeLexInfo` (getLexInfo ee)) te ee)
+ifE = "if expression" <??> (\liStart te ee -> If IgnoreExt (liStart `mergeLexInfo` (getLexInfo ee)) te ee)
     <$> reserved "if" <*> expr
     <*> (reserved "then" *> expr)
     <*> (reserved "else" *> expr)
@@ -157,7 +158,7 @@ varOrStructConstruct = "variable or struct construction" <??> do
     v <- ident
     m <- option False (paren' "{" >> pure True)
     case m of
-        False -> pure $ uncurry (Var ()) v 
+        False -> pure $ uncurry (Var IgnoreExt) v 
         True -> structConstructRest v
     where
         structConstructRest :: (LexInfo, Text) -> Parser (Expr NextPass)
@@ -169,7 +170,7 @@ varOrStructConstruct = "variable or struct construction" <??> do
 
 
 var :: Parser (Expr NextPass)
-var = "variable" <??> uncurry (Var ()) <$> ident
+var = "variable" <??> uncurry (Var IgnoreExt) <$> ident
 
 
 statements :: Parser [Statement NextPass]

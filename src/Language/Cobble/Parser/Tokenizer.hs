@@ -39,13 +39,13 @@ isIdentStart :: Char -> Bool
 isIdentStart c = isAlpha c || c `elem` "_"
 
 isIdentLetter :: Char -> Bool
-isIdentLetter c = isAlphaNum c || c `elem` "_."
+isIdentLetter c = isAlphaNum c || c `elem` "_"
 
 reserved :: [String]
 reserved = ["let", "in", "if", "then", "else", "import", "struct"]
 
 reservedOps :: [String]
-reservedOps = [":", "::", ";", ",", "=", "=>", "->"]
+reservedOps = [".", "::", ";", ",", "=", "=>", "->"]
 
 isParen :: Char -> Bool
 isParen = (`elem`"()[]{}")

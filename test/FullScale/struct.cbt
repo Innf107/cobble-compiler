@@ -17,7 +17,7 @@ struct S {
 let s = S{x=3,y=_true ()} in s.x
 
 --! 4
-let s = S{x=3,y=_true ()} in if s.y then x else _add(x,1)
+let s = S{x=4,y=_true ()} in if s.y then s.x else _add s.x 1
 
 --# struct type : score
 struct SomeS {
@@ -28,6 +28,6 @@ struct SomeS {
 s :: Int -> SomeS;
 s v = SomeS {x=v, y=v};
 
---! 8
-s.x + s.y
+--! 10
+let x = s 5 in _add x.x x.y
 

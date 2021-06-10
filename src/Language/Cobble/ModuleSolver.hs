@@ -46,11 +46,11 @@ findCircularDeps ms = throw $ CircularDependency $ catMaybes $ map (flip getCycl
 
 -- TODO!: Detect cycles here
 toDepMod :: forall r. (ModC r) => [Module 'SolveModules] -> Module 'SolveModules -> Sem r DepModule
-toDepMod ms m@(Module () mname _) = fmap (DepModule mname) $ getModDeps m
+toDepMod ms m@(Module IgnoreExt mname _) = fmap (DepModule mname) $ getModDeps m
     where
         getModDeps :: Module 'SolveModules -> Sem r [DepModule]
-        getModDeps (Module () _ msts) = msts & mapMaybeM \case
-            Import () _ importedMName -> case find ((==importedMName) . moduleName) ms of
+        getModDeps (Module IgnoreExt _ msts) = msts & mapMaybeM \case
+            Import IgnoreExt _ importedMName -> case find ((==importedMName) . moduleName) ms of
                 Nothing -> throw $ ModuleDoesNotExist importedMName
                 Just importedMod -> Just . DepModule importedMName <$> getModDeps importedMod
             _ -> pure Nothing

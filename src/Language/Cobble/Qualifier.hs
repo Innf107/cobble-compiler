@@ -67,12 +67,12 @@ addType li n k = do
             modify @[Scope] (& _head . typeKinds %~ insert n k)
 
 qualifyMod :: (QualifyC r) => Module 'QualifyNames -> Sem r (Module NextPass)
-qualifyMod (Module deps n sts) = log LogVerbose ("QUALIFYING MODULE: " <> n) >> Module deps (makeQName n)
+qualifyMod (Module (Ext deps) n sts) = log LogVerbose ("QUALIFYING MODULE: " <> n) >> Module (Ext deps) (makeQName n)
     <$> runReader deps (traverse qualifyStatement sts)
 
 qualifyStatement :: (QualifyC r, Member (Reader Dependencies) r) => Statement 'QualifyNames -> Sem r (Statement NextPass)
 qualifyStatement s = log LogDebugVerbose ("QUALIFYING STATEMENT: " <> show s) >> case s of
-    Def () li (Decl () n ps e) t -> do
+    Def IgnoreExt li (Decl IgnoreExt n (Ext ps) e) t -> do
         n' <- askPref <&> (.: n)
         innerN <- askPref <&> (.: ("-fun_" <> n))
         addName li n
@@ -82,15 +82,15 @@ qualifyStatement s = log LogDebugVerbose ("QUALIFYING STATEMENT: " <> show s) >>
                 <$> traverse (pure . (innerN .:)) ps
                 <*> qualifyExp e
         t' <- qualifyType li t
-        pure $ Def () li (Decl () n' ps' le') t'
+        pure $ Def IgnoreExt li (Decl IgnoreExt n' (Ext ps') le') t'
 
-    DefStruct () li n fs -> do
+    DefStruct IgnoreExt li n fs -> do
         n' <- askPref <&> (.: n)
         addType li n KStar
         fs' <- localPref (.: n) $ traverse (bitraverse (\x -> askPref <&> (\a -> a .: x)) (qualifyType li)) fs
         modify (& currentScope . structDefs %~ insert n' (StructDef n' fs'))
-        pure $ DefStruct () li n' fs'
-    Import () li modName -> pure $ Import () li (makeQName modName)
+        pure $ DefStruct IgnoreExt li n' fs'
+    Import IgnoreExt li modName -> pure $ Import IgnoreExt li (makeQName modName)
     StatementX x _li -> case x of
 
 qualifyExp :: (QualifyC r, Member (Reader Dependencies) r) => Expr 'QualifyNames -> Sem r (Expr NextPass)
@@ -101,13 +101,13 @@ qualifyExp e = do
     pure res
     where
         go = case e of
-            FCall () li f ps -> do
+            FCall IgnoreExt li f ps -> do
                 f' <- qualifyExp f
                 ps' <- traverse qualifyExp ps
-                pure $ FCall () li f' ps'
-            IntLit () li i -> pure $ IntLit () li i
+                pure $ FCall IgnoreExt li f' ps'
+            IntLit IgnoreExt li i -> pure $ IntLit IgnoreExt li i
             UnitLit li -> pure $ UnitLit li
-            If  () li c th el -> do
+            If  IgnoreExt li c th el -> do
                 ifeID <- newUID
                 let thName = "-then-e" <> show ifeID
                 let elName = "-else-e" <> show ifeID
@@ -115,8 +115,8 @@ qualifyExp e = do
                 th' <- localPref (.: thName) $ qualifyExp th
                 el' <- localPref (.: elName) $ qualifyExp el
                 name <- askPref
-                pure (If (name, ifeID) li c' th' el')
-            Let () li (Decl () vname ps expr) body -> do
+                pure (If (Ext (name, ifeID)) li c' th' el')
+            Let IgnoreExt li (Decl IgnoreExt vname (Ext ps) expr) body -> do
                 vname' <- askPref <&> (.: vname)
                 innerN <- askPref <&> (.: ("-let-" <> vname <> "-body"))
                 addName li vname
@@ -126,13 +126,22 @@ qualifyExp e = do
                     (,)
                         <$> traverse (pure . (innerN .:)) ps
                         <*> qualifyExp body
-                pure (Let () li (Decl () vname' ps' expr') body')
-            Var () li vname -> Var () li <$> lookupName vname li
+                pure (Let IgnoreExt li (Decl IgnoreExt vname' (Ext ps') expr') body')
+            Var IgnoreExt li vname -> Var IgnoreExt li <$> lookupName vname li
             StructConstruct IgnoreExt li cname fs -> do
                 cname' <- lookupTypeName cname li
                 structDef <- lookupStructDef cname' li
                 fs' <- traverse (bitraverse (pure . (cname' .:)) qualifyExp) fs
                 pure (StructConstruct structDef li cname' fs')
+            StructAccess IgnoreExt li structEx fname -> do
+                structs <- (<>) <$> gets @[Scope] (fromList . map (\sd -> (view structName sd, sd)) . toListOf (folded . structDefs . folded))
+                                <*> asks (M.foldMapWithKey (\_ -> M.mapMaybeWithKey (\n (_, x) -> case x of
+                                    RecordType fs -> Just (coercePass $ StructDef n fs)
+                                    _ -> Nothing
+                                ) . exportedTypes))
+                StructAccess structs li
+                    <$> qualifyExp structEx
+                    <*> pure fname
             ExprX x _li -> absurd x
 
 

@@ -29,7 +29,7 @@ spec = do
         it "handles reserved operators" do
             map tokData <$> tokenizeTest "x : y := 4;"
                 `shouldBe`
-                Right [Ident "x", ReservedOp ":", Ident "y", Operator ":=", IntLiteral 4, ReservedOp ";"]
+                Right [Ident "x", Operator ":", Ident "y", Operator ":=", IntLiteral 4, ReservedOp ";"]
         it "keeps lexical information" do
             tokenizeTest "this is also\n True + //-/ (12 * 23 )"
                 `shouldBe`
@@ -61,7 +61,7 @@ spec = do
                     Ident "c", Operator "/", Ident "de", Operator "*", Ident "f"]
             map tokData <$> tokenizeTest "x : int, y: bool"
                 `shouldBe`
-                Right [Ident "x", ReservedOp ":", Ident "int", ReservedOp ",", Ident "y", ReservedOp ":", Ident "bool"]
+                Right [Ident "x", Operator ":", Ident "int", ReservedOp ",", Ident "y", Operator ":", Ident "bool"]
         it "does not need spaces between identifiers/operators and parentheses" do
             map tokData <$> tokenizeTest "a[ b () ] +}- )de\n)"
                 `shouldBe`

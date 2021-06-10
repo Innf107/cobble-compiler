@@ -23,6 +23,7 @@ module Language.Cobble.Prelude (
 import qualified Relude
 import Relude hiding (
       Type
+    , absurd
     , ask
     , asks
     , init
