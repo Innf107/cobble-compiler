@@ -55,8 +55,8 @@ _setTestScoreboardUnsafe = unaryOp' \PrimOpEnv{..} x -> tell [SetScoreboard (Obj
 
 
 -- Helper functions
-unaryOp :: (Member (Error Panic) r) => (RegId -> Register) -> (PrimOpEnv r -> Register -> Register -> Sem r ()) -> PrimOpF r
-unaryOp resRep f = unaryOp' \e@PrimOpEnv{..} x -> do
+_unaryOp :: (Member (Error Panic) r) => (RegId -> Register) -> (PrimOpEnv r -> Register -> Register -> Sem r ()) -> PrimOpF r
+_unaryOp resRep f = unaryOp' \e@PrimOpEnv{..} x -> do
     resReg <- newReg TempReg resRep
     f e x resReg
     pure resReg

@@ -11,7 +11,8 @@ import qualified Data.Text as T
 
 import qualified GHC.Show as S
 
-data QualifiedName = QualifiedName {qualComponents::[Text]} deriving (Eq, Ord, Generic, Data, Typeable)
+newtype QualifiedName = QualifiedName {qualComponents::[Text]} deriving (Eq, Ord, Generic, Data, Typeable)
+instance Hashable QualifiedName
 
 type UnqualifiedName = Text
 
