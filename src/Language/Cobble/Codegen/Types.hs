@@ -35,3 +35,4 @@ data PrimOpEnv r = PrimOpEnv {
     ,   trueReg :: Register
     ,   falseReg :: Register
     }
+data Rep = RepNum | RepEntity | RepArray deriving (Show, Eq)

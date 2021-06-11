@@ -224,8 +224,6 @@ mkRegFromRep r i = case r of
     RepArray  -> ArrayReg i
 
 
-data Rep = RepNum | RepEntity | RepArray deriving (Show, Eq)
-
 unitReg :: Register
 unitReg = NumReg (NamedReg "UNIT")
 

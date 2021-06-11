@@ -9,5 +9,8 @@ gauss 2
 gauss 10
 
 --# branch recursion : score
-fib :: Int -> Int
-fib n = if _le n 1 then 1 else _add (fib (_add n -1)) (fib (_add n -2))
+fib :: Int -> Int;
+fib n = if _le n 1 then 1 else _add (fib (_add n -1)) (fib (_add n -2));
+
+--! 89
+fib 10

@@ -1,5 +1,3 @@
-{-#LANGUAGE NoImplicitPrelude, ScopedTypeVariables, OverloadedStrings, LambdaCase #-}
-{-# LANGUAGE NamedFieldPuns, DisambiguateRecordFields #-}
 module Main where
 
 import Language.Cobble.Prelude hiding (argument)
