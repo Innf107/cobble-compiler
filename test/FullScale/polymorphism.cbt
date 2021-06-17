@@ -1,0 +1,30 @@
+--# Polymorphic declaration : score
+id :: a -> a;
+id x = x;
+
+--! 1
+1
+
+--# function application : score
+id :: a -> a;
+id x = x;
+
+--! 5
+id 5
+
+--# Multiple arguments : score
+const :: a -> b -> a;
+const x y = x;
+
+--! 7
+const 7 10
+
+--# function types : score
+apply :: (a -> b) -> a -> b;
+apply f x = f x;
+
+f :: Bool -> Int;
+f x = if x then 1 else 0;
+
+--! 1
+apply f (_true ())

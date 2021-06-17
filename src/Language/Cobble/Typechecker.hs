@@ -14,6 +14,7 @@ data TypeError = VarDoesNotExist LexInfo (Name NextPass)
                | WrongFunArgs LexInfo (Maybe (Name NextPass)) [Type NextPass] [Type NextPass]
                | TooManyFunArgs Natural (Type NextPass)
 --                                       ^ expected
+               | TooManyAppliedArgs Natural (Type NextPass)
                | WrongReturnType LexInfo (Name NextPass) (Type NextPass) (Type NextPass)
 --                                         ^ expected
                | WrongDeclType LexInfo (Name NextPass) (Type NextPass) (Type NextPass)
@@ -104,7 +105,7 @@ tcExpr = \case
     -- FloatLit x -> pure (FloatLit x, FloatT)
     FCall IgnoreExt l f exprs -> do
         f' <- tcExpr f
-        (fargs, retT) <- maybe (throw (TooManyFunArgs (fromIntegral (length (exprs))) (getType f'))) pure -- TODO: Wrong error message D:
+        (fargs, retT) <- maybe (throw (TooManyAppliedArgs (fromIntegral (length (exprs))) (getType f'))) pure
             $ splitFunType (fromIntegral (length (exprs))) (getType f')
         
         exprs' <- traverse tcExpr exprs
