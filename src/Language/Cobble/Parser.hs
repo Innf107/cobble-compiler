@@ -194,7 +194,7 @@ namedType :: Parser (LexInfo, Type NextPass)
 namedType = do
     (li, i) <- ident
     pure $ if isLower (T.head $ T.takeWhileEnd (/='.') i)
-        then (li, TVar i ())
+        then (li, TVar (MkTVar i ()))
         else (li, TCon i ())
 
 functionType :: LexInfo -> Type NextPass -> Parser (LexInfo, Type NextPass)

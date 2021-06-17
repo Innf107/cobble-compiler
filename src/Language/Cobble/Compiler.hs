@@ -124,9 +124,7 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
                     
                     ret <- newRegForType TempReg t
                     tell [MoveReg ret (returnReg (rtType t))]
-                    case (f ^. returnType) of
-                        t' | t' /= t -> panic' "Return type of function does not match fcall expr return type" [show fname, show t, show t']
-                        _ -> pure $ ret
+                    pure ret
     FCall _t li ex _as -> panic' "Cannot indirectly call a function yet. This is *NOT* a bug" [show ex, show li]
     If (Ext (name, ifID)) _li c th el -> do
         cr <- compileExprToReg c
