@@ -27,9 +27,9 @@ type Description = Text
 type Query = [Text]
 
 data Test = Test Description [TModule] [TestQuery]
+          | TestError Description [TModule] Description (CompilationError -> Bool)
           | Header Text
           | Error Text
-          deriving (Show, Eq)
 
 data TModule = TModule FilePath Text deriving (Show, Eq)
 
@@ -69,20 +69,24 @@ testWithServer categories = do
         $ for_ categories \case
         (Header t) -> liftIO $ headerLn t
         (Error e)  -> liftIO $ failLn e
+        (TestError desc program errorDesc errorPred) -> liftIO $ do
+            (logs, edatapack) <- compileForTest program
+            case edatapack of
+                Right _ -> do
+                    writeLogs ("Expected: " <> errorDesc) logs
+                    failTest desc errorDesc "successful compilation"
+                Left e
+                    | errorPred e -> successLn (desc <> ": passed")
+                    | otherwise -> do
+                        writeLogs ("Expected: " <> errorDesc <> "\nReceived: " <> show e) logs
+                        failTest desc errorDesc (show e)
+
+
         (Test desc program tests) -> do
-            let opts = CompileOpts {
-                name="test"
-            ,   debug=True
-            ,   target=target116
-            ,   ddumpAsm=False
-            ,   description="testing"
-            }
-            liftIO $ logLn "Compiling Cobble code"
-            (logs, edatapack) <- liftIO $ runControllerC opts $ timeToIO $ compileContentsToDataPack (map (\(TModule x y) -> (x, y)) program)
+            (logs, edatapack) <- liftIO $ compileForTest program
             case edatapack of
                 Left err -> liftIO do
-                    timeText <- toText . DTime.formatTime DTime.defaultTimeLocale "\n[%d/%m/%Y %H:%M:%S]\n" <$> DTime.getCurrentTime
-                    appendFileText "tests.log" (timeText <> show err <> "\nLOGS:" <> mconcat (map show logs))
+                    writeLogs (show err) logs
                     failLn (desc <> ": COMPILATION FAILURE! " <> show err)
                 Right dp -> do
                     liftIO $ writeFileLBS ("test/Server/world/datapacks/" <> "test.zip") dp >> logLn "Successfully compiled"
@@ -96,8 +100,28 @@ testWithServer categories = do
                             Nothing -> liftIO $ failLn "Timeout on RCON command response" >> pure (All False)
                             Just ress -> liftIO $ if (ress `matchesExpectation` expectation)
                                 then pure $ All True
-                                else failLn (desc <> "[" <> show i <> "]: FAILED!!!\n    Expected: " <> showExpectation expectation <> "\n    Got: " <> show ress) >> pure (All False)
+                                else failTest (desc <> "[" <> show i <> "]") (showExpectation expectation) (show ress) >> pure (All False)
                     when success $ liftIO $ successLn (desc <> ": passed")
+
+writeLogs :: Text -> [Log] -> IO ()
+writeLogs desc logs = do
+    timeText <- toText . DTime.formatTime DTime.defaultTimeLocale "\n[%d/%m/%Y %H:%M:%S]\n" <$> DTime.getCurrentTime
+    appendFileText "tests.log" (timeText <> desc <> "\nLOGS:" <> mconcat (map show logs))
+
+failTest :: Description -> Text -> Text -> IO ()
+failTest desc expected received = failLn (desc <> ": FAILED!!!\n    Expected: " <> expected <> "\n    Received: " <> received)
+
+compileForTest :: [TModule] -> IO ([Log], Either CompilationError LByteString)
+compileForTest program = do
+            let opts = CompileOpts {
+                name="test"
+            ,   debug=True
+            ,   target=target116
+            ,   ddumpAsm=False
+            ,   description="testing"
+            }
+            liftIO $ logLn "Compiling Cobble code"
+            liftIO $ runControllerC opts $ timeToIO $ compileContentsToDataPack (map (\(TModule x y) -> (x, y)) program)
 
 matchesExpectation :: [Text] -> Expectation -> Bool
 matchesExpectation res = \case
