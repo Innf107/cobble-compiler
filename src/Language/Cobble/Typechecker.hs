@@ -124,12 +124,18 @@ tcExpr = \case
         else throw $ WrongFunArgs l (tryGetFunName f) fargs (toList exprTypes)
     If x l c th el -> do
         c' <- tcExpr c
-        when (getType c' /= boolT) $ throw $ WrongIfType l (getType c')
-        th' <- tcExpr th
-        el' <- tcExpr el
-        if (getType th' == getType el')
-        then pure (If (coerce x) l c' th' el')
-        else throw $ DifferentIfETypes l (getType th') (getType el')
+        condSubst <- mgu (getType c') boolT
+        when (apply condSubst (getType c') /= apply condSubst boolT) $ throw $ WrongIfType l (getType c')
+        th' <- apply condSubst <$> tcExpr th
+        el' <- apply condSubst <$> tcExpr el
+
+        resSubst <- mgu (getType th') (getType el')
+        let c''  = apply resSubst c'
+        let th'' = apply resSubst th'
+        let el'' = apply resSubst el'
+        if (getType th'' == getType el'')
+        then pure (If (coerce x) l c'' th'' el'')
+        else throw $ DifferentIfETypes l (getType th'') (getType el'')
     Var IgnoreExt l vname -> (\t -> Var (Ext t) l vname) <$> getVarType l vname
     Let IgnoreExt li d body -> Let IgnoreExt li
         <$> tcDecl d
@@ -181,6 +187,10 @@ instance Types (Type NextPass) where
 instance Types t => Types [t] where
     apply = map . apply
     tv = ordNub . concatMap tv
+
+instance Types (Expr NextPass) where
+    apply s e = over type_ (apply s) e
+    tv = tv . getType
 
 (+->) :: TVar NextPass -> Type NextPass -> Subst
 v +-> t = one (v, t)

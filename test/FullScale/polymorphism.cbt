@@ -9,15 +9,31 @@ id x = x;
 id :: a -> a;
 id x = x;
 
+check :: Int -> Int;
+check x = x;
+
 --! 5
-id 5
+check (id 5)
+
+--# narrowed function application : error
+id :: a -> a;
+id x = x;
+
+check :: Bool -> Bool;
+check x = x;
+
+--! TypeError : Could not match Int with Bool
+check (id 5)
 
 --# Multiple arguments : score
 const :: a -> b -> a;
 const x y = x;
 
+check :: Int -> Int;
+check x = x;
+
 --! 7
-const 7 10
+check (const 7 (_true ()))
 
 --# function types : score
 apply :: (a -> b) -> a -> b;
@@ -33,5 +49,17 @@ apply f (_true ())
 f :: Bool -> Bool;
 f x = x;
 
---! TypeError : Expected Bool, Received Int
-f 0
+--! TypeError : Could not match type Bool with Int
+f (_true ())
+
+--# polymorphic if : score
+f :: Bool -> a -> a -> a;
+f x y z = if x then y else z;
+
+--! 3
+f (_true ()) 3 4
+
+--# invalid polymorphic if : error
+--! TypeError : Could not match type Bool with Int
+if _true () then 1 else _false ()
+
