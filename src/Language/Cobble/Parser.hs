@@ -187,11 +187,11 @@ typedIdent' = (\(_, y, z) -> (y, z)) <$> typedIdent
 
 typeP :: Parser (LexInfo, Type NextPass)
 typeP = "type" <??> do
-    (ls, t1) <- namedType
-    functionType ls t1 <|> pure (ls, t1)
+            (ls, t1) <- namedType
+            functionType ls t1 <|> pure (ls, t1)
 
 namedType :: Parser (LexInfo, Type NextPass)
-namedType = do
+namedType = withParen typeP <|> do
     (li, i) <- ident
     pure $ if isLower (T.head $ T.takeWhileEnd (/='.') i)
         then (li, TVar (MkTVar i ()))
