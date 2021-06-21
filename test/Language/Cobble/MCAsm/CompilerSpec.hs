@@ -13,72 +13,72 @@ spec = do
     describe "compileInstr" do
         describe "MoveNumLit" do
             it "uses /scoreboard players set" do
-                evalAsm (compileInstr (MoveNumLit (NumReg (VarReg 0)) 5))
+                evalAsm (compileInstr (MoveNumLit (Reg 0) 5))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "scoreboard players set NV0 REGS 5"
+                        McFunction "scoreboard players set R0 REGS 5"
                     ]]
         describe "MoveReg @'Number" do
             it "uses /scoreboard players operation =" do
-                evalAsm (compileInstr (MoveReg (NumReg (VarReg 23)) (NumReg (VarReg 34))))
+                evalAsm (compileInstr (MoveReg (Reg 23) (Reg 34)))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "scoreboard players operation NV23 REGS = NV34 REGS"
+                        McFunction "scoreboard players operation R23 REGS = R34 REGS"
                     ]]
         describe "AddLit" do
             it "uses /scoreboard players add" do
-                evalAsm (compileInstr (AddLit (NumReg (VarReg 42)) 3))
+                evalAsm (compileInstr (AddLit (Reg 42) 3))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "scoreboard players add NV42 REGS 3"
+                        McFunction "scoreboard players add R42 REGS 3"
                     ]]
         describe "AddReg" do
             it "uses /scoreboard players operation +=" do
-                evalAsm (compileInstr (AddReg (NumReg (VarReg 1)) (NumReg (VarReg 2))))
+                evalAsm (compileInstr (AddReg (Reg 1) (Reg 2)))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "scoreboard players operation NV1 REGS += NV2 REGS"
+                        McFunction "scoreboard players operation R1 REGS += R2 REGS"
                     ]]
         describe "SubLit" do
             it "uses /scoreboard players remove" do
-                evalAsm (compileInstr (SubLit (NumReg (VarReg 1)) 24))
+                evalAsm (compileInstr (SubLit (Reg 1) 24))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "scoreboard players remove NV1 REGS 24"
+                        McFunction "scoreboard players remove R1 REGS 24"
                     ]]
         describe "SubReg" do
             it "uses /scoreboard players operation -=" do
-                evalAsm (compileInstr (SubReg (NumReg (NamedReg "Test")) (NumReg (VarReg 2))))
+                evalAsm (compileInstr (SubReg (NamedReg "Test") (Reg 2)))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "scoreboard players operation NTest REGS -= NV2 REGS"
+                        McFunction "scoreboard players operation Test REGS -= R2 REGS"
                     ]]
         describe "MulLit" do
             it "uses CONST and /scoreboard players operation *=" do
-                evalAsm (compileInstr (MulLit (NumReg (VarReg 1)) 2))
+                evalAsm (compileInstr (MulLit (Reg 1) 2))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "scoreboard players set NCONST REGS 2"
-                    ,   McFunction "scoreboard players operation NV1 REGS *= NCONST REGS"
+                        McFunction "scoreboard players set CONST REGS 2"
+                    ,   McFunction "scoreboard players operation R1 REGS *= CONST REGS"
                     ]]
         describe "MulReg" do
             it "uses /scoreboard players operation *=" do
-                evalAsm (compileInstr (MulReg (NumReg (VarReg 1)) (NumReg (VarReg 2))))
+                evalAsm (compileInstr (MulReg (Reg 1) (Reg 2)))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "scoreboard players operation NV1 REGS *= NV2 REGS"
+                        McFunction "scoreboard players operation R1 REGS *= R2 REGS"
                     ]]
         describe "DivLit" do
             it "uses CONST and /scoreboard players operation /=" do
-                evalAsm (compileInstr (DivLit (NumReg (VarReg 1)) 2))
+                evalAsm (compileInstr (DivLit (Reg 1) 2))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "scoreboard players set NCONST REGS 2"
-                    ,   McFunction "scoreboard players operation NV1 REGS /= NCONST REGS"
+                        McFunction "scoreboard players set CONST REGS 2"
+                    ,   McFunction "scoreboard players operation R1 REGS /= CONST REGS"
                     ]]
         describe "DivReg" do
             it "uses /scoreboard players operation /=" do
-                evalAsm (compileInstr (DivReg (NumReg (VarReg 1)) (NumReg (VarReg 2))))
+                evalAsm (compileInstr (DivReg (Reg 1) (Reg 2)))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "scoreboard players operation NV1 REGS /= NV2 REGS"
+                        McFunction "scoreboard players operation R1 REGS /= R2 REGS"
                     ]]
         describe "Section" do
             it "creates a new InterModule" do
-                evalAsm (compileInstr (Section "someSection" [AddLit (NumReg (VarReg 1)) 5, AddReg (NumReg (VarReg 1)) (NumReg (VarReg 2))]))
+                evalAsm (compileInstr (Section "someSection" [AddLit (Reg 1) 5, AddReg (Reg 1) (Reg 2)]))
                     `shouldBe` Right [InterModule "someSection" [
-                        InterInstructions [McFunction "scoreboard players add NV1 REGS 5"]
-                    ,   InterInstructions [McFunction "scoreboard players operation NV1 REGS += NV2 REGS"]
+                        InterInstructions [McFunction "scoreboard players add R1 REGS 5"]
+                    ,   InterInstructions [McFunction "scoreboard players operation R1 REGS += R2 REGS"]
                     ]]
         describe "Call" do
             it "uses /function with the correct namespace" do
@@ -88,113 +88,113 @@ spec = do
                     ]]
         describe "ExecEQ" do
             it "uses /execute if score =" do
-                evalAsm (compileInstr (ExecEQ (NumReg $ VarReg 3) (NumReg $ VarReg 4) [McFunction "say Test"]))
+                evalAsm (compileInstr (ExecEQ (Reg 3) (Reg 4) [McFunction "say Test"]))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "execute if score NV3 REGS = NV4 REGS run say Test"
+                        McFunction "execute if score R3 REGS = R4 REGS run say Test"
                     ]]
         describe "ExecLT" do
             it "uses /execute if score <" do
-                evalAsm (compileInstr (ExecLT (NumReg $ VarReg 3) (NumReg $ VarReg 4) [McFunction "say Test"]))
+                evalAsm (compileInstr (ExecLT (Reg 3) (Reg 4) [McFunction "say Test"]))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "execute if score NV3 REGS < NV4 REGS run say Test"
+                        McFunction "execute if score R3 REGS < R4 REGS run say Test"
                     ]]
         describe "ExecGT" do
             it "uses /execute if score >" do
-                evalAsm (compileInstr (ExecGT (NumReg $ VarReg 3) (NumReg $ VarReg 4) [McFunction "say Test"]))
+                evalAsm (compileInstr (ExecGT (Reg 3) (Reg 4) [McFunction "say Test"]))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "execute if score NV3 REGS > NV4 REGS run say Test"
+                        McFunction "execute if score R3 REGS > R4 REGS run say Test"
                     ]]
         describe "ExecLE" do
             it "uses /execute if score <=" do
-                evalAsm (compileInstr (ExecLE (NumReg $ VarReg 3) (NumReg $ VarReg 4) [McFunction "say Test"]))
+                evalAsm (compileInstr (ExecLE (Reg 3) (Reg 4) [McFunction "say Test"]))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "execute if score NV3 REGS <= NV4 REGS run say Test"
+                        McFunction "execute if score R3 REGS <= R4 REGS run say Test"
                     ]]
         describe "ExecGE" do
             it "uses /execute if score >=" do
-                evalAsm (compileInstr (ExecGE (NumReg $ VarReg 3) (NumReg $ VarReg 4) [McFunction "say Test"]))
+                evalAsm (compileInstr (ExecGE (Reg 3) (Reg 4) [McFunction "say Test"]))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "execute if score NV3 REGS >= NV4 REGS run say Test"
+                        McFunction "execute if score R3 REGS >= R4 REGS run say Test"
                     ]]
         describe "ExecInRange" do
             it "uses /execute if score matches" do
-                evalAsm (compileInstr (ExecInRange (NumReg $ VarReg 1) (RBounded -3 4) [McFunction "say Test"]))
+                evalAsm (compileInstr (ExecInRange (Reg 1) (RBounded -3 4) [McFunction "say Test"]))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "execute if score NV1 REGS matches -3..4 run say Test"
+                        McFunction "execute if score R1 REGS matches -3..4 run say Test"
                     ]]
         describe "GetCommandResult" do
             it "uses execute store" do
-                evalAsm (compileInstr (GetCommandResult (NumReg $ VarReg 1) (McFunction "gamerule randomTickSpeed")))
+                evalAsm (compileInstr (GetCommandResult (Reg 1) (McFunction "gamerule randomTickSpeed")))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "execute store result score NV1 REGS run gamerule randomTickSpeed"
+                        McFunction "execute store result score R1 REGS run gamerule randomTickSpeed"
                     ]]
         describe "GetBySelector" do
-            it "sets the EPTR of the register and that of the entity to the same UID" do
-                evalAsm (compileInstr (GetBySelector (EntityReg $ VarReg 1) "type=armor_stand"))
+            it "sets the REGS of the register and that of the entity to the same UID" do
+                evalAsm (compileInstr (GetBySelector (Reg 1) "type=armor_stand"))
                     `shouldBe` Right [InterInstructions [
                         McFunction "scoreboard players add UID UID 1"
-                    ,   McFunction "scoreboard players operation @e[type=armor_stand,limit=1] EPTR = UID UID"
-                    ,   McFunction "scoreboard players operation EV1 EPTR = UID UID"
+                    ,   McFunction "scoreboard players operation @e[type=armor_stand,limit=1] REGS = UID UID"
+                    ,   McFunction "scoreboard players operation R1 REGS = UID UID"
                     ]]
         describe "RunCommandAsEntity" do
             it "uses execute as" do
-                evalAsm (compileInstr (RunCommandAsEntity (EntityReg $ VarReg 1) (McFunction "say Test")))
+                evalAsm (compileInstr (RunCommandAsEntity (Reg 1) (McFunction "say Test")))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "execute as @e if score @s EPTR = EV1 EPTR run say Test"
+                        McFunction "execute as @e if score @s REGS = R1 REGS run say Test"
                     ]]
         describe "MoveReg @'Entity" do
-            it "copies over the EPTR score with /scoreboard players operation =" do
-                evalAsm (compileInstr (MoveReg (EntityReg $ VarReg 1) (EntityReg $ VarReg 2)))
+            it "copies over the REGS score with /scoreboard players operation =" do
+                evalAsm (compileInstr (MoveReg (Reg 1) (Reg 2)))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "scoreboard players operation EV1 EPTR = EV2 EPTR"
+                        McFunction "scoreboard players operation R1 REGS = R2 REGS"
                     ]]
         describe "GetInArray @'Number" do
-            it "reads the REGS score of the ARRAY marker with the same IX score as the ixReg's IX and the same AELEM as the array's APTR" do
-                evalAsm (compileInstr (GetInArray (NumReg $ VarReg 1) (ArrayReg $ VarReg 2) (NumReg $ VarReg 4)))
+            it "reads the REGS score of the ARRAY marker with the same IX score as the ixReg's IX and the same AELEM as the array's REGS" do
+                evalAsm (compileInstr (GetInArray (Reg 1) (Reg 2) (Reg 4)))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "execute as @e[tag=ARRAY] if score @s AELEM = AV2 APTR if score @s IX = NV4 REGS run scoreboard players operation NV1 REGS = @s REGS"
+                        McFunction "execute as @e[tag=ARRAY] if score @s AELEM = R2 REGS if score @s IX = R4 REGS run scoreboard players operation R1 REGS = @s REGS"
                     ]]
         describe "GetInArray @'Entity" do
-            it "reads the EPTR score of the ARRAY marker with the same IX score as the ixReg's IX and the same AELEM as the array's APTR" do
-                evalAsm (compileInstr (GetInArray (EntityReg $ VarReg 1) (ArrayReg $ VarReg 2) (NumReg $ VarReg 4)))
+            it "reads the REGS score of the ARRAY marker with the same IX score as the ixReg's IX and the same AELEM as the array's REGS" do
+                evalAsm (compileInstr (GetInArray (Reg 1) (Reg 2) (Reg 4)))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "execute as @e[tag=ARRAY] if score @s AELEM = AV2 APTR if score @s IX = NV4 REGS run scoreboard players operation EV1 EPTR = @s EPTR"
+                        McFunction "execute as @e[tag=ARRAY] if score @s AELEM = R2 REGS if score @s IX = R4 REGS run scoreboard players operation R1 REGS = @s REGS"
                     ]]
         describe "GetInArray @'Array" do
-            it "reads the APTR score of the ARRAY marker with the same IX score as the ixReg's IX and the same AELEM as the array's APTR" do
-                evalAsm (compileInstr (GetInArray (ArrayReg $ VarReg 1) (ArrayReg $ VarReg 2) (NumReg $ VarReg 4)))
+            it "reads the REGS score of the ARRAY marker with the same IX score as the ixReg's IX and the same AELEM as the array's REGS" do
+                evalAsm (compileInstr (GetInArray (Reg 1) (Reg 2) (Reg 4)))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "execute as @e[tag=ARRAY] if score @s AELEM = AV2 APTR if score @s IX = NV4 REGS run scoreboard players operation AV1 APTR = @s APTR"
+                        McFunction "execute as @e[tag=ARRAY] if score @s AELEM = R2 REGS if score @s IX = R4 REGS run scoreboard players operation R1 REGS = @s REGS"
                     ]]
 
         describe "SetScoreboard" do
             it "uses /scoreboard players operation =" do
-                evalAsm (compileInstr (SetScoreboard (Objective "Obj") "Player" (NumReg $ VarReg 1)))
+                evalAsm (compileInstr (SetScoreboard (Objective "Obj") "Player" (Reg 1)))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "scoreboard players operation Player Obj = NV1 REGS"
+                        McFunction "scoreboard players operation Player Obj = R1 REGS"
                     ]]
         describe "Move @'Array" do
-            it "copies the APTR score" do
-                evalAsm (compileInstr (MoveReg (ArrayReg $ VarReg 1) (ArrayReg $ VarReg 2)))
+            it "copies the REGS score" do
+                evalAsm (compileInstr (MoveReg (Reg 1) (Reg 2)))
                     `shouldBe` Right [InterInstructions [
-                        McFunction "scoreboard players operation AV1 APTR = AV2 APTR"
+                        McFunction "scoreboard players operation R1 REGS = R2 REGS"
                     ]]
         describe "SetInArrayOrNew" do
             it "creates a new member entity if it does not exist and sets its score" do
-                evalAsm (compileInstr (SetInArrayOrNew (ArrayReg $ VarReg 1) (NumReg $ VarReg 2) (NumReg $ VarReg 3)))
+                evalAsm (compileInstr (SetInArrayOrNew (Reg 1) (Reg 2) (Reg 3)))
                     `shouldBe` Right [InterInstructions $ map McFunction [
-                        "scoreboard players set NELSE REGS 1"
-                    ,   "execute as @e[tag=ARRAY] if score @s AELEM = AV1 APTR if score @s IX = NV2 REGS run scoreboard players set NELSE REGS 0"
-                    ,   "execute if score NELSE REGS matches 1..1 run summon minecraft:marker 0 0 0 {Tags:[ARRAY,TEMP]}"
-                    ,   "scoreboard players operation @e[tag=TEMP] AELEM = AV1 APTR"
-                    ,   "scoreboard players operation @e[tag=TEMP] IX = NV2 REGS"
+                        "scoreboard players set ELSE REGS 1"
+                    ,   "execute as @e[tag=ARRAY] if score @s AELEM = R1 REGS if score @s IX = R2 REGS run scoreboard players set ELSE REGS 0"
+                    ,   "execute if score ELSE REGS matches 1..1 run summon minecraft:marker 0 0 0 {Tags:[ARRAY,TEMP]}"
+                    ,   "scoreboard players operation @e[tag=TEMP] AELEM = R1 REGS"
+                    ,   "scoreboard players operation @e[tag=TEMP] IX = R2 REGS"
                     ,   "tag @e[tag=TEMP] remove TEMP"
-                    ,   "execute as @e[tag=ARRAY] if score @s AELEM = AV1 APTR if score @s IX = NV2 REGS run scoreboard players operation @s REGS = NV3 REGS"
+                    ,   "execute as @e[tag=ARRAY] if score @s AELEM = R1 REGS if score @s IX = R2 REGS run scoreboard players operation @s REGS = R3 REGS"
                     ]]
                     {-
-                    scoreboard players set NELSE REGS 0
-                    execute as @e[tag=ARRAY] if score @s AELEM = AV1 APTR if score @s IX = NV2 REGS run scoreboard players set NELSE REGS 1
-                    execute if score NELSE REGS matches 1..1 run summon minecraft:area_effect_cloud 0 0 0 {Duration: 2147483647, Tags:[ARRAY,TEMP]}
+                    scoreboard players set ELSE REGS 0
+                    execute as @e[tag=ARRAY] if score @s AELEM = R1 REGS if score @s IX = R2 REGS run scoreboard players set ELSE REGS 1
+                    execute if score ELSE REGS matches 1..1 run summon minecraft:area_effect_cloud 0 0 0 {Duration: 2147483647, Tags:[ARRAY,TEMP]}
                     -}
 
         describe "TODO" do

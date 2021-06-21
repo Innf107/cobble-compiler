@@ -7,6 +7,8 @@ import Language.Cobble.Types
 import Language.Cobble.Types.Lens
 import Language.Cobble.Shared
 
+import qualified Data.Map as M
+
 type NextPass = 'Codegen
 
 data TypeError = VarDoesNotExist LexInfo (Name NextPass)
@@ -29,7 +31,10 @@ data TypeError = VarDoesNotExist LexInfo (Name NextPass)
                | DifferentIfETypes LexInfo (Type NextPass) (Type NextPass)
                | WrongSetScoreboardType LexInfo Objective Text (Type NextPass)
                | CannotUnify (Type NextPass) (Type NextPass)
-               | OccursCheck (Name 'Typecheck) (Type NextPass)
+               | SubstMergeError Subst Subst
+               | MatchTypeMismatch (Type NextPass) (Type NextPass)
+               | MatchBindRHS (Type NextPass) (TVar NextPass)
+               | OccursCheck (TVar NextPass) (Type NextPass)
                | KindMismatch (Type NextPass) (Type NextPass)
                deriving (Show, Eq)
 
@@ -62,20 +67,6 @@ typecheckModule (Module (Ext deps) mname instrs) = Module (Ext deps) mname <$> t
 
 typecheck :: (TypecheckC r, Members '[Error Panic] r) => Statement Typecheck -> Sem r (Statement NextPass)
 typecheck = \case
-    {-
-    DefFun () l fname (conv -> args) stmnts lastexpr (conv -> retT) -> do
-        
-        let ftype = foldr (-:>) retT (map snd args)
-        insertVarType fname ftype
-        
-        for_ args (uncurry insertVarType)
-        
-        stmnts' <- traverse typecheck stmnts
-        lastexpr' <- typeOf lastexpr
-        if (getType lastexpr' == retT)
-        then pure (DefFun () l fname args stmnts' lastexpr' retT)
-        else throw (WrongReturnType l fname retT (getType lastexpr'))
-    -}
     Def IgnoreExt l (Decl IgnoreExt name (Ext ps) body) ty -> do
         insertVarType name (coercePass ty)
         case splitFunType (genericLength ps) (coercePass ty) of
@@ -87,7 +78,7 @@ typecheck = \case
                 then pure $ Def IgnoreExt l (Decl (Ext retTy) name (Ext $ zip ps ptys) body') (coercePass ty)
                 else throw (WrongReturnType l name retTy (getType body'))
         
-    DefStruct IgnoreExt l name (conv -> fields) -> pure $ DefStruct IgnoreExt l name fields -- TODO: Add to state map -- or not? (The qualifier does this already right?)
+    DefStruct IgnoreExt l name (map (second coercePass) -> fields) -> pure $ DefStruct IgnoreExt l name fields -- TODO: Add to state map -- or not? (The qualifier does this already right?)
     Import IgnoreExt l modName -> pure $ Import IgnoreExt l modName
     StatementX x _l -> case x of
 
@@ -105,24 +96,32 @@ tcExpr = \case
     -- FloatLit x -> pure (FloatLit x, FloatT)
     FCall IgnoreExt l f exprs -> do
         f' <- tcExpr f
-        (fargs, retT) <- maybe (throw (TooManyAppliedArgs (fromIntegral (length (exprs))) (getType f'))) pure
-            $ splitFunType (fromIntegral (length (exprs))) (getType f')
+        (fargs, retT) <- maybe (throw (TooManyAppliedArgs (fromIntegral (length exprs)) (getType f'))) pure
+            $ splitFunType (fromIntegral (length exprs)) (getType f')
         
         exprs' <- traverse tcExpr exprs
         
-        let exprTypes = fmap getType exprs'
+        let exprTypes = toList $ fmap getType exprs'
 
-        if (toList exprTypes == fargs)
-        then pure $ FCall (Ext retT) l f' exprs'
+        argSubst <- joinSubst =<< zipWithM mgu exprTypes (toList fargs)
+
+        if map (apply argSubst) exprTypes == map (apply argSubst) fargs
+        then pure $ FCall (Ext (apply argSubst retT)) l f' exprs'
         else throw $ WrongFunArgs l (tryGetFunName f) fargs (toList exprTypes)
     If x l c th el -> do
         c' <- tcExpr c
-        when (getType c' /= boolT) $ throw $ WrongIfType l (getType c')
-        th' <- tcExpr th
-        el' <- tcExpr el
-        if (getType th' == getType el')
-        then pure (If (coerce x) l c' th' el')
-        else throw $ DifferentIfETypes l (getType th') (getType el')
+        condSubst <- mgu (getType c') boolT
+        when (apply condSubst (getType c') /= apply condSubst boolT) $ throw $ WrongIfType l (getType c')
+        th' <- apply condSubst <$> tcExpr th
+        el' <- apply condSubst <$> tcExpr el
+
+        resSubst <- mgu (getType th') (getType el')
+        let c''  = apply resSubst c'
+        let th'' = apply resSubst th'
+        let el'' = apply resSubst el'
+        if (getType th'' == getType el'')
+        then pure (If (coerce x) l c'' th'' el'')
+        else throw $ DifferentIfETypes l (getType th'') (getType el'')
     Var IgnoreExt l vname -> (\t -> Var (Ext t) l vname) <$> getVarType l vname
     Let IgnoreExt li d body -> Let IgnoreExt li
         <$> tcDecl d
@@ -153,31 +152,72 @@ tryGetFunName :: Expr 'Typecheck -> Maybe (Name 'Typecheck)
 tryGetFunName (Var IgnoreExt _l n) = Just n
 tryGetFunName _ = Nothing
 
-type Subst = [(Name 'Typecheck, Type NextPass)]
+type Subst = Map (TVar NextPass) (Type NextPass)
 
-(+->) :: Name 'Typecheck -> Type NextPass -> Subst
-n +-> t = [(n, t)]
 
+class Types t where
+    apply :: Subst -> t -> t
+    tv :: t -> [TVar NextPass]
+
+instance Types (Type NextPass) where
+    apply s (TVar v) = case lookup v s of
+        Nothing -> TVar v
+        Just t -> t
+    apply s (TApp t1 t2) = TApp (apply s t1) (apply s t2)
+    apply _ (TCon n k) = TCon n k
+
+    tv (TVar v) = [v]
+    tv (TCon _ _) = []
+    tv (TApp t1 t2) = ordNub $ tv t1 ++ tv t2
+
+instance Types t => Types [t] where
+    apply = map . apply
+    tv = ordNub . concatMap tv
+
+instance Types (Expr NextPass) where
+    apply s e = over type_ (apply s) e
+    tv = tv . getType
+
+(+->) :: TVar NextPass -> Type NextPass -> Subst
+v +-> t = one (v, t)
+
+infixr 4 @@
 (@@) :: Subst -> Subst -> Subst
-(@@) = undefined
+(@@) s1 s2 = mapBothMap (\v t -> (v, apply s1 t)) s2 <> s1
 
-tv :: Type NextPass -> [Name NextPass]
-tv = undefined
+merge :: (Member (Error TypeError) r) => Subst -> Subst -> Sem r Subst
+merge s1 s2
+    | agree = pure $ s1 <> s2
+    | otherwise = throw $ SubstMergeError s1 s2
+    where
+        agree = all (\v -> apply s1 (TVar v) == apply s2 (TVar v)) (keys $ M.intersection s1 s2)
 
-mgu :: (TypecheckC r) => Type NextPass -> Type NextPass -> Sem r Subst
-mgu (TVar n k) t = bindVar n k t
-mgu t (TVar n k) = bindVar n k t
+mgu :: (Member (Error TypeError) r) => Type NextPass -> Type NextPass -> Sem r Subst
+mgu (TVar v) t = bindVar v t
+mgu t (TVar v) = bindVar v t
 mgu (TCon t1 k1) (TCon t2 k2)
-    | t1 == t2 && k1 == k2 = pure []
+    | t1 == t2 && k1 == k2 = pure mempty
 mgu (TApp l1 r1) (TApp l2 r2) = (@@) <$> mgu l1 l2 <*> mgu r1 r2
 mgu t1 t2 = throw $ CannotUnify t1 t2
 
-bindVar :: (TypecheckC r) => Name NextPass -> Kind -> Type NextPass -> Sem r Subst
-bindVar u k t
-    | TVar u k == t         = pure []
-    | u `elem` tv t         = throw (OccursCheck u t)
-    | Right k /= kind t     = throw (KindMismatch (TVar u k) t)
-    | otherwise             = pure [(u, t)]
+match :: (Member (Error TypeError) r) => Type NextPass -> Type NextPass -> Sem r Subst
+match (TVar v) t
+    | kind v == kind t = bindVar v t
+    | otherwise = throw (KindMismatch (TVar v) t)
+match t1@(TCon _ _) t2@(TCon _ _)
+    | t1 == t2 = pure mempty
+    | otherwise = throw $ MatchTypeMismatch t1 t2
+match t (TVar v) = throw $ MatchBindRHS t v
+match (TApp l1 r1) (TApp l2 r2) = join $ merge <$> match l1 l2 <*> match r1 r2
+match t1 t2 = throw $ MatchTypeMismatch t1 t2
 
+bindVar :: (Member (Error TypeError) r) => TVar NextPass -> Type NextPass -> Sem r Subst
+bindVar v t
+    | TVar v == t           = pure mempty
+    | v `elem` tv t         = throw (OccursCheck v t)
+    | kind v /= kind t      = throw (KindMismatch (TVar v) t)
+    | otherwise             = pure $ v +-> t
 
+joinSubst :: (Member (Error TypeError) r) => [Subst] -> Sem r Subst
+joinSubst = foldr (\x my -> merge x =<< my) (pure mempty)
 

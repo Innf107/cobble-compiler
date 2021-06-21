@@ -153,7 +153,7 @@ qualifyType li t = log LogDebugVeryVerbose ("QUALIFYING TYPE: " <> show t) >> qt
             TCon n ()   -> do
                 TCon <$> lookupTypeName n li <*> lookupKind n li
             TApp t1 t2  -> TApp <$> qtInner t1 <*> qtInner t2
-            TVar v ()   -> pure $ TVar (QualifiedName [v]) KStar -- TODO
+            TVar (MkTVar v ())   -> pure $ TVar $ MkTVar (QualifiedName [v]) KStar -- TODO
 
 lookupName :: (QualifyC r, Member (Reader (Map QualifiedName ModSig)) r) => Text -> LexInfo -> Sem r QualifiedName
 lookupName n li = get @[Scope] >>= \scopes -> ask >>= \deps -> do

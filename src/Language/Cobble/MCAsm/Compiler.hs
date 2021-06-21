@@ -17,13 +17,11 @@ initialize = InterModule "init" <$> instr do
         rawCommand "gamerule maxCommandChainLength 2147483647"
         rawCommand "forceload add 0 0" 
         addScoreboardObjective regs
-        addScoreboardObjective eptr
-        addScoreboardObjective aptr
         addScoreboardObjective aelem
         addScoreboardObjective uid
         addScoreboardObjective ix
         --setScoreboardForPlayer uid "UID" 0
-        setScoreboardForPlayer regs "NTRUE" 1
+        setScoreboardForPlayer regs "TRUE" 1
         --setScoreboardForPlayer regs "NFALSE" 0
         whenDebug $ setScoreboardSidebar regs
 
@@ -31,8 +29,6 @@ initialize = InterModule "init" <$> instr do
 clean :: (CompC r) => Sem r IntermediateResult
 clean = InterModule "clean" <$> instr do
     removeScoreboardObjective regs
-    removeScoreboardObjective eptr
-    removeScoreboardObjective aptr
     removeScoreboardObjective aelem
     removeScoreboardObjective uid
     removeScoreboardObjective ix
@@ -67,72 +63,61 @@ compileInstr :: (CompC r) => Instruction -> Sem r [IntermediateResult]
 compileInstr i = do
     log LogDebugVerbose $ "COMPILING INSTRUCTION: " <> show i
     asks nameSpace >>= \ns -> (<>) <$> whenDebugMonoid (pure [comment $ show i]) <*> case i of
-        MoveReg reg1 reg2 -> assertSameRegType reg1 reg2 >> instr (moveReg (objForReg reg1) reg1 (objForReg reg2) reg2)
+        MoveReg reg1 reg2 -> instr (moveReg regs reg1 regs reg2)
          
-        MoveNumLit reg lit          -> instr $ assertRegNumber reg >> setScoreboardForPlayer (objForReg reg) (renderReg reg) lit
-        AddLit reg lit              -> instr $ assertRegNumber reg >> addReg reg lit
-        AddReg reg1 reg2            -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> regOperation reg1 SAdd reg2
-        SubLit reg lit              -> instr $ assertRegNumber reg >> subReg reg lit
-        SubReg reg1 reg2            -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> regOperation reg1 SSub reg2
-        MulLit reg lit              -> instr $ assertRegNumber reg >> opLit reg SMul lit
-        MulReg reg1 reg2            -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> regOperation reg1 SMul reg2
-        DivLit reg lit              -> instr $ assertRegNumber reg >> opLit reg SDiv lit
-        DivReg reg1 reg2            -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> regOperation reg1 SDiv reg2
-        ModLit reg lit              -> instr $ assertRegNumber reg >> opLit reg SMod lit
-        ModReg reg1 reg2            -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> regOperation reg1 SMod reg2
-        Min reg1 reg2               -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> regOperation reg1 SMin reg2
-        Max reg1 reg2               -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> regOperation reg1 SMax reg2
+        MoveNumLit reg lit          -> instr $ setScoreboardForPlayer regs (renderReg reg) lit
+        AddLit reg lit              -> instr $ addReg reg lit
+        AddReg reg1 reg2            -> instr $ regOperation reg1 SAdd reg2
+        SubLit reg lit              -> instr $ subReg reg lit
+        SubReg reg1 reg2            -> instr $ regOperation reg1 SSub reg2
+        MulLit reg lit              -> instr $ opLit reg SMul lit
+        MulReg reg1 reg2            -> instr $ regOperation reg1 SMul reg2
+        DivLit reg lit              -> instr $ opLit reg SDiv lit
+        DivReg reg1 reg2            -> instr $ regOperation reg1 SDiv reg2
+        ModLit reg lit              -> instr $ opLit reg SMod lit
+        ModReg reg1 reg2            -> instr $ regOperation reg1 SMod reg2
+        Min reg1 reg2               -> instr $ regOperation reg1 SMin reg2
+        Max reg1 reg2               -> instr $ regOperation reg1 SMax reg2
         Section name instrs         -> pure . InterModule name . concat <$> (mapM compileInstr instrs)
         Call section                -> instr $ runFunction ns section
-        CallEQ reg1 reg2 f          -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiEqReg reg2) $ ERun (runFunction ns f))
-        CallLT reg1 reg2 f          -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiLtReg reg2) $ ERun (runFunction ns f))
-        CallGT reg1 reg2 f          -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiGtReg reg2) $ ERun (runFunction ns f))
-        CallLE reg1 reg2 f          -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiLeReg reg2) $ ERun (runFunction ns f))
-        CallGE reg1 reg2 f          -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiGeReg reg2) $ ERun (runFunction ns f))
-        CallInRange reg range f     -> instr $ assertRegNumber reg  >> execute (EIf (eiScoreReg reg  $ EIMatches range) $ ERun (runFunction ns f))
-        ExecEQ reg1 reg2 is         -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiEqReg reg2) $ ERun (tell is))
-        ExecLT reg1 reg2 is         -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiLtReg reg2) $ ERun (tell is))
-        ExecGT reg1 reg2 is         -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiGtReg reg2) $ ERun (tell is))
-        ExecLE reg1 reg2 is         -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiLeReg reg2) $ ERun (tell is))
-        ExecGE reg1 reg2 is         -> instr $ assertRegNumber reg1 >> assertSameRegType reg1 reg2 >> execute (EIf (eiScoreReg reg1 $ eiGeReg reg2) $ ERun (tell is))
-        ExecInRange reg range is    -> instr $ assertRegNumber reg  >> execute (EIf (eiScoreReg reg  $ EIMatches range) $ ERun (tell is))
+        CallEQ reg1 reg2 f          -> instr $ execute (EIf (eiScoreReg reg1 $ eiEqReg reg2) $ ERun (runFunction ns f))
+        CallLT reg1 reg2 f          -> instr $ execute (EIf (eiScoreReg reg1 $ eiLtReg reg2) $ ERun (runFunction ns f))
+        CallGT reg1 reg2 f          -> instr $ execute (EIf (eiScoreReg reg1 $ eiGtReg reg2) $ ERun (runFunction ns f))
+        CallLE reg1 reg2 f          -> instr $ execute (EIf (eiScoreReg reg1 $ eiLeReg reg2) $ ERun (runFunction ns f))
+        CallGE reg1 reg2 f          -> instr $ execute (EIf (eiScoreReg reg1 $ eiGeReg reg2) $ ERun (runFunction ns f))
+        CallInRange reg range f     -> instr $ execute (EIf (eiScoreReg reg  $ EIMatches range) $ ERun (runFunction ns f))
+        ExecEQ reg1 reg2 is         -> instr $ execute (EIf (eiScoreReg reg1 $ eiEqReg reg2) $ ERun (tell is))
+        ExecLT reg1 reg2 is         -> instr $ execute (EIf (eiScoreReg reg1 $ eiLtReg reg2) $ ERun (tell is))
+        ExecGT reg1 reg2 is         -> instr $ execute (EIf (eiScoreReg reg1 $ eiGtReg reg2) $ ERun (tell is))
+        ExecLE reg1 reg2 is         -> instr $ execute (EIf (eiScoreReg reg1 $ eiLeReg reg2) $ ERun (tell is))
+        ExecGE reg1 reg2 is         -> instr $ execute (EIf (eiScoreReg reg1 $ eiGeReg reg2) $ ERun (tell is))
+        ExecInRange reg range is    -> instr $ execute (EIf (eiScoreReg reg  $ EIMatches range) $ ERun (tell is))
 
 
         GetCommandResult reg command -> instr $
-              assertRegNumber reg >> execute (EStoreRes (stScoreReg reg) $ ERun (tell [command]))
+              execute (EStoreRes (stScoreReg reg) $ ERun (tell [command]))
 
         GetBySelector reg selector -> instr do
-              assertRegEntity reg
               incrementUID
-              scoreboardOperation eptr ("@e[" <> selector <> ",limit=1]") SAssign uid "UID"
-              scoreboardOperation eptr (renderReg reg) SAssign uid "UID"
+              scoreboardOperation regs ("@e[" <> selector <> ",limit=1]") SAssign uid "UID"
+              scoreboardOperation regs (renderReg reg) SAssign uid "UID"
 
         RunCommandAsEntity reg command -> instr do
-              assertRegEntity reg
-              execute $ EAs "@e" $ EIf (EIScore eptr "@s" $ EIEQ eptr (renderReg reg)) $ ERun $ (tell [command])
+              execute $ EAs "@e" $ EIf (EIScore regs "@s" $ EIEQ regs (renderReg reg)) $ ERun $ (tell [command])
 
         GetInArray reg arr aix -> instr do
-            assertRegNumber aix
-            assertRegArray arr
-            asArrayElem arr aix $ scoreboardOperation (objForReg reg) (renderReg reg) SAssign (objForReg reg) "@s"
+            asArrayElem arr aix $ scoreboardOperation regs (renderReg reg) SAssign regs "@s"
 
         SetInArrayOrNew arr aix reg -> instr do
-            assertRegNumber aix
-            assertRegArray arr  
-            asArrayElemOrNew arr aix $ scoreboardOperation (objForReg reg) "@s" SAssign (objForReg reg) (renderReg reg)
+            asArrayElemOrNew arr aix $ scoreboardOperation regs "@s" SAssign regs (renderReg reg)
         SetInArray arr aix reg -> instr do
-            assertRegNumber aix
-            assertRegArray arr  
-            asArrayElem arr aix $ scoreboardOperation (objForReg reg) "@s" SAssign (objForReg reg) (renderReg reg)
+            asArrayElem arr aix $ scoreboardOperation regs "@s" SAssign regs (renderReg reg)
         SetNewInArray arr aix reg -> instr do
-            assertRegNumber aix
-            assertRegArray arr
-            asNewArrayElem arr aix $ scoreboardOperation (objForReg reg) "@s" SAssign (objForReg reg) (renderReg reg)
+            asNewArrayElem arr aix $ scoreboardOperation regs "@s" SAssign regs (renderReg reg)
         DestroyInArray arr aix -> instr do
             asArrayElem arr aix $ rawCommand "kill @s"
 
         SetScoreboard obj player reg -> instr do
-            assertRegNumber reg
             scoreboardOperation obj player SAssign regs (renderReg reg)
         RawCommand cmd -> instr $ rawCommand cmd
     where
@@ -154,7 +139,7 @@ asArrayElemOrNew areg ixreg mcf = do
     setReg elseReg 1
     asArrayElem areg ixreg $ setReg elseReg 0
     execute $ EIf (eiScoreReg elseReg $ EIMatches (RBounded 1 1)) $ ERun $ summonMarkerWithTags [arrayTag, tempTag]
-    moveScoreboard aelem ("@e[tag=" <> renderTag tempTag <> "]") aptr (renderReg areg)
+    moveScoreboard aelem ("@e[tag=" <> renderTag tempTag <> "]") regs (renderReg areg)
     moveScoreboard ix ("@e[tag=" <> renderTag tempTag <> "]") regs (renderReg ixreg)
     removeTag tempTag ("@e[tag=" <> renderTag tempTag <> "]")
     asArrayElem areg ixreg mcf
@@ -170,14 +155,14 @@ asArrayElemOrIfNotPresent areg ixreg mcf inp = do
 asArrayElem :: (CompInnerC r) => Register -> Register -> Sem r () -> Sem r ()
 asArrayElem areg ixreg mcf = execute
                         $ EAs "@e[tag=ARRAY]"
-                        $ EIf (EIScore aelem "@s" $ EIEQ aptr (renderReg areg))
+                        $ EIf (EIScore aelem "@s" $ EIEQ regs (renderReg areg))
                         $ EIf (EIScore ix "@s" $ EIEQ regs (renderReg ixreg))
                         $ ERun mcf
 
 asNewArrayElem :: (CompInnerC r) => Register -> Register -> Sem r () -> Sem r ()
 asNewArrayElem areg ixreg mcf = do
     summonMarkerWithTags [arrayTag, tempTag]
-    moveScoreboard aelem ("@e[tag=" <> renderTag tempTag <> "]") aptr (renderReg areg)
+    moveScoreboard aelem ("@e[tag=" <> renderTag tempTag <> "]") regs (renderReg areg)
     moveScoreboard ix ("@e[tag=" <> renderTag tempTag <> "]") regs (renderReg ixreg)
     removeTag tempTag ("@e[tag=" <> renderTag tempTag <> "]")
     asArrayElem areg ixreg mcf
@@ -192,24 +177,16 @@ whenDebug :: (CompC r) => Sem r () -> Sem r ()
 whenDebug s = asks debug >>= flip when s
 
 constReg :: Register
-constReg = NumReg (NamedReg "CONST")
+constReg = NamedReg "CONST"
 
 elseReg :: Register
-elseReg = NumReg (NamedReg "ELSE")
+elseReg = NamedReg "ELSE"
 
 arrayCounterReg :: Register
-arrayCounterReg = NumReg (NamedReg "ARRAYCOUNTER")
+arrayCounterReg = NamedReg "ARRAYCOUNTER"
 
-objForReg :: Register -> Objective
-objForReg = \case
-    NumReg _ -> regs
-    EntityReg _ -> eptr
-    ArrayReg _ -> aptr
-
-regs, eptr, aptr, aelem, ix, uid :: Objective
+regs, aelem, ix, uid :: Objective
 regs  = Objective "REGS"
-eptr  = Objective "EPTR"
-aptr  = Objective "APTR"
 aelem = Objective "AELEM"
 ix    = Objective "IX"
 uid   = Objective "UID"

@@ -71,12 +71,12 @@ fileTestToTest FileTest{testName, testType, testCode, testArgs} = case testType 
                 (testCode <> "main :: Unit; main = _setTestScoreboardUnsafe (" <> argCode <> ");") expected
         Nothing -> Error $ "Invalid integer for expected score: " <> argHeader
     TestError -> (\f -> zipWith f testArgs [(1::Int)..]) \(TestArg{argHeader, argCode}) i -> case parseErrorType argHeader of
-        Just (pred, desc) ->
+        Just (predicate, desc) ->
             F.TestError
                 (testName <> " [" <> show i <> "]")
                 [TModule "test.cb" (testCode <> "\n\n__const__ :: a -> b -> b; __const__ x y = y;\n" <> "main :: Int; main = __const__ 42 (" <> argCode <> ");")]
                 desc
-                pred
+                predicate
         Nothing -> Error $ "Invalid error type for expected error: " <> argHeader
 
 testFileContent :: Text -> [Test]

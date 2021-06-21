@@ -105,15 +105,19 @@ type family XStructConstruct (p :: Pass)
 type family XStructAccess    (p :: Pass)
 type family XExpr            (p :: Pass)
 
-data Kind = KStar | KFun Kind Kind deriving (Eq, Generic, Data, Typeable)
+data Kind = KStar | KFun Kind Kind deriving (Eq, Ord, Generic, Data, Typeable)
 
 infixr 5 `KFun`
 
 data Type (p :: Pass) = TCon (Name p) (XKind p)
                       | TApp (Type p) (Type p)
-                      | TVar (Name p) (XKind p)
+                      | TVar (TVar p)
 
-type instance InstanceRequirements (Type p) = [Name p, XKind p]
+data TVar (p :: Pass) = MkTVar (Name p) (XKind p)
+
+
+type instance InstanceRequirements (Type p) = [Name p, XKind p, TVar p]
+type instance InstanceRequirements (TVar p) = [Name p, XKind p]
 
 (-:>) :: (TyLit (Name p), IsKind (XKind p)) => Type p -> Type p -> Type p
 t1 -:> t2 = TApp (TApp (TCon tyFunT (kFun kStar (kFun kStar kStar))) t1) t2
@@ -154,13 +158,6 @@ data StructDef p = StructDef {
     }
 
 type instance InstanceRequirements (StructDef p) = [Name p, Type p]
-
-instance (Name p1 ~ Name p2, XKind p1 ~ XKind p2) => Convert (Type p1) (Type p2) where
-    conv = \case
-        TCon n k   -> TCon n k
-        TApp t1 t2 -> TApp (conv t1) (conv t2)
-        TVar n k   -> TVar n k
-
 
 instance S.Show Kind where
     show KStar = "*"
@@ -203,14 +200,20 @@ instance IsKind Kind where
     fromKind = id
     kFun = KFun 
 
-kind :: ((XKind p) ~ Kind) => Type p -> Either (Kind, Kind) Kind
-kind = \case
-    TVar _ k -> pure k
-    TCon _ k -> pure k
-    TApp t1 t2 -> bisequence (kind t1, kind t2) >>= \case
-        (KFun kp kr, ka)
-            | kp == ka -> pure kr
-        (k1, k2) -> Left (k1, k2) 
+class HasKind t where
+    kind :: t -> Either (Kind, Kind) Kind
+
+instance (XKind p ~ Kind) => HasKind (TVar p) where
+    kind (MkTVar _ k) = Right k
+
+instance ((XKind p) ~ Kind) => HasKind (Type p) where
+    kind = \case
+        TVar v -> kind v
+        TCon _ k -> pure k
+        TApp t1 t2 -> bisequence (kind t1, kind t2) >>= \case
+            (KFun kp kr, ka)
+                | kp == ka -> pure kr
+            (k1, k2) -> Left (k1, k2)
     
       
 class CoercePass t1 t2 p1 p2 | t1 -> p1, t2 -> p2 where
@@ -305,12 +308,19 @@ instance
 instance
     (   Name p1 ~ Name p2
     ,   XKind p1 ~ XKind p2
+    ,   CoercePass (TVar p1) (TVar p2) p1 p2
     )
     => CoercePass (Type p1) (Type p2) p1 p2 where
     _coercePass = \case
         TCon n k -> TCon n k
         TApp t1 t2 -> TApp (coercePass t1) (coercePass t2)
-        TVar n k -> TVar n k
+        TVar t -> TVar (coercePass t)
+
+instance
+    (   Name p1 ~ Name p2
+    ,   XKind p1 ~ XKind p2
+    ) => CoercePass (TVar p1) (TVar p2) p1 p2 where
+    _coercePass (MkTVar n k) = MkTVar n k
 
 instance
     (   Name p1 ~ Name p2

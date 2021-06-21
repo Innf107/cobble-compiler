@@ -33,31 +33,31 @@ _false :: PrimOpF r
 _false PrimOpEnv{..} _args = pure falseReg
 
 _add :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_add = binaryOp NumReg \_ x y res -> tell [MoveReg res x, AddReg res y]
+_add = binaryOp \_ x y res -> tell [MoveReg res x, AddReg res y]
 
 _sub :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_sub = binaryOp NumReg \_ x y res -> tell [MoveReg res x, SubReg res y]
+_sub = binaryOp \_ x y res -> tell [MoveReg res x, SubReg res y]
 
 _mul :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_mul = binaryOp NumReg \_ x y res -> tell [MoveReg res x, MulReg res y]
+_mul = binaryOp \_ x y res -> tell [MoveReg res x, MulReg res y]
 
 _div :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_div = binaryOp NumReg \_ x y res -> tell [MoveReg res x, DivReg res y]
+_div = binaryOp \_ x y res -> tell [MoveReg res x, DivReg res y]
 
 _mod :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_mod = binaryOp NumReg \_ x y res -> tell [MoveReg res x, ModReg res y]
+_mod = binaryOp \_ x y res -> tell [MoveReg res x, ModReg res y]
 
 _le :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_le = binaryOp NumReg \_ x y res -> tell [MoveNumLit res 0, ExecLE x y [McFunction $ "scoreboard players set " <> renderReg res <> " REGS 1"]] --TODO!
+_le = binaryOp \_ x y res -> tell [MoveNumLit res 0, ExecLE x y [McFunction $ "scoreboard players set " <> renderReg res <> " REGS 1"]] --TODO!
 
 _setTestScoreboardUnsafe :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
 _setTestScoreboardUnsafe = unaryOp' \PrimOpEnv{..} x -> tell [SetScoreboard (Objective "test") "test" x] $> unitReg
 
 
 -- Helper functions
-_unaryOp :: (Member (Error Panic) r) => (RegId -> Register) -> (PrimOpEnv r -> Register -> Register -> Sem r ()) -> PrimOpF r
-_unaryOp resRep f = unaryOp' \e@PrimOpEnv{..} x -> do
-    resReg <- newReg TempReg resRep
+_unaryOp :: (Member (Error Panic) r) => (PrimOpEnv r -> Register -> Register -> Sem r ()) -> PrimOpF r
+_unaryOp f = unaryOp' \e@PrimOpEnv{..} x -> do
+    resReg <- newReg
     f e x resReg
     pure resReg
 
@@ -68,10 +68,10 @@ unaryOp' f e@PrimOpEnv{..} args = do
         [r1] -> f e r1
         _ -> panic $ "unary primop applied the wrong amount of arguments (" <> (show $ length aregs) <> "). Is the type correct?"
 
-binaryOp :: (Member (Error Panic) r) => (RegId -> Register) -> (PrimOpEnv r -> Register -> Register -> Register -> Sem r ()) -> PrimOpF r
-binaryOp resRep f e@PrimOpEnv{..} args = do
+binaryOp :: (Member (Error Panic) r) => (PrimOpEnv r -> Register -> Register -> Register -> Sem r ()) -> PrimOpF r
+binaryOp f e@PrimOpEnv{..} args = do
     aregs <- traverse compileExprToReg args
-    resReg <- newReg TempReg resRep
+    resReg <- newReg
     case aregs of
         [r1, r2] -> f e r1 r2 resReg >> pure resReg
         _ -> panic $ "binary primop applied the wrong amount of arguments (" <> (show $ length aregs) <> "). Is the type correct?"

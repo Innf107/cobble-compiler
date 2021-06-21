@@ -30,7 +30,7 @@ type PrimOpF r = PrimOpEnv r -> [Expr 'Codegen] -> Sem r Register
 
 data PrimOpEnv r = PrimOpEnv {
         compileExprToReg :: Expr 'Codegen -> Sem r Register
-    ,   newReg :: (Int -> RegId) -> (RegId -> Register) -> Sem r Register
+    ,   newReg :: Sem r Register
     ,   unitReg :: Register
     ,   trueReg :: Register
     ,   falseReg :: Register

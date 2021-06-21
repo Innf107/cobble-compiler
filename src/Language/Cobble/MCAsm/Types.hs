@@ -16,26 +16,16 @@ type Name = QualifiedName
 
 data McAsmError deriving (Show, Eq)
 
-data Register = NumReg    RegId
-              | EntityReg RegId
-              | ArrayReg  RegId
+data Register = Reg Int
+              | ArgReg Int
+              | NamedReg Text
               deriving (Show, Eq)
-
-data RegId = VarReg Int
-           | TempReg Int
-           | NamedReg Text
-           deriving (Show, Eq)
 
 renderReg :: Register -> Text
 renderReg = \case
-    NumReg    i -> "N" <> renderRegId i
-    EntityReg i -> "E" <> renderRegId i
-    ArrayReg  i -> "A" <> renderRegId i
-
-renderRegId :: RegId -> Text
-renderRegId (VarReg i)      = "V" <> show i
-renderRegId (TempReg i)     = "T" <> show i
-renderRegId (NamedReg name) = name
+    Reg      i -> "R" <> show i
+    ArgReg   i -> "A" <> show i
+    NamedReg n -> n
 
 data Module = Module {
       moduleName::Name
@@ -145,23 +135,4 @@ instance S.Show Range where
         RInfEnd i           -> show i <> ".."
         RInfStart i         ->  ".." <> show i
         RBounded minr maxr  ->  show minr <> ".." <> show maxr
-
-
-assertSameRegType :: (Member (Error Panic) r) => Register -> Register -> Sem r ()
-assertSameRegType (NumReg _)    (NumReg _) = pass
-assertSameRegType (EntityReg _) (EntityReg _) = pass
-assertSameRegType (ArrayReg _)  (ArrayReg _) = pass
-assertSameRegType r1 r2 = throw $ MismatchedRegTypes (show r1) (show r2)
-
-assertRegNumber :: (Member (Error Panic) r) => Register -> Sem r ()
-assertRegNumber (NumReg _) = pass
-assertRegNumber r = throw $ MismatchedRegTypes (show r) "Number"
-
-assertRegEntity :: (Member (Error Panic) r) => Register -> Sem r ()
-assertRegEntity (EntityReg _) = pass
-assertRegEntity r = throw $ MismatchedRegTypes (show r) "Entity"
-
-assertRegArray :: (Member (Error Panic) r) => Register -> Sem r ()
-assertRegArray (ArrayReg _) = pass
-assertRegArray r = throw $ MismatchedRegTypes (show r) "Array"
 
