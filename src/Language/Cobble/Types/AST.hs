@@ -2,7 +2,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Language.Cobble.Types.AST where
 
-import Language.Cobble.Prelude hiding (TVar)
+import Language.Cobble.Prelude
 import Language.Cobble.Util.Convert
 import Language.Cobble.Util.TypeUtils
 

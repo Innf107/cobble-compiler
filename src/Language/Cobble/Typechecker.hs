@@ -67,20 +67,6 @@ typecheckModule (Module (Ext deps) mname instrs) = Module (Ext deps) mname <$> t
 
 typecheck :: (TypecheckC r, Members '[Error Panic] r) => Statement Typecheck -> Sem r (Statement NextPass)
 typecheck = \case
-    {-
-    DefFun () l fname (conv -> args) stmnts lastexpr (conv -> retT) -> do
-        
-        let ftype = foldr (-:>) retT (map snd args)
-        insertVarType fname ftype
-        
-        for_ args (uncurry insertVarType)
-        
-        stmnts' <- traverse typecheck stmnts
-        lastexpr' <- typeOf lastexpr
-        if (getType lastexpr' == retT)
-        then pure (DefFun () l fname args stmnts' lastexpr' retT)
-        else throw (WrongReturnType l fname retT (getType lastexpr'))
-    -}
     Def IgnoreExt l (Decl IgnoreExt name (Ext ps) body) ty -> do
         insertVarType name (coercePass ty)
         case splitFunType (genericLength ps) (coercePass ty) of

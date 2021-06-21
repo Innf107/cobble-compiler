@@ -42,10 +42,10 @@ emptyFrame :: Frame
 emptyFrame = Frame mempty 0 []
 
 stackReg :: Register
-stackReg = ArrayReg $ NamedReg "STACK"
+stackReg = NamedReg "STACK"
 
 stackPTRReg :: Register
-stackPTRReg = NumReg $ NamedReg "STACKPTR"
+stackPTRReg = NamedReg "STACKPTR"
 
 
 makeLenses 'Frame
@@ -56,18 +56,12 @@ compile :: (CompileC r) => S.Module 'Codegen -> Sem r A.Module
 compile (S.Module _deps modname stmnts) = log LogVerbose ("STARTING COBBLE CODEGEN FOR MODULE: " <> show modname) 
                                        >> A.Module modname . fst <$> runWriterAssocR (traverse compileStatement stmnts)
 
-newReg :: (CompileC r) => (Int -> RegId) -> (RegId -> Register) -> Sem r Register
-newReg c r = do
-    reg <- get <&> r . c . (^. frames . head1 . lastReg)
+newReg :: (CompileC r) => Sem r Register
+newReg = do
+    reg <- get <&> Reg . (view (frames . head1 . lastReg))
     modify (& frames . head1 . lastReg +~ 1)
     modify (& frames . head1 . regs %~ (reg:))
     pure reg
-
-newRegForType :: (CompileC r) => (Int -> RegId) -> Type 'Codegen -> Sem r Register
-newRegForType c t = case rtType t of
-    RepNum    -> newReg c NumReg
-    RepEntity -> newReg c EntityReg
-    RepArray  -> newReg c ArrayReg
 
 compileStatement :: forall r. (Member (Writer [Instruction]) r, CompileC r) => S.Statement 'Codegen -> Sem r ()
 compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >>) $ s & \case
@@ -87,13 +81,13 @@ compileStatement s = (log LogDebugVerbose ("COMPILING STATEMENT: " <>  show s) >
     Def IgnoreExt _li (Decl (Ext retT) name (Ext ps) body) _ty -> do
         modify (& functions . at name ?~ Function {_params=ps, _returnType=retT})
         tell . pure . A.Section name . fst =<< runWriterAssocR do
-            parRegs <- traverse (\(_, pt) -> newRegForType VarReg pt) ps
+            let parRegs = zipWith (\_ i -> ArgReg i) ps [0..]
             modify (& frames %~ (emptyFrame |:))
             modify (& frames . head1 . varRegs .~ fromList (zip (map fst ps) parRegs))
             modify (& frames . head1 . regs .~ parRegs)
             res <- compileExprToReg body
             modify (& frames %~ unsafeTail)
-            tell [MoveReg (returnReg (regRep res)) res]
+            tell [MoveReg returnReg res]
     Import IgnoreExt _ _ -> pass
     DefStruct IgnoreExt _ _ _ -> pass
     StatementX x _ -> absurd x
@@ -122,13 +116,13 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
 
                     restoreFrame frame
                     
-                    ret <- newRegForType TempReg t
-                    tell [MoveReg ret (returnReg (rtType t))]
+                    ret <- newReg
+                    tell [MoveReg ret returnReg]
                     pure ret
     FCall _t li ex _as -> panic' "Cannot indirectly call a function yet. This is *NOT* a bug" [show ex, show li]
     If (Ext (name, ifID)) _li c th el -> do
         cr <- compileExprToReg c
-        resReg <- newRegForType TempReg (getType th)
+        resReg <- newReg
         tell . pure . A.Section (name .: ("-then-e" <> show ifID)) =<< (\(is, r) -> is <> [MoveNumLit elseReg 0, MoveReg resReg r]) <$> runWriterAssocR (compileExprToReg th)
         tell . pure . A.Section (name .: ("-else-e" <> show ifID)) =<< (\(is, r) -> is <> [MoveReg resReg r]) <$> runWriterAssocR (compileExprToReg el)
         tell [MoveNumLit elseReg 1
@@ -144,7 +138,7 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
     StructConstruct (Ext (_def, t)) _li _cname fields -> do
         -- We can assume that all fields are present in ps and in the same order as in the struct definition
         fieldRegs <- traverse (compileExprToReg . snd) fields
-        arrReg <- newRegForType TempReg t
+        arrReg <- newReg
         ixRegs <- traverse mkIntReg [0..length fieldRegs - 1]
         tell (zipWith (SetNewInArray arrReg) ixRegs fieldRegs)
         pure arrReg
@@ -153,19 +147,19 @@ compileExprToReg e = (log LogDebugVerbose ("COMPILING EXPR: " <> show e) >>) $ e
                     $ findIndexOf (structFields . folded) (\(x,_) -> unqualifyName x == fieldName) def
         structReg <- compileExprToReg cex
         ixReg <- mkIntReg fieldIndex
-        resReg <- newRegForType VarReg t
+        resReg <- newReg
         tell [GetInArray resReg structReg ixReg]
         pure resReg
     ExprX x _li -> absurd x
 
 -- TODO: Move int lit initialization to program start
 mkIntReg :: (CompileC r, Member (Writer [Instruction]) r) => Int -> Sem r Register
-mkIntReg i = newReg TempReg NumReg >>= \reg -> tell [MoveNumLit reg i] $> reg
+mkIntReg i = newReg >>= \reg -> tell [MoveNumLit reg i] $> reg
 
 writeArgs :: (CompileC r, Member (Writer [Instruction]) r) => [Expr 'Codegen] -> Sem r ()
 writeArgs args = do
     ress <- traverse compileExprToReg args
-    zipWithM_ (\r i -> tell [MoveReg (mkRegFromRep (regRep r) (VarReg i)) r]) ress [0..]
+    zipWithM_ (\r i -> tell [MoveReg (ArgReg i) r]) ress [0..]
 
 -- TODO: Initialize empty stack elements and write with `SetInArray`
 saveFrame :: (CompileC r, Member (Writer [Instruction]) r) => Frame -> Sem r ()
@@ -188,13 +182,10 @@ popRegFromStack r = tell [
     ]
 
 elseReg :: Register
-elseReg = NumReg (NamedReg "ELSE")
+elseReg = NamedReg "ELSE"
 
-returnReg :: Rep -> Register
-returnReg = \case
-    RepNum    -> NumReg    (NamedReg "RETURN")
-    RepEntity -> EntityReg (NamedReg "RETURN")
-    RepArray  -> ArrayReg  (NamedReg "RETURN")
+returnReg :: Register
+returnReg = NamedReg "RETURN"
 
 rtType :: Type 'Codegen -> Rep
 rtType = \case
@@ -203,33 +194,15 @@ rtType = \case
     TCon "prims.Entity" KStar -> RepEntity
     _                   -> RepArray
 
-regRep :: Register -> Rep
-regRep = \case
-    NumReg _ -> RepNum
-    EntityReg _ -> RepEntity
-    ArrayReg _ -> RepArray
-
-regId :: Register -> RegId
-regId = \case
-    NumReg r -> r
-    EntityReg r -> r
-    ArrayReg r -> r
-
-mkRegFromRep :: Rep -> RegId -> Register
-mkRegFromRep r i = case r of
-    RepNum    -> NumReg i
-    RepEntity -> EntityReg i
-    RepArray  -> ArrayReg i
-
 
 unitReg :: Register
-unitReg = NumReg (NamedReg "UNIT")
+unitReg = NamedReg "UNIT"
 
 trueReg :: Register
-trueReg = NumReg (NamedReg "TRUE")
+trueReg = NamedReg "TRUE"
 
 falseReg :: Register
-falseReg = NumReg (NamedReg "FALSE")
+falseReg = NamedReg "FALSE"
 
 primOpEnv :: (Member (Writer [Instruction]) r, CompileC r) => P.PrimOpEnv r
 primOpEnv = P.PrimOpEnv {
