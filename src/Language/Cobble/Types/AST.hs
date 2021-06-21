@@ -229,7 +229,7 @@ data IgnoreExt (p :: Pass) = IgnoreExt deriving (Show, Eq, Generic, Data)
 data ExtVoid (p :: Pass) deriving (Show, Eq, Generic, Data)
 
 absurd :: ExtVoid t -> a
-absurd _ = error "Language.Cobble.Types.AST.absurd"
+absurd x = case x of
 
 instance (Coercible t1 t2) => CoercePass (Ext p1 t1) (Ext p2 t2) p1 p2 where
     _coercePass = coercePass
