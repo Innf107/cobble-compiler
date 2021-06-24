@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c77444b73ed0181869c7f4773b711f8fd1f68f7a6637e327a2c219fa75d04503
+-- hash: fec877ff306cf5b41d7b94b43924427311c5acc8f9facfeb4b9266a4a4ca00bb
 
 name:           cobble
 version:        0.1.0.0
@@ -29,6 +29,7 @@ library
   exposed-modules:
       Language.Cobble
       Language.Cobble.Codegen.CobbleToLC
+      Language.Cobble.Codegen.CPSToAsm
       Language.Cobble.Codegen.LCToCPS
       Language.Cobble.Codegen.PrimOps
       Language.Cobble.Codegen.Types
