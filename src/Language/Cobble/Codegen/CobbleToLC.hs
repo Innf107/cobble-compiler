@@ -13,7 +13,7 @@ compileStatement :: Statement Codegen -> [LCDef]
 compileStatement (Import _ _ _) = []
 compileStatement (DefStruct _ _ _ _) = []
 compileStatement (StatementX x _) = absurd x
-compileStatement (Def IgnoreExt _li (Decl (Ext _) fname (Ext params) body) _) = [
+compileStatement (Def IgnoreExt _li (Decl (Ext _) fname (Ext params) body) _) = [ --TODO: Use fix instead of lambda
         LCDef fname $ foldr Lambda (compileExpr body) (map fst params)
     ]
 
@@ -21,7 +21,7 @@ compileExpr :: Expr Codegen -> LCExpr
 compileExpr (C.IntLit _ _ i) = L.IntLit i
 compileExpr (UnitLit _)      = Tuple []
 compileExpr (C.Var _ _ n)    = L.Var n
-compileExpr (FCall (Ext _) _ funEx pars) = foldl' App (compileExpr funEx) (fmap compileExpr pars) -- TODO: translate recursion into 'Fix'
+compileExpr (FCall (Ext _) _ funEx pars) = foldl' App (compileExpr funEx) (fmap compileExpr pars)
 compileExpr (Let IgnoreExt _ (Decl (Ext _) name (Ext params) letEx) body) =
     App (Lambda name (compileExpr body)) (foldr Lambda (compileExpr letEx) (map fst params))
 compileExpr (StructConstruct (Ext _) _ _ fs) = Tuple (map (compileExpr . snd) fs)

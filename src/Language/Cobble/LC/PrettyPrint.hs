@@ -14,7 +14,7 @@ prettyPrintLCDef (LCDef name expr) = show name <> " = " <> prettyPrintLCExpr exp
 prettyPrintLCExpr :: LCExpr -> Text
 prettyPrintLCExpr = \case
     Var name            -> show name
-    Fix vname expr      -> "fix (λ" <> show vname <> ". " <> prettyPrintLCExpr expr <> ")"
+    --Fix vname expr      -> "fix (λ" <> show vname <> ". " <> prettyPrintLCExpr expr <> ")"
     Lambda vname expr   -> "λ" <> show vname <> ". " <> prettyPrintLCExpr expr
     App fexpr aexpr     -> prettyPrintLCExprParens fexpr <> " " <> prettyPrintLCExprParens aexpr
     IntLit i            -> show i
