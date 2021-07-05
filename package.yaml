@@ -127,3 +127,4 @@ default-extensions:
   - NumericUnderscores
   - NumDecimals
   - RoleAnnotations
+  - QuantifiedConstraints

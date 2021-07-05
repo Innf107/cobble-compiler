@@ -4,6 +4,8 @@ import Language.Cobble.Prelude
 
 import Language.Cobble.Shared
 
+import Data.Data
+
 type LCVar = QualifiedName
 
 type LCCon = QualifiedName
@@ -18,8 +20,8 @@ data LCExpr = Var LCVar
            --  | Decon LCCon LCExpr
           --   | Switch LCExpr [(LCCon, LCExpr)] -- Used for variants and case exprs (NYI)
             | Tuple [LCExpr]
-            | SelectTuple Int LCExpr
-            deriving (Show, Eq)
+            | Select Int LCExpr
+            deriving (Show, Eq, Generic, Data)
 
 
 

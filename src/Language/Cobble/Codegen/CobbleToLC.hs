@@ -27,6 +27,6 @@ compileExpr (Let IgnoreExt _ (Decl (Ext _) name (Ext params) letEx) body) =
 compileExpr (StructConstruct (Ext _) _ _ fs) = Tuple (map (compileExpr . snd) fs)
 compileExpr (StructAccess (Ext (def, _)) _ structExp fieldName) = case findIndexOf (structFields . folded) (\(x,_) -> unqualifyName x == fieldName) def of
     Nothing -> error "LC Codegen Panic: structAccess: field not found too late"
-    Just i -> SelectTuple i (compileExpr structExp)
+    Just i -> Select i (compileExpr structExp)
 compileExpr (If _ _ _ _ _) = undefined
 compileExpr (ExprX x _) = absurd x

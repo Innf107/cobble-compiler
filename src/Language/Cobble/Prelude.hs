@@ -11,6 +11,7 @@ module Language.Cobble.Prelude (
     , module Control.Lens
     , module System.FilePath
     , module Data.Generics.Uniplate.Data
+    , module Language.Cobble.Util.ListLike
     , (|:)
     , state 
     , whenAlt
@@ -44,7 +45,11 @@ import Relude hiding (
     , runReader
     , uncons
     , (??)
+    , zip
+    , zipWith
     )
+import Language.Cobble.Util.ListLike
+    
 import Relude.Extra hiding (
       last1
     , head1

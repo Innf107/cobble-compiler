@@ -18,8 +18,8 @@ prettyPrintLCExpr = \case
     Lambda vname expr   -> "λ" <> show vname <> ". " <> prettyPrintLCExpr expr
     App fexpr aexpr     -> prettyPrintLCExprParens fexpr <> " " <> prettyPrintLCExprParens aexpr
     IntLit i            -> show i
-    Tuple as            -> "[" <> T.intercalate ", " (map prettyPrintLCExpr as) <> "]"
-    SelectTuple i t     -> prettyPrintLCExprParens t <> "._" <> show i
+    Tuple as            -> "[" <> T.intercalate ", " (map prettyPrintLCExpr $ toList as) <> "]"
+    Select i t          -> prettyPrintLCExprParens t <> "._" <> show i
 
 prettyPrintLCExprParens :: LCExpr -> Text
 prettyPrintLCExprParens = \case
