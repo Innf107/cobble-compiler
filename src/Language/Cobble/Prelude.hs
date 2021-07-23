@@ -12,6 +12,8 @@ module Language.Cobble.Prelude (
     , module System.FilePath
     , module Data.Generics.Uniplate.Data
     , module Language.Cobble.Util.ListLike
+    , module Data.Data
+    , module Data.Foldable
     , (|:)
     , state 
     , whenAlt
@@ -19,6 +21,7 @@ module Language.Cobble.Prelude (
     , mapFromLeft
     , censorM
     , HSType
+    , (L.\\)
     ) where
 
 import qualified Relude
@@ -89,10 +92,14 @@ import Control.Lens hiding (
     ,   transform
     )
 
+import Data.Data
+
 import qualified Data.DList as D
 import qualified Data.Text as T
 
-import qualified Data.List as L (init, last)
+import qualified Data.List as L (init, last, (\\))
+
+import Data.Foldable (foldrM)
 
 (|:) :: a -> NonEmpty a -> NonEmpty a
 a |: (x :| xs) = a :| (x : xs)
