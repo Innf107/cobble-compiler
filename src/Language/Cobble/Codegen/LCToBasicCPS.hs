@@ -5,21 +5,20 @@ import Language.Cobble.Util
 import Language.Cobble.Shared
 import Language.Cobble.LC.Types as L
 import Language.Cobble.CPS.Basic.Types as C
+import Language.Cobble.Codegen.Common
 
-freshVar :: (Members '[State Int] r) => QualifiedName -> Sem r QualifiedName
-freshVar v = state \i -> (v <> show i, i + 1)
 
 compileExpr :: (Members '[State Int] r) => LCExpr -> CPSVal -> Sem r CPS
 compileExpr = flip \kval -> let k = staticCont kval in \case
     L.Var v             -> pure $ k (C.Var v)
     L.IntLit n          -> pure $ k (C.IntLit n)
-    L.Lambda x e        -> freshVar "k" >>= \k' -> k . C.Lambda x k' <$> compileExpr e (C.Var k') -- ?
+    L.Lambda x e        -> freshVar "k" >>= \k' -> k . C.Lambda x k' <$> compileExpr e (C.Var k')
     L.App f a           -> freshVar "f" >>=  \f' -> freshVar "v" >>= \v' ->
-        compileExpr f =<< C.Admin f' <$> compileExpr a (C.Admin v' (C.App3 (C.Var f') (C.Var v') kval)) -- ?
-    L.Tuple es          -> foldrM   (\(i, e) r -> compileExpr e (C.Admin ("x" +. show i) r))
-                                    (C.Let "t" (C.Tuple (fmap (C.Var . ("x" +.) . show) (indexes es))) (k (C.Var "t"))) -- ?
+        compileExpr f =<< C.Admin f' <$> compileExpr a (C.Admin v' (C.App3 (C.Var f') (C.Var v') kval))
+    L.Tuple es          -> freshVar "t" >>= \t' -> foldrM   (\(i, e) r -> compileExpr e (C.Admin ("x" +. show i) r))
+                                    (C.Let t' (C.Tuple (fmap (C.Var . ("x" +.) . show) (indexes es))) (k (C.Var t')))
                                     (zipIndex es)
-    L.Select n e        -> compileExpr e (C.Admin "t" (C.Let "y" (C.Select n (C.Var "t")) (k (C.Var "y")))) -- ?
+    L.Select n e        -> freshVar "t" >>= \t' -> freshVar "y" >>= \y' -> compileExpr e (C.Admin t' (C.Let y' (C.Select n (C.Var t')) (k (C.Var y'))))
 
 reduceAdmin :: CPS -> CPS
 reduceAdmin = transformBi adminToLambda . rewriteBi (betaLetReduce <<|>> etaReduce)

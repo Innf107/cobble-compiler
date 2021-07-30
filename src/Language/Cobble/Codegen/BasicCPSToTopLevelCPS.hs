@@ -4,11 +4,26 @@ import Language.Cobble.Prelude hiding (uncurried, (\\))
 import Language.Cobble.Shared
 import Language.Cobble.CPS.Basic.Types as C
 import Language.Cobble.CPS.TopLevel.Types as T
+import Language.Cobble.Codegen.Common
 
 import Data.Set ((\\))
 
--- compileVal :: CPSVal -> ([(QualifiedName, TLC)], (Undefined, Undefined), Undefined)
+type TopLevelBinding = (QualifiedName, [QualifiedName], TLC)
 
+-- compileVal :: CPSVal -> ([(QualifiedName, TLC)], (Undefined, Undefined), Undefined)
+compileVal :: (Members '[State Int] r) => CPSVal -> Sem r ([TopLevelBinding], [QualifiedName])
+compileVal (C.Lambda k x c) = compileLambda [k, x] c
+
+compileLambda :: (Members '[State Int] r) => [QualifiedName] -> CPS -> Sem r ([TopLevelBinding], [QualifiedName])
+compileLambda xs c = freshVar "f" >>= \f' -> freshVar "s" >>= \s' -> do
+    fs <- undefined
+    c' <- undefined
+    pure (
+            (f', s' : xs, ifoldr (\i x r -> T.Let x (T.Select i s') r) c' ys) : fs
+        ,   ys
+        )
+        where
+            ys = toList $ freeVars c
 -- λx. λy. (add x) y
 -- λx k'. k' (λy k'. (λ_f. (λ_v. f v (λ_f. (λ_v. f v k') y)) x) add)
 -- λx k'. k' (λy k'. add x (λ_f. add y k'))
