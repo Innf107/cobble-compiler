@@ -15,7 +15,7 @@ import Language.Cobble.MCAsm.McFunction
 initialize :: (CompC r) => Sem r IntermediateResult
 initialize = InterModule "init" <$> instr do
         rawCommand "gamerule maxCommandChainLength 2147483647"
-        rawCommand "forceload add 0 0" 
+        rawCommand "forceload add 0 0"
         addScoreboardObjective regs
         addScoreboardObjective aelem
         addScoreboardObjective uid
@@ -46,7 +46,7 @@ hoistModules (InterModule mn ins) = makeModulesInner mn ins
                     ) subInstrs
             in (CompiledModule mname (unlines (map runMcFunction (concat instrs))):)
 --                                                                ^ TODO: Is this concat okay?
-               . concat <$> mapM (\(n, inner) -> makeModulesInner n inner) mods
+               . concat <$> mapM (uncurry makeModulesInner) mods
 
 compile :: (CompC r) => [Module] -> Sem r [CompiledModule]
 compile mods = do
@@ -64,7 +64,7 @@ compileInstr i = do
     log LogDebugVerbose $ "COMPILING INSTRUCTION: " <> show i
     asks nameSpace >>= \ns -> (<>) <$> whenDebugMonoid (pure [comment $ show i]) <*> case i of
         MoveReg reg1 reg2 -> instr (moveReg regs reg1 regs reg2)
-         
+
         MoveNumLit reg lit          -> instr $ setScoreboardForPlayer regs (renderReg reg) lit
         AddLit reg lit              -> instr $ addReg reg lit
         AddReg reg1 reg2            -> instr $ regOperation reg1 SAdd reg2

@@ -13,14 +13,14 @@ import Data.Time
 import Data.Time.Clock.POSIX
 
 data Time m a where
--- | Returns the time in **seconds** since Unix Epoch
+    -- | Returns the time in **seconds** since Unix Epoch
     GetTime :: Time m Integer
 
 makeSem ''Time
 
 timeToIO :: Member (Embed IO) r => Sem (Time ': r) a -> Sem r a
 timeToIO = interpret \case
-    GetTime -> embed $ getTimeIO
+    GetTime -> embed getTimeIO
 
 runTimePredefined :: Integer -> Sem (Time ': r) a -> Sem r a
 runTimePredefined t = interpret \case
