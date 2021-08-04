@@ -28,6 +28,7 @@ library
       Language.Cobble
       Language.Cobble.Codegen.BasicCPSToTopLevelCPS
       Language.Cobble.Codegen.CobbleToLC
+      Language.Cobble.Codegen.Common
       Language.Cobble.Codegen.LCToBasicCPS
       Language.Cobble.Codegen.PrimOps
       Language.Cobble.Codegen.Types
@@ -124,7 +125,7 @@ library
       NumDecimals
       RoleAnnotations
       QuantifiedConstraints
-  ghc-options: -fplugin=Polysemy.Plugin -Wall -Werror=incomplete-patterns -Werror=incomplete-record-updates -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wredundant-constraints
+  ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wredundant-constraints -Werror=incomplete-patterns -Werror=incomplete-record-updates -freverse-errors
   build-depends:
       base >=4.7 && <5
     , bytestring
@@ -233,8 +234,12 @@ test-suite cobble-test
   main-is: Main.hs
   other-modules:
       FullScale.FileTest
+      Language.Cobble.Codegen.BasicCPSToTopLevelCPSSpec
+      Language.Cobble.Codegen.CommonSpec
       Language.Cobble.Codegen.LCToBasicCPSSpec
+      Language.Cobble.Codegen.TestShared
       Language.Cobble.CompilerSpec
+      Language.Cobble.CPS.TopLevel.TypesSpec
       Language.Cobble.MCAsm.CompilerSpec
       Language.Cobble.MCAsm.McFunctionSpec
       Language.Cobble.PackagerSpec

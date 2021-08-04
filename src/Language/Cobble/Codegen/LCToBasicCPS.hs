@@ -28,7 +28,7 @@ reduceAdmin = transformBi adminToLambda . rewriteBi (betaLetReduce <<|>> etaRedu
             C.App2 (C.Admin x e) y
                 | C.Var _ <- y                                      -> Just $ replaceVar x y e
                 --  | length [() | C.Var v <- universeBi e, v == x] <= 1 -> Just $ replaceVar x y e
-                -- TODO: Should inlining be done in a different step?
+                -- TODO^: Should inlining be done in a different step?
                 -- TODO: This might change evaluation order but in a purely functional language that is not important
                 -- TODO: (IO might need some special cases here)
                 | otherwise                                          -> Just $ C.Let x (C.Val y) e

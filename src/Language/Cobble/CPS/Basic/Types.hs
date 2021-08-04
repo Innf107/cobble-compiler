@@ -2,6 +2,7 @@ module Language.Cobble.CPS.Basic.Types where
 
 import Language.Cobble.Prelude 
 import Language.Cobble.Shared
+import Language.Cobble.Codegen.Common
 
 import qualified GHC.Show as S
 import qualified Data.Text as T

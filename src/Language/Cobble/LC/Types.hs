@@ -3,17 +3,16 @@ module Language.Cobble.LC.Types where
 import Language.Cobble.Prelude
 
 import Language.Cobble.Shared
+import Language.Cobble.Codegen.Common
 
 import Data.Data
-
-type LCVar = QualifiedName
 
 type LCCon = QualifiedName
 
 data LCDef = LCDef QualifiedName LCExpr deriving (Show, Eq)
 
-data LCExpr = Var LCVar
-            | Lambda LCVar LCExpr
+data LCExpr = Var QualifiedName
+            | Lambda QualifiedName LCExpr
             | App LCExpr LCExpr
             | IntLit Int
            --  | Con LCCon [LCExpr] -- todo: represent variants as records with an additional tag field instead?

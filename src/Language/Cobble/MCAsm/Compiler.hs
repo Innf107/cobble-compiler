@@ -56,7 +56,7 @@ compile mods = do
 compileModule :: (CompC r) => Module -> Sem r IntermediateResult
 compileModule (Module {moduleName, moduleInstructions}) = do
     log LogDebug $ "COMPILING MODULE " <> show moduleName
-    results <- mapM compileInstr $ moduleInstructions
+    results <- mapM compileInstr moduleInstructions
     pure $ InterModule moduleName (concat results)
 
 compileInstr :: (CompC r) => Instruction -> Sem r [IntermediateResult]

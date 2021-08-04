@@ -187,7 +187,7 @@ showAsmDump (A.Module imname iminstrs) = go imname iminstrs 0
     where
         go :: A.Name -> [Instruction] -> Int -> Text
         go mname minstr i = indent i $
-            ["[" <> show mname <> "]"] ++ (minstr & map \case
+            ["[" <> show mname <> "]"] <> (minstr & map \case
                 Section n is -> go n is (i + 1)
                 inst -> show inst
                 )
