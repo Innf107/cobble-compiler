@@ -17,21 +17,26 @@ compile c = compileC c <&> \(bindings, cmd) -> foldr (\(fname, args, b) r -> T.L
 
 compileC :: (Members '[State Int] r) => CPS -> Sem r ([TopLevelBinding], TLC)
 compileC = \case
-    C.Let x e c       -> do
+    C.Let x e c -> do
         (eTLs, eLocs, eExp) <- compileExpr e
         (cTLs, cC) <- compileC c
         pure (eTLs <> cTLs, withLocals eLocs (T.Let x eExp cC))
-    C.App3 f v1 v2    -> freshen ("f", "v1", "v2") >>= \(f', v1', v2') ->
-        (\(fTLs, fLocs, fExp) (v1TLs, v1Locs, v1Exp) (v2TLs, v2Locs, v2Exp) -> 
-            (fTLs <> v1TLs <> v2TLs, withLocals (fLocs <> v1Locs <> v2Locs <> [(f', fExp), (v1', v1Exp), (v2', v2Exp)]) (T.App f' [v1', v2'])))
-        <$> compileVal f
-        <*> compileVal v1
-        <*> compileVal v2 
-    C.App2 f v        -> freshen ("f", "v") >>= \(f', v') ->
-        (\(fTLs, fLocs, fExp) (vTLs, vLocs, vExp) -> 
-            (fTLs <> vTLs, withLocals (fLocs <> vLocs <> [(f', fExp), (v', vExp)]) (T.App f' [v'])))
-        <$> compileVal f
-        <*> compileVal v 
+    C.App3 f v1 v2 -> 
+        (\(fTLs, fLocs, (fBindings, f')) (v1TLs, v1Locs, (v1Bindings, v1')) (v2TLs, v2Locs, (v2Bindings, v2')) -> 
+            (
+                fTLs <> v1TLs <> v2TLs 
+            ,   withLocals (fLocs <> v1Locs <> v2Locs <> fBindings <> v1Bindings <> v2Bindings) (T.App f' [v1', v2']))
+            )
+        <$> (traverseOf _3 asVar =<< compileVal f)
+        <*> (traverseOf _3 asVar =<< compileVal v1)
+        <*> (traverseOf _3 asVar =<< compileVal v2) 
+    C.App2 f v -> 
+        (\(fTLs, fLocs, (fBindings, f')) (vTLs, vLocs, (vBindings, v')) -> 
+            (
+                fTLs <> vTLs
+            ,   withLocals (fLocs <> vLocs <> fBindings <> vBindings) (T.App f' [v'])))
+        <$> (traverseOf _3 asVar =<< compileVal f)
+        <*> (traverseOf _3 asVar =<< compileVal v)
     where
         withLocals :: [LocalBinding] -> TLC -> TLC
         withLocals = flip (foldr (\(x, e) r -> T.Let x e r))
@@ -42,12 +47,12 @@ compileExpr = \case
     C.Tuple vs      -> do
         vs' <- traverse compileVal vs
         let (vsTLs, vsLocs, vsExps) = vs' & foldr (\(tls, locs, e) (tls', locs', es') -> (tls <> tls', locs <> locs', e : es')) ([], [], [])
-        vsNames <- traverse (\_ -> freshVar "v") vsExps
-        pure (vsTLs, vsLocs <> zip vsNames vsExps, T.Tuple vsNames)
+        (vBindings, vNames) <- asVars vsExps
+        pure (vsTLs, vsLocs <> vBindings, T.Tuple vNames)
     C.Select n v    -> do
         (vTLs, vLocs, vExp) <- compileVal v
-        t' <- freshVar "t"
-        pure (vTLs, vLocs <> [(t', vExp)], T.Select n t')
+        (tBindings, t') <- asVar vExp
+        pure (vTLs, vLocs <> tBindings, T.Select n t')
 
 compileVal :: (Members '[State Int] r) => CPSVal -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
 compileVal = \case
@@ -66,16 +71,16 @@ compileLambda xs c = freshen ("f", "s", "env", "closure") >>= \(f', s', env', cl
         ,   T.Var closure'
         )
         where
-            ys = toList $ freeVars c
+            ys = toList $ (freeVars c \\ fromList xs)
 
+asVar :: (Member (State Int) r) => TLExp -> Sem r ([LocalBinding], QualifiedName)
+asVar = \case
+    T.Var x -> pure ([], x)
+    e       -> freshVar "e" <&> \e' -> ([(e', e)], e')
 
--- λx. λy. (add x) y
--- λx k'. k' (λy k'. (λ_f. (λ_v. f v (λ_f. (λ_v. f v k') y)) x) add)
--- λx k'. k' (λy k'. add x (λ_f. add y k'))
-
--- λx k'. k' (λy k'. let f = add in let v = x in f v (λ_f. let v = y in f v k'))
-
--- λx k.0. k.0 (λy k.1. add x (λ_f.2. f.2 y k.1))
+asVars :: (Member (State Int) r) => [TLExp] -> Sem r ([LocalBinding], [QualifiedName])
+asVars es = first concat . unzip <$> traverse asVar es
+    
 
 freeVars :: CPS -> Set QualifiedName
 freeVars = \case
