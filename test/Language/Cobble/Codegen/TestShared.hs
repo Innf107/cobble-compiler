@@ -29,4 +29,13 @@ exampleReduced = C.Let "f0" (Val (C.Lambda "a" "k3" (C.Let "y5" (C.Select 1 (C.V
                                 (C.App3 (C.Var "f0") (C.Var "t2") C.Halt))))
 
 exampleTL :: TL
-exampleTL = C (T.App "f" [])
+exampleTL = T.LetF "f0" ["s1", "a", "k3"] (T.Let "y5" (T.Select 1 "a") 
+                (T.App "k3" ["y5"]))     
+            (T.C 
+                (T.Let "x0" (T.IntLit 3)
+                (T.Let "x1" (T.IntLit 4)
+                (T.Let "t2" (T.Tuple ["x0", "x1"])
+                (T.Let "env" (T.Tuple [])
+                (T.Let "v2" T.Halt
+                (T.App "f0" ["env", "t2", "v2"])
+                ))))))

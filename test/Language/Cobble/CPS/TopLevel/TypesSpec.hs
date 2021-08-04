@@ -14,6 +14,10 @@ spec = do
                 (C (Let "h" Halt (Let "x" (IntLit 5) (Let "y" (IntLit 4) (App "f" ["h", "x", "y"]))))))
                 `shouldBe`
                 intercalate "\n" [
-                    "letf f k x y = add k x y in"
-                ,   "let h = halt in let x = 5 in let y = 4 in f h x y"
+                    "letf f k x y = (add k x y)"
+                ,   "in"
+                ,   "    let h = halt in" 
+                ,   "    let x = 5 in" 
+                ,   "    let y = 4 in" 
+                ,   "    f h x y"
                 ]
