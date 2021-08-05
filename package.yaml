@@ -39,6 +39,7 @@ dependencies:
 - bytestring
 - random
 - dlist
+- these
 
 library:
   source-dirs: src

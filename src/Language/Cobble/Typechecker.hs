@@ -29,7 +29,6 @@ data TypeError = VarDoesNotExist LexInfo (Name NextPass)
                | WrongIfType LexInfo (Type NextPass)
                | WrongRecordConstructionType LexInfo (Name Typecheck) (Type NextPass) (Type NextPass)
                | DifferentIfETypes LexInfo (Type NextPass) (Type NextPass)
-               | WrongSetScoreboardType LexInfo Objective Text (Type NextPass)
                | CannotUnify (Type NextPass) (Type NextPass)
                | SubstMergeError Subst Subst
                | MatchTypeMismatch (Type NextPass) (Type NextPass)

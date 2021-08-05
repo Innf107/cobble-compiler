@@ -8,12 +8,16 @@ import Language.Cobble.Codegen.Common
 
 import Data.Set ((\\))
 
-type TopLevelBinding = (QualifiedName , [QualifiedName], TLC)
+data TopLevelBinding = TLBindingF QualifiedName QualifiedName [QualifiedName] TLC
+                     | TLBindingC QualifiedName [QualifiedName] TLC
 
 type LocalBinding = (QualifiedName, TLExp)
 
 compile :: (Members '[State Int] r) => CPS -> Sem r TL
-compile c = compileC c <&> \(bindings, cmd) -> bindings & foldr (\(fname, args, b) r -> T.LetF fname args b r) (T.C cmd)
+compile c = compileC c <&> \(bindings, cmd) -> bindings & foldr (\t r -> case t of
+    TLBindingF fname k args b -> T.LetF fname k args b r
+    TLBindingC fname args b   -> T.LetC fname args b r
+    ) (T.C cmd)
 
 compileC :: forall r. (Members '[State Int] r) => CPS -> Sem r ([TopLevelBinding], TLC)
 compileC = \case
@@ -62,20 +66,31 @@ compileVal :: (Members '[State Int] r) => CPSVal -> Sem r ([TopLevelBinding], [L
 compileVal = \case
     C.IntLit n      -> pure ([], [], T.IntLit n)
     C.Var v         -> pure ([], [], T.Var v)
-    C.Lambda k x c  -> compileLambda [k, x] c
-    C.Admin v c     -> compileLambda [v] c
+    C.Lambda k x c  -> compileLambda k x c
+    C.Admin v c     -> compileClosure v c
     C.Halt          -> pure ([], [], T.Halt)
 
-compileLambda :: (Members '[State Int] r) => [QualifiedName] -> CPS -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
-compileLambda xs c = freshen ("f", "s", "env") >>= \(f', s', env') -> do
+compileLambda :: (Members '[State Int] r) => QualifiedName -> QualifiedName -> CPS -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
+compileLambda k x c = freshen ("f", "s", "env") >>= \(f', s', env') -> do
     (fs, c') <- compileC c
     pure (
-            (f', s' : xs, ifoldr (\i x r -> T.Let x (T.Select i s') r) c' ys) : fs
+            TLBindingF f' k [s', x] (ifoldr (\i x r -> T.Let x (T.Select i s') r) c' ys) : fs
         ,   [(env', T.Tuple ys)]
         ,   T.Tuple [f', env']
         )
         where
-            ys = toList (freeVars c \\ fromList xs)
+            ys = toList (freeVars c \\ fromList [k, x])
+
+compileClosure :: (Members '[State Int] r) => QualifiedName -> CPS -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
+compileClosure x c = freshen ("f", "s", "env") >>= \(f', s', env') -> do
+    (fs, c') <- compileC c
+    pure (
+            TLBindingC f' [s', x] (ifoldr (\i x r -> T.Let x (T.Select i s') r) c' ys) : fs
+        ,   [(env', T.Tuple ys)]
+        ,   T.Tuple [f', env']
+        )
+        where
+            ys = toList (freeVars c \\ fromList [x])
 
 asVar :: (Member (State Int) r) => TLExp -> Sem r ([LocalBinding], QualifiedName)
 asVar = \case

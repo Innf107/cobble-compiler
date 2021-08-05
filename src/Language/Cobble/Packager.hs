@@ -14,7 +14,7 @@ data DataPackOptions = DataPackOptions {
       , description::Text
       , target::Target
     }
-
+{-
 makeDataPack :: forall r. (PackageC r) => DataPackOptions -> [CompiledModule] -> Sem r LByteString
 makeDataPack options ms = fromArchive <$> do
     ia <- initialArchive
@@ -30,7 +30,7 @@ makeDataPack options ms = fromArchive <$> do
             t <- getTime
             pure $ addEntryToArchive (toEntry "/pack.mcmeta" t (packMcMeta options)) emptyArchive
     -- TODO: Include data/minecraft/tags/functions/load.mcfunction, clean module and init module
-
+-}
 packMcMeta :: DataPackOptions -> LByteString
 packMcMeta options = mconcat $ map (<> "\n") [
       "{"

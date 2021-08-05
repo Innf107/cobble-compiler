@@ -19,10 +19,10 @@ exampleCPS = C.App2
                             )))
                         (C.IntLit 4)))
                     (C.IntLit 3)))
-                (C.Lambda "a" "k3" (C.App2 (Admin "t4" (C.Let "y5" (C.Select 1 (C.Var "t4")) (C.App2 (C.Var "k3") (C.Var "y5")))) (C.Var "a")))
+                (C.Lambda "k3" "a" (C.App2 (Admin "t4" (C.Let "y5" (C.Select 1 (C.Var "t4")) (C.App2 (C.Var "k3") (C.Var "y5")))) (C.Var "a")))
 
 exampleReduced :: CPS
-exampleReduced = C.Let "f0" (Val (C.Lambda "a" "k3" (C.Let "y5" (C.Select 1 (C.Var "a")) (C.App2 (C.Var "k3") (C.Var "y5")))))
+exampleReduced = C.Let "f0" (Val (C.Lambda "k3" "a" (C.Let "y5" (C.Select 1 (C.Var "a")) (C.App2 (C.Var "k3") (C.Var "y5")))))
                     (C.Let "x0" (Val (C.IntLit 3))
                         (C.Let "x1" (Val (C.IntLit 4))
                             (C.Let "t2" (C.Tuple [C.Var "x0", C.Var "x1"])
@@ -31,7 +31,7 @@ exampleReducedFreshIX :: Int
 exampleReducedFreshIX = 6
 
 exampleTL :: TL
-exampleTL = T.LetF "f6" ["s7", "a", "k3"] (T.Let "y5" (T.Select 1 "a") 
+exampleTL = T.LetF "f6" "k3" ["s7", "a"] (T.Let "y5" (T.Select 1 "a") 
                 (T.App "k3" ["y5"]))     
             (T.C 
                 (T.Let "env8" (T.Tuple [])

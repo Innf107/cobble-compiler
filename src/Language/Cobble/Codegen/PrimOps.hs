@@ -5,7 +5,6 @@ import Language.Cobble.Util
 import Language.Cobble.Types
 import Language.Cobble.Codegen.Types
 import Language.Cobble.MCAsm.Types
-import Language.Cobble.MCAsm.McFunction
 
 import Data.Map qualified as M
 
@@ -33,25 +32,25 @@ _false :: PrimOpF r
 _false PrimOpEnv{..} _args = pure falseReg
 
 _add :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_add = binaryOp \_ x y res -> tell [MoveReg res x, AddReg res y]
+_add = binaryOp \_ x y res -> tell [Move res x, Add res y]
 
 _sub :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_sub = binaryOp \_ x y res -> tell [MoveReg res x, SubReg res y]
+_sub = binaryOp \_ x y res -> tell [Move res x, Sub res y]
 
 _mul :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_mul = binaryOp \_ x y res -> tell [MoveReg res x, MulReg res y]
+_mul = binaryOp \_ x y res -> tell [Move res x, Mul res y]
 
 _div :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_div = binaryOp \_ x y res -> tell [MoveReg res x, DivReg res y]
+_div = binaryOp \_ x y res -> tell [Move res x, Div res y]
 
 _mod :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_mod = binaryOp \_ x y res -> tell [MoveReg res x, ModReg res y]
+_mod = binaryOp \_ x y res -> tell [Move res x, Mod res y]
 
 _le :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_le = binaryOp \_ x y res -> tell [MoveNumLit res 0, ExecLE x y [McFunction $ "scoreboard players set " <> renderReg res <> " REGS 1"]] --TODO!
+_le = binaryOp \_ x y res -> tell [MoveLit res 0] --TODO!
 
 _setTestScoreboardUnsafe :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_setTestScoreboardUnsafe = unaryOp' \PrimOpEnv{..} x -> tell [SetScoreboard (Objective "test") "test" x] $> unitReg
+_setTestScoreboardUnsafe = unaryOp' \PrimOpEnv{..} x -> undefined  -- [SetScoreboard (Objective "test") "test" x] $> unitReg
 
 
 -- Helper functions

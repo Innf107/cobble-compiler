@@ -1,0 +1,49 @@
+module Language.Cobble.Codegen.TopLevelCPSToMCAsm where
+
+import Language.Cobble.Prelude
+
+import Language.Cobble.Shared
+import Language.Cobble.Util.Polysemy.Fresh
+
+import Language.Cobble.CPS.TopLevel.Types as T
+import Language.Cobble.MCAsm.Types as A
+
+returnReg :: Register
+returnReg = SpecialReg "return"
+
+argReg :: Int -> Register
+argReg i = SpecialReg ("arg" <> show i)
+
+compile :: TL -> [Block]
+compile = \case 
+    LetF f k ps c p -> Block f (
+            Move (Reg k) returnReg
+        :   imap (\i x -> Move (Reg x) (argReg i)) ps
+        <>  compileTLC c)
+        : compile p
+    LetC f ps c p -> Block f (concat [
+            imap (\i x -> Move (Reg x) (argReg i)) ps
+        ,   compileTLC c
+        ])
+        : compile p
+    C c -> Block "main" (compileTLC c)
+        : []
+
+compileTLC :: TLC -> [Instruction]
+compileTLC = \case
+    Let x (IntLit n) c      -> MoveLit (Reg x) n : compileTLC c
+    Let x (Var y) c         -> Move (Reg x) (Reg y) : compileTLC c
+    Let x (Halt) c          -> MoveLit (Reg x) 0 : compileTLC c
+    Let x (Tuple ys) c      ->  
+            Malloc (Reg x) (length ys)
+        :   imap (\i y -> Store (Reg x) (Reg y) i) ys
+        <>  compileTLC c
+    Let x (T.Select n y) c  -> A.Select (Reg x) (Reg y) n : compileTLC c 
+    App f (k:xs)            -> Move returnReg (Reg k)
+                            :  imap (\i x -> Move (argReg i) (Reg x)) xs
+                            <> [Call f]
+    App f []                -> error $ "compileTLC: absurd application without arguments (" <> show (App f []) <> ")"  
+    
+
+freshReg :: (Member (Fresh QualifiedName) r) => QualifiedName -> Sem r Register
+freshReg = fmap Reg . freshVar

@@ -4,7 +4,7 @@ import Language.Cobble.Prelude
 import Language.Cobble.Types
 import Language.Cobble.MCAsm.Types hiding (Name)
 
-type CompileC r = Members '[State CompileState, Error Panic, Error McAsmError, Output Log] r
+type CompileC r = Members '[State CompileState, Error Panic, Output Log] r
 
 data CompileState = CompileState {
         _frames :: NonEmpty Frame

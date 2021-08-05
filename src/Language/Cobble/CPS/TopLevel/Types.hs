@@ -6,7 +6,7 @@ import qualified Data.Text as T
 import Language.Cobble.Shared
 import Language.Cobble.Codegen.Common
 
-data TL = LetF QualifiedName [QualifiedName] TLC TL
+data TL = LetF QualifiedName QualifiedName [QualifiedName] TLC TL
         | LetC QualifiedName [QualifiedName] TLC TL
         | C TLC
         deriving (Eq, Generic, Data)
@@ -24,7 +24,7 @@ data TLExp = IntLit Int
 
 instance Show TL where
     show = \case
-      LetF f xs e b -> "letf " <> show f <> " " <> intercalate " " (map show xs) <> " = (" <> show e <> ")\nin\n" <> show b
+      LetF f k xs e b -> "letf " <> show f <> " " <> show k <> " " <> intercalate " " (map show xs) <> " = (" <> show e <> ")\nin\n" <> show b
       LetC f xs e b -> "letc " <> show f <> " " <> intercalate " " (map show xs) <> " = (" <> show e <> ")\nin\n" <> show b 
       C tlc -> "    " <> show tlc 
 

@@ -13,7 +13,9 @@ module Language.Cobble (
 
 import Language.Cobble.Prelude hiding ((<.>), readFile, writeFile)
 
-import Language.Cobble.Compiler as S
+import Language.Cobble.Codegen.CobbleToLC as LC
+import Language.Cobble.Codegen.LCToBasicCPS as CPS
+import Language.Cobble.Codegen.BasicCPSToTopLevelCPS as TL
 import Language.Cobble.Types as S
 import Language.Cobble.Parser.Tokenizer as S
 import Language.Cobble.Parser as S
@@ -30,11 +32,8 @@ import Language.Cobble.Prelude.Parser (ParseError, parse)
 
 import Language.Cobble.Typechecker as TC
 
-import Language.Cobble.MCAsm.Compiler as A
 import Language.Cobble.MCAsm.Types hiding (target)
 import Language.Cobble.MCAsm.Types qualified as A
-
-import Language.Cobble.MCAsm.McFunction
 
 import Language.Cobble.Codegen.PrimOps
 import Language.Cobble.Codegen.Types
@@ -50,13 +49,13 @@ data CompilationError = LexError LexicalError
                       | ParseError ParseError
                       | QualificationError QualificationError
                       | SemanticError SemanticError
-                      | AsmError McAsmError
                       | TypeError TypeError
                       | ModuleError ModuleError
                       | ControllerPanic Panic
                       | RuntimePanic Text
                       deriving (Show, Eq)
 
+data CompiledModule
 
 type ControllerC r = Members '[Reader CompileOpts, Error CompilationError, Error Panic, FileSystem FilePath Text, Output Log] r
 
@@ -85,13 +84,15 @@ compileToDataPack :: (ControllerC r, Members '[Time] r) => [FilePath] -> Sem r L
 compileToDataPack files = do
     cmods <- compileAll files
     opts <- askDataPackOpts
-    makeDataPack opts cmods
+    undefined 
+    --makeDataPack opts cmods
 
 compileContentsToDataPack :: (ControllerC r, Members '[Time] r) => [(FilePath, Text)] -> Sem r LByteString
 compileContentsToDataPack files = do
     cmods <- compileContents files
     opts <- askDataPackOpts
-    makeDataPack opts cmods
+    undefined 
+    --makeDataPack opts cmods
 
 compileAll :: (ControllerC r) => [FilePath] -> Sem r [CompiledModule]
 compileAll files = compileContents =<< traverse (\x -> (x,) <$> readFile x) files
@@ -132,7 +133,7 @@ compileWithSig m = do
                     varTypes=exportedVars dsig
                 })
                 (getExt $ xModule m)
-    compEnv <- asks \CompileOpts{name, debug, target} -> CompEnv {nameSpace=name, debug, A.target=target}
+    --compEnv <- asks \CompileOpts{name, debug, target} -> CompEnv {nameSpace=name, debug, A.target=target}
 
     qMod  <- mapError QualificationError $ evalState qualScopes $ qualify m
 
@@ -140,14 +141,15 @@ compileWithSig m = do
 
     tcMod <- mapError TypeError $ evalState tcState $ runOutputSem (log LogWarning . displayTWarning) $ typecheckModule saMod
 
-    asmMod <- mapError AsmError $ evalState initialCompileState $ S.compile tcMod
-    asks ddumpAsm >>= flip when (writeFile (show (A.moduleName asmMod) <> ".mamod") (showAsmDump asmMod))
+    --asmMod <- mapError AsmError $ evalState initialCompileState $ S.compile tcMod
+    --asks ddumpAsm >>= flip when (writeFile (show (A.moduleName asmMod) <> ".mamod") (showAsmDump asmMod))
 
-    compMods <- mapError AsmError $ evalState initialCompState $ runReader compEnv $ A.compile [asmMod]
-
+    --compMods <- mapError AsmError $ evalState initialCompState $ runReader compEnv $ A.compile [asmMod]
+--TODO!
     let sig = extractSig tcMod
 
-    pure (compMods, sig)
+    --pure (compMods, sig)
+    undefined
 
 displayTWarning :: TypeWarning -> Text
 displayTWarning = show
@@ -168,7 +170,7 @@ getModName = toText . FP.dropExtension . L.last . segments
 
 primModSig :: ModSig
 primModSig = ModSig {
-        exportedVars = fmap fst $ primOps @'[Output Log, Writer [Instruction], Error Panic, State CompileState, Error McAsmError]
+        exportedVars = fmap fst $ primOps @'[Output Log, Writer [Instruction], Error Panic, State CompileState]
             -- The type application is only necessary to satisfy the type checker since the value depending on the type 'r' is ignored
     ,   exportedTypes = fromList [
               ("prims.Int", (KStar, BuiltInType))
@@ -181,17 +183,5 @@ primModSig = ModSig {
 
 
 
-
-showAsmDump :: A.Module -> Text
-showAsmDump (A.Module imname iminstrs) = go imname iminstrs 0
-    where
-        go :: A.Name -> [Instruction] -> Int -> Text
-        go mname minstr i = indent i $
-            ["[" <> show mname <> "]"] <> (minstr & map \case
-                Section n is -> go n is (i + 1)
-                inst -> show inst
-                )
-        indent :: Int -> [Text] -> Text
-        indent i = T.unlines . map (T.replicate i "    " <>)
 
 
