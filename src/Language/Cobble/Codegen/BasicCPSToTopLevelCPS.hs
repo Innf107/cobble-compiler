@@ -13,33 +13,37 @@ type TopLevelBinding = (QualifiedName , [QualifiedName], TLC)
 type LocalBinding = (QualifiedName, TLExp)
 
 compile :: (Members '[State Int] r) => CPS -> Sem r TL
-compile c = compileC c <&> \(bindings, cmd) -> foldr (\(fname, args, b) r -> T.LetF fname args b r) (T.C cmd) bindings
+compile c = compileC c <&> \(bindings, cmd) -> bindings & foldr (\(fname, args, b) r -> T.LetF fname args b r) (T.C cmd)
 
-compileC :: (Members '[State Int] r) => CPS -> Sem r ([TopLevelBinding], TLC)
+compileC :: forall r. (Members '[State Int] r) => CPS -> Sem r ([TopLevelBinding], TLC)
 compileC = \case
     C.Let x e c -> do
         (eTLs, eLocs, eExp) <- compileExpr e
         (cTLs, cC) <- compileC c
         pure (eTLs <> cTLs, withLocals eLocs (T.Let x eExp cC))
-    C.App3 f v1 v2 -> 
-        (\(fTLs, fLocs, (fBindings, f')) (v1TLs, v1Locs, (v1Bindings, v1')) (v2TLs, v2Locs, (v2Bindings, v2')) -> 
-            (
+    C.App3 f v1 v2 -> do
+        (fTLs,  fLocs,  (fBindings,  f'))  <- traverseOf _3 asVar =<< compileVal f
+        (v1TLs, v1Locs, (v1Bindings, v1')) <- traverseOf _3 asVar =<< compileVal v1 
+        (v2TLs, v2Locs, (v2Bindings, v2')) <- traverseOf _3 asVar =<< compileVal v2
+        (unwrapBindings, f'', env') <- unwrapClosure f'
+        pure (
                 fTLs <> v1TLs <> v2TLs 
-            ,   withLocals (fLocs <> v1Locs <> v2Locs <> fBindings <> v1Bindings <> v2Bindings) (T.App f' [v1', v2']))
+            ,   withLocals (fLocs <> v1Locs <> v2Locs <> fBindings <> v1Bindings <> v2Bindings <> unwrapBindings) 
+                    (T.App f'' [env', v1', v2'])
             )
-        <$> (traverseOf _3 asVar =<< compileVal f)
-        <*> (traverseOf _3 asVar =<< compileVal v1)
-        <*> (traverseOf _3 asVar =<< compileVal v2) 
-    C.App2 f v -> 
-        (\(fTLs, fLocs, (fBindings, f')) (vTLs, vLocs, (vBindings, v')) -> 
-            (
-                fTLs <> vTLs
-            ,   withLocals (fLocs <> vLocs <> fBindings <> vBindings) (T.App f' [v'])))
-        <$> (traverseOf _3 asVar =<< compileVal f)
-        <*> (traverseOf _3 asVar =<< compileVal v)
+    C.App2 f v -> do
+        -- Continuations do *not* need to unwrap their closure
+        (fTLs,  fLocs,  (fBindings,  f'))  <- traverseOf _3 asVar =<< compileVal f
+        (vTLs, v1Locs, (vBindings, v')) <- traverseOf _3 asVar =<< compileVal v 
+        pure (
+                fTLs <> vTLs 
+            ,   withLocals (fLocs <> v1Locs <> fBindings <> vBindings) (T.App f' [v'])
+            )
     where
         withLocals :: [LocalBinding] -> TLC -> TLC
         withLocals = flip (foldr (\(x, e) r -> T.Let x e r))
+        unwrapClosure :: QualifiedName -> Sem r ([LocalBinding], QualifiedName, QualifiedName)
+        unwrapClosure f = freshen ("f", "env") <&> \(f', env') -> ([(f', T.Select 0 f), (env', T.Select 1 f)], f', env')
 
 compileExpr :: (Members '[State Int] r) => CPSExpr -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
 compileExpr = \case
@@ -63,15 +67,15 @@ compileVal = \case
     C.Halt          -> pure ([], [], T.Halt)
 
 compileLambda :: (Members '[State Int] r) => [QualifiedName] -> CPS -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
-compileLambda xs c = freshen ("f", "s", "env", "closure") >>= \(f', s', env', closure') -> do
+compileLambda xs c = freshen ("f", "s", "env") >>= \(f', s', env') -> do
     (fs, c') <- compileC c
     pure (
             (f', s' : xs, ifoldr (\i x r -> T.Let x (T.Select i s') r) c' ys) : fs
-        ,   [(env', T.Tuple ys), (closure', T.Tuple [env', f'])]
-        ,   T.Var closure'
+        ,   [(env', T.Tuple ys)]
+        ,   T.Tuple [f', env']
         )
         where
-            ys = toList $ (freeVars c \\ fromList xs)
+            ys = toList (freeVars c \\ fromList xs)
 
 asVar :: (Member (State Int) r) => TLExp -> Sem r ([LocalBinding], QualifiedName)
 asVar = \case

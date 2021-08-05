@@ -27,15 +27,20 @@ exampleReduced = C.Let "f0" (Val (C.Lambda "a" "k3" (C.Let "y5" (C.Select 1 (C.V
                         (C.Let "x1" (Val (C.IntLit 4))
                             (C.Let "t2" (C.Tuple [C.Var "x0", C.Var "x1"])
                                 (C.App3 (C.Var "f0") (C.Var "t2") C.Halt))))
+exampleReducedFreshIX :: Int
+exampleReducedFreshIX = 6
 
 exampleTL :: TL
-exampleTL = T.LetF "f0" ["s1", "a", "k3"] (T.Let "y5" (T.Select 1 "a") 
+exampleTL = T.LetF "f6" ["s7", "a", "k3"] (T.Let "y5" (T.Select 1 "a") 
                 (T.App "k3" ["y5"]))     
             (T.C 
+                (T.Let "env8" (T.Tuple [])
+                (T.Let "f0" (T.Tuple ["f6", "env8"])
                 (T.Let "x0" (T.IntLit 3)
                 (T.Let "x1" (T.IntLit 4)
                 (T.Let "t2" (T.Tuple ["x0", "x1"])
-                (T.Let "env" (T.Tuple [])
-                (T.Let "v2" T.Halt
-                (T.App "f0" ["env", "t2", "v2"])
-                ))))))
+                (T.Let "e9" T.Halt
+                (T.Let "f10" (T.Select 0 "f0")
+                (T.Let "env11" (T.Select 1 "f0")
+                (T.App "f10" ["env11", "t2", "e9"])
+                )))))))))

@@ -41,4 +41,4 @@ instance Show TLExp where
         Var x       -> show x
         Halt        -> "halt"
         Tuple xs    -> "(" <> intercalate ", " (map show xs) <> ")"
-        Select i x  -> show x <> "._" <> show i
+        Select i x  -> show x <> "#" <> show i

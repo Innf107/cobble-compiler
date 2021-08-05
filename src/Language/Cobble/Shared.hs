@@ -3,37 +3,6 @@
 module Language.Cobble.Shared where
 
 import Language.Cobble.Prelude
-    ( map,
-      ($),
-      Enum,
-      Eq((==)),
-      Data,
-      Ord,
-      Read,
-      Show,
-      Typeable,
-      IsString(..),
-      Generic,
-      Semigroup((<>)),
-      Monoid(mempty),
-      Int,
-      Text,
-      Member,
-      Sem,
-      (.),
-      fromMaybe,
-      _last,
-      over,
-      Hashable,
-      throw,
-      Error,
-      output,
-      Output,
-      last,
-      viaNonEmpty,
-      unlines,
-      ToString(toString),
-      ToText(toText) )
 
 import Data.Data
 import Data.Generics.Uniplate.Data

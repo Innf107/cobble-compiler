@@ -12,6 +12,6 @@ spec :: Spec
 spec = do
     describe "compile" do
         it ("correctly compiles " <> show exampleReduced) do
-            run (evalState (0::Int) (compile exampleReduced))
+            run (evalState (exampleReducedFreshIX) (compile exampleReduced))
                 `shouldBe`
                 exampleTL
