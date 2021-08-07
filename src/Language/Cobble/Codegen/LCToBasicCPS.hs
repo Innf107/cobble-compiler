@@ -7,6 +7,8 @@ import Language.Cobble.LC.Types as L
 import Language.Cobble.CPS.Basic.Types as C
 import Language.Cobble.Codegen.Common
 
+compile :: (Members '[State Int] r) => LCExpr -> Sem r CPS
+compile e = compileExpr e Halt 
 
 compileExpr :: (Members '[State Int] r) => LCExpr -> CPSVal -> Sem r CPS
 compileExpr = flip \kval -> let k = staticCont kval in \case

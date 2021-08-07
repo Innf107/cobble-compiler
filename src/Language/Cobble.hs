@@ -40,6 +40,12 @@ import Language.Cobble.McFunction.Types
 import Language.Cobble.Codegen.PrimOps
 import Language.Cobble.Codegen.Types
 
+import Language.Cobble.Codegen.CobbleToLC as C2LC
+import Language.Cobble.Codegen.LCToBasicCPS as LC2CPS
+import Language.Cobble.Codegen.BasicCPSToTopLevelCPS as CPS2TL
+import Language.Cobble.Codegen.TopLevelCPSToMCAsm as TL2ASM
+import Language.Cobble.Codegen.MCAsmToMCFunction as ASM2MC
+
 import Data.Map qualified as M
 import Data.List qualified as L
 import Data.Text qualified as T
@@ -140,15 +146,15 @@ compileWithSig m = do
 
     tcMod <- mapError TypeError $ evalState tcState $ runOutputSem (log LogWarning . displayTWarning) $ typecheckModule saMod
 
-    --asmMod <- mapError AsmError $ evalState initialCompileState $ S.compile tcMod
-    --asks ddumpAsm >>= flip when (writeFile (show (A.moduleName asmMod) <> ".mamod") (showAsmDump asmMod))
-
-    --compMods <- mapError AsmError $ evalState initialCompState $ runReader compEnv $ A.compile [asmMod]
---TODO!
+    compMods <- evalState 0 $ do
+        let lc  = C2LC.compile tcMod
+        cps     <- LC2CPS.compile lc
+        tl      <- CPS2TL.compile cps
+        let asm = TL2ASM.compile tl 
+        pure    $ ASM2MC.compile asm
     let sig = extractSig tcMod
 
-    --pure (compMods, sig)
-    undefined
+    pure (compMods, sig)
 
 displayTWarning :: TypeWarning -> Text
 displayTWarning = show
