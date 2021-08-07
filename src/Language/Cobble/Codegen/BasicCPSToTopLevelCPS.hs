@@ -33,7 +33,7 @@ compileC = \case
         pure (
                 fTLs <> v1TLs <> v2TLs 
             ,   withLocals (fLocs <> v1Locs <> v2Locs <> fBindings <> v1Bindings <> v2Bindings <> unwrapBindings) 
-                    (T.App f'' [env', v1', v2'])
+                    (T.App f'' [v1', env', v2'])
             )
     C.App2 f v -> do
         -- Continuations do *not* need to unwrap their closure

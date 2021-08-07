@@ -16,7 +16,7 @@ compileExpr = flip \kval -> let k = staticCont kval in \case
     L.IntLit n          -> pure $ k (C.IntLit n)
     L.Lambda x e        -> freshVar "k" >>= \k' -> k . C.Lambda k' x <$> compileExpr e (C.Var k')
     L.App f a           -> freshVar "f" >>=  \f' -> freshVar "v" >>= \v' ->
-        compileExpr f =<< C.Admin f' <$> compileExpr a (C.Admin v' (C.App3 (C.Var f') (C.Var v') kval))
+        compileExpr f =<< C.Admin f' <$> compileExpr a (C.Admin v' (C.App3 (C.Var f') kval (C.Var v')))
     L.Tuple es          -> freshVar "t" >>= \t' -> foldrM   (\(i, e) r -> compileExpr e (C.Admin ("x" +. show i) r))
                                     (C.Let t' (C.Tuple (fmap (C.Var . ("x" +.) . show) (indexes es))) (k (C.Var t')))
                                     (zipIndex es)

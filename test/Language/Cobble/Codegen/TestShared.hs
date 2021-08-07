@@ -15,7 +15,7 @@ exampleCPS = C.App2
                 (C.Admin "f0" (C.App2
                     (C.Admin "x0" (C.App2
                         (C.Admin "x1" (C.Let "t2" (C.Tuple [C.Var "x0", C.Var "x1"]) (C.App2
-                            (C.Admin "v1" (C.App3 (C.Var "f0") (C.Var "v1") C.Halt))
+                            (C.Admin "v1" (C.App3 (C.Var "f0") C.Halt (C.Var "v1")))
                             (C.Var "t2")
                             )))
                         (C.IntLit 4)))
@@ -27,7 +27,7 @@ exampleReduced = C.Let "f0" (Val (C.Lambda "k3" "a" (C.Let "y5" (C.Select 1 (C.V
                     (C.Let "x0" (Val (C.IntLit 3))
                         (C.Let "x1" (Val (C.IntLit 4))
                             (C.Let "t2" (C.Tuple [C.Var "x0", C.Var "x1"])
-                                (C.App3 (C.Var "f0") (C.Var "t2") C.Halt))))
+                                (C.App3 (C.Var "f0") C.Halt (C.Var "t2")))))
 exampleReducedFreshIX :: Int
 exampleReducedFreshIX = 6
 
@@ -43,7 +43,7 @@ exampleTL = T.LetF "f6" "k3" ["s7", "a"] (T.Let "y5" (T.Select 1 "a")
                 (T.Let "e9" T.Halt
                 (T.Let "f10" (T.Select 0 "f0")
                 (T.Let "env11" (T.Select 1 "f0")
-                (T.App "f10" ["env11", "t2", "e9"])
+                (T.App "f10" ["e9", "env11", "t2"])
                 )))))))))
 
 exampleASM :: [Block]
