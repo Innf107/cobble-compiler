@@ -8,17 +8,14 @@ import Language.Cobble.Util.Polysemy.Fresh
 import Language.Cobble.CPS.TopLevel.Types as T
 import Language.Cobble.MCAsm.Types as A
 
-returnReg :: Register
-returnReg = SpecialReg "return"
-
 argReg :: Int -> Register
 argReg i = SpecialReg ("arg" <> show i)
 
 compile :: TL -> [Block]
 compile = \case 
     LetF f k ps c p -> Block f (
-            Move (Reg k) returnReg
-        :   imap (\i x -> Move (Reg x) (argReg i)) ps
+            Move (Reg k) (argReg 0)
+        :   imap (\i x -> Move (Reg x) (argReg (i + 1))) ps
         <>  compileTLC c)
         : compile p
     LetC f ps c p -> Block f (concat [
@@ -38,10 +35,8 @@ compileTLC = \case
                             :  imap (\i y -> Store (Reg x) (Reg y) i) ys
                             <> compileTLC c
     Let x (T.Select n y) c  -> A.Select (Reg x) (Reg y) n : compileTLC c 
-    App f (k:xs)            -> Move returnReg (Reg k)
-                            :  imap (\i x -> Move (argReg i) (Reg x)) xs
+    App f xs                -> imap (\i x -> Move (argReg i) (Reg x)) xs
                             <> [ICall (Reg f)]
-    App f []                -> error $ "compileTLC: absurd application without arguments (" <> show (App f []) <> ")"  
     
 
 freshReg :: (Member (Fresh QualifiedName) r) => QualifiedName -> Sem r Register

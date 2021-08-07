@@ -4,6 +4,7 @@ import Language.Cobble.Prelude
 import Language.Cobble.LC.Types as L
 import Language.Cobble.CPS.Basic.Types as C
 import Language.Cobble.CPS.TopLevel.Types as T
+import Language.Cobble.MCAsm.Types as A 
 
 exampleLC :: LCExpr
 exampleLC = L.App (L.Lambda "a" (L.Select 1 (L.Var "a"))) (L.Tuple [L.IntLit 3, L.IntLit 4])
@@ -44,3 +45,42 @@ exampleTL = T.LetF "f6" "k3" ["s7", "a"] (T.Let "y5" (T.Select 1 "a")
                 (T.Let "env11" (T.Select 1 "f0")
                 (T.App "f10" ["env11", "t2", "e9"])
                 )))))))))
+
+exampleASM :: [Block]
+exampleASM = [
+        Block "f6" [
+            Move (Reg "k3") (SpecialReg "arg0")
+        ,   Move (Reg "s7") (SpecialReg "arg1")
+        ,   Move (Reg "a")  (SpecialReg "arg2")
+
+        ,   A.Select (Reg "y5") (Reg "a") 1
+
+        ,   Move (SpecialReg "arg0") (Reg "y5")
+        ,   ICall (Reg "k3")
+        ]
+    ,   Block "main" [
+            Malloc (Reg "env8") 0
+        
+        ,   Malloc (Reg "f0") 2
+        ,   Store (Reg "f0") (Reg "f6") 0
+        ,   Store (Reg "f0") (Reg "env8") 1
+
+        ,   MoveLit (Reg "x0") 3
+        
+        ,   MoveLit (Reg "x1") 4
+        
+        ,   Malloc (Reg "t2") 2
+        ,   Store (Reg "t2") (Reg "x0") 0
+        ,   Store (Reg "t2") (Reg "x1") 1
+
+        ,   MoveLit (Reg "e9") 0
+
+        ,   A.Select (Reg "f10") (Reg "f0") 0
+        ,   A.Select (Reg "env11") (Reg "f0") 1
+
+        ,   Move (SpecialReg "arg0") (Reg "e9")
+        ,   Move (SpecialReg "arg1") (Reg "env11")
+        ,   Move (SpecialReg "arg2") (Reg "t2")
+        ,   ICall (Reg "f10")
+        ]
+    ]
