@@ -6,8 +6,10 @@ import Language.Cobble.Types as C
 
 import Language.Cobble.LC.Types as L
 
-compile :: Module Codegen -> [LCDef]
-compile (Module _deps _modname statements) = concatMap compileStatement statements
+compile :: Module Codegen -> LCExpr
+compile (Module _deps _modname statements) = foldr makeLet (App (L.Var "main") (L.Tuple [])) $ concatMap compileStatement statements
+    where
+        makeLet (LCDef n e) r = (App (Lambda n r) e)
 
 compileStatement :: Statement Codegen -> [LCDef]
 compileStatement Import {} = []
