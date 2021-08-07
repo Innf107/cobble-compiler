@@ -3,13 +3,12 @@ module Language.Cobble.McFunction.Types where
 import Language.Cobble.Prelude
 
 import Language.Cobble.MCAsm.Types
+import Language.Cobble.Shared
+import Language.Cobble.Codegen.Common
 
 import qualified Data.Text as T
 
 import qualified GHC.Show as S
-import Language.Cobble.Shared
-
-data Bloc = Block QualifiedName [Command] deriving (Show, Eq, Generic, Data)
 
 type Objective = Text
 
@@ -33,7 +32,7 @@ data Command = Advancement Void
              | Difficulty Difficulty
              | Effect Void
              | Enchant Selector NamespacedName (Maybe Int)
-             | Execute Void -- TODO!
+             | Execute ExecuteArg
              | Experience Void
              | Fill Void
              | Forceload Void
@@ -130,7 +129,10 @@ data Selector = Player Text
               | Self [SelectorArg]
               deriving (Show, Eq, Generic, Data)
 
-data SelectorArg deriving (Show, Eq, Generic, Data)
+data SelectorArg = SType NamespacedName
+                 | SPredicate NamespacedName
+                 | SScores [(Objective, Int)]
+                 deriving (Show, Eq, Generic, Data)
 
 data Gamemode = Survival | Creative | Adventure | Spectator deriving (Show, Eq, Generic, Data, Enum)
 
@@ -142,3 +144,34 @@ data Weather = ClearW | Rain | Thunder deriving (Show, Eq, Generic, Data)
 
 data SummonArg = SummonArg Position (Maybe NBT) deriving (Show, Eq, Generic, Data)
 
+data ExecuteArg = EAlign Void ExecuteArg
+                | EAnchored EAnchoredArg ExecuteArg
+                | EAs Selector ExecuteArg
+                | EAt Selector ExecuteArg
+                | EFacing Void ExecuteArg
+                | EIf EIfArg ExecuteArg
+                | EIn NamespacedName ExecuteArg
+                | EPositioned Void ExecuteArg
+                | ERotated Void ExecuteArg
+                | EStore Void ExecuteArg
+                | EUnless Void ExecuteArg
+                | ERun Command
+                deriving (Show, Eq, Generic, Data)
+
+data EAnchoredArg = Eyes | Feet deriving (Show, Eq, Generic, Data)
+
+data EIfArg = IBlock Void
+            | IBlocks Void
+            | IData Void
+            | IEntity Selector
+            | IPredicate NamespacedName
+            | IScore Selector Objective IfScoreArg
+            deriving (Show, Eq, Generic, Data)
+
+data IfScoreArg = ILT Selector Objective
+                | ILE Selector Objective
+                | IEQ Selector Objective
+                | IGT Selector Objective
+                | IGE Selector Objective
+                | IMatches Range 
+                deriving (Show, Eq, Generic, Data)

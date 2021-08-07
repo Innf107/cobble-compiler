@@ -3,16 +3,6 @@ module Language.Cobble.Codegen.CobbleToLC where
 import Language.Cobble.Prelude
 import Language.Cobble.Util
 import Language.Cobble.Types as C
-    ( unqualifyName,
-      absurd,
-      Decl(Decl),
-      Expr(..),
-      Ext(Ext),
-      IgnoreExt(IgnoreExt),
-      Module(Module),
-      Pass(Codegen),
-      Statement(..),
-      structFields )
 
 import Language.Cobble.LC.Types as L
 

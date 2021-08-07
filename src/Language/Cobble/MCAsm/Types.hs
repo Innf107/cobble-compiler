@@ -13,8 +13,8 @@ import Data.Generics.Uniplate.Data
 
 -- Can use an unlimited amount of Registers
 
-data Register = Reg QualifiedName -- Reg x        -> x
-              | SpecialReg Text   -- SpecialReg x -> $x
+data Register = Reg QualifiedName -- Reg x        -> $x
+              | SpecialReg Text   -- SpecialReg x -> %x
               deriving (Show, Eq, Generic, Data)
 
 data Block = Block QualifiedName [Instruction] deriving (Show, Eq, Generic, Data)

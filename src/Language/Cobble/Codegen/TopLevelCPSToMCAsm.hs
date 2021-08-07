@@ -34,14 +34,13 @@ compileTLC = \case
     Let x (IntLit n) c      -> MoveLit (Reg x) n : compileTLC c
     Let x (Var y) c         -> Move (Reg x) (Reg y) : compileTLC c
     Let x (Halt) c          -> MoveLit (Reg x) 0 : compileTLC c
-    Let x (Tuple ys) c      ->  
-            Malloc (Reg x) (length ys)
-        :   imap (\i y -> Store (Reg x) (Reg y) i) ys
-        <>  compileTLC c
+    Let x (Tuple ys) c      -> Malloc (Reg x) (length ys)
+                            :  imap (\i y -> Store (Reg x) (Reg y) i) ys
+                            <> compileTLC c
     Let x (T.Select n y) c  -> A.Select (Reg x) (Reg y) n : compileTLC c 
     App f (k:xs)            -> Move returnReg (Reg k)
                             :  imap (\i x -> Move (argReg i) (Reg x)) xs
-                            <> [Call f]
+                            <> [ICall (Reg f)]
     App f []                -> error $ "compileTLC: absurd application without arguments (" <> show (App f []) <> ")"  
     
 

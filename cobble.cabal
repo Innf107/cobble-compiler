@@ -30,6 +30,7 @@ library
       Language.Cobble.Codegen.CobbleToLC
       Language.Cobble.Codegen.Common
       Language.Cobble.Codegen.LCToBasicCPS
+      Language.Cobble.Codegen.MCAsmToMCFunction
       Language.Cobble.Codegen.PrimOps
       Language.Cobble.Codegen.TopLevelCPSToMCAsm
       Language.Cobble.Codegen.Types

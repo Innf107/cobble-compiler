@@ -6,10 +6,14 @@ import Language.Cobble.Prelude hiding (List, Tell, Get)
 import Relude (absurd)
 import qualified Data.Text as T
 import Language.Cobble.Shared (QualifiedName)
+import Language.Cobble.Codegen.Common
 import Language.Cobble.McFunction.Types
 
 class PrettyPrint a where
     prettyPrint :: a -> Text
+
+(<->) :: (PrettyPrint a, PrettyPrint b) => a -> b -> Text
+x <-> y = prettyPrint x <> prettyPrint y
 
 (<:>) :: (PrettyPrint a, PrettyPrint b) => a -> b -> Text
 x <:> y = prettyPrint x <> toText " " <> prettyPrint y
@@ -34,7 +38,7 @@ instance PrettyPrint Command where
         Difficulty dif           -> "difficulty" <:> dif
         Effect vo                -> absurd vo
         Enchant sel ench m_level -> "enchant" <:> sel <:> ench <:?> m_level
-        Execute vo               -> absurd vo
+        Execute ea               -> "execute" <:> ea
         Experience vo            -> absurd vo
         Fill vo                  -> absurd vo
         Forceload vo             -> absurd vo
@@ -173,11 +177,58 @@ instance PrettyPrint Selector where
 
 instance PrettyPrint SelectorArg where
     prettyPrint = \case
+        SType t         -> "type=" <-> prettyPrint t
+        SPredicate p    -> "predicate=" <-> prettyPrint p
+        SScores ss      -> "scores={" <-> T.intercalate (toText ",") (map (\(o, s) -> o <-> "=" <-> s) ss) <-> "}"
 
 instance PrettyPrint ScheduleArg where
     prettyPrint = toText . \case
         SClear      -> "clear"
         SFunction   -> "function"
+
+instance PrettyPrint ExecuteArg where
+    prettyPrint = \case
+          EAlign vo ea      -> absurd vo
+          EAnchored arg ea  -> "anchored" <:> arg <:> ea
+          EAs sel ea        -> "as" <:> sel <:> ea
+          EAt sel ea        -> "at" <:> sel <:> ea
+          EFacing vo ea     -> absurd vo
+          EIf ia ea         -> "if" <:> ia <:> ea
+          EIn dim ea        -> "in" <:> dim <:> ea
+          EPositioned vo ea -> absurd vo
+          ERotated vo ea    -> absurd vo
+          EStore vo ea      -> absurd vo
+          EUnless vo ea     -> absurd vo
+          ERun c            -> "run" <:> c
+
+instance PrettyPrint EAnchoredArg where
+    prettyPrint = toText . \case
+        Eyes -> "eyes"
+        Feet -> "feet"
+
+instance PrettyPrint EIfArg where
+    prettyPrint = \case
+        IBlock v            -> absurd v
+        IBlocks v           -> absurd v
+        IData v             -> absurd v
+        IEntity sel         -> "entity" <:> sel
+        IPredicate p        -> "predicate" <:> p
+        IScore sel obj a    -> "score" <:> sel <:> obj <:> a
+
+instance PrettyPrint IfScoreArg where
+    prettyPrint = \case
+        ILT s o     -> "<"  <:> s <:> o
+        ILE s o     -> "<=" <:> s <:> o
+        IEQ s o     -> "="  <:> s <:> o
+        IGT s o     -> ">"  <:> s <:> o
+        IGE s o     -> ">=" <:> s <:> o
+        IMatches r  -> "matches" <:> r 
+
+instance PrettyPrint Range where
+    prettyPrint = \case
+        x :.. y -> x <-> ".." <-> y
+        RMin x  -> x <-> ".."
+        RMax y  ->       ".." <-> y
 
 instance PrettyPrint NamespacedName where
     prettyPrint = show @_ @QualifiedName -- The type annotation forces a type error once

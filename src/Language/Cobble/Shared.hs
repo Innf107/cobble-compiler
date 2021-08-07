@@ -87,3 +87,6 @@ target117 = Target {
 
 data MarkerType = MarkerEntity | MarkerCloud deriving (Show, Eq)
 
+
+qNameToPath :: QualifiedName -> FilePath
+qNameToPath = toString . T.intercalate "/" . qualComponents
