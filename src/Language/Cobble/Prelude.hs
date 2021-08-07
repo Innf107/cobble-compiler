@@ -79,7 +79,7 @@ import Polysemy.Output
 
 import Data.Generics.Uniplate.Data
 
-import System.FilePath hiding ((<.>))
+import System.FilePath
 
 import Control.Lens hiding (
         universe
@@ -91,6 +91,7 @@ import Control.Lens hiding (
     ,   rewrite
     ,   transformM
     ,   transform
+    ,   (<.>)
     )
 
 import Data.Data

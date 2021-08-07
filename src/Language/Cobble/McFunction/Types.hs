@@ -14,6 +14,8 @@ type Objective = Text
 
 type NamespacedName = QualifiedName -- TODO
 
+type CompiledModule = (FilePath, [Command])
+
 data NBT --TODO
     deriving (Show, Eq, Generic, Data)
 

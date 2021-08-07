@@ -32,8 +32,10 @@ import Language.Cobble.Prelude.Parser (ParseError, parse)
 
 import Language.Cobble.Typechecker as TC
 
-import Language.Cobble.MCAsm.Types hiding (target)
+import Language.Cobble.MCAsm.Types
 import Language.Cobble.MCAsm.Types qualified as A
+
+import Language.Cobble.McFunction.Types
 
 import Language.Cobble.Codegen.PrimOps
 import Language.Cobble.Codegen.Types
@@ -55,7 +57,6 @@ data CompilationError = LexError LexicalError
                       | RuntimePanic Text
                       deriving (Show, Eq)
 
-data CompiledModule
 
 type ControllerC r = Members '[Reader CompileOpts, Error CompilationError, Error Panic, FileSystem FilePath Text, Output Log] r
 
@@ -84,15 +85,13 @@ compileToDataPack :: (ControllerC r, Members '[Time] r) => [FilePath] -> Sem r L
 compileToDataPack files = do
     cmods <- compileAll files
     opts <- askDataPackOpts
-    undefined 
-    --makeDataPack opts cmods
+    makeDataPack opts cmods
 
 compileContentsToDataPack :: (ControllerC r, Members '[Time] r) => [(FilePath, Text)] -> Sem r LByteString
 compileContentsToDataPack files = do
     cmods <- compileContents files
     opts <- askDataPackOpts
-    undefined 
-    --makeDataPack opts cmods
+    makeDataPack opts cmods
 
 compileAll :: (ControllerC r) => [FilePath] -> Sem r [CompiledModule]
 compileAll files = compileContents =<< traverse (\x -> (x,) <$> readFile x) files

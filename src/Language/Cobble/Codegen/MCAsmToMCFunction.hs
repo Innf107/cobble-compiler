@@ -34,13 +34,25 @@ compileInstruction = \case
     CallLE x y f                  -> pure [Execute (EIf (IScore (reg x) regs (ILE (reg y) regs)) (ERun (Function f)))]  
     CallGE x y f                  -> pure [Execute (EIf (IScore (reg x) regs (IGE (reg y) regs)) (ERun (Function f)))]  
     Malloc reg n                  -> undefined  
-    Select x a i                  -> pure [Scoreboard (Players (Operation (reg x)       regs SAssign (arrayIX a i) regs))] 
-    Store a x i                   -> pure [Scoreboard (Players (Operation (arrayIX a i) regs SAssign (reg x)       regs))] 
+    Select x a i                  -> pure [
+        Execute 
+            $ EAs (Entity [SScores [(ixObj, i)]]) 
+            $ EIf (IScore self regs (IEQ (reg a) regs)) 
+            $ ERun (Scoreboard (Players (Operation (reg x) regs SAssign self regs)))] 
+    Store a x i                   -> pure [
+        Execute 
+            $ EAs (Entity [SScores [(ixObj, i)]]) 
+            $ EIf (IScore self regs (IEQ (reg a) regs)) 
+            $ ERun (Scoreboard (Players (Operation self regs SAssign (reg x) regs)))] 
 
 
 reg :: Register -> Selector
 reg (Reg r)        = Player ("$" <> show r) 
 reg (SpecialReg r) = Player ("%" <> r)
 
-arrayIX :: Register -> Int -> Selector
-arrayIX a i = Entity [] 
+self :: Selector
+self = Self []
+
+ixObj :: Objective 
+ixObj = "IX"
+
