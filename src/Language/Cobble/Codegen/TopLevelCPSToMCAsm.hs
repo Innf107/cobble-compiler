@@ -12,18 +12,24 @@ argReg :: Int -> Register
 argReg i = SpecialReg ("arg" <> show i)
 
 compile :: TL -> [Block]
-compile = \case 
+compile = compile' []
+
+compile' :: [QualifiedName] -> TL -> [Block]
+compile' fs = \case 
     LetF f k ps c p -> Block f (
             Move (Reg k) (argReg 0)
         :   imap (\i x -> Move (Reg x) (argReg (i + 1))) ps
         <>  compileTLC c)
-        : compile p
+        : compile' (f:fs) p
     LetC f ps c p -> Block f (concat [
             imap (\i x -> Move (Reg x) (argReg i)) ps
         ,   compileTLC c
         ])
-        : compile p
-    C c -> Block "main" (compileTLC c)
+        : compile' (f:fs) p
+    C c -> Block "main" 
+            (   map (\f -> LoadFunctionAddress (Reg f) f) fs   
+            <>  compileTLC c
+            )
         : []
 
 compileTLC :: TLC -> [Instruction]

@@ -5,10 +5,11 @@ import Language.Cobble.LC.Types as L
 import Language.Cobble.CPS.Basic.Types as C
 import Language.Cobble.CPS.TopLevel.Types as T
 import Language.Cobble.MCAsm.Types as A 
+import Language.Cobble.McFunction.Types
 
 exampleLC :: LCExpr
 exampleLC = L.App (L.Lambda "a" (L.Select 1 (L.Var "a"))) (L.Tuple [L.IntLit 3, L.IntLit 4])
-
+-- (\a -> a#1) (3, 4) 
 
 exampleCPS :: CPS
 exampleCPS = C.App2
@@ -59,7 +60,9 @@ exampleASM = [
         ,   ICall (Reg "k3")
         ]
     ,   Block "main" [
-            Malloc (Reg "env8") 0
+            LoadFunctionAddress (Reg "f6") "f6"
+
+        ,   Malloc (Reg "env8") 0
         
         ,   Malloc (Reg "f0") 2
         ,   Store (Reg "f0") (Reg "f6") 0
@@ -84,3 +87,19 @@ exampleASM = [
         ,   ICall (Reg "f10")
         ]
     ]
+
+exampleMCFunction :: [CompiledModule]
+exampleMCFunction = [
+        ("f6",[
+            Scoreboard $ Players $ Operation (Player "$k3") "REGS" SAssign (Player "%arg0") "REGS"
+        ,   Scoreboard $ Players $ Operation (Player "$s7") "REGS" SAssign (Player "%arg1") "REGS"
+        ,   Scoreboard $ Players $ Operation (Player "$a")  "REGS" SAssign (Player "%arg2") "REGS"
+
+        ,   Execute $ EAs (Entity [SScores [("IX", 0)]]) $ EIf (IScore (Self []) "REGS" $ IEQ (Player "$a") "REGS") 
+                    $ ERun (Scoreboard $ Players $ Operation (Player "$y5") "REGS" SAssign (Self []) "REGS")
+
+        ,   Scoreboard $ Players $ Operation (Player "%arg0")  "REGS" SAssign (Player "$y5") "REGS"
+        -- TODO: ICall is NYI
+        ])
+    ]
+

@@ -73,7 +73,7 @@ instance PrettyPrint Command where
         Spreadplayers vo         -> absurd vo
         StopSound vo             -> absurd vo
         Summon entity sa         -> "summon" <:> entity <:?> sa
-        Tag vo                   -> absurd vo
+        Tag sel ta               -> "tag" <:> sel <:> ta
         Team vo                  -> absurd vo
         TeamMsg txt              -> "teammsg" <:> txt
         Teleport vo              -> absurd vo
@@ -159,9 +159,15 @@ instance PrettyPrint OModifyRenderType where
 
 instance PrettyPrint Position where
     prettyPrint = \case
+      Abs x y z -> x <:> y <:> z
+      Rel x y z -> ("~" <-> x) <:> ("~" <-> y) <:> ("~" <-> z) 
     
 instance PrettyPrint NBT where
     prettyPrint = \case
+      C fs      -> "{" <-> T.intercalate (toText ",") (map (\(k, v) -> k <-> "=" <-> v) fs) <-> "}"
+      S str     -> str
+      I n       -> show n
+      L nbts    -> "[" <-> T.intercalate (toText ",") (map prettyPrint nbts) <-> "]"
 
 instance PrettyPrint Selector where
     prettyPrint = \case
@@ -180,6 +186,7 @@ instance PrettyPrint SelectorArg where
         SType t         -> "type=" <-> prettyPrint t
         SPredicate p    -> "predicate=" <-> prettyPrint p
         SScores ss      -> "scores={" <-> T.intercalate (toText ",") (map (\(o, s) -> o <-> "=" <-> s) ss) <-> "}"
+        STag t          -> "tag=" <-> t
 
 instance PrettyPrint ScheduleArg where
     prettyPrint = toText . \case
@@ -223,6 +230,13 @@ instance PrettyPrint IfScoreArg where
         IGT s o     -> ">"  <:> s <:> o
         IGE s o     -> ">=" <:> s <:> o
         IMatches r  -> "matches" <:> r 
+
+instance PrettyPrint TagArg where
+    prettyPrint
+      = \case
+          TRemove t -> "remove" <:> t
+          TAdd t    -> "add" <:> t
+          TList     -> toText "list"
 
 instance PrettyPrint Range where
     prettyPrint = \case

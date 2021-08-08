@@ -5,11 +5,20 @@ import Language.Cobble.Shared
 import Language.Cobble.MCAsm.Types as A
 import Language.Cobble.McFunction.Types as F
 
-compile :: [Block] -> [(FilePath, [Command])]
-compile blocks = map (\(Block n is) -> (qNameToPath n, concat $ run (traverse compileInstruction is))) blocks 
+compile :: [Block] -> [CompiledModule]
+compile blocks = mallocMod : map (\(Block n is) -> (qNameToPath n, concat $ run (traverse compileInstruction is))) blocks 
 
 regs :: Objective
 regs = "REGS"
+
+
+mallocMod :: CompiledModule 
+mallocMod = ("__malloc__", [
+        Scoreboard (Players (Operation self aptrObj SAssign (reg aptrReg) aptrObj))
+    ,   Scoreboard (Players (Operation self ixObj SAssign (reg ixReg) ixObj))
+    ,   Scoreboard (Players (F.Add (reg ixReg) ixObj 1))
+    ,   Tag self (TRemove "MALLOC")
+    ])
 
 compileInstruction :: Instruction -> Sem r [Command]
 compileInstruction = \case
@@ -33,7 +42,14 @@ compileInstruction = \case
     CallGT x y f                  -> pure [Execute (EIf (IScore (reg x) regs (IGT (reg y) regs)) (ERun (Function f)))]  
     CallLE x y f                  -> pure [Execute (EIf (IScore (reg x) regs (ILE (reg y) regs)) (ERun (Function f)))]  
     CallGE x y f                  -> pure [Execute (EIf (IScore (reg x) regs (IGE (reg y) regs)) (ERun (Function f)))]  
-    Malloc reg n                  -> undefined  
+    Malloc x n                    -> pure $ concat [
+            [Scoreboard (Players (Operation (reg x) regs SAssign (reg aptrReg) aptrObj))]
+        ,   replicate n (Summon "minecraft:marker" (Just (SummonArg (Abs 0 0 0) (Just (C [("Tags", L [S "MALLOC"])])))))
+        ,   [   Scoreboard (Players (Set (reg ixReg) ixObj 0))
+            ,   Execute (EAs (Entity [STag "MALLOC"]) (ERun (Function "__malloc__")))
+            ,   Scoreboard (Players (F.Add (reg aptrReg) aptrObj 1))
+            ]
+        ]  
     Select x a i                  -> pure [
         Execute 
             $ EAs (Entity [SScores [(ixObj, i)]]) 
@@ -53,6 +69,15 @@ reg (SpecialReg r) = Player ("%" <> r)
 self :: Selector
 self = Self []
 
+ixReg :: Register
+ixReg = SpecialReg "IX"
+
 ixObj :: Objective 
 ixObj = "IX"
 
+aptrReg :: Register
+aptrReg = SpecialReg "APTR"
+
+
+aptrObj :: Objective 
+aptrObj = "APTR"

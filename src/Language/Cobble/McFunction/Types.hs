@@ -16,11 +16,15 @@ type NamespacedName = QualifiedName -- TODO
 
 type CompiledModule = (FilePath, [Command])
 
-data NBT --TODO
-    deriving (Show, Eq, Generic, Data)
+data NBT = C [(Text, NBT)]
+         | S Text
+         | I Int
+         | L [NBT]
+         deriving (Show, Eq, Generic, Data)
 
-data Position --TODO
-    deriving (Show, Eq, Generic, Data) 
+data Position = Abs Int Int Int
+              | Rel Int Int Int
+              deriving (Show, Eq, Generic, Data) 
 
 data Command = Advancement Void
              | Attribute Void
@@ -69,7 +73,7 @@ data Command = Advancement Void
              | Spreadplayers Void
              | StopSound Void
              | Summon NamespacedName (Maybe SummonArg)
-             | Tag Void
+             | Tag Selector TagArg
              | Team Void
              | TeamMsg Text
              | Teleport Void
@@ -134,6 +138,7 @@ data Selector = Player Text
 data SelectorArg = SType NamespacedName
                  | SPredicate NamespacedName
                  | SScores [(Objective, Int)]
+                 | STag Text
                  deriving (Show, Eq, Generic, Data)
 
 data Gamemode = Survival | Creative | Adventure | Spectator deriving (Show, Eq, Generic, Data, Enum)
@@ -177,3 +182,9 @@ data IfScoreArg = ILT Selector Objective
                 | IGE Selector Objective
                 | IMatches Range 
                 deriving (Show, Eq, Generic, Data)
+
+data TagArg = TRemove Text
+            | TAdd Text
+            | TList
+            deriving (Show, Eq, Generic, Data)
+
