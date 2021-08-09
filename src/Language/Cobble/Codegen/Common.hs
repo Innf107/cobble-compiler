@@ -1,5 +1,5 @@
 {-#LANGUAGE UndecidableInstances#-}
-module Language.Cobble.Codegen.Common (freshVar, freshen, Range(..), rminmax) where
+module Language.Cobble.Codegen.Common (freshVar, freshen, Range(..)) where
 
 import Language.Cobble.Prelude
 import Language.Cobble.Shared
@@ -33,22 +33,20 @@ instance (Freshen a a', Freshen b b', Freshen c c', Freshen d d', Freshen e e') 
     freshen (x, y, z, w, a) = (,,,,) <$> freshen x <*> freshen y <*> freshen z <*> freshen w <*> freshen a
 
 data Range = Int :.. Int
-           | RMin Int 
-           | RMax Int
+           | RLE Int 
+           | RGE Int
+           | REQ Int
            deriving (Show, Eq, Generic, Data)
-
-rminmax :: Range -> These Int Int
-rminmax (x :.. y) = These x y
-rminmax (RMin x)  = This x
-rminmax (RMax y)  = That y
 
 instance Semigroup Range where
     (x :.. y) <> (x' :.. y') = min x x' :.. max y y'
-    (x :.. y) <> RMin x'     = min x x' :.. y
-    (x :.. y) <> RMax y'     = x :.. max y y'
-    RMin x    <> (x' :.. y') = min x x' :.. y'
-    RMin x    <> RMin x'     = RMin (min x x')
-    RMin x    <> RMax y'     = x :.. y'
-    RMax y    <> (x' :.. y') = x' :.. max y y'
-    RMax y    <> RMin x'     = x' :.. y
-    RMax y    <> RMax y'     = RMax (max y y')
+    (x :.. y) <> RLE x'      = min x x' :.. y
+    (x :.. y) <> RGE y'      = x :.. max y y'
+    RLE x     <> (x' :.. y') = min x x' :.. y'
+    RLE x     <> RLE x'      = RLE (min x x')
+    RLE x     <> RGE y'      = x :.. y'
+    RGE y     <> (x' :.. y') = x' :.. max y y'
+    RGE y     <> RLE x'      = x' :.. y
+    RGE y     <> RGE y'      = RGE (max y y')
+    x         <> REQ y       = x <> (y :.. y)
+    (REQ x)   <> y           = (x :.. x) <> y

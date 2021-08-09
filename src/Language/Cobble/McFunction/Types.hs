@@ -1,4 +1,7 @@
-module Language.Cobble.McFunction.Types where
+module Language.Cobble.McFunction.Types (
+    module Language.Cobble.McFunction.Types
+,   Range(..)
+) where
 
 import Language.Cobble.Prelude
 

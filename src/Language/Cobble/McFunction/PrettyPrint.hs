@@ -241,8 +241,9 @@ instance PrettyPrint TagArg where
 instance PrettyPrint Range where
     prettyPrint = \case
         x :.. y -> x <-> ".." <-> y
-        RMin x  -> x <-> ".."
-        RMax y  ->       ".." <-> y
+        RLE x   -> x <-> ".."
+        RGE y   ->       ".." <-> y
+        REQ x   -> prettyPrint x
 
 instance PrettyPrint NamespacedName where
     prettyPrint = show @_ @QualifiedName -- The type annotation forces a type error once
