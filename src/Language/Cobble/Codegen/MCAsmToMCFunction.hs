@@ -104,7 +104,7 @@ icallDoneReg = SpecialReg "ICALLDONE"
 -- | builds a search tree from the supplied list of functions.
 -- returns the compiled modules required for the tree, as well as mappings from functions to their addresses.
 createICallTree :: [QualifiedName] -> ([CompiledModule], Map QualifiedName Int)
-createICallTree fs = over _1 ((icallMod:) . (wrapperMods<>) . fst) $ swap $ run $ runState mempty (go fs 0 (length fs))
+createICallTree fs = over _1 ((icallMod:) . (wrapperMods<>) . fst) $ swap $ run $ runState mempty (go fs 1 (length fs))
     where
 
         icallMod :: CompiledModule
