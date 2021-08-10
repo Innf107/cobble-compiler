@@ -19,6 +19,18 @@ data Register = Reg QualifiedName -- Reg x        -> $x
 
 data Block = Block QualifiedName [Instruction] deriving (Show, Eq, Generic, Data)
 
+{- [Note: Exec Instructions]
+Unfortunately, the varius Exec* instructions are allowed by their types to accept
+instructions, that cannot be compiled to a single command and therefore have to panic the compiler.
+Ideally, Instructions would be a GADT with a parameter of type InstructionUsage with @data InstructionUsage = Compile | Exec@.
+Now, all instructions that can be compiled to a single command would have return type @Instruction u@
+while all others would have return type @Instruction Compile@.
+Now, the Exec instructions could require their parameters to have type @Instructions Exec@ and would thus exclude all invalid commands.
+
+Unfortunately, this is not possible, since GHC cannot derive @Generic@ for GADTs and thus, 
+Data and Uniplate would be inaccessible :( 
+-}
+
 data Instruction = 
       Move Register Register
     | MoveLit Register Int
@@ -38,12 +50,12 @@ data Instruction =
     | ICall Register
     | LoadFunctionAddress Register QualifiedName
 
-    | CallInRange Register Range QualifiedName
-    | CallEQ      Register Register QualifiedName
-    | CallLT      Register Register QualifiedName
-    | CallGT      Register Register QualifiedName
-    | CallLE      Register Register QualifiedName
-    | CallGE      Register Register QualifiedName
+    | ExecInRange Register Range    Instruction
+    | ExecEQ      Register Register Instruction
+    | ExecLT      Register Register Instruction
+    | ExecGT      Register Register Instruction
+    | ExecLE      Register Register Instruction
+    | ExecGE      Register Register Instruction
 
     | Malloc Register Int
     | Select Register Register Int

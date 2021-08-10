@@ -25,7 +25,7 @@ mallocMod = ("__malloc__", [
     ,   Tag self (TRemove "MALLOC")
     ])
 
-compileInstruction :: (Members '[Reader (Map QualifiedName Int)] r) 
+compileInstruction :: forall r. (Members '[Reader (Map QualifiedName Int)] r) 
                    => Instruction 
                    -> Sem r [Command]
 compileInstruction = \case
@@ -48,12 +48,12 @@ compileInstruction = \case
     LoadFunctionAddress x f       -> asks (lookup f) >>= \case 
         Just address -> pure [Scoreboard (Players (Set (reg x) regs address))]
         Nothing -> error $ "Cannot find function address for function '" <> show f <> "'"
-    CallInRange x r f             -> pure [Execute (EIf (IScore (reg x) regs (IMatches r)) (ERun (Function f)))] 
-    CallEQ x y f                  -> pure [Execute (EIf (IScore (reg x) regs (IEQ (reg y) regs)) (ERun (Function f)))]  
-    CallLT x y f                  -> pure [Execute (EIf (IScore (reg x) regs (ILT (reg y) regs)) (ERun (Function f)))]  
-    CallGT x y f                  -> pure [Execute (EIf (IScore (reg x) regs (IGT (reg y) regs)) (ERun (Function f)))]  
-    CallLE x y f                  -> pure [Execute (EIf (IScore (reg x) regs (ILE (reg y) regs)) (ERun (Function f)))]  
-    CallGE x y f                  -> pure [Execute (EIf (IScore (reg x) regs (IGE (reg y) regs)) (ERun (Function f)))]  
+    ExecInRange x r i             -> pure <$> asExec i (EIf (IScore (reg x) regs (IMatches r))      )
+    ExecEQ x y i                  -> pure <$> asExec i (EIf (IScore (reg x) regs (IEQ (reg y) regs))) 
+    ExecLT x y i                  -> pure <$> asExec i (EIf (IScore (reg x) regs (ILT (reg y) regs))) 
+    ExecGT x y i                  -> pure <$> asExec i (EIf (IScore (reg x) regs (IGT (reg y) regs))) 
+    ExecLE x y i                  -> pure <$> asExec i (EIf (IScore (reg x) regs (ILE (reg y) regs))) 
+    ExecGE x y i                  -> pure <$> asExec i (EIf (IScore (reg x) regs (IGE (reg y) regs))) 
     Malloc x n                    -> pure $ concat [
             [Scoreboard (Players (Operation (reg x) regs SAssign (reg aptrReg) aptrObj))]
         ,   replicate n (Summon "minecraft:marker" (Just (SummonArg (Abs 0 0 0) (Just (C [("Tags", L [S "MALLOC"])])))))
@@ -72,6 +72,13 @@ compileInstruction = \case
             $ EAs (Entity [SScores [(ixObj, i)]]) 
             $ EIf (IScore self regs (IEQ (reg a) regs)) 
             $ ERun (Scoreboard (Players (Operation self regs SAssign (reg x) regs)))] 
+    where 
+        asExec :: HasCallStack => Instruction -> (ExecuteArg -> ExecuteArg) -> Sem r Command
+        asExec i e = compileInstruction i <&> \case
+            [c] -> Execute $ e $ ERun c
+            cs -> error $ "compileInstruction: tried to run complex command inside an Exec* instruction" 
+                        <>"\n    instruction: " <> show i
+                        <>"\n    compiled commands: " <> show cs 
 
 
 reg :: Register -> Selector

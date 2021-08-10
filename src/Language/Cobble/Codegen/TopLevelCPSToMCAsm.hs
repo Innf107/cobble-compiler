@@ -61,7 +61,9 @@ letPrimOp x p = case p of
     P.Div -> binOp A.Div
     P.Mod -> binOp A.Mod
     P.LE  -> \case
-        [y, z] -> undefined 
+        [y, z] ->   [   MoveLit (Reg x) 0
+                    ,   ExecLE (Reg y) (Reg z) (MoveLit (Reg x) 1)   
+                    ]
         ys -> wrongNumberOfArgs 2 ys
     P.SetTestScoreboardUnsafe -> undefined 
     where
