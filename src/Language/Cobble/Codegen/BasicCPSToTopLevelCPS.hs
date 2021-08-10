@@ -61,6 +61,11 @@ compileExpr = \case
         (vTLs, vLocs, vExp) <- compileVal v
         (tBindings, t') <- asVar vExp
         pure (vTLs, vLocs <> tBindings, T.Select n t')
+    (C.PrimOp p vs) -> do
+        vs' <- traverse compileVal vs
+        let (vsTLs, vsLocs, vsExps) = vs' & foldr (\(tls, locs, e) (tls', locs', es') -> (tls <> tls', locs <> locs', e : es')) ([], [], [])
+        (vBindings, vNames) <- asVars vsExps
+        pure (vsTLs, vsLocs <> vBindings, T.PrimOp p vNames)
 
 compileVal :: (Members '[State Int] r) => CPSVal -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
 compileVal = \case
@@ -112,6 +117,7 @@ freeVarsExpr = \case
     C.Val v         -> freeVarsVal v
     C.Tuple vs      -> foldMap freeVarsVal vs
     C.Select _ v    -> freeVarsVal v
+    C.PrimOp _ vs     -> foldMap freeVarsVal vs
 
 freeVarsVal :: CPSVal -> Set QualifiedName
 freeVarsVal = \case

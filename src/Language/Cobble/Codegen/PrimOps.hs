@@ -1,13 +1,44 @@
-module Language.Cobble.Codegen.PrimOps (primOps) where
+{-#LANGUAGE TemplateHaskell#-}
+module Language.Cobble.Codegen.PrimOps where
 
 import Language.Cobble.Prelude
 import Language.Cobble.Util
 import Language.Cobble.Types
 import Language.Cobble.Codegen.Types
-import Language.Cobble.MCAsm.Types
 
 import Data.Map qualified as M
+import qualified GHC.Exts
 
+data PrimOp = True_
+            | False_
+            | Add
+            | Sub
+            | Mul
+            | Div
+            | Mod
+            | LE
+            | SetTestScoreboardUnsafe
+            deriving (Show, Eq, Generic, Data)
+
+data PrimOpInfo = PrimOpInfo {
+        _primOp :: PrimOp
+    ,   _primOpType :: Type Codegen
+    }
+
+primOps :: Map QualifiedName PrimOpInfo 
+primOps = M.mapKeys ("prims" <>) $ fromList [
+        ("__true__", PrimOpInfo True_ (unitT -:> boolT))
+    ,   ("__false__", PrimOpInfo False_ (unitT -:> boolT))
+    ,   ("__add__", PrimOpInfo Add (intT -:> intT -:> intT))
+    ,   ("__sub__", PrimOpInfo Sub (intT -:> intT -:> intT))
+    ,   ("__mul__", PrimOpInfo Mul (intT -:> intT -:> intT))
+    ,   ("__div__", PrimOpInfo Div (intT -:> intT -:> intT))
+    ,   ("__mod__", PrimOpInfo Mod (intT -:> intT -:> intT))
+    ,   ("__le__",  PrimOpInfo LE  (intT -:> intT -:> boolT))
+    ,   ("__setTestScoreboardUnsafe__", PrimOpInfo SetTestScoreboardUnsafe (intT -:> unitT))
+    ]
+
+{-
 primOps :: (PrimOpC r) => Map QualifiedName (PrimOp r)
 primOps = M.mapKeys ("prims" .:) $ fromList [
 --      Literals
@@ -74,4 +105,6 @@ binaryOp f e@PrimOpEnv{..} args = do
     case aregs of
         [r1, r2] -> f e r1 r2 resReg >> pure resReg
         _ -> panic $ "binary primop applied the wrong amount of arguments (" <> (show $ length aregs) <> "). Is the type correct?"
+-}
 
+makeLenses ''PrimOpInfo 

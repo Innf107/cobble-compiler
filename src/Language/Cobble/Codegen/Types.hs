@@ -24,7 +24,7 @@ data Function = Function {
 
 type PrimOpC r = (CompileC r, Member (Writer [Instruction]) r)
 
-type PrimOp r = (Type 'Codegen, PrimOpF r)
+--type PrimOp r = (Type 'Codegen, PrimOpF r)
 
 type PrimOpF r = PrimOpEnv r -> [Expr 'Codegen] -> Sem r Register
 

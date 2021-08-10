@@ -8,6 +8,8 @@ import Language.Cobble.Util.Polysemy.Fresh
 import Language.Cobble.CPS.TopLevel.Types as T
 import Language.Cobble.MCAsm.Types as A
 
+import Language.Cobble.Codegen.PrimOps as P 
+
 argReg :: Int -> Register
 argReg i = SpecialReg ("arg" <> show i)
 
@@ -43,7 +45,41 @@ compileTLC = \case
     Let x (T.Select n y) c  -> A.Select (Reg x) (Reg y) n : compileTLC c 
     App f xs                -> imap (\i x -> Move (argReg i) (Reg x)) xs
                             <> [ICall (Reg f)]
+    Let x (PrimOp p ys) c   -> letPrimOp x p ys <> compileTLC c 
     
+letPrimOp :: QualifiedName -> PrimOp -> [QualifiedName] -> [Instruction]
+letPrimOp x p = case p of
+    P.True_  -> \case 
+        [_] -> [MoveLit (Reg x) 1]
+        ys -> wrongNumberOfArgs 1 ys
+    P.False_ -> \case 
+        [_] -> [MoveLit (Reg x) 0]
+        ys -> wrongNumberOfArgs 1 ys
+    P.Add -> binOp A.Add 
+    P.Sub -> binOp A.Sub
+    P.Mul -> binOp A.Mul
+    P.Div -> binOp A.Div
+    P.Mod -> binOp A.Mod
+    P.LE  -> \case
+        [y, z] -> undefined 
+        ys -> wrongNumberOfArgs 2 ys
+    P.SetTestScoreboardUnsafe -> undefined 
+    where
+        binOp :: (Register -> Register -> Instruction) -> [QualifiedName] -> [Instruction]
+        binOp f = \case
+            [y, z] -> [
+                    Move (Reg x) (Reg y)
+                ,   f (Reg x) (Reg z)
+                ]
+            ys -> wrongNumberOfArgs 2 ys
+
+        wrongNumberOfArgs :: HasCallStack => Int -> [QualifiedName] -> a
+        wrongNumberOfArgs expected ys = error $ "compileTLC: PrimOp '" <> show p <> "' expected "
+                                    <> show expected <> " arguments, but received " <> show (length ys)
+
+
+
+
 
 freshReg :: (Member (Fresh QualifiedName) r) => QualifiedName -> Sem r Register
 freshReg = fmap Reg . freshVar

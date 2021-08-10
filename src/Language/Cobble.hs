@@ -175,7 +175,7 @@ getModName = toText . FP.dropExtension . L.last . segments
 
 primModSig :: ModSig
 primModSig = ModSig {
-        exportedVars = fmap fst $ primOps @'[Output Log, Writer [Instruction], Error Panic, State CompileState]
+        exportedVars = fmap (view primOpType) $ primOps
             -- The type application is only necessary to satisfy the type checker since the value depending on the type 'r' is ignored
     ,   exportedTypes = fromList [
               ("prims.Int", (KStar, BuiltInType))

@@ -3,6 +3,7 @@ module Language.Cobble.CPS.Basic.Types where
 import Language.Cobble.Prelude 
 import Language.Cobble.Shared
 import Language.Cobble.Codegen.Common
+import Language.Cobble.Codegen.PrimOps
 
 import qualified GHC.Show as S
 import qualified Data.Text as T
@@ -18,6 +19,7 @@ instance S.Show CPS where show = toString . prettyPrintCPS
 data CPSExpr = Val CPSVal
              | Tuple [CPSVal]
              | Select Int CPSVal
+             | PrimOp PrimOp [CPSVal]
              deriving (Eq, Generic, Data)
 instance S.Show CPSExpr where show = toString . prettyPrintCPSExpr
 
@@ -41,6 +43,7 @@ prettyPrintCPSExpr = \case
     Val v       -> prettyPrintCPSVal v
     Tuple vs    -> "(" <> T.intercalate ", " (map prettyPrintCPSVal vs) <> ")"
     Select i v  -> "#" <> show i <> " " <> prettyPrintCPSVal v
+    PrimOp p vs -> "(" <> "__" <> show p <> "__" <> "[" <> T.intercalate "," (map prettyPrintCPSVal vs) <> "])"
 
 prettyPrintCPSVal :: CPSVal -> Text
 prettyPrintCPSVal = \case

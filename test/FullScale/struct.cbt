@@ -5,7 +5,7 @@ struct S {
 };
 
 --! 5
-let s = S{x=3,y=_true ()} in 5
+let s = S{x=3,y=__true__ ()} in 5
 
 --# getter : score
 struct S {
@@ -14,10 +14,10 @@ struct S {
 };
 
 --! 3
-let s = S{x=3,y=_true ()} in s.x
+let s = S{x=3,y=__true__ ()} in s.x
 
 --! 4
-let s = S{x=4,y=_true ()} in if s.y then s.x else _add s.x 1
+let s = S{x=4,y=__true__ ()} in if s.y then s.x else __add__ s.x 1
 
 --# struct type : score
 struct SomeS {
@@ -29,5 +29,5 @@ s :: Int -> SomeS;
 s v = SomeS {x=v, y=v};
 
 --! 10
-let x = s 5 in _add x.x x.y
+let x = s 5 in __add__ x.x x.y
 

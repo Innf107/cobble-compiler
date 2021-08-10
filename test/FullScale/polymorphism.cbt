@@ -33,7 +33,7 @@ check :: Int -> Int;
 check x = x;
 
 --! 7
-check (const 7 (_true ()))
+check (const 7 (__true__ ()))
 
 --# function types : score
 apply :: (a -> b) -> a -> b;
@@ -43,23 +43,23 @@ f :: Bool -> Int;
 f x = if x then 1 else 0;
 
 --! 1
-apply f (_true ())
+apply f (__true__ ())
 
 --# mismatched types : error
 f :: Bool -> Bool;
 f x = x;
 
 --! TypeError : Could not match type Bool with Int
-f (_true ())
+f (__true__ ())
 
 --# polymorphic if : score
 f :: Bool -> a -> a -> a;
 f x y z = if x then y else z;
 
 --! 3
-f (_true ()) 3 4
+f (__true__ ()) 3 4
 
 --# invalid polymorphic if : error
 --! TypeError : Could not match type Bool with Int
-if _true () then 1 else _false ()
+if __true__ () then 1 else __false__ ()
 

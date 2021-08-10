@@ -5,6 +5,7 @@ import qualified Prelude as P (Show(..))
 import qualified Data.Text as T
 import Language.Cobble.Shared
 import Language.Cobble.Codegen.Common
+import Language.Cobble.Codegen.PrimOps
 
 data TL = LetF QualifiedName QualifiedName [QualifiedName] TLC TL
         | LetC QualifiedName [QualifiedName] TLC TL
@@ -20,6 +21,7 @@ data TLExp = IntLit Int
            | Halt
            | Tuple [QualifiedName]
            | Select Int QualifiedName
+           | PrimOp PrimOp [QualifiedName]
            deriving (Eq, Generic, Data)
 
 instance Show TL where
@@ -42,3 +44,4 @@ instance Show TLExp where
         Halt        -> "halt"
         Tuple xs    -> "(" <> intercalate ", " (map show xs) <> ")"
         Select i x  -> show x <> "#" <> show i
+        PrimOp p xs -> "(__" <> show p <> "__[" <> intercalate ", " (map show xs) <> "])"
