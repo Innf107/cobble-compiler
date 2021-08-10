@@ -27,7 +27,8 @@ module Language.Cobble.Prelude (
 
 import qualified Relude
 import Relude hiding (
-      Type
+      universe
+    , Type
     , TVar
     , absurd
     , ask
@@ -65,7 +66,6 @@ import Relude.Extra hiding (
     , (^.)
     , (.~)
     , (%~)
-    , universe
     , lens
     , Lens'
     )
