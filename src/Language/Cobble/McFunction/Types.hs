@@ -13,8 +13,6 @@ import qualified Data.Text as T
 
 import qualified GHC.Show as S
 
-type Objective = Text
-
 type NamespacedName = QualifiedName -- TODO
 
 type CompiledModule = (FilePath, [Command])

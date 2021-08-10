@@ -4,6 +4,7 @@ import Language.Cobble.Prelude hiding (to, from)
 import Language.Cobble.Shared
 import Language.Cobble.MCAsm.Types as A
 import Language.Cobble.McFunction.Types as F
+import Language.Cobble.Codegen.Common
 
 compile :: [Block] -> [CompiledModule]
 compile blocks  =   mallocMod 
@@ -72,6 +73,8 @@ compileInstruction = \case
             $ EAs (Entity [SScores [(ixObj, i)]]) 
             $ EIf (IScore self regs (IEQ (reg a) regs)) 
             $ ERun (Scoreboard (Players (Operation self regs SAssign (reg x) regs)))] 
+
+    SetScoreboard player obj x  -> pure [Scoreboard (Players (Operation (Player player) obj SAssign (reg x) regs))]
     where 
         asExec :: HasCallStack => Instruction -> (ExecuteArg -> ExecuteArg) -> Sem r Command
         asExec i e = compileInstruction i <&> \case

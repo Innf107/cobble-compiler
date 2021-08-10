@@ -1,12 +1,14 @@
 {-#LANGUAGE UndecidableInstances#-}
-module Language.Cobble.Codegen.Common (freshVar, freshen, Range(..)) where
+module Language.Cobble.Codegen.Common (freshVar, freshen, Range(..), Objective) where
 
 import Language.Cobble.Prelude
 import Language.Cobble.Shared
 import Language.Cobble.Util.TypeUtils
 import Language.Haskell.TH (Extension(UndecidableInstances))
 import Relude (Semigroup)
-  
+
+type Objective = Text
+
 freshVar :: (Members '[State Int] r) => QualifiedName -> Sem r QualifiedName
 freshVar v = state \i -> (v +. show i, i + 1)
 

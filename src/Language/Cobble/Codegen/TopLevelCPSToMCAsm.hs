@@ -65,7 +65,9 @@ letPrimOp x p = case p of
                     ,   ExecLE (Reg y) (Reg z) (MoveLit (Reg x) 1)   
                     ]
         ys -> wrongNumberOfArgs 2 ys
-    P.SetTestScoreboardUnsafe -> undefined 
+    P.SetTestScoreboardUnsafe -> \case
+        [y] -> [SetScoreboard "test" "test" (Reg y)]
+        ys -> wrongNumberOfArgs 1 ys
     where
         binOp :: (Register -> Register -> Instruction) -> [QualifiedName] -> [Instruction]
         binOp f = \case
