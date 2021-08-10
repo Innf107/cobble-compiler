@@ -39,6 +39,7 @@ dependencies:
 - bytestring
 - random
 - dlist
+- mcrcon
 
 library:
   source-dirs: src

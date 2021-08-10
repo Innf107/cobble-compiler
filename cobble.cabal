@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: be2cfe5c35610f953e573eb3d37adc104612dd3bf944f670103db4976d19cdaf
+-- hash: b9651891855371d7c7fdcc74ae89d7325d545417ee412ce42d407466b65e7eb5
 
 name:           cobble
 version:        0.1.0.0
@@ -63,7 +63,6 @@ library
       Language.Cobble.Util.Polysemy.Time
       Language.Cobble.Util.TypeUtils
       Lib
-      Network.RCON.Minecraft
   other-modules:
       Paths_cobble
   hs-source-dirs:
@@ -128,6 +127,7 @@ library
     , dlist
     , filepath
     , lens
+    , mcrcon
     , parsec
     , polysemy
     , polysemy-plugin
@@ -207,6 +207,7 @@ executable cobble
     , dlist
     , filepath
     , lens
+    , mcrcon
     , optparse-applicative
     , parsec
     , polysemy
@@ -305,6 +306,7 @@ test-suite cobble-test
     , filepath
     , hspec
     , lens
+    , mcrcon
     , parsec
     , polysemy
     , polysemy-plugin
