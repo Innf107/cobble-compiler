@@ -13,9 +13,6 @@ module Language.Cobble (
 
 import Language.Cobble.Prelude hiding ((<.>), readFile, writeFile)
 
-import Language.Cobble.Codegen.CobbleToLC as LC
-import Language.Cobble.Codegen.LCToBasicCPS as CPS
-import Language.Cobble.Codegen.BasicCPSToTopLevelCPS as TL
 import Language.Cobble.Types as S
 import Language.Cobble.Parser.Tokenizer as S
 import Language.Cobble.Parser as S
@@ -45,6 +42,12 @@ import Language.Cobble.Codegen.LCToBasicCPS as LC2CPS
 import Language.Cobble.Codegen.BasicCPSToTopLevelCPS as CPS2TL
 import Language.Cobble.Codegen.TopLevelCPSToMCAsm as TL2ASM
 import Language.Cobble.Codegen.MCAsmToMCFunction as ASM2MC
+
+import Language.Cobble.LC.Types as LC
+import Language.Cobble.LC.PrettyPrint as LC
+
+import Language.Cobble.CPS.Basic.Types
+import Language.Cobble.CPS.TopLevel.Types
 
 import Data.Map qualified as M
 import Data.List qualified as L
@@ -78,6 +81,9 @@ data CompileOpts = CompileOpts {
     , description::Text
     , target::Target
     , ddumpAsm::Bool
+    , ddumpLC::Bool
+    , ddumpCPS::Bool
+    , ddumpTL::Bool
     }
 
 askDataPackOpts :: (Member (Reader CompileOpts) r) => Sem r DataPackOptions
@@ -148,10 +154,17 @@ compileWithSig m = do
 
     compMods <- evalState 0 $ do
         let lc  = C2LC.compile primOps tcMod
+        whenM (asks ddumpLC) $ dumpLC lc
+
         cps     <- LC2CPS.compile lc
+        whenM (asks ddumpCPS) $ dumpCPS cps
+
         tl      <- CPS2TL.compile cps
+        whenM (asks ddumpTL) $ dumpTL tl
+        
         let asm = TL2ASM.compile tl 
         whenM (asks ddumpAsm) $ dumpAsm asm
+        
         pure    $ ASM2MC.compile asm
     let sig = extractSig tcMod
 
@@ -187,6 +200,14 @@ primModSig = ModSig {
             ]
     }
 
+dumpLC :: (Members '[FileSystem FilePath Text] r) => LCExpr -> Sem r ()
+dumpLC = writeFile "lc.lc" . prettyPrintLCExpr
+
+dumpCPS :: (Members '[FileSystem FilePath Text] r) => CPS -> Sem r ()
+dumpCPS = writeFile "cps.lc" . show
+
+dumpTL :: (Members '[FileSystem FilePath Text] r) => TL -> Sem r ()
+dumpTL = writeFile "tl.lc" . show 
 
 dumpAsm :: (Members '[FileSystem FilePath Text] r) => [Block] -> Sem r ()
 dumpAsm = writeFile "asm.mcasm" . renderAsm

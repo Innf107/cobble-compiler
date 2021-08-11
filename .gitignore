@@ -4,6 +4,9 @@
 out
 test.cb
 test.mamod
+lc.lc
+cps.lc
+tl.lc
 asm.mcasm
 test.zip
 tests.log
