@@ -21,6 +21,9 @@ compileExpr = flip \kval -> let k = staticCont kval in \case
                                     (C.Let t' (C.Tuple (fmap (C.Var . ("x" +.) . show) (indexes es))) (k (C.Var t')))
                                     (zipIndex es)
     L.Select n e        -> freshVar "t" >>= \t' -> freshVar "y" >>= \y' -> compileExpr e (C.Admin t' (C.Let y' (C.Select n (C.Var t')) (k (C.Var y'))))
+    L.PrimOp p es       -> freshVar "p" >>= \p' -> foldrM (\(i, e) r -> compileExpr e (C.Admin ("x" +. show i) r))
+                                    (C.Let p' (C.PrimOp p (fmap (C.Var . ("x" +.) . show) (indexes es))) (k (C.Var p')))
+                                    (zipIndex es)
 
 reduceAdmin :: CPS -> CPS
 reduceAdmin = transformBi adminToLambda . rewriteBi (betaLetReduce <<|>> etaReduce)

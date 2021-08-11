@@ -4,6 +4,7 @@ import Language.Cobble.Prelude
 
 import Language.Cobble.Shared
 import Language.Cobble.Codegen.Common
+import Language.Cobble.Codegen.PrimOps
 
 import Data.Data
 
@@ -17,6 +18,7 @@ data LCExpr = Var QualifiedName
             | IntLit Int
             | Tuple [LCExpr]
             | Select Int LCExpr
+            | PrimOp PrimOp [LCExpr]
             deriving (Show, Eq, Generic, Data)
 
 

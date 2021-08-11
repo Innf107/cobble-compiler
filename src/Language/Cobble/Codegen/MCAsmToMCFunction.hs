@@ -149,14 +149,14 @@ createICallTree fs = over _1 ((icallMod:) . (wrapperMods<>) . fst) $ swap $ run 
                                 $ EIf (IScore (reg icallDoneReg) regs $ IMatches (REQ 0)) 
                                 $ EIf (IScore (reg icallReg) regs $ IMatches (REQ mid)) 
                                 $ ERun $ Function ("icall" <> f)
-                    ,   whenAlt ((left + mid) `div` 2 /= left) $ Execute 
+                    ,   whenAlt ((left + mid) `div` 2 /= mid) $ Execute 
                                 $ EIf (IScore (reg icallDoneReg) regs $ IMatches (REQ 0)) 
                                 $ EIf (IScore (reg icallReg) regs $ IMatches (RLE mid)) 
                                 $ ERun $ Function ("icall.nodes" <> show ((left + mid) `div` 2))
-                    ,   whenAlt ((mid + right) `div` 2 /= mid) $ Execute 
+                    ,   whenAlt ((mid + right) `div` 2 /= right) $ Execute 
                                 $ EIf (IScore (reg icallDoneReg) regs $ IMatches (REQ 0)) 
-                                $ EIf (IScore (reg icallReg) regs $ IMatches (RLE mid)) 
-                                $ ERun $ Function ("icall.nodes" <> show ((left + mid) `div` 2))
+                                $ EIf (IScore (reg icallReg) regs $ IMatches (RGE mid)) 
+                                $ ERun $ Function ("icall.nodes" <> show ((mid + right) `div` 2))
                     ])
             (leftMods, fs')   <- go fs  left mid
             (rightMods, fs'') <- go fs' mid right

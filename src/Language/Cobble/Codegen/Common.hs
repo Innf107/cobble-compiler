@@ -42,13 +42,13 @@ data Range = Int :.. Int
 
 instance Semigroup Range where
     (x :.. y) <> (x' :.. y') = min x x' :.. max y y'
-    (x :.. y) <> RLE x'      = min x x' :.. y
-    (x :.. y) <> RGE y'      = x :.. max y y'
-    RLE x     <> (x' :.. y') = min x x' :.. y'
-    RLE x     <> RLE x'      = RLE (min x x')
-    RLE x     <> RGE y'      = x :.. y'
-    RGE y     <> (x' :.. y') = x' :.. max y y'
-    RGE y     <> RLE x'      = x' :.. y
-    RGE y     <> RGE y'      = RGE (max y y')
+    (x :.. y) <> RGE x'      = min x x' :.. y
+    (x :.. y) <> RLE y'      = x :.. max y y'
+    RGE x     <> (x' :.. y') = min x x' :.. y'
+    RGE x     <> RGE x'      = RGE (min x x')
+    RGE x     <> RLE y'      = x :.. y'
+    RLE y     <> (x' :.. y') = x' :.. max y y'
+    RLE y     <> RGE x'      = x' :.. y
+    RLE y     <> RLE y'      = RLE (max y y')
     x         <> REQ y       = x <> (y :.. y)
     (REQ x)   <> y           = (x :.. x) <> y

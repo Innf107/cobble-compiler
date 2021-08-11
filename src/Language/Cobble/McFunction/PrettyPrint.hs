@@ -164,7 +164,7 @@ instance PrettyPrint Position where
     
 instance PrettyPrint NBT where
     prettyPrint = \case
-      C fs      -> "{" <-> T.intercalate (toText ",") (map (\(k, v) -> k <-> "=" <-> v) fs) <-> "}"
+      C fs      -> "{" <-> T.intercalate (toText ",") (map (\(k, v) -> k <-> ":" <-> v) fs) <-> "}"
       S str     -> str
       I n       -> show n
       L nbts    -> "[" <-> T.intercalate (toText ",") (map prettyPrint nbts) <-> "]"
@@ -241,8 +241,8 @@ instance PrettyPrint TagArg where
 instance PrettyPrint Range where
     prettyPrint = \case
         x :.. y -> x <-> ".." <-> y
-        RLE x   -> x <-> ".."
-        RGE y   ->       ".." <-> y
+        RLE y   ->       ".." <-> y
+        RGE x   -> x <-> ".."
         REQ x   -> prettyPrint x
 
 instance PrettyPrint NamespacedName where

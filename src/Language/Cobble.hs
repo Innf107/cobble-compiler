@@ -147,7 +147,7 @@ compileWithSig m = do
     tcMod <- mapError TypeError $ evalState tcState $ runOutputSem (log LogWarning . displayTWarning) $ typecheckModule saMod
 
     compMods <- evalState 0 $ do
-        let lc  = C2LC.compile tcMod
+        let lc  = C2LC.compile primOps tcMod
         cps     <- LC2CPS.compile lc
         tl      <- CPS2TL.compile cps
         let asm = TL2ASM.compile tl 
