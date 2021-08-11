@@ -15,6 +15,7 @@ data LCDef = LCDef QualifiedName LCExpr deriving (Show, Eq)
 data LCExpr = Var QualifiedName
             | Lambda QualifiedName LCExpr
             | App LCExpr LCExpr
+            | Let QualifiedName LCExpr LCExpr
             | IntLit Int
             | Tuple [LCExpr]
             | Select Int LCExpr
