@@ -41,10 +41,10 @@ instance PrettyPrint Command where
         Execute ea               -> "execute" <:> ea
         Experience vo            -> absurd vo
         Fill vo                  -> absurd vo
-        Forceload vo             -> absurd vo
+        Forceload fa             -> "forceload" <:> fa 
         Function fname           -> "function" <:> fname
         Gamemode gamemode msel   -> "gamemode" <:> gamemode <:?> msel
-        Gamerule vo              -> absurd vo
+        Gamerule gr arg          -> "gamerule" <:> gr <:> arg
         Give sel item mamount    -> "give" <:> sel <:> item <:?> mamount
         Help                     -> toText "help"
         Item vo                  -> absurd vo
@@ -246,8 +246,9 @@ instance PrettyPrint Range where
         REQ x   -> prettyPrint x
 
 instance PrettyPrint NamespacedName where
-    prettyPrint = show @_ @QualifiedName -- The type annotation forces a type error once
-                                         -- NamespacedName becomes its own type
+    prettyPrint (Foreign namespace name) = namespace <-> ":" <-> name
+    prettyPrint (Own n) = error $ toText "prettyPrint: Cannot prettyprint unnamespaced name '" <> n <> toText "'"
+
 instance PrettyPrint Int where
     prettyPrint = show
 
@@ -257,3 +258,11 @@ instance PrettyPrint Text where
 instance PrettyPrint String where
     prettyPrint = toText
 
+instance PrettyPrint ForceloadArg where
+    prettyPrint = \case
+        FAdd x y -> "add" <:> x <:> y
+
+instance PrettyPrint GameruleArg where
+    prettyPrint = toText . \case
+        GInt i  -> show i 
+        GBool b -> bool "false" "true" b 

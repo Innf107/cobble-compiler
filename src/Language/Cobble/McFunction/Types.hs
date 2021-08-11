@@ -13,7 +13,9 @@ import qualified Data.Text as T
 
 import qualified GHC.Show as S
 
-type NamespacedName = QualifiedName -- TODO
+data NamespacedName = Own Text
+                    | Foreign Text Text
+                    deriving (Show, Eq, Generic, Data)
 
 type CompiledModule = (FilePath, [Command])
 
@@ -42,10 +44,10 @@ data Command = Advancement Void
              | Execute ExecuteArg
              | Experience Void
              | Fill Void
-             | Forceload Void
+             | Forceload ForceloadArg
              | Function NamespacedName
              | Gamemode Gamemode (Maybe Selector)
-             | Gamerule Void
+             | Gamerule Text GameruleArg
              | Give Selector NamespacedName (Maybe Int)
              | Help
              | Item Void
@@ -189,3 +191,11 @@ data TagArg = TRemove Text
             | TList
             deriving (Show, Eq, Generic, Data)
 
+data ForceloadArg = FAdd Int Int -- TODO: Allow relative Position
+                  -- TODO: FRemove, FQuery
+                  deriving (Show, Eq, Generic, Data)
+
+
+data GameruleArg = GInt Int
+                 | GBool Bool
+                 deriving (Show, Eq, Generic, Data)

@@ -59,7 +59,7 @@ exampleASM = [
         ,   Move (SpecialReg "arg0") (Reg "y5")
         ,   ICall (Reg "k3")
         ]
-    ,   Block "main" [
+    ,   Block "__main__" [
             LoadFunctionAddress (Reg "f6") "f6"
 
         ,   Malloc (Reg "env8") 0

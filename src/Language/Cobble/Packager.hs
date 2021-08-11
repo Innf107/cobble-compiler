@@ -17,20 +17,21 @@ data DataPackOptions = DataPackOptions {
       , target::Target
     }
 
-makeDataPack :: forall r. (PackageC r) => DataPackOptions -> [CompiledModule] -> Sem r LByteString
-makeDataPack options ms = fromArchive <$> do
-    ia <- initialArchive
-    foldlM (\a m -> addEntryToArchive <$> makeModEntry m <*> pure a) ia ms
+makeDataPack :: (PackageC r) => DataPackOptions -> [CompiledModule] -> Sem r LByteString
+makeDataPack ops mods = makeDataPack' ops mods <$> getTime 
+
+makeDataPack' :: DataPackOptions -> [CompiledModule] -> Integer -> LByteString
+makeDataPack' options ms time = fromArchive $
+    let namespacedMods = setNamespace (name options) ms in
+        foldr (addEntryToArchive . makeModEntry) initialArchive (runtimeMods <> namespacedMods)
     where
-        makeModEntry :: CompiledModule -> Sem r Entry
+        makeModEntry :: CompiledModule -> Entry
         makeModEntry (path, cmds) = toEntry ("/data" </> toString (name options) </> "functions" </> path <.> ".mcfunction")
-                         <$> getTime 
-                         <*> pure (encodeUtf8 (unlines (map prettyPrint cmds)))
-                         
-        initialArchive :: Sem r Archive
-        initialArchive = do
-            t <- getTime
-            pure $ addEntryToArchive (toEntry "/pack.mcmeta" t (packMcMeta options)) emptyArchive
+                                    time 
+                                    (encodeUtf8 (unlines (map prettyPrint cmds)))
+                        
+        initialArchive :: Archive
+        initialArchive = addEntryToArchive (toEntry "/pack.mcmeta" time (packMcMeta options)) emptyArchive
 
 
 packMcMeta :: DataPackOptions -> LByteString
@@ -43,3 +44,24 @@ packMcMeta options = mconcat $ map (<> "\n") [
     , "}"
     ]
 
+
+setNamespace :: Text -> [CompiledModule] -> [CompiledModule]
+setNamespace ns = transformBi \case
+    (Own n) -> Foreign ns n
+    x -> x
+
+runtimeMods :: [CompiledModule]
+runtimeMods = [
+        ("init", [
+            Gamerule "maxCommandChainLength" (GInt $ fromIntegral (maxBound :: Int32))
+        ,   Forceload $ FAdd 0 0 
+        ,   Scoreboard $ Objectives $ OAdd "REGS" "dummy" Nothing
+        ,   Scoreboard $ Objectives $ OAdd "IX" "dummy" Nothing 
+        ,   Scoreboard $ Objectives $ OAdd "APTR" "dummy" Nothing 
+        ]),
+        ("clean", [
+            Scoreboard $ Objectives $ ORemove "REGS"
+        ,   Scoreboard $ Objectives $ ORemove "IX"
+        ,   Scoreboard $ Objectives $ ORemove "APTR"
+        ])
+    ]

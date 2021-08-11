@@ -50,7 +50,7 @@ testSingleModScore desc src val = testSingleMod' desc src
     [TestQuery ["scoreboard players get test test"] $ ExpectLast $ expectScore "test" "test" val]
 
 testExprScore :: Description -> Text -> Int -> Test
-testExprScore desc src = testSingleModScore desc ("main :: Unit; main = _setTestScoreboardUnsafe (" <> src <> ");")
+testExprScore desc src = testSingleModScore desc ("main :: Unit; main = __setTestScoreboardUnsafe__ (" <> src <> ");")
 
 expectScore :: Text -> Text -> Int -> ExpectInner
 expectScore score player val = ExpectExact (player <> " has " <> show val <> " [" <> score <> "]")
@@ -118,6 +118,9 @@ compileForTest program = do
             ,   debug=True
             ,   target=target116
             ,   ddumpAsm=False
+            ,   ddumpLC=False
+            ,   ddumpCPS=False
+            ,   ddumpTL=False
             ,   description="testing"
             }
             liftIO $ logLn "Compiling Cobble code"

@@ -17,7 +17,6 @@ compile blocks  =   mallocMod
 regs :: Objective
 regs = "REGS"
 
-
 mallocMod :: CompiledModule 
 mallocMod = ("__malloc__", [
         Scoreboard (Players (Operation self aptrObj SAssign (reg aptrReg) aptrObj))
@@ -41,10 +40,10 @@ compileInstruction = \case
     Mod x y                       -> pure [Scoreboard (Players (Operation (reg x) regs SMod (reg y) regs))]  
     Min x y                       -> pure [Scoreboard (Players (Operation (reg x) regs SMin (reg y) regs))]  
     Max x y                       -> pure [Scoreboard (Players (Operation (reg x) regs SMin (reg y) regs))]  
-    Call f                        -> pure [Function f]  
+    Call f                        -> pure [Function (own f)]  
     ICall x                       -> pure [
                                         Scoreboard $ Players (Operation (reg icallReg) regs SAssign (reg x) regs)
-                                    ,   Function "icall.icall"
+                                    ,   Function $ ownPath "icall.icall"
                                     ]   
     LoadFunctionAddress x f       -> asks (lookup f) >>= \case 
         Just address -> pure [Scoreboard (Players (Set (reg x) regs address))]
@@ -57,21 +56,21 @@ compileInstruction = \case
     ExecGE x y i                  -> pure <$> asExec i (EIf (IScore (reg x) regs (IGE (reg y) regs))) 
     Malloc x n                    -> pure $ concat [
             [Scoreboard (Players (Operation (reg x) regs SAssign (reg aptrReg) aptrObj))]
-        ,   replicate n (Summon "minecraft:marker" (Just (SummonArg (Abs 0 0 0) (Just (C [("Tags", L [S "MALLOC"])])))))
+        ,   replicate n (Summon (Foreign "minecraft" "marker") (Just (SummonArg (Abs 0 0 0) (Just (C [("Tags", L [S "MALLOC"])])))))
         ,   [   Scoreboard (Players (Set (reg ixReg) ixObj 0))
-            ,   Execute (EAs (Entity [STag "MALLOC"]) (ERun (Function "__malloc__")))
+            ,   Execute (EAs (Entity [STag "MALLOC"]) (ERun (Function $ ownPath "__malloc__")))
             ,   Scoreboard (Players (F.Add (reg aptrReg) aptrObj 1))
             ]
         ]  
     Select x a i                  -> pure [
         Execute 
             $ EAs (Entity [SScores [(ixObj, i)]]) 
-            $ EIf (IScore self regs (IEQ (reg a) regs)) 
+            $ EIf (IScore self aptrObj (IEQ (reg a) regs)) 
             $ ERun (Scoreboard (Players (Operation (reg x) regs SAssign self regs)))] 
     Store a x i                   -> pure [
         Execute 
             $ EAs (Entity [SScores [(ixObj, i)]]) 
-            $ EIf (IScore self regs (IEQ (reg a) regs)) 
+            $ EIf (IScore self aptrObj (IEQ (reg a) regs)) 
             $ ERun (Scoreboard (Players (Operation self regs SAssign (reg x) regs)))] 
 
     SetScoreboard player obj x  -> pure [Scoreboard (Players (Operation (Player player) obj SAssign (reg x) regs))]
@@ -83,6 +82,11 @@ compileInstruction = \case
                         <>"\n    instruction: " <> show i
                         <>"\n    compiled commands: " <> show cs 
 
+own :: QualifiedName -> NamespacedName 
+own = Own . show
+
+ownPath :: QualifiedName -> NamespacedName 
+ownPath = Own . toText . qNameToPath
 
 reg :: Register -> Selector
 reg (Reg r)        = Player ("$" <> show r) 
@@ -120,13 +124,13 @@ createICallTree fs = over _1 ((icallMod:) . (wrapperMods<>) . fst) $ swap $ run 
         icallMod :: CompiledModule
         icallMod = ("icall/icall", [
                 Scoreboard $ Players $ Set (reg icallDoneReg) regs 0
-            ,   Function ("icall.nodes" <> show (length fs `div` 2))
+            ,   Function (ownPath $ "icall.nodes" <> show (length fs `div` 2))
             ])
 
         wrapperMods :: [CompiledModule]
         wrapperMods = fs <&> \f -> ("icall/" <> qNameToPath f, [
                 Scoreboard $ Players $ Set (reg icallDoneReg) regs 1
-            ,   Function f
+            ,   Function (own f)
             ])
 
         addMapping :: (Members '[State (Map QualifiedName Int)] r)
@@ -148,15 +152,15 @@ createICallTree fs = over _1 ((icallMod:) . (wrapperMods<>) . fst) $ swap $ run 
                         Just $ Execute 
                                 $ EIf (IScore (reg icallDoneReg) regs $ IMatches (REQ 0)) 
                                 $ EIf (IScore (reg icallReg) regs $ IMatches (REQ mid)) 
-                                $ ERun $ Function ("icall" <> f)
+                                $ ERun $ Function (ownPath $ ("icall/" <> f))
                     ,   whenAlt ((left + mid) `div` 2 /= mid) $ Execute 
                                 $ EIf (IScore (reg icallDoneReg) regs $ IMatches (REQ 0)) 
                                 $ EIf (IScore (reg icallReg) regs $ IMatches (RLE mid)) 
-                                $ ERun $ Function ("icall.nodes" <> show ((left + mid) `div` 2))
+                                $ ERun $ Function (ownPath $ "icall.nodes" <> show ((left + mid) `div` 2))
                     ,   whenAlt ((mid + right) `div` 2 /= right) $ Execute 
                                 $ EIf (IScore (reg icallDoneReg) regs $ IMatches (REQ 0)) 
                                 $ EIf (IScore (reg icallReg) regs $ IMatches (RGE mid)) 
-                                $ ERun $ Function ("icall.nodes" <> show ((mid + right) `div` 2))
+                                $ ERun $ Function (ownPath $ "icall.nodes" <> show ((mid + right) `div` 2))
                     ])
             (leftMods, fs')   <- go fs  left mid
             (rightMods, fs'') <- go fs' mid right
