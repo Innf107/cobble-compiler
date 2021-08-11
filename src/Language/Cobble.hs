@@ -151,6 +151,7 @@ compileWithSig m = do
         cps     <- LC2CPS.compile lc
         tl      <- CPS2TL.compile cps
         let asm = TL2ASM.compile tl 
+        whenM (asks ddumpAsm) $ dumpAsm asm
         pure    $ ASM2MC.compile asm
     let sig = extractSig tcMod
 
@@ -187,6 +188,11 @@ primModSig = ModSig {
     }
 
 
+dumpAsm :: (Members '[FileSystem FilePath Text] r) => [Block] -> Sem r ()
+dumpAsm = writeFile "asm.mcasm" . renderAsm
+    where
+        renderAsm :: [Block] -> Text
+        renderAsm = T.intercalate "\n\n" . map (\(Block f is) -> "[" <> show f <> "]:\n" <> foldMap (\i -> "    " <> show i <> "\n") is)
 
 
 
