@@ -47,7 +47,7 @@ compileC = \case
         withLocals :: [LocalBinding] -> TLC -> TLC
         withLocals = flip (foldr (\(x, e) r -> T.Let x e r))
         unwrapClosure :: QualifiedName -> Sem r ([LocalBinding], QualifiedName, QualifiedName)
-        unwrapClosure f = freshen ("f", "env") <&> \(f', env') -> ([(f', T.Select 0 f), (env', T.Select 1 f)], f', env')
+        unwrapClosure f = freshen (f, "env") <&> \(f', env') -> ([(f', T.Select 0 f), (env', T.Select 1 f)], f', env')
 
 compileExpr :: (Members '[State Int] r) => CPSExpr -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
 compileExpr = \case

@@ -118,19 +118,13 @@ icallDoneReg = SpecialReg "ICALLDONE"
 -- | builds a search tree from the supplied list of functions.
 -- returns the compiled modules required for the tree, as well as mappings from functions to their addresses.
 createICallTree :: [QualifiedName] -> ([CompiledModule], Map QualifiedName Int)
-createICallTree fs = over _1 ((icallMod:) . (wrapperMods<>) . fst) $ swap $ run $ runState mempty (go fs 1 (length fs))
+createICallTree fs = over _1 ((icallMod:) . fst) $ swap $ run $ runState mempty (go fs 1 (length fs))
     where
 
         icallMod :: CompiledModule
         icallMod = ("icall/icall", [
                 Scoreboard $ Players $ Set (reg icallDoneReg) regs 0
             ,   Function (ownPath $ "icall.nodes" <> show (length fs `div` 2))
-            ])
-
-        wrapperMods :: [CompiledModule]
-        wrapperMods = fs <&> \f -> ("icall/" <> qNameToPath f, [
-                Scoreboard $ Players $ Set (reg icallDoneReg) regs 1
-            ,   Function (own f)
             ])
 
         addMapping :: (Members '[State (Map QualifiedName Int)] r)
@@ -144,20 +138,21 @@ createICallTree fs = over _1 ((icallMod:) . (wrapperMods<>) . fst) $ swap $ run 
            -> Int 
            -> Int 
            -> Sem r ([CompiledModule], [QualifiedName])
-        go [] _ _ = pure ([], [])
-        go (f:fs) left right = do
+        go (f:fs) left right | (left + right) `div` 2 /= right = do
             let mid = (left + right) `div` 2
             addMapping mid f
             let mod = (("icall/nodes/" <> show mid), catMaybes [
-                        Just $ Execute 
-                                $ EIf (IScore (reg icallDoneReg) regs $ IMatches (REQ 0)) 
+                        Just $ Execute
+                                $ EIf (IScore (reg icallReg) regs $ IMatches (REQ mid)) 
+                                $ ERun $ Scoreboard (Players (Set (reg icallDoneReg) regs 1)) 
+                    ,   Just $ Execute 
                                 $ EIf (IScore (reg icallReg) regs $ IMatches (REQ mid)) 
                                 $ ERun $ Function (ownPath $ ("icall/" <> f))
                     ,   whenAlt ((left + mid) `div` 2 /= mid) $ Execute 
                                 $ EIf (IScore (reg icallDoneReg) regs $ IMatches (REQ 0)) 
                                 $ EIf (IScore (reg icallReg) regs $ IMatches (RLE mid)) 
                                 $ ERun $ Function (ownPath $ "icall.nodes" <> show ((left + mid) `div` 2))
-                    ,   whenAlt ((mid + right) `div` 2 /= right) $ Execute 
+                    ,   whenAlt ((mid + right) `div` 2 /= mid) $ Execute 
                                 $ EIf (IScore (reg icallDoneReg) regs $ IMatches (REQ 0)) 
                                 $ EIf (IScore (reg icallReg) regs $ IMatches (RGE mid)) 
                                 $ ERun $ Function (ownPath $ "icall.nodes" <> show ((mid + right) `div` 2))
@@ -165,15 +160,15 @@ createICallTree fs = over _1 ((icallMod:) . (wrapperMods<>) . fst) $ swap $ run 
             (leftMods, fs')   <- go fs  left mid
             (rightMods, fs'') <- go fs' mid right
             pure (mod : leftMods <> rightMods, fs'')
+        go fs _ _ = pure ([], fs)
 
 {-
 fs = ["f1", "f2", "f3", "f4"]
 
             2:f1
-           /    \
-        1:f2    3:f3
-        /
-      0:f4
+           /
+        1:f1
+       
 
 
 -}

@@ -42,9 +42,9 @@ exampleTL = T.LetF "f6" "k3" ["s7", "a"] (T.Let "y5" (T.Select 1 "a")
                 (T.Let "x1" (T.IntLit 4)
                 (T.Let "t2" (T.Tuple ["x0", "x1"])
                 (T.Let "e9" T.Halt
-                (T.Let "f10" (T.Select 0 "f0")
+                (T.Let "f010" (T.Select 0 "f0")
                 (T.Let "env11" (T.Select 1 "f0")
-                (T.App "f10" ["e9", "env11", "t2"])
+                (T.App "f010" ["e9", "env11", "t2"])
                 )))))))))
 
 exampleASM :: [Block]
@@ -78,13 +78,13 @@ exampleASM = [
 
         ,   MoveLit (Reg "e9") 0
 
-        ,   A.Select (Reg "f10") (Reg "f0") 0
+        ,   A.Select (Reg "f010") (Reg "f0") 0
         ,   A.Select (Reg "env11") (Reg "f0") 1
 
         ,   Move (SpecialReg "arg0") (Reg "e9")
         ,   Move (SpecialReg "arg1") (Reg "env11")
         ,   Move (SpecialReg "arg2") (Reg "t2")
-        ,   ICall (Reg "f10")
+        ,   ICall (Reg "f010")
         ]
     ]
 

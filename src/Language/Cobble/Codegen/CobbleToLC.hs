@@ -9,7 +9,7 @@ import Language.Cobble.LC.Types as L
 import Language.Cobble.Codegen.PrimOps
 
 compile :: Map QualifiedName PrimOpInfo -> Module Codegen -> LCExpr
-compile prims (Module _deps _modname statements) = foldr makeLet (App (L.Var "main") (L.Tuple [])) 
+compile prims (Module _deps _modname statements) = foldr makeLet (L.IntLit 0) 
     $ concatMap compileStatement statements
     where
         makeLet (LCDef n e) r = L.Let n e r
