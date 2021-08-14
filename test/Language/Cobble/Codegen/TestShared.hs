@@ -33,19 +33,23 @@ exampleReducedFreshIX :: Int
 exampleReducedFreshIX = 6
 
 exampleTL :: TL
-exampleTL = T.LetF "f6" "k3" ["s7", "a"] (T.Let "y5" (T.Select 1 "a") 
-                (T.App "k3" ["y5"]))     
+exampleTL = T.LetF "f6" "k3" ["s7", "a"] (T.Let "y5" (T.Select 1 "a")
+                (T.Let "k39" (T.Select 0 "k3")
+                (T.Let "env10" (T.Select 1 "k3")
+                (T.App "k39" ["env10", "y5"]))))
             (T.C 
                 (T.Let "env8" (T.Tuple [])
                 (T.Let "f0" (T.Tuple ["f6", "env8"])
                 (T.Let "x0" (T.IntLit 3)
                 (T.Let "x1" (T.IntLit 4)
                 (T.Let "t2" (T.Tuple ["x0", "x1"])
-                (T.Let "e9" T.Halt
-                (T.Let "f010" (T.Select 0 "f0")
-                (T.Let "env11" (T.Select 1 "f0")
-                (T.App "f010" ["e9", "env11", "t2"])
-                )))))))))
+                (T.Let "h11" T.Halt
+                (T.Let "henv12" (T.Tuple [])
+                (T.Let "e13" (T.Tuple ["h11", "henv12"])
+                (T.Let "f014" (T.Select 0 "f0")
+                (T.Let "env15" (T.Select 1 "f0")
+                (T.App "f014" ["e13", "env15", "t2"])
+                )))))))))))
 
 exampleASM :: [Block]
 exampleASM = [
@@ -55,9 +59,12 @@ exampleASM = [
         ,   Move (Reg "a")  (SpecialReg "arg2")
 
         ,   A.Select (Reg "y5") (Reg "a") 1
+        ,   A.Select (Reg "k39") (Reg "k3") 0
+        ,   A.Select (Reg "env10") (Reg "k3") 1
 
-        ,   Move (SpecialReg "arg0") (Reg "y5")
-        ,   ICall (Reg "k3")
+        ,   Move (SpecialReg "arg0") (Reg "env10")
+        ,   Move (SpecialReg "arg1") (Reg "y5")
+        ,   ICall (Reg "k39")
         ]
     ,   Block "__main__" [
             LoadFunctionAddress (Reg "f6") "f6"
@@ -76,15 +83,20 @@ exampleASM = [
         ,   Store (Reg "t2") (Reg "x0") 0
         ,   Store (Reg "t2") (Reg "x1") 1
 
-        ,   MoveLit (Reg "e9") 0
+        ,   MoveLit (Reg "h11") 0
+        ,   Malloc (Reg "henv12") 0
+        
+        ,   Malloc (Reg "e13") 2
+        ,   Store (Reg "e13") (Reg "h11") 0
+        ,   Store (Reg "e13") (Reg "henv12") 1
 
-        ,   A.Select (Reg "f010") (Reg "f0") 0
-        ,   A.Select (Reg "env11") (Reg "f0") 1
+        ,   A.Select (Reg "f014") (Reg "f0") 0
+        ,   A.Select (Reg "env15") (Reg "f0") 1
 
-        ,   Move (SpecialReg "arg0") (Reg "e9")
-        ,   Move (SpecialReg "arg1") (Reg "env11")
+        ,   Move (SpecialReg "arg0") (Reg "e13")
+        ,   Move (SpecialReg "arg1") (Reg "env15")
         ,   Move (SpecialReg "arg2") (Reg "t2")
-        ,   ICall (Reg "f010")
+        ,   ICall (Reg "f014")
         ]
     ]
 

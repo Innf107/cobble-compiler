@@ -44,12 +44,13 @@ compileC = \case
                     (T.App f'' [v1', env', v2'])
             )
     C.App2 f v -> do
-        -- Continuations do *not* need to unwrap their closure
+        -- Continuations *do* actually need to unwrap their closure... whoops
         (fTLs,  fLocs,  (fBindings,  f'))  <- traverseOf _3 asVar =<< compileVal f
         (vTLs, v1Locs, (vBindings, v')) <- traverseOf _3 asVar =<< compileVal v 
+        (unwrapBindings, f'', env') <- unwrapClosure f'
         pure (
                 fTLs <> vTLs 
-            ,   withLocals (fLocs <> v1Locs <> fBindings <> vBindings) (T.App f' [v'])
+            ,   withLocals (fLocs <> v1Locs <> fBindings <> vBindings <> unwrapBindings) (T.App f'' [env', v'])
             )
     where
         withLocals :: [LocalBinding] -> TLC -> TLC
@@ -81,7 +82,8 @@ compileVal = \case
     C.Var v         -> pure ([], [], T.Var v)
     C.Lambda k x c  -> compileLambda k x c
     C.Admin v c     -> compileClosure v c
-    C.Halt          -> pure ([], [], T.Halt)
+    C.Halt          -> freshen ("h", "henv") <&> \(h', henv') -> 
+                        ([], [(h', T.Halt), (henv', T.Tuple [])], T.Tuple [h', henv'])
 
 compileLambda :: (Members '[State Int] r) => QualifiedName -> QualifiedName -> CPS -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
 compileLambda k x c = freshen ("f", "s", "env") >>= \(f', s', env') -> do
