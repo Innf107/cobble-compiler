@@ -1,5 +1,13 @@
 module Language.Cobble.Codegen.BasicCPSToTopLevelCPS where
 
+{-
+ISSUE:
+Functions are passed a continuation as a *closure*, (a tuple including the function and its environment),
+but they try to call the continuation closure directly
+
+IMPORTANT OPTIMIZATION: Pass the closure as an *unboxed* tuple to avoid tons of unnecessary allocations
+-}
+
 import Language.Cobble.Prelude hiding (uncurried, (\\))
 import Language.Cobble.Shared
 import Language.Cobble.CPS.Basic.Types as C

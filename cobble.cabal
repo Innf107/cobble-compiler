@@ -142,6 +142,7 @@ library
     , polysemy
     , polysemy-plugin
     , random
+    , recursion-schemes
     , relude
     , template-haskell
     , text
@@ -224,6 +225,7 @@ executable cobble
     , polysemy
     , polysemy-plugin
     , random
+    , recursion-schemes
     , relude
     , template-haskell
     , text
@@ -241,6 +243,7 @@ test-suite cobble-test
       Language.Cobble.Codegen.BasicCPSToTopLevelCPSSpec
       Language.Cobble.Codegen.CommonSpec
       Language.Cobble.Codegen.LCToBasicCPSSpec
+      Language.Cobble.Codegen.MCAsmToMCFunctionSpec
       Language.Cobble.Codegen.TestShared
       Language.Cobble.Codegen.TopLevelCPSToMCAsmSpec
       Language.Cobble.CPS.TopLevel.TypesSpec
@@ -327,6 +330,7 @@ test-suite cobble-test
     , polysemy-plugin
     , process
     , random
+    , recursion-schemes
     , relude
     , template-haskell
     , text

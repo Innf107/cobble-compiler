@@ -1,10 +1,12 @@
 module Language.Cobble.Codegen.MCAsmToMCFunction where
 
-import Language.Cobble.Prelude hiding (to, from)
+import Language.Cobble.Prelude hiding (to, from, para)
 import Language.Cobble.Shared
 import Language.Cobble.MCAsm.Types as A
 import Language.Cobble.McFunction.Types as F
 import Language.Cobble.Codegen.Common
+
+import Data.Functor.Foldable hiding (Nil)
 
 compile :: [Block] -> [CompiledModule]
 compile blocks  =   mallocMod 
@@ -115,6 +117,66 @@ icallReg = SpecialReg "ICALL"
 icallDoneReg :: Register
 icallDoneReg = SpecialReg "ICALLDONE"
 
+data BinTree a = Nil | Node a (BinTree a) (BinTree a) deriving (Show, Eq, Functor, Foldable)
+
+data BinTreeF a t = NilF | NodeF a t t deriving (Show, Eq, Functor, Foldable)
+
+type instance Base (BinTree a) = BinTreeF a
+instance Recursive (BinTree a) where
+    project Nil = NilF
+    project (Node x l r) = NodeF x l r
+instance Corecursive (BinTree a) where
+    embed NilF = Nil
+    embed (NodeF x l r) = Node x l r
+
+nodeValue :: BinTree a -> Maybe a
+nodeValue Nil = Nothing
+nodeValue (Node x _ _) = Just x
+
+createICallTree :: [QualifiedName] -> ([CompiledModule], Map QualifiedName Int)
+createICallTree fs = (,mapping) $ (icallMod:) $ binTree & para \case
+        NilF -> []
+        NodeF x (lt, lmods) (rt, rmods) -> [("icall/node" <> show x, catMaybes [
+                Just $ Execute
+                        $ EIf (IScore (reg icallReg) regs $ IMatches (REQ x)) 
+                        $ ERun $ Scoreboard (Players (Set (reg icallDoneReg) regs 1))
+            ,   Just $ Execute 
+                        $ EIf (IScore (reg icallReg) regs $ IMatches (REQ x)) 
+                        $ ERun $ Function (getFunction x)
+            ,   Execute . EIf (IScore (reg icallDoneReg) regs $ IMatches (REQ 0))
+                        . EIf (IScore (reg icallReg) regs $ IMatches (RLE x))
+                        . ERun . Function . ownPath . ("icall.node" +.) . show <$> nodeValue lt
+            ,   Execute . EIf (IScore (reg icallDoneReg) regs $ IMatches (REQ 0))
+                        . EIf (IScore (reg icallReg) regs $ IMatches (RGE x))
+                        . ERun . Function . ownPath . ("icall.node" +.) . show <$> nodeValue rt
+            ])] ++ lmods ++ rmods
+    where
+        mapping :: Map QualifiedName Int
+        mapping = fromList (zip fs [1..])
+        mappingBack :: Map Int QualifiedName
+        mappingBack = fromList (zip [1..] fs)
+        getFunction :: Int -> NamespacedName
+        getFunction i = ownPath $ fromMaybe (error "createICallTree: No function with ID: " <> show i) (lookup i mappingBack)
+
+        binTree = mkBinTree 0 (length fs + 1)
+
+        -- | @left@ and @right@ are *exclusive* bounds
+        mkBinTree left right 
+            | left == mid = Nil
+            | otherwise = Node mid (mkBinTree left mid) (mkBinTree mid right)
+            where
+                mid = (left + right) `div` 2
+
+        icallMod :: CompiledModule
+        icallMod = ("icall/icall", case binTree of
+            Nil -> []
+            Node start _ _ -> [
+                    Scoreboard $ Players $ Set (reg icallDoneReg) regs 0
+                ,   Function (ownPath $ "icall.node" +. show start)
+                ])
+
+
+{-
 -- | builds a search tree from the supplied list of functions.
 -- returns the compiled modules required for the tree, as well as mappings from functions to their addresses.
 createICallTree :: [QualifiedName] -> ([CompiledModule], Map QualifiedName Int)
@@ -161,16 +223,5 @@ createICallTree fs = over _1 ((icallMod:) . fst) $ swap $ run $ runState mempty 
             (rightMods, fs'') <- go fs' mid right
             pure (mod : leftMods <> rightMods, fs'')
         go fs _ _ = pure ([], fs)
-
-{-
-fs = ["f1", "f2", "f3", "f4"]
-
-            2:f1
-           /
-        1:f1
-       
-
-
 -}
-
 
