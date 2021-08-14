@@ -39,7 +39,7 @@ test :: Description -> TModule -> [TestQuery] -> Test
 test desc = Test desc . pure
 
 testSingleMod' :: Description -> Text -> [Text] -> [TestQuery] -> Test
-testSingleMod' desc src setup queries = Test desc [TModule "test.cb" src] (TestQuery (setup <> ["function test:test.main"]) DontExpect : queries)
+testSingleMod' desc src setup queries = Test desc [TModule "test.cb" src] (TestQuery (setup <> ["function test:__main__"]) DontExpect : queries)
 
 testSingleMod :: Description -> Text -> [TestQuery] -> Test
 testSingleMod desc src queries = testSingleMod' desc src [] queries
