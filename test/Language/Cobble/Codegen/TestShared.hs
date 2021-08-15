@@ -13,90 +13,90 @@ exampleLC = L.App (L.Lambda "a" (L.Select 1 (L.Var "a"))) (L.Tuple [L.IntLit 3, 
 
 exampleCPS :: CPS
 exampleCPS = C.App2
-                (C.Admin "f0" (C.App2
-                    (C.Admin "x0" (C.App2
-                        (C.Admin "x1" (C.Let "t2" (C.Tuple [C.Var "x0", C.Var "x1"]) (C.App2
-                            (C.Admin "v1" (C.App3 (C.Var "f0") C.Halt (C.Var "v1")))
-                            (C.Var "t2")
+                (C.Admin "f_0" (C.App2
+                    (C.Admin "x0_3" (C.App2
+                        (C.Admin "x1_4" (C.Let "t_2" (C.Tuple [C.Var "x0_3", C.Var "x1_4"]) (C.App2
+                            (C.Admin "v_1" (C.App3 (C.Var "f_0") C.Halt (C.Var "v_1")))
+                            (C.Var "t_2")
                             )))
                         (C.IntLit 4)))
                     (C.IntLit 3)))
-                (C.Lambda "k3" "a" (C.App2 (Admin "t4" (C.Let "y5" (C.Select 1 (C.Var "t4")) (C.App2 (C.Var "k3") (C.Var "y5")))) (C.Var "a")))
+                (C.Lambda "k_5" "a" (C.App2 (Admin "t_6" (C.Let "y_7" (C.Select 1 (C.Var "t_6")) (C.App2 (C.Var "k_5") (C.Var "y_7")))) (C.Var "a")))
 
 exampleReduced :: CPS
-exampleReduced = C.Let "f0" (Val (C.Lambda "k3" "a" (C.Let "y5" (C.Select 1 (C.Var "a")) (C.App2 (C.Var "k3") (C.Var "y5")))))
-                    (C.Let "x0" (Val (C.IntLit 3))
-                        (C.Let "x1" (Val (C.IntLit 4))
-                            (C.Let "t2" (C.Tuple [C.Var "x0", C.Var "x1"])
-                                (C.App3 (C.Var "f0") C.Halt (C.Var "t2")))))
+exampleReduced = C.Let "f_0" (Val (C.Lambda "k_5" "a" (C.Let "y_7" (C.Select 1 (C.Var "a")) (C.App2 (C.Var "k_5") (C.Var "y_7")))))
+                    (C.Let "x0_3" (Val (C.IntLit 3))
+                        (C.Let "x1_4" (Val (C.IntLit 4))
+                            (C.Let "t_2" (C.Tuple [C.Var "x0_3", C.Var "x1_4"])
+                                (C.App3 (C.Var "f_0") C.Halt (C.Var "t_2")))))
 exampleReducedFreshIX :: Int
 exampleReducedFreshIX = 6
 
 exampleTL :: TL
-exampleTL = T.LetF "f6" "k3" ["s7", "a"] (T.Let "y5" (T.Select 1 "a")
-                (T.Let "k39" (T.Select 0 "k3")
-                (T.Let "env10" (T.Select 1 "k3")
-                (T.App "k39" ["env10", "y5"]))))
+exampleTL = T.LetF "f_6" "k_5" ["s_7", "a"] (T.Let "y_7" (T.Select 1 "a")
+                (T.Let "k_5_9" (T.Select 0 "k_5")
+                (T.Let "env_10" (T.Select 1 "k_5")
+                (T.App "k_5_9" ["env_10", "y_7"]))))
             (T.C 
-                (T.Let "env8" (T.Tuple [])
-                (T.Let "f0" (T.Tuple ["f6", "env8"])
-                (T.Let "x0" (T.IntLit 3)
-                (T.Let "x1" (T.IntLit 4)
-                (T.Let "t2" (T.Tuple ["x0", "x1"])
-                (T.Let "h11" T.Halt
-                (T.Let "henv12" (T.Tuple [])
-                (T.Let "e13" (T.Tuple ["h11", "henv12"])
-                (T.Let "f014" (T.Select 0 "f0")
-                (T.Let "env15" (T.Select 1 "f0")
-                (T.App "f014" ["e13", "env15", "t2"])
+                (T.Let "env_8" (T.Tuple [])
+                (T.Let "f_0" (T.Tuple ["f_6", "env_8"])
+                (T.Let "x0_3" (T.IntLit 3)
+                (T.Let "x1_4" (T.IntLit 4)
+                (T.Let "t_2" (T.Tuple ["x0_3", "x1_4"])
+                (T.Let "h_11" T.Halt
+                (T.Let "henv_12" (T.Tuple [])
+                (T.Let "e_13" (T.Tuple ["h_11", "henv_12"])
+                (T.Let "f_0_14" (T.Select 0 "f_0")
+                (T.Let "env_15" (T.Select 1 "f_0")
+                (T.App "f_0_14" ["e_13", "env_15", "t_2"])
                 )))))))))))
 
 exampleASM :: [Block]
 exampleASM = [
-        Block "f6" [
-            Move (Reg "k3") (SpecialReg "arg0")
-        ,   Move (Reg "s7") (SpecialReg "arg1")
+        Block "f_6" [
+            Move (Reg "k_5") (SpecialReg "arg0")
+        ,   Move (Reg "s_7") (SpecialReg "arg1")
         ,   Move (Reg "a")  (SpecialReg "arg2")
 
-        ,   A.Select (Reg "y5") (Reg "a") 1
-        ,   A.Select (Reg "k39") (Reg "k3") 0
-        ,   A.Select (Reg "env10") (Reg "k3") 1
+        ,   A.Select (Reg "y_7") (Reg "a") 1
+        ,   A.Select (Reg "k_5_9") (Reg "k_5") 0
+        ,   A.Select (Reg "env_10") (Reg "k_5") 1
 
-        ,   Move (SpecialReg "arg0") (Reg "env10")
-        ,   Move (SpecialReg "arg1") (Reg "y5")
-        ,   ICall (Reg "k39")
+        ,   Move (SpecialReg "arg0") (Reg "env_10")
+        ,   Move (SpecialReg "arg1") (Reg "y_7")
+        ,   ICall (Reg "k_5_9")
         ]
     ,   Block "__main__" [
-            LoadFunctionAddress (Reg "f6") "f6"
+            LoadFunctionAddress (Reg "f_6") "f_6"
 
-        ,   Malloc (Reg "env8") 0
+        ,   Malloc (Reg "env_8") 0
         
-        ,   Malloc (Reg "f0") 2
-        ,   Store (Reg "f0") (Reg "f6") 0
-        ,   Store (Reg "f0") (Reg "env8") 1
+        ,   Malloc (Reg "f_0") 2
+        ,   Store (Reg "f_0") (Reg "f_6") 0
+        ,   Store (Reg "f_0") (Reg "env_8") 1
 
-        ,   MoveLit (Reg "x0") 3
+        ,   MoveLit (Reg "x0_3") 3
         
-        ,   MoveLit (Reg "x1") 4
+        ,   MoveLit (Reg "x1_4") 4
         
-        ,   Malloc (Reg "t2") 2
-        ,   Store (Reg "t2") (Reg "x0") 0
-        ,   Store (Reg "t2") (Reg "x1") 1
+        ,   Malloc (Reg "t_2") 2
+        ,   Store (Reg "t_2") (Reg "x0_3") 0
+        ,   Store (Reg "t_2") (Reg "x1_4") 1
 
-        ,   MoveLit (Reg "h11") 0
-        ,   Malloc (Reg "henv12") 0
+        ,   MoveLit (Reg "h_11") 0
+        ,   Malloc (Reg "henv_12") 0
         
-        ,   Malloc (Reg "e13") 2
-        ,   Store (Reg "e13") (Reg "h11") 0
-        ,   Store (Reg "e13") (Reg "henv12") 1
+        ,   Malloc (Reg "e_13") 2
+        ,   Store (Reg "e_13") (Reg "h_11") 0
+        ,   Store (Reg "e_13") (Reg "henv_12") 1
 
-        ,   A.Select (Reg "f014") (Reg "f0") 0
-        ,   A.Select (Reg "env15") (Reg "f0") 1
+        ,   A.Select (Reg "f_0_14") (Reg "f_0") 0
+        ,   A.Select (Reg "env_15") (Reg "f_0") 1
 
-        ,   Move (SpecialReg "arg0") (Reg "e13")
-        ,   Move (SpecialReg "arg1") (Reg "env15")
-        ,   Move (SpecialReg "arg2") (Reg "t2")
-        ,   ICall (Reg "f014")
+        ,   Move (SpecialReg "arg0") (Reg "e_13")
+        ,   Move (SpecialReg "arg1") (Reg "env_15")
+        ,   Move (SpecialReg "arg2") (Reg "t_2")
+        ,   ICall (Reg "f_0_14")
         ]
     ]
 

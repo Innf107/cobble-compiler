@@ -32,8 +32,8 @@ const x y = x;
 check :: Int -> Int;
 check x = x;
 
---! 7
-check (const 7 (__true__ ()))
+--! 71
+check (const 71 (__true__ ()))
 
 --# function types : score
 apply :: (a -> b) -> a -> b;

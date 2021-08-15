@@ -6,6 +6,7 @@ test.cb
 test.mamod
 lc.lc
 cps.lc
+reducedCPS.lc
 tl.lc
 asm.mcasm
 test.zip

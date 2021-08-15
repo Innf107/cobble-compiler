@@ -120,6 +120,7 @@ compileForTest program = do
             ,   ddumpAsm=False
             ,   ddumpLC=False
             ,   ddumpCPS=False
+            ,   ddumpReduced=False
             ,   ddumpTL=False
             ,   description="testing"
             }

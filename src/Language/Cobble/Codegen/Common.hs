@@ -10,7 +10,7 @@ import Relude (Semigroup)
 type Objective = Text
 
 freshVar :: (Members '[State Int] r) => QualifiedName -> Sem r QualifiedName
-freshVar v = state \i -> (v +. show i, i + 1)
+freshVar v = state \i -> (v +. ("_" <> show i), i + 1)
 
 
 class Freshen o f | o -> f, f -> o where

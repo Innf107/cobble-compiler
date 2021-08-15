@@ -24,7 +24,7 @@ runCobble = \case
     Compile co -> runCompile co
 
 runCompile :: CompileCmdOpts -> IO ()
-runCompile CompileCmdOpts{compFiles, debug, packageName, description, logLevel, target, ddumpLC, ddumpCPS, ddumpTL, ddumpAsm} = do
+runCompile CompileCmdOpts{compFiles, debug, packageName, description, logLevel, target, ddumpLC, ddumpCPS, ddumpReduced, ddumpTL, ddumpAsm} = do
     let opts = CompileOpts {
             name=packageName
         ,   debug
@@ -32,6 +32,7 @@ runCompile CompileCmdOpts{compFiles, debug, packageName, description, logLevel, 
         ,   target   
         ,   ddumpLC
         ,   ddumpCPS
+        ,   ddumpReduced
         ,   ddumpTL    
         ,   ddumpAsm 
         }
@@ -68,6 +69,7 @@ data CompileCmdOpts = CompileCmdOpts {
     , target :: Target
     , ddumpLC :: Bool
     , ddumpCPS :: Bool
+    , ddumpReduced :: Bool
     , ddumpTL :: Bool
     , ddumpAsm :: Bool
     } deriving (Show, Eq)
@@ -82,6 +84,7 @@ compileOpts = CompileCmdOpts
     <*> option parseTarget (long "target" <> short 't' <> metavar "TARGET" <> help "The Minecraft version targeted by this datapack")
     <*> switch (long "ddump-lc" <> help "Write the intermediate lambda calculus to a file")
     <*> switch (long "ddump-cps" <> help "Write the intermediate CPS to a file")
+    <*> switch (long "ddump-reduced" <> help "Write the reduced intermediate CPS to a file")
     <*> switch (long "ddump-tl" <> help "Write the intermediate TopLevel CPS to a file")
     <*> switch (long "ddump-asm" <> help "Write the intermediate ASM to a file")
 

@@ -83,6 +83,7 @@ data CompileOpts = CompileOpts {
     , ddumpAsm::Bool
     , ddumpLC::Bool
     , ddumpCPS::Bool
+    , ddumpReduced::Bool
     , ddumpTL::Bool
     }
 
@@ -159,7 +160,10 @@ compileWithSig m = do
         cps     <- LC2CPS.compile lc
         whenM (asks ddumpCPS) $ dumpCPS cps
 
-        tl      <- CPS2TL.compile cps
+        let reduced = LC2CPS.reduceAdmin cps
+        whenM (asks ddumpReduced) $ dumpReduced reduced
+
+        tl      <- CPS2TL.compile reduced
         whenM (asks ddumpTL) $ dumpTL tl
         
         let asm = TL2ASM.compile tl 
@@ -205,6 +209,9 @@ dumpLC = writeFile "lc.lc" . prettyPrintLCExpr
 
 dumpCPS :: (Members '[FileSystem FilePath Text] r) => CPS -> Sem r ()
 dumpCPS = writeFile "cps.lc" . show
+
+dumpReduced :: (Members '[FileSystem FilePath Text] r) => CPS -> Sem r ()
+dumpReduced = writeFile "reducedCPS.lc" . show
 
 dumpTL :: (Members '[FileSystem FilePath Text] r) => TL -> Sem r ()
 dumpTL = writeFile "tl.lc" . show 

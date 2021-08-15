@@ -7,8 +7,10 @@ import Language.Cobble.LC.Types as L
 import Language.Cobble.CPS.Basic.Types as C
 import Language.Cobble.Codegen.Common
 
+import Data.List ((!!))
+
 compile :: (Members '[State Int] r) => LCExpr -> Sem r CPS
-compile e = reduceAdmin <$> compileExpr e Halt 
+compile e = compileExpr e Halt 
 
 compileExpr :: (Members '[State Int] r) => LCExpr -> CPSVal -> Sem r CPS
 compileExpr = flip \kval -> let k = staticCont kval in \case
@@ -18,13 +20,17 @@ compileExpr = flip \kval -> let k = staticCont kval in \case
     L.Let v e b         -> compileExpr e . C.Admin v =<< compileExpr b kval 
     L.App f a           -> freshVar "f" >>=  \f' -> freshVar "v" >>= \v' ->
         compileExpr f =<< C.Admin f' <$> compileExpr a (C.Admin v' (C.App3 (C.Var f') kval (C.Var v')))
-    L.Tuple es          -> freshVar "t" >>= \t' -> foldrM   (\(i, e) r -> compileExpr e (C.Admin ("x" +. show i) r))
-                                    (C.Let t' (C.Tuple (fmap (C.Var . ("x" +.) . show) (indexes es))) (k (C.Var t')))
-                                    (zipIndex es)
+    L.Tuple es          -> freshVar "t" >>= \t' -> do
+        vars <- traverse freshVar $ map (("x" +.) . show) (indexes es)
+        foldrM (\(i, e) r -> compileExpr e (C.Admin (vars !! i) r))
+            (C.Let t' (C.Tuple (map C.Var vars)) (k (C.Var t')))
+            (zipIndex es)
     L.Select n e        -> freshVar "t" >>= \t' -> freshVar "y" >>= \y' -> compileExpr e (C.Admin t' (C.Let y' (C.Select n (C.Var t')) (k (C.Var y'))))
-    L.PrimOp p es       -> freshVar "p" >>= \p' -> foldrM (\(i, e) r -> compileExpr e (C.Admin ("x" +. show i) r))
-                                    (C.Let p' (C.PrimOp p (fmap (C.Var . ("x" +.) . show) (indexes es))) (k (C.Var p')))
-                                    (zipIndex es)
+    L.PrimOp p es       -> freshVar "p" >>= \p' -> do
+        vars <- traverse freshVar $ map (("x" +.) . show) (indexes es)
+        foldrM (\(i, e) r -> compileExpr e (C.Admin (vars !! i) r))
+            (C.Let p' (C.PrimOp p (map C.Var vars)) (k (C.Var p')))
+            (zipIndex es)
 
 reduceAdmin :: CPS -> CPS
 reduceAdmin = transformBi adminToLambda . rewriteBi (betaLetReduce <<|>> etaReduce)
