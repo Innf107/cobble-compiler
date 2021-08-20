@@ -8,6 +8,7 @@ import Language.Cobble.Util.Polysemy.Fresh
 import Language.Cobble.CPS.TopLevel.Types as T
 import Language.Cobble.MCAsm.Types as A
 
+import Language.Cobble.Codegen.Common
 import Language.Cobble.Codegen.PrimOps as P 
 
 argReg :: Int -> Register
@@ -34,6 +35,9 @@ compile' fs = \case
             )
         : []
 
+ifDoneReg :: Register
+ifDoneReg = SpecialReg "ifDone"
+
 compileTLC :: TLC -> [Instruction]
 compileTLC = \case
     Let x (IntLit n) c      -> MoveLit (Reg x) n : compileTLC c
@@ -42,10 +46,19 @@ compileTLC = \case
     Let x (Tuple ys) c      -> Malloc (Reg x) (length ys)
                             :  imap (\i y -> Store (Reg x) (Reg y) i) ys
                             <> compileTLC c
+    Let x (PrimOp p ys) c   -> letPrimOp x p ys <> compileTLC c 
     Let x (T.Select n y) c  -> A.Select (Reg x) (Reg y) n : compileTLC c 
     App f xs                -> imap (\i x -> Move (argReg i) (Reg x)) xs
                             <> [ICall (Reg f)]
-    Let x (PrimOp p ys) c   -> letPrimOp x p ys <> compileTLC c 
+    If c th el              -> concat [
+            [MoveLit ifDoneReg 0]
+        ,   ExecInRange (Reg c) (REQ 1) 
+                <$> (MoveLit ifDoneReg 1)
+                :   compileTLC th
+        ,   ExecInRange ifDoneReg (REQ 0) 
+                <$> (compileTLC el)
+        ,   [MoveLit ifDoneReg 1]
+        ] 
     
 letPrimOp :: QualifiedName -> PrimOp -> [QualifiedName] -> [Instruction]
 letPrimOp x p = case p of
@@ -84,6 +97,3 @@ letPrimOp x p = case p of
 
 
 
-
-freshReg :: (Member (Fresh QualifiedName) r) => QualifiedName -> Sem r Register
-freshReg = fmap Reg . freshVar

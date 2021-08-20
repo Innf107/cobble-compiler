@@ -21,6 +21,9 @@ prettyPrintLCExpr = \case
     IntLit i            -> show i
     Tuple as            -> "[" <> T.intercalate ", " (map prettyPrintLCExpr $ toList as) <> "]"
     Select i t          -> prettyPrintLCExprParens t <> "._" <> show i
+    If c th el          ->      "if " <> prettyPrintLCExpr c 
+                            <> " then " <> prettyPrintLCExpr th 
+                            <> " else " <> prettyPrintLCExpr el
     PrimOp p ps         -> "__" <> show p <> "__[" <> T.intercalate ", " (map prettyPrintLCExpr ps) <> "]"
 
 prettyPrintLCExprParens :: LCExpr -> Text

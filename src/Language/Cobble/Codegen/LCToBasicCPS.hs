@@ -31,12 +31,18 @@ compileExpr = flip \kval -> let k = staticCont kval in \case
         foldrM (\(i, e) r -> compileExpr e (C.Admin (vars !! i) r))
             (C.Let p' (C.PrimOp p (map C.Var vars)) (k (C.Var p')))
             (zipIndex es)
+    --                            We bind kval as k' so the (potentially large) continuation is not (yet) duplicated.
+    L.If c th el -> freshen ("c", "k") >>= \(c', k') -> C.Let k' (Val kval) <$> (compileExpr c =<< ((.) (C.Admin c') . C.If (C.Var c') 
+                    <$> compileExpr th (C.Var k')
+                    <*> compileExpr el (C.Var k')))
+
 
 reduceAdmin :: CPS -> CPS
-reduceAdmin = transformBi adminToLambda . rewriteBi (betaLetReduce <<|>> etaReduce)
+reduceAdmin = rewriteBi (betaLetReduce <<|>> etaReduce)
     where
         betaLetReduce :: CPS -> Maybe CPS
         betaLetReduce = \case
+--          (\_x. e) y
             C.App2 (C.Admin x e) y
                 | C.Var _ <- y                                      -> Just $ replaceVar x y e
                 --  | length [() | C.Var v <- universeBi e, v == x] <= 1 -> Just $ replaceVar x y e
@@ -57,10 +63,6 @@ reduceAdmin = transformBi adminToLambda . rewriteBi (betaLetReduce <<|>> etaRedu
         replaceVar v e = transformBi \case
             (C.Var v') | v == v' -> e
             x -> x
-            
-        adminToLambda :: CPSVal -> CPSVal
-        adminToLambda x = x
-        -- TODO
-            
+                        
 staticCont :: CPSVal -> (CPSVal -> CPS)
 staticCont = C.App2

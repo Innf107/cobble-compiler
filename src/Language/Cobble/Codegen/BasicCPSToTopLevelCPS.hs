@@ -1,11 +1,8 @@
 module Language.Cobble.Codegen.BasicCPSToTopLevelCPS where
 
 {-
-ISSUE:
-Functions are passed a continuation as a *closure*, (a tuple including the function and its environment),
-but they try to call the continuation closure directly
-
-IMPORTANT OPTIMIZATION: Pass the closure as an *unboxed* tuple to avoid tons of unnecessary allocations
+IMPORTANT OPTIMIZATION: Instead of allocating expensive closures, pass the environment as extra parameters wherever possible, 
+                        thus massively reducing the amount of allocations.
 -}
 
 import Language.Cobble.Prelude hiding (uncurried, (\\))
@@ -52,6 +49,28 @@ compileC = \case
                 fTLs <> vTLs 
             ,   withLocals (fLocs <> v1Locs <> fBindings <> vBindings <> unwrapBindings) (T.App f'' [env', v'])
             )
+    C.If c th el -> do
+        (cTLs, cLocs, (cBindings, c')) <- traverseOf _3 asVar =<< compileVal c
+        (thTLs, th') <- compileC th
+        (elTLs, el') <- compileC el
+
+        (thF', thEnv') <- freshen ("th", "thenv")
+        let thVars = toList $ freeVars th
+        thenCont <- freshen "ths" <&> \ths' -> TLBindingC thF' [ths'] (ifoldr (\i x r -> T.Let x (T.Select i ths') r) th' thVars)
+        let thEnv = (thEnv', T.Tuple thVars)
+
+        (elF', elEnv') <- freshen ("el", "elenv")
+        let elVars = toList $ freeVars th
+        elCont <- freshen "els" <&> \els' -> TLBindingC elF' [els'] (ifoldr (\i x r -> T.Let x (T.Select i els') r) el' elVars)
+        let elEnv = (elEnv', T.Tuple elVars)
+
+        pure (
+                cTLs <> thTLs <> elTLs <> [thenCont, elCont]
+            ,   withLocals (cLocs <> cBindings) 
+                    $ T.If c' 
+                        (withLocals [thEnv] (T.App thF' [thEnv'])) 
+                        (withLocals [elEnv] (T.App elF' [elEnv']))
+            )
     where
         withLocals :: [LocalBinding] -> TLC -> TLC
         withLocals = flip (foldr (\(x, e) r -> T.Let x e r))
@@ -81,7 +100,7 @@ compileVal = \case
     C.IntLit n      -> pure ([], [], T.IntLit n)
     C.Var v         -> pure ([], [], T.Var v)
     C.Lambda k x c  -> compileLambda k x c
-    C.Admin v c     -> compileClosure v c
+    C.Admin v c     -> compileContinuation v c
     C.Halt          -> freshen ("h", "henv") <&> \(h', henv') -> 
                         ([], [(h', T.Halt), (henv', T.Tuple [])], T.Tuple [h', henv'])
 
@@ -96,8 +115,8 @@ compileLambda k x c = freshen ("f", "s", "env") >>= \(f', s', env') -> do
         where
             ys = toList (freeVars c \\ fromList [k, x])
 
-compileClosure :: (Members '[State Int] r) => QualifiedName -> CPS -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
-compileClosure x c = freshen ("f", "s", "env") >>= \(f', s', env') -> do
+compileContinuation :: (Members '[State Int] r) => QualifiedName -> CPS -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
+compileContinuation x c = freshen ("f", "s", "env") >>= \(f', s', env') -> do
     (fs, c') <- compileC c
     pure (
             TLBindingC f' [s', x] (ifoldr (\i x r -> T.Let x (T.Select i s') r) c' ys) : fs
@@ -121,6 +140,7 @@ freeVars = \case
     C.Let v e b   -> freeVarsExpr e <> (freeVars b \\ one v)
     C.App2 f e    -> freeVarsVal f <> freeVarsVal e
     C.App3 f k e  -> freeVarsVal f <> freeVarsVal k <> freeVarsVal e
+    C.If c th el  -> freeVarsVal c <> freeVars th <> freeVars el 
 
 freeVarsExpr :: CPSExpr -> Set QualifiedName
 freeVarsExpr = \case

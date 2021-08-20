@@ -19,6 +19,7 @@ data LCExpr = Var QualifiedName
             | IntLit Int
             | Tuple [LCExpr]
             | Select Int LCExpr
+            | If LCExpr LCExpr LCExpr
             | PrimOp PrimOp [LCExpr]
             deriving (Show, Eq, Generic, Data)
 

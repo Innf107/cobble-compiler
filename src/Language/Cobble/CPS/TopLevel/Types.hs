@@ -14,6 +14,7 @@ data TL = LetF QualifiedName QualifiedName [QualifiedName] TLC TL
 
 data TLC = Let QualifiedName TLExp TLC
          | App QualifiedName [QualifiedName]
+         | If QualifiedName TLC TLC
          deriving (Eq, Generic, Data)
 
 data TLExp = IntLit Int
@@ -35,7 +36,7 @@ instance Show TLC where
     show = \case
         Let x e b -> "let " <> show x <> " = " <> show e <> " in\n    " <> show b 
         App f xs -> show f <> " " <> intercalate " " (map show xs)
-
+        If c th el -> "if " <> show c <> " then " <> show th <> " else " <> show el
 
 instance Show TLExp where
     show = \case
