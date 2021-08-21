@@ -16,6 +16,7 @@ data LCExpr = Var QualifiedName
             | Lambda QualifiedName LCExpr
             | App LCExpr LCExpr
             | Let QualifiedName LCExpr LCExpr
+            | LetRec QualifiedName LCExpr LCExpr
             | IntLit Int
             | Tuple [LCExpr]
             | Select Int LCExpr

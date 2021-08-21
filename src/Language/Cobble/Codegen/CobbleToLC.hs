@@ -12,13 +12,15 @@ compile :: Map QualifiedName PrimOpInfo -> Module Codegen -> LCExpr
 compile prims (Module _deps _modname statements) = foldr makeLet (L.IntLit 0) 
     $ concatMap compileStatement statements
     where
-        makeLet (LCDef n e) r = L.Let n e r
+        makeLet (LCDef n e) r
+            | length [() | L.App (L.Var v) _ <- universeBi e, v == n] > 0 = L.LetRec n e r
+            | otherwise = L.Let n e r
 
         compileStatement :: Statement Codegen -> [LCDef]
         compileStatement Import {} = []
         compileStatement DefStruct {} = []
         compileStatement (StatementX x _) = absurd x
-        compileStatement (Def IgnoreExt _li (Decl (Ext _) fname (Ext params) body) _) = [ --TODO: Use fix instead of lambda
+        compileStatement (Def IgnoreExt _li (Decl (Ext _) fname (Ext params) body) _) = [
                 LCDef fname $ foldr (Lambda . fst) (compileExpr body) params
             ]
 

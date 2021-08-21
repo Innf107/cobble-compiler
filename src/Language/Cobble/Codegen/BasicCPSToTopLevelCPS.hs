@@ -13,6 +13,7 @@ import Language.Cobble.Codegen.Common
 
 import Data.Set ((\\))
 
+--               TODO: TLBindingRecF QualifiedName QualifiedName [QualifiedName] TLC
 data TopLevelBinding = TLBindingF QualifiedName QualifiedName [QualifiedName] TLC
                      | TLBindingC QualifiedName [QualifiedName] TLC
 
@@ -30,6 +31,8 @@ compileC = \case
         (eTLs, eLocs, eExp) <- compileExpr e
         (cTLs, cC) <- compileC c
         pure (eTLs <> cTLs, withLocals eLocs (T.Let x eExp cC))
+    C.LetRec x e c -> do
+        undefined
     C.App3 f v1 v2 -> do
         (fTLs,  fLocs,  (fBindings,  f'))  <- traverseOf _3 asVar =<< compileVal f
         (v1TLs, v1Locs, (v1Bindings, v1')) <- traverseOf _3 asVar =<< compileVal v1 
@@ -104,6 +107,7 @@ compileVal = \case
     C.Halt          -> freshen ("h", "henv") <&> \(h', henv') -> 
                         ([], [(h', T.Halt), (henv', T.Tuple [])], T.Tuple [h', henv'])
 
+
 compileLambda :: (Members '[State Int] r) => QualifiedName -> QualifiedName -> CPS -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
 compileLambda k x c = freshen ("f", "s", "env") >>= \(f', s', env') -> do
     (fs, c') <- compileC c
@@ -138,6 +142,7 @@ asVars es = first concat . unzip <$> traverse asVar es
 freeVars :: CPS -> Set QualifiedName
 freeVars = \case
     C.Let v e b   -> freeVarsExpr e <> (freeVars b \\ one v)
+    C.LetRec v e b-> (freeVarsExpr e <> freeVars b) \\ one v
     C.App2 f e    -> freeVarsVal f <> freeVarsVal e
     C.App3 f k e  -> freeVarsVal f <> freeVarsVal k <> freeVarsVal e
     C.If c th el  -> freeVarsVal c <> freeVars th <> freeVars el 
