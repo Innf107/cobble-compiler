@@ -11,7 +11,7 @@ import qualified Data.Text as T
 import Data.Data
 
 data CPS = Let      QualifiedName CPSExpr CPS
-         | LetRec   QualifiedName CPSExpr CPS
+         | LetRec   QualifiedName QualifiedName QualifiedName CPS CPS
          | App3 CPSVal CPSVal CPSVal
          | App2 CPSVal CPSVal
          | If CPSVal CPS CPS
@@ -37,7 +37,7 @@ instance S.Show CPSVal where show = toString . prettyPrintCPSVal
 prettyPrintCPS :: CPS -> Text
 prettyPrintCPS = \case
     Let name ex body    -> "let "    <> show name <> " = " <> prettyPrintCPSExpr ex <> " in " <> prettyPrintCPS body
-    LetRec name ex body -> "letrec " <> show name <> " = " <> prettyPrintCPSExpr ex <> " in " <> prettyPrintCPS body
+    LetRec f k x ex body-> "letrec " <> show f <> " " <> show k <> " " <> show x <> " = " <> prettyPrintCPS ex <> " in " <> prettyPrintCPS body
     App2 f x            -> prettyPrintCPSVal f <> " " <> prettyPrintCPSVal x
     App3 f x y          -> prettyPrintCPSVal f <> " " <> prettyPrintCPSVal x <> " " <> prettyPrintCPSVal y
     If c th el          -> "if " <> prettyPrintCPSVal c <> " then " <> prettyPrintCPS th <> " else " <> prettyPrintCPS el 

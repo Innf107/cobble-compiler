@@ -12,9 +12,9 @@ compile :: Map QualifiedName PrimOpInfo -> Module Codegen -> LCExpr
 compile prims (Module _deps _modname statements) = foldr makeLet (L.IntLit 0) 
     $ concatMap compileStatement statements
     where
-        makeLet (LCDef n e) r
-            | length [() | L.App (L.Var v) _ <- universeBi e, v == n] > 0 = L.LetRec n e r
-            | otherwise = L.Let n e r
+        makeLet (LCDef n (Lambda x e)) r
+            | length [() | L.App (L.Var v) _ <- universeBi e, v == n] > 0 = L.LetRec n x e r
+        makeLet (LCDef n e) r = L.Let n e r
 
         compileStatement :: Statement Codegen -> [LCDef]
         compileStatement Import {} = []

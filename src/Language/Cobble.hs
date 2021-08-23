@@ -35,7 +35,6 @@ import Language.Cobble.MCAsm.Types qualified as A
 import Language.Cobble.McFunction.Types
 
 import Language.Cobble.Codegen.PrimOps
-import Language.Cobble.Codegen.Types
 
 import Language.Cobble.Codegen.CobbleToLC as C2LC
 import Language.Cobble.Codegen.LCToBasicCPS as LC2CPS

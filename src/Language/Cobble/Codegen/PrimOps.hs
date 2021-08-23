@@ -4,7 +4,6 @@ module Language.Cobble.Codegen.PrimOps where
 import Language.Cobble.Prelude
 import Language.Cobble.Util
 import Language.Cobble.Types
-import Language.Cobble.Codegen.Types
 
 import Data.Map qualified as M
 import qualified GHC.Exts
