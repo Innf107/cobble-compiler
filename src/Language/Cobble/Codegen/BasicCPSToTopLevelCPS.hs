@@ -25,8 +25,8 @@ compile c = runReader mempty $ compileC c <&> \(bindings, cmd) -> bindings & fol
     TLBindingC fname args b   -> T.LetC fname args b r
     ) (T.C cmd)
 
-type LetRecEnv = Map QualifiedName QualifiedName
---                   ^Function     ^Environment
+type LetRecEnv = Map QualifiedName (QualifiedName, QualifiedName)
+--                   ^Function     ^TLFunName      ^Environment
 
 compileC :: forall r. (Members '[State Int, Reader LetRecEnv] r) => CPS -> Sem r ([TopLevelBinding], TLC)
 compileC = \case
@@ -37,7 +37,8 @@ compileC = \case
     C.LetRec f k x e c -> do
         s' <- freshen "s"
         env' <- freshen "env"
-        (lamTLs, lamLocs, lamExp) <- local (insert f s') $ compileLambdaWithNames (f, s', env') k x e
+        tlF <- freshen f
+        (lamTLs, lamLocs, lamExp) <- local (insert f (tlF, s')) $ compileLambdaWithNames (tlF, s', env') k x e
         -- LetRec is (obviously) only scoped over its own function body
         (cTLs, cC) <- compileC c
         pure (lamTLs <> cTLs, withLocals lamLocs (T.Let f lamExp cC))
@@ -45,7 +46,7 @@ compileC = \case
     C.App3 f v1 v2 -> do
         recFuns <- ask
         case f of
-            C.Var fv | Just fenv <- lookup fv recFuns -> do
+            C.Var fv | Just (tlF, fenv) <- lookup fv recFuns -> do
                 -- Recursive calls are treated specially
                 (v1TLs, v1Locs, (v1Bindings, v1')) <- traverseOf _3 asVar =<< compileVal v1
                 (v2TLs, v2Locs, (v2Bindings, v2')) <- traverseOf _3 asVar =<< compileVal v2
@@ -53,7 +54,7 @@ compileC = \case
                 pure 
                     (   v1TLs <> v2TLs 
                     ,   withLocals (v1Locs <> v2Locs <> v1Bindings <> v2Bindings)
-                            (T.App fv [v1', fenv, v2'])
+                            (T.App tlF [v1', fenv, v2'])
                     ) 
             _ -> do 
                 (fTLs,  fLocs,  (fBindings,  f'))  <- traverseOf _3 asVar =<< compileVal f
