@@ -11,7 +11,10 @@ import Language.Cobble.CPS.Basic.Types as C
 import Language.Cobble.CPS.TopLevel.Types as T
 import Language.Cobble.Codegen.Common
 
+import Data.Map qualified as M
+
 import Data.Set ((\\))
+import Data.Set qualified as S
 
 --               TODO: TLBindingRecF QualifiedName QualifiedName [QualifiedName] TLC
 data TopLevelBinding = TLBindingF QualifiedName QualifiedName [QualifiedName] TLC
@@ -82,12 +85,12 @@ compileC = \case
         (elTLs, el') <- compileC el
 
         (thF', thEnv') <- freshen ("th", "thenv")
-        let thVars = toList $ freeVars th
+        thVars <- freeVars th []
         thenCont <- freshen "ths" <&> \ths' -> TLBindingC thF' [ths'] (ifoldr (\i x r -> T.Let x (T.Select i ths') r) th' thVars)
         let thEnv = (thEnv', T.Tuple thVars)
 
         (elF', elEnv') <- freshen ("el", "elenv")
-        let elVars = toList $ freeVars th
+        elVars <- freeVars th []
         elCont <- freshen "els" <&> \els' -> TLBindingC elF' [els'] (ifoldr (\i x r -> T.Let x (T.Select i els') r) el' elVars)
         let elEnv = (elEnv', T.Tuple elVars)
 
@@ -137,25 +140,24 @@ compileLambda k x c = freshen ("f", "s", "env") >>= \ns -> compileLambdaWithName
 
 compileLambdaWithNames :: (Members '[State Int, Reader LetRecEnv] r) => (QualifiedName, QualifiedName, QualifiedName) -> QualifiedName -> QualifiedName -> CPS -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
 compileLambdaWithNames (f', s', env') k x c = do
+    ys <- freeVars c [k, x]
     (fs, c') <- compileC c
     pure (
             TLBindingF f' k [s', x] (ifoldr (\i x r -> T.Let x (T.Select i s') r) c' ys) : fs
         ,   [(env', T.Tuple ys)]
         ,   T.Tuple [f', env']
         )
-        where
-            ys = toList (freeVars c \\ fromList [k, x])
 
 compileContinuation :: (Members '[State Int, Reader LetRecEnv] r) => QualifiedName -> CPS -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
 compileContinuation x c = freshen ("f", "s", "env") >>= \(f', s', env') -> do
     (fs, c') <- compileC c
+    ys <- freeVars c [x]
     pure (
             TLBindingC f' [s', x] (ifoldr (\i x r -> T.Let x (T.Select i s') r) c' ys) : fs
         ,   [(env', T.Tuple ys)]
         ,   T.Tuple [f', env']
         )
-        where
-            ys = toList (freeVars c \\ fromList [x])
+            
 
 asVar :: (Member (State Int) r) => TLExp -> Sem r ([LocalBinding], QualifiedName)
 asVar = \case
@@ -166,31 +168,36 @@ asVars :: (Member (State Int) r) => [TLExp] -> Sem r ([LocalBinding], [Qualified
 asVars es = first concat . unzip <$> traverse asVar es
     
 
-freeVars :: CPS -> Set QualifiedName
-freeVars = \case
-    C.Let v e b   -> freeVarsExpr e <> (freeVars b \\ one v)
-    C.LetRec f k x e b-> (freeVars e <> freeVars b) \\ fromList [f, k, x]
-    C.App2 f e    -> freeVarsVal f <> freeVarsVal e
-    C.App3 f k e  -> freeVarsVal f <> freeVarsVal k <> freeVarsVal e
-    C.If c th el  -> freeVarsVal c <> freeVars th <> freeVars el 
+freeVars :: (Members '[Reader LetRecEnv] r) => CPS -> [QualifiedName] -> Sem r [QualifiedName]
+freeVars c ns = do
+    envs <- asks M.toList
+    let fvs = freeVars' c \\ fromList ns
+    let envVars = fromList $ mapMaybe (\(f, (env, _)) -> if f `member` fvs then Just env else Nothing) envs
 
-freeVarsExpr :: CPSExpr -> Set QualifiedName
-freeVarsExpr = \case
-    C.Val v         -> freeVarsVal v
-    C.Tuple vs      -> foldMap freeVarsVal vs
-    C.Select _ v    -> freeVarsVal v
-    C.PrimOp _ vs     -> foldMap freeVarsVal vs
+    pure $ toList $ fvs <> envVars
 
-freeVarsVal :: CPSVal -> Set QualifiedName
-freeVarsVal = \case
+freeVars' :: CPS -> Set QualifiedName
+freeVars' = \case
+    C.Let v e b         -> freeVarsExpr' e <> (freeVars' b \\ one v)
+    C.LetRec f k x e b  -> (freeVars' e <> freeVars' b) \\ fromList [f, k, x]
+    C.App2 f e          -> freeVarsVal' f <> freeVarsVal' e
+    C.App3 f k e        -> freeVarsVal' f <> freeVarsVal' k <> freeVarsVal' e
+    C.If c th el        -> freeVarsVal' c <> freeVars' th <> freeVars' el 
+
+freeVarsExpr' :: CPSExpr -> Set QualifiedName
+freeVarsExpr' = \case
+    C.Val v         -> freeVarsVal' v
+    C.Tuple vs      -> foldMap freeVarsVal' vs
+    C.Select _ v    -> freeVarsVal' v
+    C.PrimOp _ vs     -> foldMap freeVarsVal' vs
+
+freeVarsVal' :: CPSVal -> Set QualifiedName
+freeVarsVal' = \case
     C.IntLit _          -> mempty
     C.Halt              -> mempty
     C.Var v             -> one v
-    C.Lambda k1 k2 b    -> freeVars b \\ fromList [k1, k2]
-    C.Admin x c         -> freeVars c \\ one x
-
-
-
+    C.Lambda k1 k2 b    -> freeVars' b \\ fromList [k1, k2]
+    C.Admin x c         -> freeVars' c \\ one x
 
 
 
