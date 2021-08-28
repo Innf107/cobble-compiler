@@ -1,78 +1,40 @@
-module Language.Cobble.Codegen.PrimOps (primOps) where
+{-#LANGUAGE TemplateHaskell#-}
+module Language.Cobble.Codegen.PrimOps where
 
 import Language.Cobble.Prelude
 import Language.Cobble.Util
 import Language.Cobble.Types
-import Language.Cobble.Codegen.Types
-import Language.Cobble.MCAsm.Types
-import Language.Cobble.MCAsm.McFunction
 
 import Data.Map qualified as M
+import qualified GHC.Exts
 
-primOps :: (PrimOpC r) => Map QualifiedName (PrimOp r)
-primOps = M.mapKeys ("prims" .:) $ fromList [
---      Literals
-        ("_true", (unitT -:> boolT, _true))
-    ,   ("_false", (unitT -:> boolT, _false))
---      Arithmetic
-    ,   ("_add", (intT -:> intT -:> intT, _add))
-    ,   ("_sub", (intT -:> intT -:> intT, _sub))
-    ,   ("_mul", (intT -:> intT -:> intT, _mul))
-    ,   ("_div", (intT -:> intT -:> intT, _div))
-    ,   ("_mod", (intT -:> intT -:> intT, _mod))
---      Comparison
-    ,   ("_le", (intT -:> intT -:> boolT, _le))
---      Side Effects
-    ,   ("_setTestScoreboardUnsafe", (intT -:> unitT, _setTestScoreboardUnsafe))
+data PrimOp = True_
+            | False_
+            | Add
+            | Sub
+            | Mul
+            | Div
+            | Mod
+            | LE
+            | SetTestScoreboardUnsafe
+            deriving (Show, Eq, Generic, Data)
+
+data PrimOpInfo = PrimOpInfo {
+        _primOp :: PrimOp
+    ,   _primOpType :: Type Codegen
+    }
+
+primOps :: Map QualifiedName PrimOpInfo 
+primOps = M.mapKeys (\k -> UnsafeQualifiedName k k InternalLexInfo) $ fromList [
+        ("__true__", PrimOpInfo True_ (unitT -:> boolT))
+    ,   ("__false__", PrimOpInfo False_ (unitT -:> boolT))
+    ,   ("__add__", PrimOpInfo Add (intT -:> intT -:> intT))
+    ,   ("__sub__", PrimOpInfo Sub (intT -:> intT -:> intT))
+    ,   ("__mul__", PrimOpInfo Mul (intT -:> intT -:> intT))
+    ,   ("__div__", PrimOpInfo Div (intT -:> intT -:> intT))
+    ,   ("__mod__", PrimOpInfo Mod (intT -:> intT -:> intT))
+    ,   ("__le__",  PrimOpInfo LE  (intT -:> intT -:> boolT))
+    ,   ("__setTestScoreboardUnsafe__", PrimOpInfo SetTestScoreboardUnsafe (intT -:> unitT))
     ]
 
-_true :: PrimOpF r
-_true PrimOpEnv{..} _args = pure trueReg
-
-_false :: PrimOpF r
-_false PrimOpEnv{..} _args = pure falseReg
-
-_add :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_add = binaryOp \_ x y res -> tell [MoveReg res x, AddReg res y]
-
-_sub :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_sub = binaryOp \_ x y res -> tell [MoveReg res x, SubReg res y]
-
-_mul :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_mul = binaryOp \_ x y res -> tell [MoveReg res x, MulReg res y]
-
-_div :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_div = binaryOp \_ x y res -> tell [MoveReg res x, DivReg res y]
-
-_mod :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_mod = binaryOp \_ x y res -> tell [MoveReg res x, ModReg res y]
-
-_le :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_le = binaryOp \_ x y res -> tell [MoveNumLit res 0, ExecLE x y [McFunction $ "scoreboard players set " <> renderReg res <> " REGS 1"]] --TODO!
-
-_setTestScoreboardUnsafe :: (Members '[Writer [Instruction], Error Panic] r) => PrimOpF r
-_setTestScoreboardUnsafe = unaryOp' \PrimOpEnv{..} x -> tell [SetScoreboard (Objective "test") "test" x] $> unitReg
-
-
--- Helper functions
-_unaryOp :: (Member (Error Panic) r) => (PrimOpEnv r -> Register -> Register -> Sem r ()) -> PrimOpF r
-_unaryOp f = unaryOp' \e@PrimOpEnv{..} x -> do
-    resReg <- newReg
-    f e x resReg
-    pure resReg
-
-unaryOp' :: (Member (Error Panic) r) => (PrimOpEnv r -> Register -> Sem r Register) -> PrimOpF r
-unaryOp' f e@PrimOpEnv{..} args = do
-    aregs <- traverse compileExprToReg args
-    case aregs of
-        [r1] -> f e r1
-        _ -> panic $ "unary primop applied the wrong amount of arguments (" <> (show $ length aregs) <> "). Is the type correct?"
-
-binaryOp :: (Member (Error Panic) r) => (PrimOpEnv r -> Register -> Register -> Register -> Sem r ()) -> PrimOpF r
-binaryOp f e@PrimOpEnv{..} args = do
-    aregs <- traverse compileExprToReg args
-    resReg <- newReg
-    case aregs of
-        [r1, r2] -> f e r1 r2 resReg >> pure resReg
-        _ -> panic $ "binary primop applied the wrong amount of arguments (" <> (show $ length aregs) <> "). Is the type correct?"
-
+makeLenses ''PrimOpInfo 

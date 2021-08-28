@@ -1,6 +1,6 @@
 module Main where
 
-import Language.Cobble.Prelude
+import Language.Cobble.Prelude hiding (lookupEnv)
 
 import Language.Cobble.Types
 import Language.Cobble.Typechecker

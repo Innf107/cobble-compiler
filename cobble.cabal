@@ -3,8 +3,11 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
+<<<<<<< HEAD
 --
 -- hash: b9651891855371d7c7fdcc74ae89d7325d545417ee412ce42d407466b65e7eb5
+=======
+>>>>>>> cps
 
 name:           cobble
 version:        0.1.0.0
@@ -28,12 +31,20 @@ source-repository head
 library
   exposed-modules:
       Language.Cobble
+      Language.Cobble.Codegen.BasicCPSToTopLevelCPS
+      Language.Cobble.Codegen.CobbleToLC
+      Language.Cobble.Codegen.Common
+      Language.Cobble.Codegen.LCToBasicCPS
+      Language.Cobble.Codegen.MCAsmToMCFunction
       Language.Cobble.Codegen.PrimOps
-      Language.Cobble.Codegen.Types
-      Language.Cobble.Compiler
-      Language.Cobble.MCAsm.Compiler
-      Language.Cobble.MCAsm.McFunction
+      Language.Cobble.Codegen.TopLevelCPSToMCAsm
+      Language.Cobble.CPS.Basic.Types
+      Language.Cobble.CPS.TopLevel.Types
+      Language.Cobble.LC.PrettyPrint
+      Language.Cobble.LC.Types
       Language.Cobble.MCAsm.Types
+      Language.Cobble.McFunction.PrettyPrint
+      Language.Cobble.McFunction.Types
       Language.Cobble.ModuleSolver
       Language.Cobble.Packager
       Language.Cobble.Parser
@@ -42,7 +53,6 @@ library
       Language.Cobble.Prelude.Parser
       Language.Cobble.Qualifier
       Language.Cobble.SemAnalysis
-      Language.Cobble.Shared
       Language.Cobble.Typechecker
       Language.Cobble.Types
       Language.Cobble.Types.AST
@@ -53,13 +63,17 @@ library
       Language.Cobble.Types.AST.Typecheck
       Language.Cobble.Types.Instances
       Language.Cobble.Types.Lens
+      Language.Cobble.Types.LexInfo
       Language.Cobble.Types.PrettyPrint
+      Language.Cobble.Types.QualifiedName
       Language.Cobble.Types.TH
       Language.Cobble.Util
       Language.Cobble.Util.Bitraversable
       Language.Cobble.Util.Convert
+      Language.Cobble.Util.ListLike
       Language.Cobble.Util.Maybe
       Language.Cobble.Util.Polysemy.FileSystem
+      Language.Cobble.Util.Polysemy.Fresh
       Language.Cobble.Util.Polysemy.Time
       Language.Cobble.Util.TypeUtils
       Lib
@@ -116,7 +130,8 @@ library
       NumericUnderscores
       NumDecimals
       RoleAnnotations
-  ghc-options: -fplugin=Polysemy.Plugin -Wall -Werror=incomplete-patterns -Werror=incomplete-record-updates -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wredundant-constraints
+      QuantifiedConstraints
+  ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wredundant-constraints -Werror=incomplete-patterns -Werror=incomplete-record-updates -freverse-errors
   build-depends:
       base >=4.7 && <5
     , bytestring
@@ -132,9 +147,11 @@ library
     , polysemy
     , polysemy-plugin
     , random
+    , recursion-schemes
     , relude
     , template-haskell
     , text
+    , these
     , time
     , uniplate
     , zip-archive
@@ -195,6 +212,7 @@ executable cobble
       NumericUnderscores
       NumDecimals
       RoleAnnotations
+      QuantifiedConstraints
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
@@ -213,9 +231,11 @@ executable cobble
     , polysemy
     , polysemy-plugin
     , random
+    , recursion-schemes
     , relude
     , template-haskell
     , text
+    , these
     , time
     , uniplate
     , zip-archive
@@ -226,14 +246,16 @@ test-suite cobble-test
   main-is: Main.hs
   other-modules:
       FullScale.FileTest
-      Language.Cobble.CompilerSpec
-      Language.Cobble.MCAsm.CompilerSpec
-      Language.Cobble.MCAsm.McFunctionSpec
+      Language.Cobble.Codegen.BasicCPSToTopLevelCPSSpec
+      Language.Cobble.Codegen.LCToBasicCPSSpec
+      Language.Cobble.Codegen.MCAsmToMCFunctionSpec
+      Language.Cobble.Codegen.TestShared
+      Language.Cobble.Codegen.TopLevelCPSToMCAsmSpec
+      Language.Cobble.CPS.TopLevel.TypesSpec
       Language.Cobble.PackagerSpec
       Language.Cobble.Parser.TokenizerSpec
       Language.Cobble.ParserSpec
-      Language.Cobble.QualifierSpec
-      Language.Cobble.SharedSpec
+      Language.Cobble.TestUtil
       Language.Cobble.TypecheckerSpec
       Language.Cobble.Types.PrettyPrintSpec
       Language.Cobble.TypesSpec
@@ -293,6 +315,7 @@ test-suite cobble-test
       NumericUnderscores
       NumDecimals
       RoleAnnotations
+      QuantifiedConstraints
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
@@ -312,9 +335,11 @@ test-suite cobble-test
     , polysemy-plugin
     , process
     , random
+    , recursion-schemes
     , relude
     , template-haskell
     , text
+    , these
     , time
     , uniplate
     , zip-archive

@@ -9,6 +9,9 @@ todo :: a -> a
 todo x = x
 {-# WARNING todo "TODO" #-}
 
-unsafeTail :: NonEmpty a -> NonEmpty a
+unsafeTail :: HasCallStack => NonEmpty a -> NonEmpty a
 unsafeTail (_ :| []) = error "unsafeTail: only one element"
 unsafeTail (_ :| (x:xs)) = x :| xs 
+
+(<<|>>) :: (Applicative f, Alternative g) => f (g b) -> f (g b) -> f (g b) 
+(<<|>>)= liftA2 (<|>)

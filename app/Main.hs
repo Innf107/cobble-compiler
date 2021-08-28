@@ -24,12 +24,15 @@ runCobble = \case
     Compile co -> runCompile co
 
 runCompile :: CompileCmdOpts -> IO ()
-runCompile CompileCmdOpts{compFiles, debug, packageName, description, logLevel, target, ddumpAsm} = do
+runCompile CompileCmdOpts{compFiles, debug, packageName, description, logLevel, ddumpLC, ddumpCPS, ddumpReduced, ddumpTL, ddumpAsm} = do
     let opts = CompileOpts {
             name=packageName
         ,   debug
         ,   description
-        ,   target       
+        ,   ddumpLC
+        ,   ddumpCPS
+        ,   ddumpReduced
+        ,   ddumpTL    
         ,   ddumpAsm 
         }
     (logs, edatapackBS) <- runControllerC opts (timeToIO $ compileToDataPack compFiles)
@@ -62,7 +65,10 @@ data CompileCmdOpts = CompileCmdOpts {
     , debug :: Bool
     , logLevel :: LogLevel
     , description :: Text
-    , target :: Target
+    , ddumpLC :: Bool
+    , ddumpCPS :: Bool
+    , ddumpReduced :: Bool
+    , ddumpTL :: Bool
     , ddumpAsm :: Bool
     } deriving (Show, Eq)
 
@@ -73,11 +79,8 @@ compileOpts = CompileCmdOpts
     <*> switch (long "debug" <> help "Debug mode keeps additional information at runtime")
     <*> option auto (long "log-level" <> metavar "LEVEL" <> value LogInfo <> help "Controls how much information is logged (LogWarning | LogInfo | LogVerbose | LogDebug | LogDebugVerbose)")
     <*> strOption (long "description" <> short 'd' <> metavar "DESCRIPTION" <> help "The datapack description for the datapack's pack.mcmeta")
-    <*> option parseTarget (long "target" <> short 't' <> metavar "TARGET" <> help "The Minecraft version targeted by this datapack")
+    <*> switch (long "ddump-lc" <> help "Write the intermediate lambda calculus to a file")
+    <*> switch (long "ddump-cps" <> help "Write the intermediate CPS to a file")
+    <*> switch (long "ddump-reduced" <> help "Write the reduced intermediate CPS to a file")
+    <*> switch (long "ddump-tl" <> help "Write the intermediate TopLevel CPS to a file")
     <*> switch (long "ddump-asm" <> help "Write the intermediate ASM to a file")
-
-parseTarget :: ReadM Target
-parseTarget = eitherReader $ \case
-    "1.16" -> pure target116
-    "1.17" -> pure target117
-    _ -> Left "Supported targets are: 1.16 | 1.17"

@@ -4,41 +4,9 @@
 #   https://docs.haskellstack.org/en/stable/lock_files
 
 snapshots:
-- original: lts-17.1
+- original: nightly-2021-08-08
   completed:
-    sha256: 395775c03e66a4286f134d50346b0b6f1432131cf542886252984b4cfa5fef69
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/17/1.yaml
-    size: 563098
-packages:
-- original:
-    hackage: polysemy-1.4.0.0@sha256:0245a046eaf936557d4208b5a355df1a20799c9e274f91fa889ab2644ecbabae,6541
-  completed:
-    pantry-tree:
-      sha256: babfd86f145bc6017f7b8c20e46266ab3a3bb5d5d415d8cf651036b11e57465a
-      size: 4379
-    hackage: polysemy-1.4.0.0@sha256:0245a046eaf936557d4208b5a355df1a20799c9e274f91fa889ab2644ecbabae,6541
-- original:
-    hackage: Cabal-3.0.2.0@sha256:f45ee078a8529d1ad3993767345ac83304c7f2ff5eec02c455a1dc200ad22c67,26714
-  completed:
-    pantry-tree:
-      sha256: 653461a4e58b10a6ef9d6ed5e07b1f8839ed46b4673133ecbe3899a48d6b983b
-      size: 40207
-    hackage: Cabal-3.0.2.0@sha256:f45ee078a8529d1ad3993767345ac83304c7f2ff5eec02c455a1dc200ad22c67,26714
-- original:
-    hackage: polysemy-plugin-0.2.5.2@sha256:649cea55749c38af841e9f3750ccf65be351e597f3085234e28e3491e78d1f78,3155
-  completed:
-    pantry-tree:
-      sha256: 20b462f8095a8108ef4d920f0d494ba1299821403ad30169168f4b1968b06c2a
-      size: 1162
-    hackage: polysemy-plugin-0.2.5.2@sha256:649cea55749c38af841e9f3750ccf65be351e597f3085234e28e3491e78d1f78,3155
-- original:
-    git: https://github.com/Innf107/mcrcon
-    commit: 4178833e4610ed04dbb89f5d0e693ffb6f231afd
-  completed:
-    pantry-tree:
-      sha256: 977be6441874cbea16e1c7267611d0653c220d85953eac5c1e5481c76f4691e3
-      size: 629
-    version: 0.1.0.0
-    git: https://github.com/Innf107/mcrcon
-    name: mcrcon
-    commit: 4178833e4610ed04dbb89f5d0e693ffb6f231afd
+    sha256: 8492e8c97cab9a573cc1a559c688201fd29db575bada55d867717188791c7133
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/nightly/2021/8/8.yaml
+    size: 571803
+packages: []

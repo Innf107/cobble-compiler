@@ -39,7 +39,7 @@ test :: Description -> TModule -> [TestQuery] -> Test
 test desc = Test desc . pure
 
 testSingleMod' :: Description -> Text -> [Text] -> [TestQuery] -> Test
-testSingleMod' desc src setup queries = Test desc [TModule "test.cb" src] (TestQuery (setup <> ["function test:test.main"]) DontExpect : queries)
+testSingleMod' desc src setup queries = Test desc [TModule "test.cb" src] (TestQuery (setup <> ["function test:__main__"]) DontExpect : queries)
 
 testSingleMod :: Description -> Text -> [TestQuery] -> Test
 testSingleMod desc src queries = testSingleMod' desc src [] queries
@@ -50,7 +50,7 @@ testSingleModScore desc src val = testSingleMod' desc src
     [TestQuery ["scoreboard players get test test"] $ ExpectLast $ expectScore "test" "test" val]
 
 testExprScore :: Description -> Text -> Int -> Test
-testExprScore desc src = testSingleModScore desc ("main :: Unit; main = _setTestScoreboardUnsafe (" <> src <> ");")
+testExprScore desc src = testSingleModScore desc ("main :: Unit; main = __setTestScoreboardUnsafe__ (" <> src <> ");")
 
 expectScore :: Text -> Text -> Int -> ExpectInner
 expectScore score player val = ExpectExact (player <> " has " <> show val <> " [" <> score <> "]")
@@ -116,8 +116,11 @@ compileForTest program = do
             let opts = CompileOpts {
                 name="test"
             ,   debug=True
-            ,   target=target116
             ,   ddumpAsm=False
+            ,   ddumpLC=False
+            ,   ddumpCPS=False
+            ,   ddumpReduced=False
+            ,   ddumpTL=False
             ,   description="testing"
             }
             liftIO $ logLn "Compiling Cobble code"

@@ -4,6 +4,7 @@
 out
 test.cb
 test.mamod
+dump-*
 test.zip
 tests.log
 cobble.iml

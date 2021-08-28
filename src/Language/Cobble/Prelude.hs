@@ -11,6 +11,10 @@ module Language.Cobble.Prelude (
     , module Control.Lens
     , module System.FilePath
     , module Data.Generics.Uniplate.Data
+    , module Language.Cobble.Util.ListLike
+    , module Data.Data
+    , module Data.Foldable
+    , module Data.These
     , (|:)
     , state 
     , whenAlt
@@ -18,11 +22,13 @@ module Language.Cobble.Prelude (
     , mapFromLeft
     , censorM
     , HSType
+    , (L.\\)
     ) where
 
 import qualified Relude
 import Relude hiding (
-      Type
+      universe
+    , Type
     , TVar
     , absurd
     , ask
@@ -44,7 +50,11 @@ import Relude hiding (
     , runReader
     , uncons
     , (??)
+    , zip
+    , zipWith
     )
+import Language.Cobble.Util.ListLike
+    
 import Relude.Extra hiding (
       last1
     , head1
@@ -56,7 +66,6 @@ import Relude.Extra hiding (
     , (^.)
     , (.~)
     , (%~)
-    , universe
     , lens
     , Lens'
     )
@@ -70,7 +79,7 @@ import Polysemy.Output
 
 import Data.Generics.Uniplate.Data
 
-import System.FilePath hiding ((<.>))
+import System.FilePath
 
 import Control.Lens hiding (
         universe
@@ -82,12 +91,19 @@ import Control.Lens hiding (
     ,   rewrite
     ,   transformM
     ,   transform
+    ,   (<.>)
     )
+
+import Data.Data
 
 import qualified Data.DList as D
 import qualified Data.Text as T
 
-import qualified Data.List as L (init, last)
+import qualified Data.List as L (init, last, (\\))
+
+import Data.Foldable (foldrM)
+
+import Data.These
 
 (|:) :: a -> NonEmpty a -> NonEmpty a
 a |: (x :| xs) = a :| (x : xs)
@@ -96,7 +112,6 @@ a |: (x :| xs) = a :| (x : xs)
 state :: (Member (State s) r) => (s -> (a, s)) -> Sem r a
 state f = get >>= \(f -> (r, s')) -> put s' *> pure r
     
-
 whenAlt :: (Alternative f) => Bool -> a -> f a
 whenAlt b x = if b then pure x else empty
 

@@ -68,7 +68,7 @@ fileTestToTest FileTest{testName, testType, testCode, testArgs} = case testType 
         Just expected ->
             testSingleModScore
                 (testName <> " [" <> show i <> "]")
-                (testCode <> "main :: Unit; main = _setTestScoreboardUnsafe (" <> argCode <> ");") expected
+                (testCode <> "main :: Unit; main = __setTestScoreboardUnsafe__ (" <> argCode <> ");") expected
         Nothing -> Error $ "Invalid integer for expected score: " <> argHeader
     TestError -> (\f -> zipWith f testArgs [(1::Int)..]) \(TestArg{argHeader, argCode}) i -> case parseErrorType argHeader of
         Just (predicate, desc) ->

@@ -13,7 +13,6 @@ module Language.Cobble (
 
 import Language.Cobble.Prelude hiding ((<.>), readFile, writeFile)
 
-import Language.Cobble.Compiler as S
 import Language.Cobble.Types as S
 import Language.Cobble.Parser.Tokenizer as S
 import Language.Cobble.Parser as S
@@ -23,21 +22,31 @@ import Language.Cobble.Packager
 import Language.Cobble.ModuleSolver
 import Language.Cobble.Util.Polysemy.Time
 import Language.Cobble.Util.Polysemy.FileSystem
+import Language.Cobble.Util.Polysemy.Fresh
 import Language.Cobble.Util
-import Language.Cobble.Shared
 
 import Language.Cobble.Prelude.Parser (ParseError, parse)
 
 import Language.Cobble.Typechecker as TC
 
-import Language.Cobble.MCAsm.Compiler as A
-import Language.Cobble.MCAsm.Types hiding (target)
+import Language.Cobble.MCAsm.Types
 import Language.Cobble.MCAsm.Types qualified as A
 
-import Language.Cobble.MCAsm.McFunction
+import Language.Cobble.McFunction.Types
 
 import Language.Cobble.Codegen.PrimOps
-import Language.Cobble.Codegen.Types
+
+import Language.Cobble.Codegen.CobbleToLC as C2LC
+import Language.Cobble.Codegen.LCToBasicCPS as LC2CPS
+import Language.Cobble.Codegen.BasicCPSToTopLevelCPS as CPS2TL
+import Language.Cobble.Codegen.TopLevelCPSToMCAsm as TL2ASM
+import Language.Cobble.Codegen.MCAsmToMCFunction as ASM2MC
+
+import Language.Cobble.LC.Types as LC
+import Language.Cobble.LC.PrettyPrint as LC
+
+import Language.Cobble.CPS.Basic.Types
+import Language.Cobble.CPS.TopLevel.Types
 
 import Data.Map qualified as M
 import Data.List qualified as L
@@ -50,53 +59,53 @@ data CompilationError = LexError LexicalError
                       | ParseError ParseError
                       | QualificationError QualificationError
                       | SemanticError SemanticError
-                      | AsmError McAsmError
                       | TypeError TypeError
                       | ModuleError ModuleError
-                      | ControllerPanic Panic
-                      | RuntimePanic Text
+                      | Panic Text
                       deriving (Show, Eq)
 
 
-type ControllerC r = Members '[Reader CompileOpts, Error CompilationError, Error Panic, FileSystem FilePath Text, Output Log] r
+type ControllerC r = Members '[Reader CompileOpts, Error CompilationError, FileSystem FilePath Text, Output Log] r
 
 runControllerC :: CompileOpts 
-               -> Sem '[Error Panic, Error CompilationError, Reader CompileOpts, FileSystem FilePath Text, Output Log, Embed IO] a
+               -> Sem '[Error CompilationError, Reader CompileOpts, FileSystem FilePath Text, Output Log, Fresh (Text, LexInfo) QualifiedName, Embed IO] a
                -> IO ([Log], Either CompilationError a)
-runControllerC opts r = (runM . outputToIOMonoidAssocR pure . fileSystemIO . runReader opts . runError . mapError ControllerPanic) r
-        `Ex.catch` (\(Ex.SomeException e) -> pure ([], Left (RuntimePanic (show e))))
+runControllerC opts r = runM (runFreshQNamesState $ outputToIOMonoidAssocR pure $ fileSystemIO $ runReader opts $ runError r)
+        `Ex.catch` (\(Ex.SomeException e) -> pure ([], Left (Panic (show e))))
 
 data CompileOpts = CompileOpts {
       name::Text
     , debug::Bool
     , description::Text
-    , target::Target
     , ddumpAsm::Bool
+    , ddumpLC::Bool
+    , ddumpCPS::Bool
+    , ddumpReduced::Bool
+    , ddumpTL::Bool
     }
 
 askDataPackOpts :: (Member (Reader CompileOpts) r) => Sem r DataPackOptions
-askDataPackOpts = ask <&> \(CompileOpts{name, description, target}) -> DataPackOptions {
+askDataPackOpts = ask <&> \(CompileOpts{name, description}) -> DataPackOptions {
         name
     ,   description
-    ,   target
     }
 
-compileToDataPack :: (ControllerC r, Members '[Time] r) => [FilePath] -> Sem r LByteString
+compileToDataPack :: (ControllerC r, Members '[Time, Fresh (Text, LexInfo) QualifiedName] r) => [FilePath] -> Sem r LByteString
 compileToDataPack files = do
     cmods <- compileAll files
     opts <- askDataPackOpts
     makeDataPack opts cmods
 
-compileContentsToDataPack :: (ControllerC r, Members '[Time] r) => [(FilePath, Text)] -> Sem r LByteString
+compileContentsToDataPack :: (ControllerC r, Members '[Time, Fresh (Text, LexInfo) QualifiedName] r) => [(FilePath, Text)] -> Sem r LByteString
 compileContentsToDataPack files = do
     cmods <- compileContents files
     opts <- askDataPackOpts
     makeDataPack opts cmods
 
-compileAll :: (ControllerC r) => [FilePath] -> Sem r [CompiledModule]
+compileAll :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r) => [FilePath] -> Sem r [CompiledModule]
 compileAll files = compileContents =<< traverse (\x -> (x,) <$> readFile x) files
 
-compileContents :: (ControllerC r) => [(FilePath, Text)] -> Sem r [CompiledModule]
+compileContents :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r) => [(FilePath, Text)] -> Sem r [CompiledModule]
 compileContents contents = do
     tokens <- traverse (\(fn, content) -> mapError LexError $ tokenize (toText fn) content) contents
     asts   <- traverse (\(ts, n) -> mapError ParseError $ fromEither $ parse (module_ (getModName n)) n ts) (zip tokens (map fst contents))
@@ -105,12 +114,12 @@ compileContents contents = do
 
     fmap join $ evalState (one ("prims", primModSig)) $ traverse compileAndAnnotateSig orderedMods
 
-compileAndAnnotateSig :: (ControllerC r, Member (State (Map (S.Name 'QualifyNames) ModSig)) r)
+compileAndAnnotateSig :: (ControllerC r, Members '[State (Map (S.Name 'QualifyNames) ModSig), Fresh (Text, LexInfo) QualifiedName] r)
                       => (S.Module 'SolveModules, [S.Name 'SolveModules])
                       -> Sem r [CompiledModule]
 compileAndAnnotateSig (m, deps) = do
     annotatedMod :: (S.Module 'QualifyNames) <- S.Module
-        <$> Ext . fromList <$> traverse (\d -> (makeQName d,) <$> getDep d) ("prims" : deps)
+        <$> Ext . fromList <$> traverse (\d -> (internalQName d ,) <$> getDep d) ("prims" : deps)
         <*> pure (S.moduleName m)
         <*> pure (map (coercePass @(Statement SolveModules) @(Statement QualifyNames) @SolveModules @QualifyNames) (moduleStatements m))
     (compMod, sig) <- compileWithSig annotatedMod
@@ -121,30 +130,43 @@ compileAndAnnotateSig (m, deps) = do
 getDep :: (ControllerC r, Member (State (Map (S.Name 'QualifyNames) ModSig)) r)
        => S.Name 'SolveModules
        -> Sem r ModSig
-getDep n = maybe (throw (ModuleDependencyNotFound n)) pure =<< gets (lookup n)
-
-compileWithSig :: (ControllerC r)
+getDep n = maybe (error $ "Module dependency '" <> show n <> "' not found") pure =<< gets (lookup n)
+--              TODO^: Should this really be a panic? 
+compileWithSig :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r)
                => S.Module 'QualifyNames
                -> Sem r ([CompiledModule], ModSig)
 compileWithSig m = do
-    let qualScopes = [Scope (makeQName $ S.moduleName m) mempty mempty mempty mempty]
+    let qualScopes = [Scope mempty mempty]
     let tcState = foldMap (\dsig -> TCState {
                     varTypes=exportedVars dsig
                 })
                 (getExt $ xModule m)
-    compEnv <- asks \CompileOpts{name, debug, target} -> CompEnv {nameSpace=name, debug, A.target=target}
+    --compEnv <- asks \CompileOpts{name, debug, target} -> CompEnv {nameSpace=name, debug, A.target=target}
 
-    qMod  <- mapError QualificationError $ evalState qualScopes $ qualify m
+    qMod  <- mapError QualificationError $ runReader qualScopes $ qualify m
 
     saMod <- mapError SemanticError $ runSemanticAnalysis qMod
 
     tcMod <- mapError TypeError $ evalState tcState $ runOutputSem (log LogWarning . displayTWarning) $ typecheckModule saMod
 
-    asmMod <- mapError AsmError $ evalState initialCompileState $ S.compile tcMod
-    asks ddumpAsm >>= flip when (writeFile (show (A.moduleName asmMod) <> ".mamod") (showAsmDump asmMod))
+    compMods <- freshWithInternal do
+        let lc  = C2LC.compile primOps tcMod
+        whenM (asks ddumpLC) $ dumpLC lc
 
-    compMods <- mapError AsmError $ evalState initialCompState $ runReader compEnv $ A.compile [asmMod]
+        cps     <- LC2CPS.compile lc
+        whenM (asks ddumpCPS) $ dumpCPS cps
 
+        let reduced = LC2CPS.reduceAdmin cps
+        whenM (asks ddumpReduced) $ dumpReduced reduced
+
+        tl      <- CPS2TL.compile reduced
+        whenM (asks ddumpTL) $ dumpTL tl
+        
+        let asm = TL2ASM.compile tl 
+        whenM (asks ddumpAsm) $ dumpAsm asm
+        
+        pure $ ASM2MC.compile asm
+    
     let sig = extractSig tcMod
 
     pure (compMods, sig)
@@ -168,30 +190,34 @@ getModName = toText . FP.dropExtension . L.last . segments
 
 primModSig :: ModSig
 primModSig = ModSig {
-        exportedVars = fmap fst $ primOps @'[Output Log, Writer [Instruction], Error Panic, State CompileState, Error McAsmError]
+        exportedVars = fmap (view primOpType) $ primOps
             -- The type application is only necessary to satisfy the type checker since the value depending on the type 'r' is ignored
     ,   exportedTypes = fromList [
-              ("prims.Int", (KStar, BuiltInType))
-            , ("prims.Bool", (KStar, BuiltInType))
-            , ("prims.Entity", (KStar, BuiltInType))
-            , ("prims.Unit", (KStar, BuiltInType))
-            , ("prims.->", (KStar `KFun` KStar `KFun` KStar, BuiltInType))
+              (internalQName "Int", (KStar, BuiltInType))
+            , (internalQName "Bool", (KStar, BuiltInType))
+            , (internalQName "Entity", (KStar, BuiltInType))
+            , (internalQName "Unit", (KStar, BuiltInType))
+            , (internalQName "->", (KStar `KFun` KStar `KFun` KStar, BuiltInType))
             ]
     }
 
+dumpLC :: (Members '[FileSystem FilePath Text] r) => LCExpr -> Sem r ()
+dumpLC = writeFile "dump-lc.lc" . prettyPrintLCExpr
 
+dumpCPS :: (Members '[FileSystem FilePath Text] r) => CPS -> Sem r ()
+dumpCPS = writeFile "dump-cps.lc" . show
 
+dumpReduced :: (Members '[FileSystem FilePath Text] r) => CPS -> Sem r ()
+dumpReduced = writeFile "dump-reduced-cps.lc" . show
 
-showAsmDump :: A.Module -> Text
-showAsmDump (A.Module imname iminstrs) = go imname iminstrs 0
+dumpTL :: (Members '[FileSystem FilePath Text] r) => TL -> Sem r ()
+dumpTL = writeFile "dump-tl.lc" . show 
+
+dumpAsm :: (Members '[FileSystem FilePath Text] r) => [Block] -> Sem r ()
+dumpAsm = writeFile "dump-asm.mcasm" . renderAsm
     where
-        go :: A.Name -> [Instruction] -> Int -> Text
-        go mname minstr i = indent i $
-            ["[" <> show mname <> "]"] ++ (minstr & map \case
-                Section n is -> go n is (i + 1)
-                inst -> show inst
-                )
-        indent :: Int -> [Text] -> Text
-        indent i = T.unlines . map (T.replicate i "    " <>)
+        renderAsm :: [Block] -> Text
+        renderAsm = T.intercalate "\n\n" . map (\(Block f is) -> "[" <> show f <> "]:\n" <> foldMap (\i -> "    " <> show i <> "\n") is)
+
 
 

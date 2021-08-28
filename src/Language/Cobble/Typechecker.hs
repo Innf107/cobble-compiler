@@ -5,7 +5,6 @@ import Language.Cobble.Util.Convert
 import Language.Cobble.Util.Bitraversable
 import Language.Cobble.Types
 import Language.Cobble.Types.Lens
-import Language.Cobble.Shared
 
 import qualified Data.Map as M
 
@@ -27,9 +26,8 @@ data TypeError = VarDoesNotExist LexInfo (Name NextPass)
                | StructDoesNotContainField LexInfo (Type NextPass) UnqualifiedName
 --                                                    ^ Type name     ^ field
                | WrongIfType LexInfo (Type NextPass)
-               | WrongRecordConstructionType LexInfo (Name Typecheck) (Type NextPass) (Type NextPass)
+               | WrongRecordConstructionType LexInfo UnqualifiedName (Type NextPass) (Type NextPass)
                | DifferentIfETypes LexInfo (Type NextPass) (Type NextPass)
-               | WrongSetScoreboardType LexInfo Objective Text (Type NextPass)
                | CannotUnify (Type NextPass) (Type NextPass)
                | SubstMergeError Subst Subst
                | MatchTypeMismatch (Type NextPass) (Type NextPass)
@@ -62,10 +60,10 @@ getVarType l varName = gets varTypes <&> lookup varName >>= \case
 insertVarType :: (Members '[State TCState] r) => Name NextPass -> Type NextPass -> Sem r ()
 insertVarType varName t = void $ modify (\s -> s{varTypes=varTypes s & insert varName t})
 
-typecheckModule :: (TypecheckC r, Members '[Error Panic] r) => Module 'Typecheck -> Sem r (Module NextPass)
+typecheckModule :: (TypecheckC r) => Module 'Typecheck -> Sem r (Module NextPass)
 typecheckModule (Module (Ext deps) mname instrs) = Module (Ext deps) mname <$> traverse typecheck instrs
 
-typecheck :: (TypecheckC r, Members '[Error Panic] r) => Statement Typecheck -> Sem r (Statement NextPass)
+typecheck :: (TypecheckC r) => Statement Typecheck -> Sem r (Statement NextPass)
 typecheck = \case
     Def IgnoreExt l (Decl IgnoreExt name (Ext ps) body) ty -> do
         insertVarType name (coercePass ty)
@@ -82,14 +80,14 @@ typecheck = \case
     Import IgnoreExt l modName -> pure $ Import IgnoreExt l modName
     StatementX x _l -> case x of
 
-tcDecl :: (Members '[Error Panic, Error TypeError, State TCState] r) => Decl 'Typecheck -> Sem r (Decl NextPass)
+tcDecl :: (Members '[Error TypeError, State TCState] r) => Decl 'Typecheck -> Sem r (Decl NextPass)
 tcDecl (Decl IgnoreExt vname (Ext []) expr) = do
     expr' <- tcExpr expr
     insertVarType vname (getType expr')
     pure (Decl (Ext (getType expr')) vname (Ext []) expr')
-tcDecl (Decl IgnoreExt vname ps _expr) = panic' "Local functions are not possible yet. This is *NOT* a bug" [show vname, show ps]
+tcDecl (Decl IgnoreExt vname ps _expr) = error $ "tcDDecl: Local functions are not possible yet. This is *NOT* a bug\n    " <> show vname <> "\n    " <> show ps
 
-tcExpr :: (Members '[Error Panic, Error TypeError, State TCState] r) => Expr 'Typecheck -> Sem r (Expr NextPass)
+tcExpr :: (Members '[Error TypeError, State TCState] r) => Expr 'Typecheck -> Sem r (Expr NextPass)
 tcExpr = \case
     IntLit IgnoreExt l x -> pure $ IntLit IgnoreExt l x
     UnitLit l -> pure $ UnitLit l
@@ -127,7 +125,7 @@ tcExpr = \case
         <$> tcDecl d
         <*> tcExpr body
     StructConstruct def li cname fields -> do
-        fields' <- traverse (rightM tcExpr) fields
+        fields' <- traverse (secondM tcExpr) fields
         -- we can assume that the fields are all present and in the same order as in the struct definition
         zipWithM_ (\(n, e) (_, coercePass -> t) -> when (getType e /= t) (throw (WrongRecordConstructionType li n t (getType e)))) fields' (view structFields def)
         let t = TCon cname KStar --TODO?
@@ -138,7 +136,7 @@ tcExpr = \case
         case ty of
             TCon tyName _ -> do
                 structDef <- note (StructAccessOnNonStructType li ty fname) $ lookup tyName possibleStructs
-                structFieldType <- note (StructDoesNotContainField li ty fname) $ preview (unqualifiedFieldType fname) structDef
+                structFieldType <- note (StructDoesNotContainField li ty fname) $ preview (fieldType fname) structDef
                 pure $ StructAccess (Ext (coercePass @_ @_ @Typecheck @Codegen structDef, coercePass structFieldType)) li strEx' fname
             _ -> throw (StructAccessOnNonStructType li ty fname)
     ExprX x _l -> absurd x

@@ -1,6 +1,6 @@
 --# linear recursion : score
 gauss :: Int -> Int;
-gauss n = if _le n 0 then 0 else _add n (gauss (_add n -1));
+gauss n = if __le__ n 0 then 0 else __add__ n (gauss (__add__ n -1));
 
 --! 3
 gauss 2
@@ -10,7 +10,7 @@ gauss 10
 
 --# branch recursion : score
 fib :: Int -> Int;
-fib n = if _le n 1 then 1 else _add (fib (_add n -1)) (fib (_add n -2));
+fib n = if __le__ n 1 then 1 else __add__ (fib (__add__ n -1)) (fib (__add__ n -2));
 
 --! 89
 fib 10

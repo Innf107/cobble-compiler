@@ -30,3 +30,6 @@ Once you're done, run `cobble --help` to check your installation.
 
 
 
+Once you have cloned the repository, build and install the project using stack. (This might take a while)
+```bash
+$ stack install

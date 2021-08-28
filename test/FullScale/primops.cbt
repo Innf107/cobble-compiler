@@ -1,65 +1,65 @@
---# _add : score
+--# __add__ : score
 --! 4
-_add 2 2
+__add__ 2 2
 --! 8
-_add 2 6
+__add__ 2 6
 --! 5
-_add 0 5
+__add__ 0 5
 --! -2
-_add 2 -4
+__add__ 2 -4
 
---# _sub : score
+--# __sub__ : score
 --! 4
-_sub 8 4
+__sub__ 8 4
 --! 0
-_sub 5 5
+__sub__ 5 5
 --! -5
-_sub 10 15
+__sub__ 10 15
 
---# _mul : score
+--# __mul__ : score
 --! 10
-_mul 2 5
+__mul__ 2 5
 --! 0
-_mul 0 2
+__mul__ 0 2
 --! 8
-_mul -2 -4
+__mul__ -2 -4
 --! -2
-_mul -1 2
+__mul__ -1 2
 
---# _div : score
+--# __div__ : score
 --! 5
-_div 10 2
+__div__ 10 2
 --! 2
-_div 5 2
+__div__ 5 2
 --! -3
-_div -5 2
+__div__ -5 2
 
---# _mod : score
+--# __mod__ : score
 --! 2
-_mod 5 3
+__mod__ 5 3
 --! 2
-_mod 2 7
+__mod__ 2 7
 --! 1
-_mod -5 3
+__mod__ -5 3
 
---# _le : score
+--# __le__ : score
 test :: Bool -> Int;
 test b = if b then 1 else 0;
 --! 0
-test (_le 3 2)
+test (__le__ 3 2)
 --! 1
-test (_le -1 2)
+test (__le__ -1 2)
 --! 1
-test (_le 5 5)
+test (__le__ 5 5)
 
---# _true : score
+--# __true__ : score
 test :: Bool -> Int;
 test b = if b then 1 else 0;
 --! 1
-test (_true ())
+test (__true__ ())
 
---# _false : score
+--# __false__ : score
 test :: Bool -> Int;
 test b = if b then 1 else 0;
 --! 0
-test (_false ())
+test (__false__ ())
