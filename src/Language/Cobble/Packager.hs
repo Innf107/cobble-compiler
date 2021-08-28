@@ -14,7 +14,6 @@ type PackageC (r :: EffectRow) = Members '[Time] r
 data DataPackOptions = DataPackOptions {
         name::Text
       , description::Text
-      , target::Target
     }
 
 makeDataPack :: (PackageC r) => DataPackOptions -> [CompiledModule] -> Sem r LByteString
@@ -38,7 +37,7 @@ packMcMeta :: DataPackOptions -> LByteString
 packMcMeta options = mconcat $ map (<> "\n") [
       "{"
     , "    \"pack\":{"
-    , "         \"pack_format\":" <> show (packFormat $ target $ options) <> ","
+    , "         \"pack_format\": 7,"
     , "         \"description\": \"" <> encodeUtf8 (description options) <> "\""
     , "    }"
     , "}"

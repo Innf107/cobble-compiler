@@ -3,7 +3,7 @@ module Language.Cobble.CPS.TopLevel.Types where
 import Language.Cobble.Prelude
 import qualified Prelude as P (Show(..))
 import qualified Data.Text as T
-import Language.Cobble.Shared
+import Language.Cobble.Types.QualifiedName
 import Language.Cobble.Codegen.Common
 import Language.Cobble.Codegen.PrimOps
 

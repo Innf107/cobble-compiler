@@ -5,7 +5,7 @@ import Language.Cobble.Prelude hiding (List, Tell, Get)
 
 import Relude (absurd)
 import qualified Data.Text as T
-import Language.Cobble.Shared (QualifiedName)
+import Language.Cobble.Types.QualifiedName
 import Language.Cobble.Codegen.Common
 import Language.Cobble.McFunction.Types
 

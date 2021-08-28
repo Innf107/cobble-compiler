@@ -7,7 +7,8 @@ import Language.Cobble.Util.TypeUtils
 
 import Language.Cobble.Types.TH
 
-import Language.Cobble.Shared
+import Language.Cobble.Types.LexInfo
+import Language.Cobble.Types.QualifiedName
 
 import Data.Data
 import Data.Generics.Uniplate.Data
@@ -42,7 +43,7 @@ data ModSig = ModSig {
 ,   exportedTypes :: Map QualifiedName (Kind, TypeVariant)
 } deriving (Generic, Typeable) -- Instances for @Eq@ and @Data@ are defined in Language.Cobble.Types.AST.Codegen
 
-data TypeVariant = RecordType [(QualifiedName, Type 'Codegen)]
+data TypeVariant = RecordType [(UnqualifiedName, Type 'Codegen)]
                  | BuiltInType
                  deriving (Generic, Typeable)
 
@@ -62,7 +63,7 @@ data Pass = SolveModules
 data Statement (p :: Pass) =
       Def        (XDef p)       LexInfo (Decl p) (Type p)
     | Import     (XImport p)    LexInfo (Name p) -- TODO: qualified? exposing?
-    | DefStruct  (XDefStruct p) LexInfo (Name p) [(Name p, Type p)]
+    | DefStruct  (XDefStruct p) LexInfo (Name p) [(UnqualifiedName, Type p)]
     | StatementX (XStatement p) LexInfo
 
 type instance InstanceRequirements (Statement p) = [XDef p, XImport p, XDefStruct p, XStatement p, Name p, Type p, Decl p]
@@ -87,7 +88,7 @@ data Expr (p :: Pass) =
     | If              (XIf p) LexInfo (Expr p) (Expr p) (Expr p)
     | Let             (XLet p) LexInfo (Decl p) (Expr p)
     | Var             (XVar p) LexInfo (Name p)
-    | StructConstruct (XStructConstruct p) LexInfo (Name p) [(Name p, Expr p)]
+    | StructConstruct (XStructConstruct p) LexInfo (Name p) [(UnqualifiedName, Expr p)]
     | StructAccess    (XStructAccess p) LexInfo (Expr p) UnqualifiedName
     | ExprX           (XExpr p) LexInfo
 
@@ -122,7 +123,7 @@ t1 -:> t2 = TApp (TApp (TCon tyFunT (kFun kStar (kFun kStar kStar))) t1) t2
 infixr 5 -:>
 
 pattern (:->) :: (Name p ~ QualifiedName, Eq (Name p), XKind p ~ Kind) => Type p -> Type p -> Type p
-pattern (:->) t1 t2 = TApp (TApp (TCon "prims.->" (KFun KStar (KFun KStar KStar))) t1) t2
+pattern (:->) t1 t2 = TApp (TApp (TCon (UnsafeQualifiedName "->" "->" InternalLexInfo) (KFun KStar (KFun KStar KStar))) t1) t2
 
 pattern (:~>) :: (Name p ~ Text, Eq (Name p), XKind p ~ Kind) => Type p -> Type p -> Type p
 pattern (:~>) t1 t2 = TApp (TApp (TCon "->" (KFun KStar (KFun KStar KStar))) t1) t2
@@ -130,19 +131,6 @@ pattern (:~>) t1 t2 = TApp (TApp (TCon "->" (KFun KStar (KFun KStar KStar))) t1)
 
 type family XKind (p :: Pass)
 
-type FileName = Text
-
-
-data LexInfo = LexInfo {
-      startPos :: SourcePos
-    , endPos :: SourcePos
-    , file :: FileName
-    } deriving (Show, Eq, Data, Typeable)
-
-data SourcePos = SourcePos {
-      line :: Int
-    , column :: Int
-    } deriving (Show, Eq, Ord, Data, Typeable)
 
 -- | Combines two 'LexInfo's
 -- This assumes that the first one comes before the second
@@ -152,7 +140,7 @@ mergeLexInfo (LexInfo {startPos, file}) (LexInfo {endPos}) = LexInfo {startPos, 
 
 data StructDef p = StructDef {
         _structName :: Name p
-    ,   _structFields :: [(Name p, Type p)]
+    ,   _structFields :: [(UnqualifiedName, Type p)]
     }
 
 type instance InstanceRequirements (StructDef p) = [Name p, Type p]
@@ -168,10 +156,10 @@ class TyLit n where
     tyFunT  :: n
     
 instance TyLit QualifiedName where
-    tyIntT  = "prims.Int"
-    tyBoolT = "prims.Bool"
-    tyUnitT = "prims.Unit"
-    tyFunT  = "prims.->"
+    tyIntT  = UnsafeQualifiedName "Int" "Int" InternalLexInfo 
+    tyBoolT = UnsafeQualifiedName "Bool" "Bool" InternalLexInfo
+    tyUnitT = UnsafeQualifiedName "Unit" "Unit" InternalLexInfo
+    tyFunT  = UnsafeQualifiedName "->" "->" InternalLexInfo
 instance TyLit Text where
     tyIntT = "Int"
     tyBoolT = "Bool"

@@ -112,7 +112,6 @@ a |: (x :| xs) = a :| (x : xs)
 state :: (Member (State s) r) => (s -> (a, s)) -> Sem r a
 state f = get >>= \(f -> (r, s')) -> put s' *> pure r
     
-
 whenAlt :: (Alternative f) => Bool -> a -> f a
 whenAlt b x = if b then pure x else empty
 

@@ -4,6 +4,8 @@ module Language.Cobble.CPS.TopLevel.TypesSpec where
 import Language.Cobble.Prelude
 import Language.Cobble.CPS.TopLevel.Types
 
+import Language.Cobble.TestUtil
+
 import Test.Hspec
 
 spec :: Spec
@@ -21,3 +23,4 @@ spec = do
                 ,   "    let y = 4 in" 
                 ,   "    f h x y"
                 ]
+     

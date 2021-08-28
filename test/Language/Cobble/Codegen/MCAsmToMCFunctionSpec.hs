@@ -5,6 +5,7 @@ import Language.Cobble.Codegen.MCAsmToMCFunction
 import Language.Cobble.McFunction.Types
 
 import Language.Cobble.Prelude
+import Language.Cobble.TestUtil
 
 import Test.Hspec
 

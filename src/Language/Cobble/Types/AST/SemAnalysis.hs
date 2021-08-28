@@ -8,7 +8,7 @@ import Data.Data
 import Data.Generics.Uniplate.Data
 
 import Language.Cobble.Types.AST
-import Language.Cobble.Shared
+import Language.Cobble.Types.QualifiedName
 
 type instance XModule 'SemAnalysis = Ext SemAnalysis (Map (Name 'Codegen) ModSig)
   
@@ -21,10 +21,12 @@ type instance XStatement     'SemAnalysis = ExtVoid SemAnalysis
 
 type instance XFCall            'SemAnalysis = IgnoreExt SemAnalysis
 type instance XIntLit           'SemAnalysis = IgnoreExt SemAnalysis
-type instance XIf               'SemAnalysis = Ext SemAnalysis (QualifiedName, Int)
+type instance XIf               'SemAnalysis = IgnoreExt SemAnalysis
 type instance XLet              'SemAnalysis = IgnoreExt SemAnalysis
 type instance XVar              'SemAnalysis = IgnoreExt SemAnalysis
+-- | @StructDef@ has its own @CoercePass@ instance, so we don't need @Ext@ here 
 type instance XStructConstruct  'SemAnalysis = StructDef SemAnalysis
+-- | @Map@ also has its own @CoercePass@ instance, so we don't need @Ext@ here
 type instance XStructAccess     'SemAnalysis = Map (Name SemAnalysis) (StructDef SemAnalysis)
 type instance XExpr             'SemAnalysis = ExtVoid SemAnalysis
 

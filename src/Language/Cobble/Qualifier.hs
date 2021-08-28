@@ -5,188 +5,162 @@ import Language.Cobble.Prelude
 import Language.Cobble.Types
 import Language.Cobble.Types.Lens
 
+import Language.Cobble.Util
+import Language.Cobble.Util.Bitraversable
+import Language.Cobble.Util.Polysemy.Fresh
+
 import Data.Map qualified as M
 
 type NextPass = SemAnalysis
   
-type QualifyC r = Members '[State Int, State [Scope], Error QualificationError, Output Log] r
+--type QualifyC r = Members '[State Int, State [Scope], Error QualificationError, Output Log] r
 
 data QualificationError = NameNotFound LexInfo Text
                         | TypeNotFound LexInfo Text
-                        | NotAStruct LexInfo QualifiedName
+                        | NotAStruct LexInfo QualifiedName Kind TypeVariant
                         | VarAlreadyDeclaredInScope LexInfo Text
-                        | EarlyKindMismatch (Type 'QualifyNames) (Type 'QualifyNames)
-                        | LateKindMismatch (Type NextPass) (Type NextPass)
-                        | InvalidKind (Type NextPass) Kind Kind
+                        | TypeAlreadyDeclaredInScope LexInfo Text
+                        | AmbiguousVarName LexInfo Text [QualifiedName]
+                        | AmbiguousTypeName LexInfo Text [(QualifiedName, Kind, TypeVariant)]
                         deriving (Show, Eq)
 
 data Scope = Scope {
-    _prefix::QualifiedName
-  , _typeNames::[Text]
-  , _structDefs:: Map QualifiedName (StructDef NextPass)
-  , _varFunNames::[Text]
-  , _typeKinds::Map Text Kind
-  } deriving (Show, Eq)
+        _scopeVars :: Map Text QualifiedName
+    ,   _scopeTypes :: Map Text (QualifiedName, Kind, TypeVariant)
+    } deriving (Show, Eq)
 
-makeLenses 'Scope
+makeLenses ''Scope
 
-currentScope :: Traversal' [Scope] Scope
-currentScope = _head
+lookupVar :: Members '[Reader [Scope], Error QualificationError] r => LexInfo -> Text -> Sem r QualifiedName 
+lookupVar l n = do
+    scopes <- ask
+    case mapMaybe (lookup n . view scopeVars) scopes of 
+        []  -> throw $ NameNotFound l n
+        [x] -> pure x
+        xs  -> throw $ AmbiguousVarName l n xs
 
-qualify :: (Members '[Error QualificationError, State [Scope], Output Log] r)
-        => Module 'QualifyNames 
-        -> Sem r (Module NextPass)
-qualify = evalState @Int 0 
-        . qualifyMod
+lookupType :: Members '[Reader [Scope], Error QualificationError] r => LexInfo -> Text -> Sem r (QualifiedName, Kind, TypeVariant) 
+lookupType l n = do
+    scopes <- ask
+    case mapMaybe (lookup n . view scopeTypes) scopes of 
+        []  -> throw $ TypeNotFound l n
+        [x] -> pure x
+        xs  -> throw $ AmbiguousTypeName l n xs
 
-newUID :: (QualifyC r) => Sem r Int
-newUID = state (\s -> (s+1, s+1))
 
-askPref :: (QualifyC r) => Sem r QualifiedName
-askPref = get @[Scope] <&> view (_head . prefix)
+withVar :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
+        => LexInfo 
+        -> Text 
+        -> (QualifiedName -> Sem r a) 
+        -> Sem r a
+withVar l n a = do
+                n' <- freshVar (n, l)
+                alreadyInScope <- asks (member n .view (_head . scopeVars))
+                if alreadyInScope 
+                then throw (VarAlreadyDeclaredInScope l n)
+                else local (_head . scopeVars %~ insert n n') (a n')
 
-localPref :: (QualifyC r) => (QualifiedName -> QualifiedName) -> Sem r a -> Sem r a
-localPref f s = do
-    modify @[Scope] (\ss -> Scope (f (ss ^. _head . prefix)) [] mempty [] mempty : ss)
-    s <* modify @[Scope] (view _tail)
+withType :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
+         => LexInfo -> Text 
+         -> Kind
+         -> TypeVariant
+         -> (QualifiedName -> Sem r a) 
+         -> Sem r a
+withType l n k tv a = do
+                n' <- freshVar (n, l)
+                alreadyInScope <- asks (member n . view (_head . scopeTypes))
+                if alreadyInScope 
+                then throw (TypeAlreadyDeclaredInScope l n)
+                else local (_head . scopeTypes %~ insert n (n', k, tv)) (a n')
 
-addName :: (QualifyC r) => LexInfo -> Text -> Sem r ()
-addName li n = do
-    ns <- get @[Scope] <&> view (_head . varFunNames)
-    if n `elem` ns
-        then throw (VarAlreadyDeclaredInScope li n)
-        else modify @[Scope] (& _head . varFunNames %~ cons n)
-
-addType :: (QualifyC r) => LexInfo -> Text -> Kind -> Sem r ()
-addType li n k = do
-    ns <- get @[Scope] <&> view (_head . typeNames)
-    if n `elem` ns
-        then throw (VarAlreadyDeclaredInScope li n)
-        else do
-            modify @[Scope] (& _head . typeNames %~ cons n)
-            modify @[Scope] (& _head . typeKinds %~ insert n k)
-
-qualifyMod :: (QualifyC r) => Module 'QualifyNames -> Sem r (Module NextPass)
-qualifyMod (Module (Ext deps) n sts) = log LogVerbose ("QUALIFYING MODULE: " <> n) >> Module (Ext deps) (makeQName n)
-    <$> runReader deps (traverse qualifyStatement sts)
-
-qualifyStatement :: (QualifyC r, Member (Reader Dependencies) r) => Statement 'QualifyNames -> Sem r (Statement NextPass)
-qualifyStatement s = log LogDebugVerbose ("QUALIFYING STATEMENT: " <> show s) >> case s of
-    Def IgnoreExt li (Decl IgnoreExt n (Ext ps) e) t -> do
-        n' <- askPref <&> (.: n)
-        innerN <- askPref <&> (.: ("-fun_" <> n))
-        addName li n
-        (ps', le') <- localPref (.: ("-fun_" <> n)) $ do
-            traverse_ (addName li) ps
-            (,)
-                <$> traverse (pure . (innerN .:)) ps
-                <*> qualifyExp e
-        t' <- qualifyType li t
-        pure $ Def IgnoreExt li (Decl IgnoreExt n' (Ext ps') le') t'
-
-    DefStruct IgnoreExt li n fs -> do
-        n' <- askPref <&> (.: n)
-        addType li n KStar
-        fs' <- localPref (.: n) $ traverse (bitraverse (\x -> askPref <&> (\a -> a .: x)) (qualifyType li)) fs
-        modify (& currentScope . structDefs %~ insert n' (StructDef n' fs'))
-        pure $ DefStruct IgnoreExt li n' fs'
-    Import IgnoreExt li modName -> pure $ Import IgnoreExt li (makeQName modName)
-    StatementX x _li -> case x of
-
-qualifyExp :: (QualifyC r, Member (Reader Dependencies) r) => Expr 'QualifyNames -> Sem r (Expr NextPass)
-qualifyExp e = do
-    log LogDebugVerbose ("QUALIFYING EXPR: " <> show e)
-    res <- go
-    log LogDebugVeryVerbose ("RESULT: " <> show res)
-    pure res
+withDeps :: (Members '[Reader [Scope]] r) => Dependencies -> Sem r a -> Sem r a
+withDeps deps a = foldr (\x r -> local (x:) r) a $ map (modSigToScope . snd) $ M.toList deps
     where
-        go = case e of
-            FCall IgnoreExt li f ps -> do
-                f' <- qualifyExp f
-                ps' <- traverse qualifyExp ps
-                pure $ FCall IgnoreExt li f' ps'
-            IntLit IgnoreExt li i -> pure $ IntLit IgnoreExt li i
-            UnitLit li -> pure $ UnitLit li
-            If  IgnoreExt li c th el -> do
-                ifeID <- newUID
-                let thName = "-then-e" <> show ifeID
-                let elName = "-else-e" <> show ifeID
-                c' <- qualifyExp c
-                th' <- localPref (.: thName) $ qualifyExp th
-                el' <- localPref (.: elName) $ qualifyExp el
-                name <- askPref
-                pure (If (Ext (name, ifeID)) li c' th' el')
-            Let IgnoreExt li (Decl IgnoreExt vname (Ext ps) expr) body -> do
-                vname' <- askPref <&> (.: vname)
-                innerN <- askPref <&> (.: ("-let-" <> vname <> "-body"))
-                addName li vname
-                expr' <- localPref (.: ("-let-" <> show vname')) $ qualifyExp expr
-                (ps', body') <- localPref (.: ("-let-" <> vname <> "-body")) $ do
-                    traverse_ (addName li) ps
-                    (,)
-                        <$> traverse (pure . (innerN .:)) ps
-                        <*> qualifyExp body
-                pure (Let IgnoreExt li (Decl IgnoreExt vname' (Ext ps') expr') body')
-            Var IgnoreExt li vname -> Var IgnoreExt li <$> lookupName vname li
-            StructConstruct IgnoreExt li cname fs -> do
-                cname' <- lookupTypeName cname li
-                structDef <- lookupStructDef cname' li
-                fs' <- traverse (bitraverse (pure . (cname' .:)) qualifyExp) fs
-                pure (StructConstruct structDef li cname' fs')
-            StructAccess IgnoreExt li structEx fname -> do
-                structs <- (<>) <$> gets @[Scope] (fromList . map (\sd -> (view structName sd, sd)) . toListOf (folded . structDefs . folded))
-                                <*> asks (M.foldMapWithKey (\_ -> M.mapMaybeWithKey (\n (_, x) -> case x of
-                                    RecordType fs -> Just (coercePass $ StructDef n fs)
-                                    _ -> Nothing
-                                ) . exportedTypes))
-                StructAccess structs li
-                    <$> qualifyExp structEx
-                    <*> pure fname
-            ExprX x _li -> absurd x
+        modSigToScope (ModSig {exportedVars, exportedTypes}) = Scope {
+                _scopeVars  = fromList $ map (\(n,_) -> (originalName n, n)) $ M.toList exportedVars
+            ,   _scopeTypes = fromList $ map (\(n,(k,v)) -> (originalName n, (n, k, v))) $ M.toList exportedTypes
+            }
 
+qualify :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
+        => Module QualifyNames
+        -> Sem r (Module NextPass)
+qualify (Module (Ext deps) name stmnts) = withDeps deps 
+                                        $ Module (Ext deps) (UnsafeQualifiedName name name (LexInfo (SourcePos 0 0) (SourcePos 0 0) name)) 
+                                       <$>qualifyStmnts stmnts
 
-qualifyType :: forall r. (QualifyC r, Member (Reader Dependencies) r) => LexInfo -> Type 'QualifyNames -> Sem r (Type NextPass)
-qualifyType li t = log LogDebugVeryVerbose ("QUALIFYING TYPE: " <> show t) >> qtInner t
-    where 
-        qtInner :: Type 'QualifyNames -> Sem r (Type NextPass)
-        qtInner = \case
-            TCon n ()   -> do
-                TCon <$> lookupTypeName n li <*> lookupKind n li
-            TApp t1 t2  -> TApp <$> qtInner t1 <*> qtInner t2
-            TVar (MkTVar v ())   -> pure $ TVar $ MkTVar (QualifiedName [v]) KStar -- TODO
+qualifyStmnts :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
+             => [Statement QualifyNames]
+             -> Sem r [Statement NextPass]
+qualifyStmnts = \case
+    [] -> pure []
+    (Def IgnoreExt li decl@(Decl _ n _ _) ty : sts) -> withVar li n $ \n' -> 
+        (:)
+        <$> (Def IgnoreExt li
+                <$> qualifyDeclWith n' li decl
+                <*> qualifyType li ty)
+        <*> qualifyStmnts sts
 
-lookupName :: (QualifyC r, Member (Reader (Map QualifiedName ModSig)) r) => Text -> LexInfo -> Sem r QualifiedName
-lookupName n li = get @[Scope] >>= \scopes -> ask >>= \deps -> do
-    log LogDebugVeryVerbose ("LOOKING UP NAME '" <> show n <> "' IN " <> show scopes)
-    maybe (throw (NameNotFound li n)) pure $
-        (flip asumMap scopes $ \s -> whenAlt (n `elem` _varFunNames s) (_prefix s .: n))
-        <|> flip asumMap (M.toList deps) (\(modName, ModSig{exportedVars}) 
-            -> if (modName .: n) `member` (M.keysSet exportedVars) then Just (modName .: n) else Nothing)
-lookupTypeName :: (QualifyC r, Member (Reader (Map QualifiedName ModSig)) r) => Text -> LexInfo -> Sem r QualifiedName
-lookupTypeName n li = get @[Scope] >>= \scopes -> ask >>= \deps -> do
-    log LogDebugVeryVerbose ("LOOKING UP Type '" <> show n <> "' IN " <> show scopes <> " AND " <> show deps)
-    maybe (throw (TypeNotFound li n)) pure $
-        flip asumMap scopes (\s -> whenAlt (n `elem` _typeNames s) (_prefix s .: n))
-        <|> flip asumMap (M.toList deps) (\(modName, ModSig{exportedTypes}) -> lookup (modName .: n) exportedTypes $> modName .: n)
-lookupStructDef :: (Members [Reader Dependencies, State [Scope], Error QualificationError, Output Log] r)
+    (Import IgnoreExt li m : sts) -> 
+        (:)
+        <$> pure (Import IgnoreExt li $ UnsafeQualifiedName m m li)
+        <*> qualifyStmnts sts
+
+-- Once parametric types are a thing, the kind will have to be determined by the type parameters (and the way they are used).
+-- for now, the only kind to put here is KStar
+    (DefStruct IgnoreExt li n fields : sts) -> traverse (bitraverse pure (qualifyType li)) fields >>= \fields' ->
+        withType li n KStar (RecordType (map (second coercePass) fields')) $ \qn ->
+            (:) 
+                <$> pure (DefStruct IgnoreExt li qn fields')
+                <*> qualifyStmnts sts
+
+    (StatementX x _ : _) -> absurd x
+
+qualifyExp :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
+           => Expr QualifyNames
+           -> Sem r (Expr NextPass)
+qualifyExp = \case
+    FCall IgnoreExt li e args   -> FCall IgnoreExt li <$> qualifyExp e <*> traverse qualifyExp args
+    IntLit IgnoreExt li n       -> pure $ IntLit IgnoreExt li n
+    UnitLit li                  -> pure $ UnitLit li
+    If IgnoreExt li cond th el  -> If IgnoreExt li <$> qualifyExp cond <*> qualifyExp th <*> qualifyExp el
+    Let IgnoreExt li decl@(Decl _ n _ _) b  -> withVar li n $ \n' -> Let IgnoreExt li <$> qualifyDeclWith n' li decl <*> qualifyExp b
+    Var IgnoreExt li n          -> Var IgnoreExt li <$> lookupVar li n
+    StructConstruct IgnoreExt li structName fields -> lookupType li structName >>= \case
+            (structName', _k, RecordType tyFields) -> traverse (secondM qualifyExp) fields <&> \fields' -> 
+                StructConstruct (StructDef structName' (map (second coercePass) tyFields)) li structName' fields'
+            (tyName', k, variant) -> throw (NotAStruct li tyName' k variant)
+    StructAccess IgnoreExt li se f -> do
+        allStructs :: [(QualifiedName, Kind, TypeVariant)] <- asks (concatMap (toList . view scopeTypes))
+        let possibleStructs = fromList $ allStructs & mapMaybe \(tyName, kind, tyVariant) -> case tyVariant of
+                RecordType fields -> if f `elem` (map fst fields) 
+                    then Just $ (tyName, StructDef tyName (map (second coercePass) fields))
+                    else Nothing 
+                _ -> Nothing
+        StructAccess possibleStructs li 
+            <$> qualifyExp se
+            <*> pure f
+    ExprX x _ -> absurd x
+
+qualifyDeclWith :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
                 => QualifiedName
                 -> LexInfo
-                -> Sem r (StructDef NextPass)
-lookupStructDef n li = get @[Scope] >>= \scopes -> ask >>= \deps -> do
-    log LogDebugVeryVerbose ("LOOKING UP StructDef '" <> show n <> "' IN " <> show scopes <> " AND " <> show deps)
-    maybe (throw (NotAStruct li n)) pure $
-        (scopes & asumMap (lookup n . view structDefs))
-        <|> (M.toList deps & asumMap (\(_, s) -> do
-            (_, RecordType fs) <- lookup n (exportedTypes s)
-            Just $ coercePass (StructDef n fs)))
+                -> Decl QualifyNames
+                -> Sem r (Decl NextPass)
+qualifyDeclWith n' li (Decl IgnoreExt _ (Ext params) e) = 
+    uncurry (Decl IgnoreExt n' . Ext)
+    <$> foldr (\p r -> withVar li p \p' -> first (p' :) <$> r) (([],) <$> qualifyExp e) params
 
-lookupKind :: (QualifyC r, Member (Reader (Map QualifiedName ModSig)) r) => Text -> LexInfo -> Sem r Kind
-lookupKind n li = get @[Scope] >>= \scopes -> ask >>= \deps -> do
-    log LogDebugVeryVerbose ("LOOKING UP KIND OF NAME '" <> show n <> "' IN " <> show scopes <> " AND " <> show deps)
-    maybe (throw (TypeNotFound li n)) pure $
-        flip asumMap scopes $ \s -> lookup n (_typeKinds s)
-        <|> flip asumMap (M.toList deps) (\(modName, ModSig{exportedTypes}) -> fst <$> (lookup (modName .: n) exportedTypes))
+qualifyDecl :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
+            => LexInfo
+            -> Decl QualifyNames
+            -> Sem r (Decl NextPass)
+qualifyDecl li d@(Decl _ n _ _) = withVar li n \n' -> qualifyDeclWith n' li d
 
-
-kind' :: (QualifyC r) => Type NextPass -> Sem r Kind
-kind' t = either (throw . uncurry (InvalidKind t)) pure (kind t)
+qualifyType :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
+            => LexInfo 
+            -> Type QualifyNames
+            -> Sem r (Type NextPass)
+qualifyType li = \case 
+    TCon n ()           -> (\(n', k, _) -> TCon n' k) <$> lookupType li n
+    TVar (MkTVar n ())  -> pure $ TVar (MkTVar (UnsafeQualifiedName n n li) KStar)  -- TODO
+    TApp t1 t2          -> TApp <$> qualifyType li t1 <*> qualifyType li t2 

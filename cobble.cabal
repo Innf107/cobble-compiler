@@ -33,7 +33,6 @@ library
       Language.Cobble.Codegen.MCAsmToMCFunction
       Language.Cobble.Codegen.PrimOps
       Language.Cobble.Codegen.TopLevelCPSToMCAsm
-      Language.Cobble.Codegen.Types
       Language.Cobble.CPS.Basic.Types
       Language.Cobble.CPS.TopLevel.Types
       Language.Cobble.LC.PrettyPrint
@@ -49,7 +48,6 @@ library
       Language.Cobble.Prelude.Parser
       Language.Cobble.Qualifier
       Language.Cobble.SemAnalysis
-      Language.Cobble.Shared
       Language.Cobble.Typechecker
       Language.Cobble.Types
       Language.Cobble.Types.AST
@@ -60,7 +58,9 @@ library
       Language.Cobble.Types.AST.Typecheck
       Language.Cobble.Types.Instances
       Language.Cobble.Types.Lens
+      Language.Cobble.Types.LexInfo
       Language.Cobble.Types.PrettyPrint
+      Language.Cobble.Types.QualifiedName
       Language.Cobble.Types.TH
       Language.Cobble.Util
       Language.Cobble.Util.Bitraversable
@@ -241,7 +241,6 @@ test-suite cobble-test
   other-modules:
       FullScale.FileTest
       Language.Cobble.Codegen.BasicCPSToTopLevelCPSSpec
-      Language.Cobble.Codegen.CommonSpec
       Language.Cobble.Codegen.LCToBasicCPSSpec
       Language.Cobble.Codegen.MCAsmToMCFunctionSpec
       Language.Cobble.Codegen.TestShared
@@ -250,8 +249,7 @@ test-suite cobble-test
       Language.Cobble.PackagerSpec
       Language.Cobble.Parser.TokenizerSpec
       Language.Cobble.ParserSpec
-      Language.Cobble.QualifierSpec
-      Language.Cobble.SharedSpec
+      Language.Cobble.TestUtil
       Language.Cobble.TypecheckerSpec
       Language.Cobble.Types.PrettyPrintSpec
       Language.Cobble.TypesSpec

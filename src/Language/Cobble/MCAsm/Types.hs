@@ -2,7 +2,7 @@ module Language.Cobble.MCAsm.Types where
 
 import Language.Cobble.Prelude
 
-import Language.Cobble.Shared
+import Language.Cobble.Types.QualifiedName
 import Language.Cobble.Codegen.Common
 
 import GHC.Show qualified as S

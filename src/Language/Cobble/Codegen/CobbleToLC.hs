@@ -34,7 +34,7 @@ compile prims (Module _deps _modname statements) = foldr makeLet (L.IntLit 0)
         compileExpr (C.Let IgnoreExt _ (Decl (Ext _) name (Ext params) letEx) body) =
             L.Let name (foldr (Lambda . fst) (compileExpr letEx) params) (compileExpr body)
         compileExpr (StructConstruct (Ext _) _ _ fs) = Tuple (map (compileExpr . snd) fs)
-        compileExpr (StructAccess (Ext (def, _)) _ structExp fieldName) = case findIndexOf (structFields . folded) (\(x,_) -> unqualifyName x == fieldName) def of
+        compileExpr (StructAccess (Ext (def, _)) _ structExp fieldName) = case findIndexOf (structFields . folded) (\(x,_) -> x == fieldName) def of
             Nothing -> error "LC Codegen Panic: structAccess: field not found too late"
             Just i -> Select i (compileExpr structExp)
         compileExpr (C.If _ _ c th el)  = L.If (compileExpr c) (compileExpr th) (compileExpr el)

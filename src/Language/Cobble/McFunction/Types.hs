@@ -6,7 +6,7 @@ module Language.Cobble.McFunction.Types (
 import Language.Cobble.Prelude
 
 import Language.Cobble.MCAsm.Types
-import Language.Cobble.Shared
+import Language.Cobble.Types.QualifiedName
 import Language.Cobble.Codegen.Common
 
 import qualified Data.Text as T

@@ -2,7 +2,8 @@ module Language.Cobble.Codegen.TopLevelCPSToMCAsm where
 
 import Language.Cobble.Prelude
 
-import Language.Cobble.Shared
+import Language.Cobble.Types.QualifiedName
+import Language.Cobble.Types.LexInfo
 import Language.Cobble.Util.Polysemy.Fresh
 
 import Language.Cobble.CPS.TopLevel.Types as T
@@ -29,7 +30,7 @@ compile' fs = \case
         ,   compileTLC c
         ])
         : compile' (f:fs) p
-    C c -> Block "__main__" 
+    C c -> Block (UnsafeQualifiedName "__main__" "__main__" InternalLexInfo) 
             (   map (\f -> LoadFunctionAddress (Reg f) f) fs   
             <>  compileTLC c
             )

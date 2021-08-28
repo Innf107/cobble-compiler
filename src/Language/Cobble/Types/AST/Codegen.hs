@@ -9,7 +9,7 @@ import Language.Cobble.Prelude
 
 import Language.Cobble.Types.AST
 import Language.Cobble.Types.Instances
-import Language.Cobble.Shared
+import Language.Cobble.Types.QualifiedName
 
 -- Defined here because the instances need
 -- @Type 'Codegen@ to be defined
@@ -33,7 +33,7 @@ type instance XStatement 'Codegen = ExtVoid Codegen
 
 type instance XFCall            'Codegen = Ext Codegen (Type 'Codegen)
 type instance XIntLit           'Codegen = IgnoreExt Codegen
-type instance XIf               'Codegen = Ext Codegen (QualifiedName, Int)
+type instance XIf               'Codegen = IgnoreExt Codegen
 type instance XLet              'Codegen = IgnoreExt Codegen
 type instance XVar              'Codegen = Ext Codegen (Type 'Codegen)
 type instance XStructConstruct  'Codegen = Ext Codegen (StructDef 'Codegen, Type 'Codegen)

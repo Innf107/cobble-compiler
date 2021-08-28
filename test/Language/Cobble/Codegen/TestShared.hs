@@ -6,6 +6,8 @@ import Language.Cobble.CPS.Basic.Types as C
 import Language.Cobble.CPS.TopLevel.Types as T
 import Language.Cobble.MCAsm.Types as A 
 import Language.Cobble.McFunction.Types
+import Language.Cobble.TestUtil
+import Language.Cobble.Types.QualifiedName
 
 exampleLC :: LCExpr
 exampleLC = L.App (L.Lambda "a" (L.Select 1 (L.Var "a"))) (L.Tuple [L.IntLit 3, L.IntLit 4])
@@ -13,42 +15,73 @@ exampleLC = L.App (L.Lambda "a" (L.Select 1 (L.Var "a"))) (L.Tuple [L.IntLit 3, 
 
 exampleCPS :: CPS
 exampleCPS = C.App2
-                (C.Admin "f_0" (C.App2
-                    (C.Admin "x0_3" (C.App2
-                        (C.Admin "x1_4" (C.Let "t_2" (C.Tuple [C.Var "x0_3", C.Var "x1_4"]) (C.App2
-                            (C.Admin "v_1" (C.App3 (C.Var "f_0") C.Halt (C.Var "v_1")))
-                            (C.Var "t_2")
+                (C.Admin "f" (C.App2
+                    (C.Admin "x0" (C.App2
+                        (C.Admin "x1" (C.Let "t" (C.Tuple [C.Var "x0", C.Var "x1"]) (C.App2
+                            (C.Admin "v" (C.App3 (C.Var "f") C.Halt (C.Var "v")))
+                            (C.Var "t")
                             )))
                         (C.IntLit 4)))
                     (C.IntLit 3)))
-                (C.Lambda "k_5" "a" (C.App2 (Admin "t_6" (C.Let "y_7" (C.Select 1 (C.Var "t_6")) (C.App2 (C.Var "k_5") (C.Var "y_7")))) (C.Var "a")))
+                (C.Lambda "k" "a" (C.App2 (Admin "t" (C.Let "y" (C.Select 1 (C.Var "t")) (C.App2 (C.Var "k") (C.Var "y")))) (C.Var "a")))
 
 exampleReduced :: CPS
-exampleReduced = C.Let "f_0" (Val (C.Lambda "k_5" "a" (C.Let "y_7" (C.Select 1 (C.Var "a")) (C.App2 (C.Var "k_5") (C.Var "y_7")))))
-                    (C.Let "x0_3" (Val (C.IntLit 3))
-                        (C.Let "x1_4" (Val (C.IntLit 4))
-                            (C.Let "t_2" (C.Tuple [C.Var "x0_3", C.Var "x1_4"])
-                                (C.App3 (C.Var "f_0") C.Halt (C.Var "t_2")))))
+exampleReduced = C.Let "f" (Val (C.Lambda "k" "a" (C.Let "y" (C.Select 1 (C.Var "a")) (C.App2 (C.Var "k") (C.Var "y")))))
+                    (C.Let "x0" (Val (C.IntLit 3))
+                        (C.Let "x1" (Val (C.IntLit 4))
+                            (C.Let "t" (C.Tuple [C.Var "x0", C.Var "x1"])
+                                (C.App3 (C.Var "f") C.Halt (C.Var "t")))))
+
+(~=) :: QualifiedName -> QualifiedName -> Bool
+n ~= m = originalName n == originalName m
+
+cpsEqual :: CPS -> CPS -> Bool
+cpsEqual = curry \case 
+    (C.Let f e b, C.Let f' e' b') -> f ~= f' && cpsEqualE e e' && cpsEqual b b'
+    (C.LetRec f k x b e, C.LetRec f' k' x' b' e') -> f ~= f' && x ~= x' && k ~= k' && b `cpsEqual` b' && e `cpsEqual` e'
+    (App3 f k x, App3 f' k' x') -> f `cpsEqualV` f' && k `cpsEqualV` k' && x `cpsEqualV` x'
+    (App2 c x, App2 c' x') -> c `cpsEqualV` c' && x `cpsEqualV` x'
+    (C.If c th el, C.If c' th' el') -> c `cpsEqualV` c' && th `cpsEqual` th' && el `cpsEqual` el'
+    _ -> False 
+
+cpsEqualE :: CPSExpr -> CPSExpr -> Bool 
+cpsEqualE = curry \case
+    (Val v, Val v') -> v `cpsEqualV` v'
+    (C.Tuple vs, C.Tuple vs') -> all id (zipWith cpsEqualV vs vs')
+    (C.Select x v, C.Select x' v') -> x == x' && v `cpsEqualV` v'
+    (C.PrimOp p vs, C.PrimOp p' vs') -> p == p' && all id (zipWith cpsEqualV vs vs')
+    _ -> False
+
+cpsEqualV :: CPSVal -> CPSVal -> Bool
+cpsEqualV = curry \case
+    (C.IntLit n, C.IntLit n') -> n == n'
+    (C.Var v, C.Var v') -> v ~= v'
+    (C.Lambda k x b, C.Lambda k' x' b') -> k ~= k' && x ~= x' && b `cpsEqual` b'
+    (Admin x b, Admin x' b') -> x ~= x' && b `cpsEqual` b'
+    (C.Halt, C.Halt) -> True
+    _ -> False
+
+
 exampleReducedFreshIX :: Int
 exampleReducedFreshIX = 6
 
 exampleTL :: TL
-exampleTL = T.LetF "f_6" "k_5" ["s_7", "a"] (T.Let "y_7" (T.Select 1 "a")
-                (T.Let "k_5_9" (T.Select 0 "k_5")
-                (T.Let "env_10" (T.Select 1 "k_5")
-                (T.App "k_5_9" ["env_10", "y_7"]))))
+exampleTL = T.LetF "f_6" "k" ["s_7", "a"] (T.Let "y" (T.Select 1 "a")
+                (T.Let "k_9" (T.Select 0 "k")
+                (T.Let "env_10" (T.Select 1 "k")
+                (T.App "k_9" ["env_10", "y"]))))
             (T.C 
                 (T.Let "env_8" (T.Tuple [])
-                (T.Let "f_0" (T.Tuple ["f_6", "env_8"])
-                (T.Let "x0_3" (T.IntLit 3)
-                (T.Let "x1_4" (T.IntLit 4)
-                (T.Let "t_2" (T.Tuple ["x0_3", "x1_4"])
+                (T.Let "f" (T.Tuple ["f_6", "env_8"])
+                (T.Let "x0" (T.IntLit 3)
+                (T.Let "x1" (T.IntLit 4)
+                (T.Let "t" (T.Tuple ["x0", "x1"])
                 (T.Let "h_11" T.Halt
                 (T.Let "henv_12" (T.Tuple [])
                 (T.Let "e_13" (T.Tuple ["h_11", "henv_12"])
-                (T.Let "f_0_14" (T.Select 0 "f_0")
-                (T.Let "env_15" (T.Select 1 "f_0")
-                (T.App "f_0_14" ["e_13", "env_15", "t_2"])
+                (T.Let "f_14" (T.Select 0 "f")
+                (T.Let "env_15" (T.Select 1 "f")
+                (T.App "f_14" ["e_13", "env_15", "t"])
                 )))))))))))
 
 exampleASM :: [Block]

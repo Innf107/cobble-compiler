@@ -116,7 +116,6 @@ compileForTest program = do
             let opts = CompileOpts {
                 name="test"
             ,   debug=True
-            ,   target=target116
             ,   ddumpAsm=False
             ,   ddumpLC=False
             ,   ddumpCPS=False

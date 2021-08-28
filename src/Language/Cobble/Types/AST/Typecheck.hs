@@ -8,7 +8,7 @@ import Data.Data
 import Data.Generics.Uniplate.Data
 
 import Language.Cobble.Types.AST
-import Language.Cobble.Shared
+import Language.Cobble.Types.QualifiedName
 
 type instance XModule 'Typecheck = Ext Typecheck (Map (Name 'Codegen) ModSig)
   
@@ -21,7 +21,7 @@ type instance XStatement     'Typecheck = ExtVoid Typecheck
 
 type instance XFCall            'Typecheck = IgnoreExt Typecheck
 type instance XIntLit           'Typecheck = IgnoreExt Typecheck
-type instance XIf               'Typecheck = Ext Typecheck (QualifiedName, Int)
+type instance XIf               'Typecheck = IgnoreExt Typecheck
 type instance XLet              'Typecheck = IgnoreExt Typecheck
 type instance XVar              'Typecheck = IgnoreExt Typecheck
 type instance XStructConstruct  'Typecheck = StructDef Typecheck

@@ -1,7 +1,7 @@
 module Language.Cobble.Codegen.MCAsmToMCFunction where
 
 import Language.Cobble.Prelude hiding (to, from, para)
-import Language.Cobble.Shared
+import Language.Cobble.Types.QualifiedName
 import Language.Cobble.MCAsm.Types as A
 import Language.Cobble.McFunction.Types as F
 import Language.Cobble.Codegen.Common
@@ -11,7 +11,7 @@ import Data.Functor.Foldable hiding (Nil)
 compile :: [Block] -> [CompiledModule]
 compile blocks  =   mallocMod 
                 :   icallMods 
-                <>  map (\(Block n is) -> (qNameToPath n, concat $ run $ runReader icallMap $ (traverse compileInstruction is))) blocks 
+                <>  map (\(Block n is) -> (toString $ renamed n, concat $ run $ runReader icallMap $ (traverse compileInstruction is))) blocks 
     where
         (icallMods, icallMap) = createICallTree icalledFunctions
         icalledFunctions = map (\(Block f _) -> f) blocks
@@ -45,7 +45,7 @@ compileInstruction = \case
     Call f                        -> pure [Function (own f)]  
     ICall x                       -> pure [
                                         Scoreboard $ Players (Operation (reg icallReg) regs SAssign (reg x) regs)
-                                    ,   Function $ ownPath "icall.icall"
+                                    ,   Function $ Own "icall/icall"
                                     ]   
     LoadFunctionAddress x f       -> asks (lookup f) >>= \case 
         Just address -> pure [Scoreboard (Players (Set (reg x) regs address))]
@@ -60,7 +60,7 @@ compileInstruction = \case
             [Scoreboard (Players (Operation (reg x) regs SAssign (reg aptrReg) aptrObj))]
         ,   replicate n (Summon (Foreign "minecraft" "marker") (Just (SummonArg (Abs 0 0 0) (Just (C [("Tags", L [S "MALLOC"])])))))
         ,   [   Scoreboard (Players (Set (reg ixReg) ixObj 0))
-            ,   Execute (EAs (Entity [STag "MALLOC"]) (ERun (Function $ ownPath "__malloc__")))
+            ,   Execute (EAs (Entity [STag "MALLOC"]) (ERun (Function $ Own "__malloc__")))
             ,   Scoreboard (Players (F.Add (reg aptrReg) aptrObj 1))
             ]
         ]  
@@ -84,7 +84,7 @@ own :: QualifiedName -> NamespacedName
 own = Own . show
 
 ownPath :: QualifiedName -> NamespacedName 
-ownPath = Own . toText . qNameToPath
+ownPath = Own . renamed
 
 reg :: Register -> Selector
 reg (Reg r)        = Player ("$" <> show r) 
@@ -141,10 +141,10 @@ createICallTree fs = (,mapping) $ (icallMod:) $ binTree & para \case
                         $ ERun $ Function (getFunction x)
             ,   Execute . EIf (IScore (reg icallDoneReg) regs $ IMatches (REQ 0))
                         . EIf (IScore (reg icallReg) regs $ IMatches (RLE x))
-                        . ERun . Function . ownPath . ("icall.node" +.) . show <$> nodeValue lt
+                        . ERun . Function . Own . ("icall/node" <>) . show <$> nodeValue lt
             ,   Execute . EIf (IScore (reg icallDoneReg) regs $ IMatches (REQ 0))
                         . EIf (IScore (reg icallReg) regs $ IMatches (RGE x))
-                        . ERun . Function . ownPath . ("icall.node" +.) . show <$> nodeValue rt
+                        . ERun . Function . Own . ("icall/node" <>) . show <$> nodeValue rt
             ])] ++ lmods ++ rmods
     where
         mapping :: Map QualifiedName Int
@@ -152,7 +152,7 @@ createICallTree fs = (,mapping) $ (icallMod:) $ binTree & para \case
         mappingBack :: Map Int QualifiedName
         mappingBack = fromList (zip [1..] fs)
         getFunction :: Int -> NamespacedName
-        getFunction i = ownPath $ fromMaybe (error "createICallTree: No function with ID: " <> show i) (lookup i mappingBack)
+        getFunction i = ownPath $ fromMaybe (error $ "createICallTree: No function with ID: " <> show i) (lookup i mappingBack)
 
         binTree = mkBinTree 0 (length fs + 1)
 
@@ -168,7 +168,7 @@ createICallTree fs = (,mapping) $ (icallMod:) $ binTree & para \case
             Nil -> []
             Node start _ _ -> [
                     Scoreboard $ Players $ Set (reg icallDoneReg) regs 0
-                ,   Function (ownPath $ "icall.node" +. show start)
+                ,   Function (Own $ "icall/node" <> show start)
                 ])
 
 

@@ -6,7 +6,8 @@ IMPORTANT OPTIMIZATION: Instead of allocating expensive closures, pass the envir
 -}
 
 import Language.Cobble.Prelude hiding (uncurried, (\\))
-import Language.Cobble.Shared
+import Language.Cobble.Types.QualifiedName
+import Language.Cobble.Util.Polysemy.Fresh
 import Language.Cobble.CPS.Basic.Types as C
 import Language.Cobble.CPS.TopLevel.Types as T
 import Language.Cobble.Codegen.Common
@@ -22,7 +23,7 @@ data TopLevelBinding = TLBindingF QualifiedName QualifiedName [QualifiedName] TL
 
 type LocalBinding = (QualifiedName, TLExp)
 
-compile :: (Members '[State Int] r) => CPS -> Sem r TL
+compile :: (Members '[Fresh Text QualifiedName] r) => CPS -> Sem r TL
 compile c = runReader mempty $ compileC c <&> \(bindings, cmd) -> bindings & foldr (\t r -> case t of
     TLBindingF fname k args b -> T.LetF fname k args b r
     TLBindingC fname args b   -> T.LetC fname args b r
@@ -31,16 +32,16 @@ compile c = runReader mempty $ compileC c <&> \(bindings, cmd) -> bindings & fol
 type LetRecEnv = Map QualifiedName (QualifiedName, QualifiedName)
 --                   ^Function     ^TLFunName      ^Environment
 
-compileC :: forall r. (Members '[State Int, Reader LetRecEnv] r) => CPS -> Sem r ([TopLevelBinding], TLC)
+compileC :: forall r. (Members '[Fresh Text QualifiedName, Reader LetRecEnv] r) => CPS -> Sem r ([TopLevelBinding], TLC)
 compileC = \case
     C.Let x e c -> do
         (eTLs, eLocs, eExp) <- compileExpr e
         (cTLs, cC) <- compileC c
         pure (eTLs <> cTLs, withLocals eLocs (T.Let x eExp cC))
     C.LetRec f k x e c -> do
-        s' <- freshen "s"
-        env' <- freshen "env"
-        tlF <- freshen f
+        s' <- freshVar "s"
+        env' <- freshVar "env"
+        tlF <- freshVar (originalName f)
         (lamTLs, lamLocs, lamExp) <- local (insert f (tlF, s')) $ compileLambdaWithNames (tlF, s', env') k x e
         -- LetRec is (obviously) only scoped over its own function body
         (cTLs, cC) <- compileC c
@@ -84,14 +85,14 @@ compileC = \case
         (thTLs, th') <- compileC th
         (elTLs, el') <- compileC el
 
-        (thF', thEnv') <- freshen ("th", "thenv")
+        (thF', thEnv') <- freshVar2 "th" "thenv"
         thVars <- freeVars th []
-        thenCont <- freshen "ths" <&> \ths' -> TLBindingC thF' [ths'] (ifoldr (\i x r -> T.Let x (T.Select i ths') r) th' thVars)
+        thenCont <- freshVar "ths" <&> \ths' -> TLBindingC thF' [ths'] (ifoldr (\i x r -> T.Let x (T.Select i ths') r) th' thVars)
         let thEnv = (thEnv', T.Tuple thVars)
 
-        (elF', elEnv') <- freshen ("el", "elenv")
+        (elF', elEnv') <- freshVar2 "el" "elenv"
         elVars <- freeVars th []
-        elCont <- freshen "els" <&> \els' -> TLBindingC elF' [els'] (ifoldr (\i x r -> T.Let x (T.Select i els') r) el' elVars)
+        elCont <- freshVar "els" <&> \els' -> TLBindingC elF' [els'] (ifoldr (\i x r -> T.Let x (T.Select i els') r) el' elVars)
         let elEnv = (elEnv', T.Tuple elVars)
 
         pure (
@@ -105,9 +106,10 @@ compileC = \case
         withLocals :: [LocalBinding] -> TLC -> TLC
         withLocals = flip (foldr (\(x, e) r -> T.Let x e r))
         unwrapClosure :: QualifiedName -> Sem r ([LocalBinding], QualifiedName, QualifiedName)
-        unwrapClosure f = freshen (f, "env") <&> \(f', env') -> ([(f', T.Select 0 f), (env', T.Select 1 f)], f', env')
+        unwrapClosure f = freshVar2 (renamed f) "env" <&> \(f', env') -> ([(f', T.Select 0 f), (env', T.Select 1 f)], f', env')
+--                                  ^ TODO
 
-compileExpr :: (Members '[State Int, Reader LetRecEnv] r) => CPSExpr -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
+compileExpr :: (Members '[Fresh Text QualifiedName, Reader LetRecEnv] r) => CPSExpr -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
 compileExpr = \case
     C.Val v         -> compileVal v
     C.Tuple vs      -> do
@@ -125,20 +127,20 @@ compileExpr = \case
         (vBindings, vNames) <- asVars vsExps
         pure (vsTLs, vsLocs <> vBindings, T.PrimOp p vNames)
 
-compileVal :: (Members '[State Int, Reader LetRecEnv] r) => CPSVal -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
+compileVal :: (Members '[Fresh Text QualifiedName, Reader LetRecEnv] r) => CPSVal -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
 compileVal = \case
     C.IntLit n      -> pure ([], [], T.IntLit n)
     C.Var v         -> pure ([], [], T.Var v)
     C.Lambda k x c  -> compileLambda k x c
     C.Admin v c     -> compileContinuation v c
-    C.Halt          -> freshen ("h", "henv") <&> \(h', henv') -> 
+    C.Halt          -> freshVar2 "h" "henv" <&> \(h', henv') -> 
                         ([], [(h', T.Halt), (henv', T.Tuple [])], T.Tuple [h', henv'])
 
 
-compileLambda :: (Members '[State Int, Reader LetRecEnv] r) => QualifiedName -> QualifiedName -> CPS -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
-compileLambda k x c = freshen ("f", "s", "env") >>= \ns -> compileLambdaWithNames ns k x c
+compileLambda :: (Members '[Fresh Text QualifiedName, Reader LetRecEnv] r) => QualifiedName -> QualifiedName -> CPS -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
+compileLambda k x c = freshVar3 "f" "s" "env" >>= \ns -> compileLambdaWithNames ns k x c
 
-compileLambdaWithNames :: (Members '[State Int, Reader LetRecEnv] r) => (QualifiedName, QualifiedName, QualifiedName) -> QualifiedName -> QualifiedName -> CPS -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
+compileLambdaWithNames :: (Members '[Fresh Text QualifiedName, Reader LetRecEnv] r) => (QualifiedName, QualifiedName, QualifiedName) -> QualifiedName -> QualifiedName -> CPS -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
 compileLambdaWithNames (f', s', env') k x c = do
     ys <- freeVars c [k, x]
     (fs, c') <- compileC c
@@ -148,8 +150,8 @@ compileLambdaWithNames (f', s', env') k x c = do
         ,   T.Tuple [f', env']
         )
 
-compileContinuation :: (Members '[State Int, Reader LetRecEnv] r) => QualifiedName -> CPS -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
-compileContinuation x c = freshen ("f", "s", "env") >>= \(f', s', env') -> do
+compileContinuation :: (Members '[Fresh Text QualifiedName, Reader LetRecEnv] r) => QualifiedName -> CPS -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
+compileContinuation x c = freshVar3 "f" "s" "env" >>= \(f', s', env') -> do
     (fs, c') <- compileC c
     ys <- freeVars c [x]
     pure (
@@ -159,12 +161,12 @@ compileContinuation x c = freshen ("f", "s", "env") >>= \(f', s', env') -> do
         )
             
 
-asVar :: (Member (State Int) r) => TLExp -> Sem r ([LocalBinding], QualifiedName)
+asVar :: (Member (Fresh Text QualifiedName) r) => TLExp -> Sem r ([LocalBinding], QualifiedName)
 asVar = \case
     T.Var x -> pure ([], x)
     e       -> freshVar "e" <&> \e' -> ([(e', e)], e')
 
-asVars :: (Member (State Int) r) => [TLExp] -> Sem r ([LocalBinding], [QualifiedName])
+asVars :: (Member (Fresh Text QualifiedName) r) => [TLExp] -> Sem r ([LocalBinding], [QualifiedName])
 asVars es = first concat . unzip <$> traverse asVar es
     
 
