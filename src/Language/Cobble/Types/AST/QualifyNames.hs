@@ -25,7 +25,7 @@ type instance XLet              'QualifyNames = IgnoreExt QualifyNames
 type instance XVar              'QualifyNames = IgnoreExt QualifyNames
 type instance XStructConstruct  'QualifyNames = IgnoreExt QualifyNames
 type instance XStructAccess     'QualifyNames = IgnoreExt QualifyNames
-type instance XExpr             'QualifyNames = ExtVoid QualifyNames
+type instance XExpr             'QualifyNames = OperatorGroup QualifyNames
 
 type instance Name 'QualifyNames = Text
 

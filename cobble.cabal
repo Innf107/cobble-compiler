@@ -3,11 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
-<<<<<<< HEAD
---
--- hash: b9651891855371d7c7fdcc74ae89d7325d545417ee412ce42d407466b65e7eb5
-=======
->>>>>>> cps
 
 name:           cobble
 version:        0.1.0.0

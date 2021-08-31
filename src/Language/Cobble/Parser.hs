@@ -90,7 +90,28 @@ statement :: Parser (Statement NextPass)
 statement = "statement" <??> def <|> defStruct <|> import_
 
 expr :: Parser (Expr NextPass)
-expr = "expression" <??> do
+expr = exprOrOp <&> \case
+    OpLeaf e -> e
+    opGroup  -> ExprX opGroup (leftLI opGroup `mergeLexInfo` rightLI opGroup)  
+    where
+        leftLI (OpLeaf e) = getLexInfo e
+        leftLI (OpNode l _ _) = leftLI l
+        rightLI (OpLeaf e) = getLexInfo  e
+        rightLI (OpNode _ _ r) = rightLI r
+
+
+exprOrOp :: Parser (OperatorGroup NextPass)
+exprOrOp = do
+    l <- OpLeaf <$> exprWithoutOp
+    mrest <- optionMaybe $ (,)
+        <$> operator'
+        <*> exprOrOp
+    pure case mrest of
+        Nothing     -> l
+        Just (o, r) -> OpNode l o r
+
+exprWithoutOp :: Parser (Expr NextPass)
+exprWithoutOp = "expression" <??> do
         f <- expr'
         args <- many expr'
         case args of

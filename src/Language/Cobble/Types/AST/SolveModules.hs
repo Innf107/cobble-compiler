@@ -25,7 +25,7 @@ type instance XLet              'SolveModules = IgnoreExt SolveModules
 type instance XVar              'SolveModules = IgnoreExt SolveModules
 type instance XStructConstruct  'SolveModules = IgnoreExt SolveModules
 type instance XStructAccess     'SolveModules = IgnoreExt 'SolveModules
-type instance XExpr             'SolveModules = ExtVoid SolveModules
+type instance XExpr             'SolveModules = OperatorGroup SolveModules
 
 type instance Name 'SolveModules = Text
 

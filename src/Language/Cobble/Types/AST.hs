@@ -145,6 +145,12 @@ data StructDef p = StructDef {
 
 type instance InstanceRequirements (StructDef p) = [Name p, Type p]
 
+-- Represents a (initially left-associative) group of operators whose fixity has not been resolved yet.
+data OperatorGroup (p :: Pass) = OpNode (OperatorGroup p) (Name p) (OperatorGroup p)
+                               | OpLeaf (Expr p)
+
+type instance InstanceRequirements (OperatorGroup p) = [Name p, Expr p]
+
 instance S.Show Kind where
     show KStar = "*"
     show (KFun k1 k2) = "(" <> show k1 <> " -> " <> show k2 <> ")"
@@ -316,6 +322,14 @@ instance
     _coercePass (StructDef n fs) = StructDef n (map (second coercePass) fs)
 
 
+instance 
+    (   Name p1 ~ Name p2
+    ,   CoercePass (Expr p1) (Expr p2) p1 p2
+    )
+    => CoercePass (OperatorGroup p1) (OperatorGroup p2) p1 p2 where
+    _coercePass (OpNode l op r) = OpNode (coercePass l) op (coercePass r)
+    _coercePass (OpLeaf e) = OpLeaf (coercePass e)
+
 class HasLexInfo t where
     getLexInfo :: t -> LexInfo
 
@@ -331,4 +345,3 @@ instance HasLexInfo (Expr p) where
         StructAccess _ li _ _    -> li
         ExprX _ li               -> li
         
-

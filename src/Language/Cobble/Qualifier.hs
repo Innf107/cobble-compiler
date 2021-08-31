@@ -130,7 +130,7 @@ qualifyExp = \case
                 StructConstruct (StructDef structName' (map (second coercePass) tyFields)) li structName' fields'
             (tyName', k, variant) -> throw (NotAStruct li tyName' k variant)
     StructAccess IgnoreExt li se f -> do
-        allStructs :: [(QualifiedName, Kind, TypeVariant)] <- asks (concatMap (toList . view scopeTypes))
+        allStructs <- asks (concatMap (toList . view scopeTypes))
         let possibleStructs = fromList $ allStructs & mapMaybe \(tyName, kind, tyVariant) -> case tyVariant of
                 RecordType fields -> if f `elem` (map fst fields) 
                     then Just $ (tyName, StructDef tyName (map (second coercePass) fields))
@@ -139,7 +139,7 @@ qualifyExp = \case
         StructAccess possibleStructs li 
             <$> qualifyExp se
             <*> pure f
-    ExprX x _ -> absurd x
+    ExprX _opGroup _li -> undefined 
 
 qualifyDeclWith :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
                 => QualifiedName
