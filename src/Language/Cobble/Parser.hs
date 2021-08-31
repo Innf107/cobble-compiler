@@ -28,11 +28,15 @@ token' = token
     (\(Token LexInfo{startPos=SourcePos {line, column}, file} _) -> newPos (toString file) line column)
 
 
-ident :: Parser (LexInfo, Text)
-ident = "identifier" <??> token' \case
+identNoOperator :: Parser (LexInfo, Text)
+identNoOperator = "identifier" <??> token' \case
     Token l (Ident t) -> Just (l, t)
     _ -> Nothing
-    
+
+ident :: Parser (LexInfo, Text)
+ident = identNoOperator 
+     <|> try (paren "(" *> operator) <* paren ")"
+
 ident' :: Parser Text
 ident' = snd <$> ident
     
@@ -129,7 +133,8 @@ expr'' = "expression (no fcall / struct access)" <??> uncurry (IntLit IgnoreExt)
 
 def :: Parser (Statement NextPass)
 def = "definition" <??> do
-    (liStart, sigName, ty) <- signature 
+    mfixity <- optionMaybe fixity
+    (liStartSig, sigName, ty) <- signature 
     reservedOp' ";"
     name <- ident'
     when (name /= sigName) $ fail "Function definition does not immediately follow its type signature"
@@ -138,7 +143,9 @@ def = "definition" <??> do
 
     reservedOp' "="
     e <- expr
-    pure $ Def IgnoreExt (mergeLexInfo liStart (getLexInfo e)) (Decl IgnoreExt name (Ext params) e) ty
+    pure $ Def (Ext (snd <$> mfixity)) 
+            (fromMaybe liStartSig (fst <$> mfixity) `mergeLexInfo` getLexInfo e) 
+            (Decl IgnoreExt name (Ext params) e) ty
 
 import_ :: Parser (Statement NextPass)
 import_ = "import" <??> do
@@ -158,6 +165,13 @@ signature = "type signature" <??> do
 
 signature' :: Parser (Name NextPass, Type NextPass)
 signature' = fmap (\(_, n, t) -> (n, t)) signature
+
+fixity :: Parser (LexInfo, Fixity)
+fixity = "fixity declaration" <??> (\(ls, f) (le, i) -> (ls `mergeLexInfo` le, f i))
+    <$> (   ((,LeftFix)  <$> reserved "infixl")
+        <|> ((,RightFix) <$> reserved "infixr")
+        )
+    <*> intLit
 
 defStruct :: Parser (Statement NextPass)
 defStruct = "struct definition" <??> (\ls n fs le -> DefStruct IgnoreExt (ls `mergeLexInfo` le) n fs)

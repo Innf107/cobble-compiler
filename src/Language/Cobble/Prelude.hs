@@ -94,7 +94,7 @@ import Control.Lens hiding (
     ,   (<.>)
     )
 
-import Data.Data
+import Data.Data hiding (Fixity)
 
 import qualified Data.DList as D
 import qualified Data.Text as T

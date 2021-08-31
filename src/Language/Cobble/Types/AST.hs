@@ -10,7 +10,6 @@ import Language.Cobble.Types.TH
 import Language.Cobble.Types.LexInfo
 import Language.Cobble.Types.QualifiedName
 
-import Data.Data
 import Data.Generics.Uniplate.Data
 
 import GHC.Show qualified as S
@@ -145,11 +144,16 @@ data StructDef p = StructDef {
 
 type instance InstanceRequirements (StructDef p) = [Name p, Type p]
 
--- Represents a (initially left-associative) group of operators whose fixity has not been resolved yet.
+-- | Represents a (initially left-associative) group of operators whose fixity has not been resolved yet.
 data OperatorGroup (p :: Pass) = OpNode (OperatorGroup p) (Name p) (OperatorGroup p)
                                | OpLeaf (Expr p)
 
 type instance InstanceRequirements (OperatorGroup p) = [Name p, Expr p]
+
+data Fixity = LeftFix Int | RightFix Int deriving (Show, Eq, Generic, Data)
+getPrecedence :: Fixity -> Int
+getPrecedence (LeftFix p)  = p
+getPrecedence (RightFix p) = p
 
 instance S.Show Kind where
     show KStar = "*"

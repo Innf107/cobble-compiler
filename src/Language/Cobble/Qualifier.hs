@@ -93,7 +93,7 @@ qualifyStmnts :: Members '[Error QualificationError, Reader [Scope], Fresh (Text
              -> Sem r [Statement NextPass]
 qualifyStmnts = \case
     [] -> pure []
-    (Def IgnoreExt li decl@(Decl _ n _ _) ty : sts) -> withVar li n $ \n' -> 
+    (Def _ li decl@(Decl _ n _ _) ty : sts) -> withVar li n $ \n' -> 
         (:)
         <$> (Def IgnoreExt li
                 <$> qualifyDeclWith n' li decl
@@ -139,7 +139,7 @@ qualifyExp = \case
         StructAccess possibleStructs li 
             <$> qualifyExp se
             <*> pure f
-    ExprX _opGroup _li -> undefined 
+    ExprX _opGroup _li -> undefined
 
 qualifyDeclWith :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
                 => QualifiedName

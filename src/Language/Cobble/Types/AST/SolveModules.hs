@@ -1,16 +1,13 @@
 {-#OPTIONS_GHC -Wno-orphans#-}
 {-# LANGUAGE TemplateHaskell, UndecidableInstances#-}
 module Language.Cobble.Types.AST.SolveModules where
-  
-import Data.Data
-import Data.Generics.Uniplate.Data
-  
+    
 import Language.Cobble.Prelude
 import Language.Cobble.Types.AST
     
 type instance XModule 'SolveModules = IgnoreExt SolveModules
   
-type instance XDef           'SolveModules = IgnoreExt SolveModules
+type instance XDef           'SolveModules = Ext SolveModules (Maybe Fixity)
 type instance XDecl          'SolveModules = IgnoreExt SolveModules
 type instance XParam         'SolveModules = Ext SolveModules [(Name 'SolveModules)]
 type instance XImport        'SolveModules = IgnoreExt SolveModules
