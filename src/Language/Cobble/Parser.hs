@@ -104,7 +104,7 @@ expr = exprOrOp <&> \case
         rightLI (OpNode _ _ r) = rightLI r
 
 
-exprOrOp :: Parser (OperatorGroup NextPass)
+exprOrOp :: Parser (OperatorGroup NextPass NoFixity)
 exprOrOp = do
     l <- OpLeaf <$> exprWithoutOp
     mrest <- optionMaybe $ (,)
@@ -112,7 +112,7 @@ exprOrOp = do
         <*> exprOrOp
     pure case mrest of
         Nothing     -> l
-        Just (o, r) -> OpNode l o r
+        Just (o, r) -> OpNode l (o, ()) r
 
 exprWithoutOp :: Parser (Expr NextPass)
 exprWithoutOp = "expression" <??> do
@@ -144,7 +144,7 @@ def = "definition" <??> do
     reservedOp' "="
     e <- expr
     pure $ Def (Ext (snd <$> mfixity)) 
-            (fromMaybe liStartSig (fst <$> mfixity) `mergeLexInfo` getLexInfo e) 
+            (maybe liStartSig fst mfixity `mergeLexInfo` getLexInfo e) 
             (Decl IgnoreExt name (Ext params) e) ty
 
 import_ :: Parser (Statement NextPass)

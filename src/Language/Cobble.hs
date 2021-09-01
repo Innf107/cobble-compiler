@@ -136,7 +136,7 @@ compileWithSig :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName]
                => S.Module 'QualifyNames
                -> Sem r ([CompiledModule], ModSig)
 compileWithSig m = do
-    let qualScopes = [Scope mempty mempty]
+    let qualScopes = [Scope mempty mempty mempty]
     let tcState = foldMap (\dsig -> TCState {
                     varTypes=exportedVars dsig
                 })
@@ -199,6 +199,7 @@ primModSig = ModSig {
             , (internalQName "Unit", (KStar, BuiltInType))
             , (internalQName "->", (KStar `KFun` KStar `KFun` KStar, BuiltInType))
             ]
+    ,   exportedFixities = mempty
     }
 
 dumpLC :: (Members '[FileSystem FilePath Text] r) => LCExpr -> Sem r ()

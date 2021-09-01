@@ -38,8 +38,9 @@ type family XModule (p :: Pass)
 -- everything that it exports
 -- (Variables, Functions, Types, etc.)
 data ModSig = ModSig {
-    exportedVars :: Map QualifiedName (Type 'Codegen)
-,   exportedTypes :: Map QualifiedName (Kind, TypeVariant)
+    exportedVars        :: Map QualifiedName (Type 'Codegen)
+,   exportedTypes       :: Map QualifiedName (Kind, TypeVariant)
+,   exportedFixities    :: Map QualifiedName Fixity
 } deriving (Generic, Typeable) -- Instances for @Eq@ and @Data@ are defined in Language.Cobble.Types.AST.Codegen
 
 data TypeVariant = RecordType [(UnqualifiedName, Type 'Codegen)]
@@ -48,8 +49,8 @@ data TypeVariant = RecordType [(UnqualifiedName, Type 'Codegen)]
 
 type Dependencies = Map QualifiedName ModSig
 
-instance Semigroup ModSig where ModSig vs ts <> ModSig vs' ts' = ModSig (vs <> vs') (ts <> ts')
-instance Monoid ModSig where mempty = ModSig mempty mempty
+instance Semigroup ModSig where ModSig vs ts fs <> ModSig vs' ts' fs' = ModSig (vs <> vs') (ts <> ts') (fs <> fs')
+instance Monoid ModSig where mempty = ModSig mempty mempty mempty
 
 -- | A data kind representing the state of the AST at a certain Compiler pass.
 data Pass = SolveModules
@@ -145,15 +146,33 @@ data StructDef p = StructDef {
 type instance InstanceRequirements (StructDef p) = [Name p, Type p]
 
 -- | Represents a (initially left-associative) group of operators whose fixity has not been resolved yet.
-data OperatorGroup (p :: Pass) = OpNode (OperatorGroup p) (Name p) (OperatorGroup p)
-                               | OpLeaf (Expr p)
+data OperatorGroup (p :: Pass) (f :: FixityStatus) 
+    = OpNode (OperatorGroup p f) (Name p, XFixity f) (OperatorGroup p f)
+    | OpLeaf (Expr p)
 
-type instance InstanceRequirements (OperatorGroup p) = [Name p, Expr p]
+-- Since OperatorGroup takes a second parameter, this has to be defined manually (for now)
+deriving instance (AllC Show [Name p, XFixity f, Expr p]) => Show       (OperatorGroup p f)
+deriving instance (AllC Eq   [Name p, XFixity f, Expr p]) => Eq         (OperatorGroup p f)
+deriving instance                                            Generic    (OperatorGroup p f)
+deriving instance (AllC Data [Name p, XFixity f, Expr p], Typeable (OperatorGroup p f)) => Data (OperatorGroup p f)
+
+data FixityStatus = WithFixity | NoFixity
+type family XFixity (f :: FixityStatus) where
+    XFixity WithFixity = Fixity
+    XFixity NoFixity   = () 
+
 
 data Fixity = LeftFix Int | RightFix Int deriving (Show, Eq, Generic, Data)
 getPrecedence :: Fixity -> Int
 getPrecedence (LeftFix p)  = p
 getPrecedence (RightFix p) = p
+
+-- This is *not* just (<) from Ord, since this does not satisfy the Ord laws.
+lowerPrecedence :: Fixity -> Fixity -> Bool
+lowerPrecedence (LeftFix p) (LeftFix p')    = p <= p'
+lowerPrecedence (RightFix p) (RightFix p')  = p <  p'
+lowerPrecedence (LeftFix p) (RightFix p')   = p <= p'
+lowerPrecedence (RightFix p) (LeftFix p')   = p <= p'
 
 instance S.Show Kind where
     show KStar = "*"
@@ -330,7 +349,7 @@ instance
     (   Name p1 ~ Name p2
     ,   CoercePass (Expr p1) (Expr p2) p1 p2
     )
-    => CoercePass (OperatorGroup p1) (OperatorGroup p2) p1 p2 where
+    => CoercePass (OperatorGroup p1 f) (OperatorGroup p2 f) p1 p2 where
     _coercePass (OpNode l op r) = OpNode (coercePass l) op (coercePass r)
     _coercePass (OpLeaf e) = OpLeaf (coercePass e)
 

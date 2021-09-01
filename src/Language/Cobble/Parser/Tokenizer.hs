@@ -87,7 +87,7 @@ tokenize fp content = D.toList <$> go (SourcePos 1 1) (SourcePos 1 1) Default (t
                 | isIdentStart c -> go' (InIdent [c])
                 | isOpStart c    -> go' (InOp [c])
                 | isIntStart c   -> go' (InIntLit [c])
-                | isParen c      -> Paren (toText c) ++> go' Default
+                | isParen c      -> Paren [c] ++> go' Default
                 | c == '-'       -> go' LeadingMinus
             (InIdent ident, []) -> done (Ident (toText ident))
             (InIdent ident, (c:_))
@@ -117,6 +117,7 @@ tokenize fp content = D.toList <$> go (SourcePos 1 1) (SourcePos 1 1) Default (t
                 | isOpLetter c   -> go' (InOp ['-', c])
                 | isWhiteSpace c -> mkOperator ['-'] +> go' Default
                 | isIntStart c   -> go' (InIntLit ['-', c])
+                | isParen c      -> mkOperator ['-'] +> (Paren [c] ++> go' Default)
                 | isIdentStart c -> mkOperator ['-'] +> go' (InIdent [c])
             (InComment, []) -> pure []
             (InComment, (c:_))

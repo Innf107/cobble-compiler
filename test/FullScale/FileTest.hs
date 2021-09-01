@@ -97,7 +97,7 @@ runFileTestsRecursive root = runFileTests =<< findTestFilesRecursive root
 findTestFilesRecursive :: FilePath -> IO [FilePath] 
 findTestFilesRecursive root = fmap concat . traverse (\p -> doesDirectoryExist (root </> p) >>= \case
         True | p `notElem` [".", ".."] -> findTestFilesRecursive (root </> p)
-        False | ".cbt" `isExtensionOf` p -> pure [root </> p]
+        False | ".ct" `isExtensionOf` p -> pure [root </> p]
         _ -> pure []
     ) =<< getDirectoryContents root 
 

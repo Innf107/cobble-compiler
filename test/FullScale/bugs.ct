@@ -1,0 +1,15 @@
+--! lexical error on paren after operator : score
+
+infixl 5
+(+) :: Int -> Int;
+(+) = __add__;
+
+x :: Int;
+x = 1 +(2 +(3));
+
+infixl 5
+(-) :: Int -> Int;
+(-) = __sub__;
+
+--! 0
+0

@@ -55,6 +55,7 @@ library:
   - -Wredundant-constraints
   - -Werror=incomplete-patterns
   - -Werror=incomplete-record-updates
+  - -Werror=missing-fields
   - -freverse-errors
 
 executables:

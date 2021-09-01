@@ -17,6 +17,7 @@ type NextPass = SemAnalysis
 
 data QualificationError = NameNotFound LexInfo Text
                         | TypeNotFound LexInfo Text
+                        | FixityNotFound LexInfo Text
                         | NotAStruct LexInfo QualifiedName Kind TypeVariant
                         | VarAlreadyDeclaredInScope LexInfo Text
                         | TypeAlreadyDeclaredInScope LexInfo Text
@@ -27,6 +28,7 @@ data QualificationError = NameNotFound LexInfo Text
 data Scope = Scope {
         _scopeVars :: Map Text QualifiedName
     ,   _scopeTypes :: Map Text (QualifiedName, Kind, TypeVariant)
+    ,   _scopeFixities :: Map Text Fixity
     } deriving (Show, Eq)
 
 makeLenses ''Scope
@@ -47,6 +49,16 @@ lookupType l n = do
         [x] -> pure x
         xs  -> throw $ AmbiguousTypeName l n xs
 
+lookupFixity :: Members '[Reader [Scope], Error QualificationError] r 
+             => LexInfo 
+             -> Text 
+             -> Sem r Fixity 
+lookupFixity l n = do
+    scopes <- ask
+    case mapMaybe (lookup n . view scopeFixities) scopes of 
+        []  -> throw $ FixityNotFound l n
+        [x] -> pure x
+        xs  -> error $ "lookupFixity: multiple fixities for operator: " <> n <> "\n    fixities: " <> show xs
 
 withVar :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
         => LexInfo 
@@ -59,6 +71,22 @@ withVar l n a = do
                 if alreadyInScope 
                 then throw (VarAlreadyDeclaredInScope l n)
                 else local (_head . scopeVars %~ insert n n') (a n')
+
+
+withVarAndFixity :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
+        => Fixity
+        -> LexInfo 
+        -> Text 
+        -> (QualifiedName -> Sem r a) 
+        -> Sem r a
+withVarAndFixity f l n a = do
+                n' <- freshVar (n, l)
+                alreadyInScope <- asks (member n .view (_head . scopeVars))
+                if alreadyInScope 
+                then throw (VarAlreadyDeclaredInScope l n)
+                else local ((_head . scopeVars %~ insert n n')
+                        .   (_head . scopeFixities %~ insert n f)) 
+                        (a n')
 
 withType :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
          => LexInfo -> Text 
@@ -76,9 +104,10 @@ withType l n k tv a = do
 withDeps :: (Members '[Reader [Scope]] r) => Dependencies -> Sem r a -> Sem r a
 withDeps deps a = foldr (\x r -> local (x:) r) a $ map (modSigToScope . snd) $ M.toList deps
     where
-        modSigToScope (ModSig {exportedVars, exportedTypes}) = Scope {
-                _scopeVars  = fromList $ map (\(n,_) -> (originalName n, n)) $ M.toList exportedVars
-            ,   _scopeTypes = fromList $ map (\(n,(k,v)) -> (originalName n, (n, k, v))) $ M.toList exportedTypes
+        modSigToScope (ModSig {exportedVars, exportedTypes, exportedFixities}) = Scope {
+                _scopeVars      = fromList $ map (\(n,_) -> (originalName n, n)) $ M.toList exportedVars
+            ,   _scopeTypes     = fromList $ map (\(n,(k,v)) -> (originalName n, (n, k, v))) $ M.toList exportedTypes
+            ,   _scopeFixities  = fromList $ map (\(n, f) -> (originalName n, f)) $ M.toList exportedFixities
             }
 
 qualify :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
@@ -93,7 +122,7 @@ qualifyStmnts :: Members '[Error QualificationError, Reader [Scope], Fresh (Text
              -> Sem r [Statement NextPass]
 qualifyStmnts = \case
     [] -> pure []
-    (Def _ li decl@(Decl _ n _ _) ty : sts) -> withVar li n $ \n' -> 
+    (Def (Ext mfixity) li decl@(Decl _ n _ _) ty : sts) -> (maybe withVar withVarAndFixity mfixity) li n $ \n' -> 
         (:)
         <$> (Def IgnoreExt li
                 <$> qualifyDeclWith n' li decl
@@ -115,7 +144,7 @@ qualifyStmnts = \case
 
     (StatementX x _ : _) -> absurd x
 
-qualifyExp :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
+qualifyExp :: forall r. Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
            => Expr QualifyNames
            -> Sem r (Expr NextPass)
 qualifyExp = \case
@@ -139,7 +168,50 @@ qualifyExp = \case
         StructAccess possibleStructs li 
             <$> qualifyExp se
             <*> pure f
-    ExprX _opGroup _li -> undefined
+    ExprX opGroup li -> replaceOpGroup . reorderByFixity <$> qualifyWithFixity opGroup
+        where
+            qualifyWithFixity :: OperatorGroup QualifyNames NoFixity -> Sem r (OperatorGroup NextPass WithFixity)
+            qualifyWithFixity (OpLeaf e)            = OpLeaf <$> qualifyExp e
+            qualifyWithFixity (OpNode l (op, ()) r) = do
+                f <- lookupFixity li op
+                op' <- lookupVar li op
+                OpNode
+                    <$> qualifyWithFixity l
+                    <*> pure (op', f)
+                    <*> qualifyWithFixity r
+            replaceOpGroup :: OperatorGroup NextPass WithFixity -> Expr NextPass
+            replaceOpGroup (OpLeaf e) = e
+            replaceOpGroup (OpNode l (op, _fixity) r) = FCall IgnoreExt li (Var IgnoreExt li op) (fromList [
+                                                                replaceOpGroup l
+                                                            ,   replaceOpGroup r
+                                                            ])
+            -- See note [Fixity Algorithm]
+            reorderByFixity :: OperatorGroup NextPass WithFixity -> OperatorGroup NextPass WithFixity
+            reorderByFixity (OpLeaf e) = OpLeaf e
+            reorderByFixity (OpNode l op             (reorderByFixity -> (OpLeaf e))) 
+                = OpNode l op (OpLeaf e)
+            reorderByFixity (OpNode l op@(_, fixity) (reorderByFixity -> (OpNode l' op'@(_, fixity') r')))
+                --                                   left rotation
+                | fixity `lowerPrecedence` fixity' = OpNode (OpNode l op l') op' r'
+                --                                   nothing
+                | otherwise                        = OpNode l op (OpNode l' op' r')
+            reorderByFixity _ = error "unreachable"
+
+
+{-  Note [Fixity Algorithm]:
+    Operator fixity is determined here in the qualifier, since that means that parsing is still context-free.
+    Instead, multiple operators (without parentheses) are parsed right associatively and @reorderByFixity@
+    reorders them according to the (possibly imported) fixity.
+
+    Algorithm: Perform a left rotation in y and recursively repair the left subtree 
+                iff precedence(x) < precedence(y) or precedence(x) = precedence(y) and associativity(x) = infixl
+    Complexity: O(n²) :/ (Probably not that bad, since opGroups don't tend to be that large)
+        x                                               y
+       / \                                             / \
+      1   y  --(precedence(x) < precedence(y))->      x  ...
+         / \                                         / \
+        2  ...                                      1   2
+-}
 
 qualifyDeclWith :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
                 => QualifiedName
