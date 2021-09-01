@@ -2,12 +2,12 @@
 
 infixr 5 
 (+) :: Int -> Int -> Int;
-(+) = __add__;
+(+) x y = __add__ x y;
 
 
 infixl 5
 (-) :: Int -> Int -> Int;
-(-) = __sub__;
+(-) x y = __sub__ x y;
 
 --! 5
 4 + 1
@@ -25,11 +25,11 @@ infixl 5
 
 infixl 5
 (-) :: Int -> Int -> Int;
-(-) = __sub__;
+(-) x y = __sub__ x y;
 
 infixr 4
 (*) :: Int -> Int -> Int;
-(*) = __mul__;
+(*) x y = __mul__ x y;
 
 --! 50
 100 - 10*3 - 4*(7 - 2)
