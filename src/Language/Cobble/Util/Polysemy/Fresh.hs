@@ -40,4 +40,4 @@ freshWithInternal = interpret \case
 
 runFreshQNamesStateInitial :: Int -> Sem (Fresh (Text, LexInfo) QualifiedName : r) a -> Sem r a
 runFreshQNamesStateInitial initial = evalState initial . reinterpret \case
-    FreshVar (n, l) -> state (\i -> (UnsafeQualifiedName n (n <> "_" <> show i) l, i + 1))
+    FreshVar (n, l) -> state (\i -> (unsafeQualifiedName n (n <> "_" <> show i) l, i + 1))

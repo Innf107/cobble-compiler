@@ -30,7 +30,7 @@ compile' fs = \case
         ,   compileTLC c
         ])
         : compile' (f:fs) p
-    C c -> Block (UnsafeQualifiedName "__main__" "__main__" InternalLexInfo) 
+    C c -> Block (internalQName "__main__") 
             (   map (\f -> LoadFunctionAddress (Reg f) f) fs   
             <>  compileTLC c
             )

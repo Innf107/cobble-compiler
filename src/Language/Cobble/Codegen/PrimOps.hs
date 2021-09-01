@@ -25,7 +25,7 @@ data PrimOpInfo = PrimOpInfo {
     }
 
 primOps :: Map QualifiedName PrimOpInfo 
-primOps = M.mapKeys (\k -> UnsafeQualifiedName k k InternalLexInfo) $ fromList [
+primOps = M.mapKeys (\k -> internalQName k) $ fromList [
         ("__true__", PrimOpInfo True_ (unitT -:> boolT))
     ,   ("__false__", PrimOpInfo False_ (unitT -:> boolT))
     ,   ("__add__", PrimOpInfo Add (intT -:> intT -:> intT))

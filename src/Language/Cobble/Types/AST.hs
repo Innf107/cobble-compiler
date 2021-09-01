@@ -123,7 +123,7 @@ t1 -:> t2 = TApp (TApp (TCon tyFunT (kFun kStar (kFun kStar kStar))) t1) t2
 infixr 5 -:>
 
 pattern (:->) :: (Name p ~ QualifiedName, Eq (Name p), XKind p ~ Kind) => Type p -> Type p -> Type p
-pattern (:->) t1 t2 = TApp (TApp (TCon (UnsafeQualifiedName "->" "->" InternalLexInfo) (KFun KStar (KFun KStar KStar))) t1) t2
+pattern (:->) t1 t2 = TApp (TApp (TCon (ReallyUnsafeQualifiedName "->" "-minus-gt" InternalLexInfo) (KFun KStar (KFun KStar KStar))) t1) t2
 
 pattern (:~>) :: (Name p ~ Text, Eq (Name p), XKind p ~ Kind) => Type p -> Type p -> Type p
 pattern (:~>) t1 t2 = TApp (TApp (TCon "->" (KFun KStar (KFun KStar KStar))) t1) t2
@@ -185,10 +185,10 @@ class TyLit n where
     tyFunT  :: n
     
 instance TyLit QualifiedName where
-    tyIntT  = UnsafeQualifiedName "Int" "Int" InternalLexInfo 
-    tyBoolT = UnsafeQualifiedName "Bool" "Bool" InternalLexInfo
-    tyUnitT = UnsafeQualifiedName "Unit" "Unit" InternalLexInfo
-    tyFunT  = UnsafeQualifiedName "->" "->" InternalLexInfo
+    tyIntT  = internalQName "Int"
+    tyBoolT = internalQName "Bool"
+    tyUnitT = internalQName "Unit"
+    tyFunT  = internalQName "->"
 instance TyLit Text where
     tyIntT = "Int"
     tyBoolT = "Bool"

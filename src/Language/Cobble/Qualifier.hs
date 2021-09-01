@@ -114,7 +114,7 @@ qualify :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexI
         => Module QualifyNames
         -> Sem r (Module NextPass)
 qualify (Module (Ext deps) name stmnts) = withDeps deps 
-                                        $ Module (Ext deps) (UnsafeQualifiedName name name (LexInfo (SourcePos 0 0) (SourcePos 0 0) name)) 
+                                        $ Module (Ext deps) (unsafeQualifiedName name name (LexInfo (SourcePos 0 0) (SourcePos 0 0) name)) 
                                        <$>qualifyStmnts stmnts
 
 qualifyStmnts :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
@@ -131,7 +131,7 @@ qualifyStmnts = \case
 
     (Import IgnoreExt li m : sts) -> 
         (:)
-        <$> pure (Import IgnoreExt li $ UnsafeQualifiedName m m li)
+        <$> pure (Import IgnoreExt li $ unsafeQualifiedName m m li)
         <*> qualifyStmnts sts
 
 -- Once parametric types are a thing, the kind will have to be determined by the type parameters (and the way they are used).
@@ -234,5 +234,5 @@ qualifyType :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, 
             -> Sem r (Type NextPass)
 qualifyType li = \case 
     TCon n ()           -> (\(n', k, _) -> TCon n' k) <$> lookupType li n
-    TVar (MkTVar n ())  -> pure $ TVar (MkTVar (UnsafeQualifiedName n n li) KStar)  -- TODO
+    TVar (MkTVar n ())  -> pure $ TVar (MkTVar (unsafeQualifiedName n n li) KStar)  -- TODO
     TApp t1 t2          -> TApp <$> qualifyType li t1 <*> qualifyType li t2 
