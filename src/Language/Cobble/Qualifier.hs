@@ -192,7 +192,7 @@ qualifyExp = \case
                 = OpNode l op (OpLeaf e)
             reorderByFixity (OpNode l op@(_, fixity) (reorderByFixity -> (OpNode l' op'@(_, fixity') r')))
                 --                                   left rotation
-                | fixity `lowerPrecedence` fixity' = OpNode (OpNode l op l') op' r'
+                | fixity `lowerPrecedence` fixity' = OpNode (reorderByFixity (OpNode l op l')) op' r'
                 --                                   nothing
                 | otherwise                        = OpNode l op (OpNode l' op' r')
             reorderByFixity _ = error "unreachable"
