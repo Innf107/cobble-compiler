@@ -117,7 +117,7 @@ withType l n k tv a = do
     n' <- freshVar (n, l)
     withType' l n n' k tv (a n')
 
-withType' :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
+withType' :: Members '[Reader [Scope], Error QualificationError] r 
          => LexInfo
          -> UnqualifiedName
          -> QualifiedName 

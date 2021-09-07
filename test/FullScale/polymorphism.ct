@@ -63,3 +63,40 @@ f (__true__ ()) 3 4
 --! TypeError : Could not match type Bool with Int
 if __true__ () then 1 else __false__ ()
 
+
+--# polymorphic struct : score
+struct S a {
+    x :: a
+};
+
+--! 1
+1
+
+--# polymorphic struct construction : score
+struct S a {
+    x :: a
+};
+
+s1 :: S Int;
+s1 = S {
+    x = 5
+};
+
+--! 1
+1
+
+--! 2
+let s = S{x=5} in 2
+
+--# polymorphic struct access : score
+struct S a {
+    x :: a
+};
+
+s :: S Int;
+s = S {
+    x = 5
+};
+
+--! 5
+s.x
