@@ -28,7 +28,7 @@ type instance XParam     'Codegen = Ext Codegen [(Name 'Codegen, Type 'Codegen)]
 
 type instance XDef       'Codegen = IgnoreExt Codegen
 type instance XImport    'Codegen = IgnoreExt Codegen
-type instance XDefStruct 'Codegen = IgnoreExt Codegen
+type instance XDefStruct 'Codegen = Ext Codegen Kind
 type instance XStatement 'Codegen = ExtVoid Codegen
 
 type instance XFCall            'Codegen = Ext Codegen (Type 'Codegen)

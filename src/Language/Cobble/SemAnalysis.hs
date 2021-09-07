@@ -21,7 +21,7 @@ runSemanticAnalysis (Module x n sts) = fmap (coercePass . Module x n)
 
 
 checkStructDef :: Members '[Error SemanticError] r => Statement SemAnalysis -> Sem r (Statement SemAnalysis)
-checkStructDef (DefStruct IgnoreExt li name fields) = DefStruct IgnoreExt li name
+checkStructDef (DefStruct (Ext k) li name ps fields) = DefStruct (Ext k) li name ps
     <$> detectDuplicateFields li fields
 checkStructDef x = pure x
 

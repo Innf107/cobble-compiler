@@ -76,7 +76,7 @@ typecheck = \case
                 then pure $ Def IgnoreExt l (Decl (Ext retTy) name (Ext $ zip ps ptys) body') (coercePass ty)
                 else throw (WrongReturnType l name retTy (getType body'))
         
-    DefStruct IgnoreExt l name (map (second coercePass) -> fields) -> pure $ DefStruct IgnoreExt l name fields -- TODO: Add to state map -- or not? (The qualifier does this already right?)
+    DefStruct (Ext k) l name ps (map (second coercePass) -> fields) -> pure $ DefStruct (Ext k) l name (map coercePass ps) fields
     Import IgnoreExt l modName -> pure $ Import IgnoreExt l modName
     StatementX x _l -> case x of
 

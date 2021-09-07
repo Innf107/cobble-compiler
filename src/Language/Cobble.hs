@@ -136,7 +136,12 @@ compileWithSig :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName]
                => S.Module 'QualifyNames
                -> Sem r ([CompiledModule], ModSig)
 compileWithSig m = do
-    let qualScopes = [Scope mempty mempty mempty]
+    let qualScopes = [Scope {
+            _scopeVars = mempty
+        ,   _scopeTypes = mempty
+        ,   _scopeFixities = mempty
+        ,   _scopeTVars = mempty
+        }]
     let tcState = foldMap (\dsig -> TCState {
                     varTypes=exportedVars dsig
                 })
@@ -179,10 +184,10 @@ extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
 
 makePartialSig :: S.Statement 'Codegen -> ModSig
 makePartialSig = \case
-    Def _ _ (Decl _ n _ _) t    -> mempty {exportedVars = one (n, t)}
-    DefStruct IgnoreExt _ n fs  -> mempty {exportedTypes = one (n, (KStar, RecordType fs))} -- TODO: Change Kind when polymorphism is implemented
-    Import IgnoreExt _ _        -> mempty
-    StatementX v _              -> absurd v
+    Def _ _ (Decl _ n _ _) t        -> mempty {exportedVars = one (n, t)}
+    DefStruct (Ext k) _ n ps fs   -> mempty {exportedTypes = one (n, (k, RecordType fs))}
+    Import IgnoreExt _ _            -> mempty
+    StatementX v _                  -> absurd v
 
 getModName :: FilePath -> Text
 getModName = toText . FP.dropExtension . L.last . segments

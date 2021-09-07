@@ -174,9 +174,10 @@ fixity = "fixity declaration" <??> (\(ls, f) (le, i) -> (ls `mergeLexInfo` le, f
     <*> intLit
 
 defStruct :: Parser (Statement NextPass)
-defStruct = "struct definition" <??> (\ls n fs le -> DefStruct IgnoreExt (ls `mergeLexInfo` le) n fs)
+defStruct = "struct definition" <??> (\ls n ps fs le -> DefStruct IgnoreExt (ls `mergeLexInfo` le) n (map (\x -> MkTVar x ()) ps) fs)
     <$> reserved "struct"
     <*> ident'
+    <*> many ident'
     <* paren' "{" 
     <*> typedIdent' `sepBy` (reservedOp' ",")
     <*> paren "}"

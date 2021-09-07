@@ -63,10 +63,10 @@ data Pass = SolveModules
 data Statement (p :: Pass) =
       Def        (XDef p)       LexInfo (Decl p) (Type p)
     | Import     (XImport p)    LexInfo (Name p) -- TODO: qualified? exposing?
-    | DefStruct  (XDefStruct p) LexInfo (Name p) [(UnqualifiedName, Type p)]
+    | DefStruct  (XDefStruct p) LexInfo (Name p) [(TVar p)] [(UnqualifiedName, Type p)]
     | StatementX (XStatement p) LexInfo
 
-type instance InstanceRequirements (Statement p) = [XDef p, XImport p, XDefStruct p, XStatement p, Name p, Type p, Decl p]
+type instance InstanceRequirements (Statement p) = [XDef p, XImport p, XDefStruct p, XStatement p, Name p, Type p, TVar p, Decl p]
 
 type family XDef            (p :: Pass)
 type family XParam          (p :: Pass)
@@ -271,6 +271,7 @@ instance
     (   Name p1 ~ Name p2
     ,   CoercePass (Expr p1) (Expr p2) p1 p2
     ,   CoercePass (Type p1) (Type p2) p1 p2
+    ,   CoercePass (TVar p1) (TVar p2) p1 p2
     ,   CoercePass (Decl p1) (Decl p2) p1 p2
     ,   CoercePass (XDef p1) (XDef p2) p1 p2
     ,   CoercePass (XParam p1) (XParam p2) p1 p2
@@ -282,7 +283,7 @@ instance
     _coercePass = \case
         Def x l d t -> Def (coercePass x) l (coercePass d) (coercePass t)
         Import x l n -> Import (coercePass x) l n
-        DefStruct x l n fs -> DefStruct (coercePass x) l n (map (second coercePass) fs)
+        DefStruct x l n ps fs -> DefStruct (coercePass x) l n (map coercePass ps) (map (second coercePass) fs)
         StatementX x l -> StatementX (coercePass x) l
 
 instance
