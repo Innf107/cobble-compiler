@@ -23,6 +23,7 @@ import Language.Cobble.ModuleSolver
 import Language.Cobble.Util.Polysemy.Time
 import Language.Cobble.Util.Polysemy.FileSystem
 import Language.Cobble.Util.Polysemy.Fresh
+import Language.Cobble.Util.Polysemy.Dump
 import Language.Cobble.Util
 
 import Language.Cobble.Prelude.Parser (ParseError, parse)
@@ -77,6 +78,7 @@ data CompileOpts = CompileOpts {
       name::Text
     , debug::Bool
     , description::Text
+    , ddumpTC::Bool
     , ddumpAsm::Bool
     , ddumpLC::Bool
     , ddumpCPS::Bool
@@ -146,14 +148,12 @@ compileWithSig m = do
                     _varTypes=exportedVars dsig
                 })
                 (getExt $ xModule m)
-    --compEnv <- asks \CompileOpts{name, debug, target} -> CompEnv {nameSpace=name, debug, A.target=target}
-
     qMod  <- mapError QualificationError $ runReader qualScopes $ qualify m
 
     saMod <- mapError SemanticError $ runSemanticAnalysis qMod
 
     (compMods, sig) <- freshWithInternal do
-        tcMod <- mapError TypeError $ evalState tcState $ typecheck saMod
+        tcMod <- dumpWhenWithM (asks ddumpTC) ppTC "dump-tc.tc" $ mapError TypeError $ evalState tcState $ typecheck saMod
 
         let lc  = C2LC.compile primOps tcMod
         whenM (asks ddumpLC) $ dumpLC lc
@@ -221,5 +221,6 @@ dumpAsm = writeFile "dump-asm.mcasm" . renderAsm
         renderAsm :: [Block] -> Text
         renderAsm = T.intercalate "\n\n" . map (\(Block f is) -> "[" <> show f <> "]:\n" <> foldMap (\i -> "    " <> show i <> "\n") is)
 
-
+ppTC :: [TConstraint] -> Text
+ppTC = unlines . map (\(x, l) -> show x <> "    @" <> show l) 
 

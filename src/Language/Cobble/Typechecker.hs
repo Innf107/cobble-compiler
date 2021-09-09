@@ -5,6 +5,7 @@ import Language.Cobble.Prelude
 import Language.Cobble.Util.Convert
 import Language.Cobble.Util.Bitraversable
 import Language.Cobble.Util.Polysemy.Fresh
+import Language.Cobble.Util.Polysemy.Dump
 import Language.Cobble.Types hiding (Type)
 import Language.Cobble.Types qualified as C 
 import Language.Cobble.Types.Lens
@@ -93,11 +94,12 @@ check (Let IgnoreExt li (Decl IgnoreExt f (Ext ps) e) body) = do
 check (ExprX x _) = absurd x
 check _ = error "check: Typechecking records is NYI"
 
-typecheck :: Members '[Error TypeError, Fresh Text QualifiedName, State TCState] r 
+typecheck :: Members '[Error TypeError, Fresh Text QualifiedName, State TCState, Dump [TConstraint]] r 
           => Module Typecheck 
           -> Sem r (Module NextPass)
 typecheck (Module (Ext deps) mname sts) = do
     (constraints, sts') <- runWriterAssocR $ traverse checkStmnt sts
+    dump constraints
     subst <- solve mempty constraints
     pure $ Module (Ext deps) mname (applySubst subst sts')
 
