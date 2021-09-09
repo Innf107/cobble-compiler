@@ -35,7 +35,7 @@ newtype Substitution = Subst {unSubst :: Map (TVar NextPass) Type}
 
 -- Not sure if this is really associative...
 instance Semigroup Substitution where
-    Subst s1 <> s2 = Subst $ M.filterWithKey notIdentical $ fmap (applySubst s2) s1
+    Subst s1 <> Subst s2 = Subst $ M.filterWithKey notIdentical $ fmap (applySubst (Subst s2)) s1 <> s2
         where
             notIdentical tv (TVar tv') | tv == tv' = False
             notIdentical _ _ = True
@@ -73,7 +73,7 @@ check (FCall IgnoreExt li f as) = do
 
     ret <- freshTV KStar
     tellLI li [getType f' :~ (foldr (:->) ret (fmap getType as'))]
-    pure (FCall (Ext (getType f')) li f' as')
+    pure (FCall (Ext ret) li f' as')
 check (If IgnoreExt li cond th el) = do
     cond' <- check cond
     th' <- check th
@@ -94,7 +94,7 @@ check (Let IgnoreExt li (Decl IgnoreExt f (Ext ps) e) body) = do
 check (ExprX x _) = absurd x
 check _ = error "check: Typechecking records is NYI"
 
-typecheck :: Members '[Error TypeError, Fresh Text QualifiedName, State TCState, Dump [TConstraint]] r 
+typecheck :: Members '[Error TypeError, Fresh Text QualifiedName, State TCState, Dump [TConstraint], Output Log] r 
           => Module Typecheck 
           -> Sem r (Module NextPass)
 typecheck (Module (Ext deps) mname sts) = do
@@ -103,23 +103,30 @@ typecheck (Module (Ext deps) mname sts) = do
     subst <- solve mempty constraints
     pure $ Module (Ext deps) mname (applySubst subst sts')
 
-solve :: Members '[Error TypeError] r => Substitution -> [TConstraint] -> Sem r Substitution
-solve s ((t1 :~ t2, li):cs) = do
+solve :: Members '[Error TypeError, Output Log] r => Substitution -> [TConstraint] -> Sem r Substitution
+solve s (((applySubst s -> t1) :~ (applySubst s -> t2), li):cs) = do
+    log LogDebugVerbose $ "Solving constraint: " <> show (t1 :~ t2)
     s' <- runReader li $ unify t1 t2
     solve (s <> s') cs 
 solve s [] = pure s
 
-unify :: Members '[Reader LexInfo, Error TypeError] r => Type -> Type -> Sem r Substitution
-unify t1@(TCon c1 _k1) t2@(TCon c2 _k2)
+unify :: Members '[Reader LexInfo, Error TypeError, Output Log] r => Type -> Type -> Sem r Substitution
+unify t1 t2 = do
+    s <- unify' t1 t2
+    log LogDebugVeryVerbose $ "Unified: " <> show t1 <> " ~ " <> show t2 <> "\n    -> " <> show s 
+    pure s
+
+unify' :: Members '[Reader LexInfo, Error TypeError, Output Log] r => Type -> Type -> Sem r Substitution
+unify' t1@(TCon c1 _k1) t2@(TCon c2 _k2)
     | c1 == c2 = pure mempty
     | otherwise = throwLI \li -> DifferentConstructor li t1 t2
-unify (TVar tv) t2              = bind tv t2
-unify t1 (TVar tv)              = bind tv t1
-unify (TApp c1 a1) (TApp c2 a2) = do
+unify' (TVar tv) t2              = bind tv t2
+unify' t1 (TVar tv)              = bind tv t1
+unify' (TApp c1 a1) (TApp c2 a2) = do
     s <- unify c1 c2
-    (s <>) <$> unify a1 a2
-unify t1@TCon{} t2@TApp{}       = throwLI \li -> NotEnoughArgs li t1 t2
-unify t1@TApp{} t2@TCon{}       = throwLI \li -> NotEnoughArgs li t1 t2
+    (s <>) <$> unify (applySubst s a1) (applySubst s a2)
+unify' t1@TCon{} t2@TApp{}       = throwLI \li -> NotEnoughArgs li t1 t2
+unify' t1@TApp{} t2@TCon{}       = throwLI \li -> NotEnoughArgs li t1 t2
 
 bind :: Members '[Reader LexInfo, Error TypeError] r => TVar NextPass -> Type -> Sem r Substitution
 bind tv t
