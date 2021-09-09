@@ -143,7 +143,7 @@ compileWithSig m = do
         ,   _scopeTVars = mempty
         }]
     let tcState = foldMap (\dsig -> TCState {
-                    varTypes=exportedVars dsig
+                    _varTypes=exportedVars dsig
                 })
                 (getExt $ xModule m)
     --compEnv <- asks \CompileOpts{name, debug, target} -> CompEnv {nameSpace=name, debug, A.target=target}
@@ -152,9 +152,9 @@ compileWithSig m = do
 
     saMod <- mapError SemanticError $ runSemanticAnalysis qMod
 
-    tcMod <- mapError TypeError $ evalState tcState $ runOutputSem (log LogWarning . displayTWarning) $ typecheckModule saMod
+    (compMods, sig) <- freshWithInternal do
+        tcMod <- mapError TypeError $ evalState tcState $ typecheck saMod
 
-    compMods <- freshWithInternal do
         let lc  = C2LC.compile primOps tcMod
         whenM (asks ddumpLC) $ dumpLC lc
 
@@ -170,14 +170,10 @@ compileWithSig m = do
         let asm = TL2ASM.compile tl 
         whenM (asks ddumpAsm) $ dumpAsm asm
         
-        pure $ ASM2MC.compile asm
-    
-    let sig = extractSig tcMod
+        pure $ (ASM2MC.compile asm, extractSig tcMod)
+
 
     pure (compMods, sig)
-
-displayTWarning :: TypeWarning -> Text
-displayTWarning = show
 
 extractSig :: S.Module 'Codegen -> ModSig
 extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
