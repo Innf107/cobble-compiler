@@ -289,4 +289,5 @@ qualifyType li = \case
     TCon n ()           -> (\(n', k, _) -> TCon n' k) <$> lookupType li n
     TVar (MkTVar n ())  -> pure $ TVar (MkTVar (unsafeQualifiedName n n li) KStar)  -- TODO: Use lookupTVar
     TApp t1 t2          -> TApp <$> qualifyType li t1 <*> qualifyType li t2 
+    TForall _ _         -> error "source-level foralls NYI"
 

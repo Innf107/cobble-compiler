@@ -5,6 +5,8 @@ module Language.Cobble.Util.Polysemy.Fresh (
     , freshVar2
     , freshVar3
     
+    , runFresh
+    , runFreshM
     , runFreshQNamesState
     , runFreshQNamesStateInitial
     
@@ -15,11 +17,7 @@ import Language.Cobble.Prelude
 import Language.Cobble.Types.QualifiedName
 import Language.Cobble.Types.LexInfo
 
-import Data.Time
-import Data.Time.Clock.POSIX
-
 data Fresh u q m a where
-    -- | Returns the time in **seconds** since Unix Epoch
     FreshVar :: u -> Fresh u q m q
 
 makeSem ''Fresh
@@ -35,9 +33,16 @@ runFreshQNamesState = runFreshQNamesStateInitial 0
 
 
 freshWithInternal :: (Member (Fresh (Text, LexInfo) QualifiedName) r) => Sem (Fresh Text QualifiedName : r) a -> Sem r a
-freshWithInternal = interpret \case
+freshWithInternal =  interpret \case
     FreshVar x -> freshVar (x, InternalLexInfo)
 
 runFreshQNamesStateInitial :: Int -> Sem (Fresh (Text, LexInfo) QualifiedName : r) a -> Sem r a
 runFreshQNamesStateInitial initial = evalState initial . reinterpret \case
     FreshVar (n, l) -> state (\i -> (unsafeQualifiedName n (n <> "_" <> show i) l, i + 1))
+
+runFresh :: (u -> q) -> Sem (Fresh u q : r) a -> Sem r a
+runFresh f = runFreshM (pure . f)
+
+runFreshM :: (u -> Sem r q) -> Sem (Fresh u q : r) a -> Sem r a
+runFreshM f = interpret \case
+    FreshVar x -> f x

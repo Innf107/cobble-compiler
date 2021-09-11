@@ -45,6 +45,45 @@ f x = if x then 1 else 0;
 --! 1
 apply f (__true__ ())
 
+--# id(function) : score
+id :: a -> a;
+id x = x;
+
+f :: Int -> Int;
+f x = x;
+
+g :: Int -> Int;
+g = id f;
+
+--! 25
+g 25
+
+--! 43
+id id 43
+
+--! 67
+let id2 = id id in id2 67
+
+--! 34
+(if __true__ () then id else g) 34
+
+--# doubleIdentity : score
+id :: a -> a;
+id x = x;
+
+id2 :: b -> b;
+id2 x = x;
+
+id3 :: a -> a;
+id3 x = x;
+
+--! 25
+id id2 25
+
+--! 25
+id id3 25
+
+
 --# mismatched types : error
 f :: Bool -> Bool;
 f x = x;

@@ -10,6 +10,8 @@ import Language.Cobble.Types hiding (Type)
 import Language.Cobble.Types qualified as C 
 import Language.Cobble.Types.Lens
 
+import qualified Data.Text as T
+
 import qualified Data.Map as M
 
 type NextPass = 'Codegen
@@ -23,7 +25,8 @@ makeLenses ''TCState
 
 data TypeError = DifferentConstructor LexInfo Type Type 
                | NotEnoughArgs LexInfo Type Type
-               | Occurs LexInfo (TVar NextPass) Type 
+               | Occurs LexInfo (TVar NextPass) Type
+               | HigherPoly LexInfo Type Type
                deriving (Show, Eq, Generic, Data)
 
 type TConstraint = (TConstraintComp, LexInfo)
@@ -43,53 +46,79 @@ instance Semigroup Substitution where
 instance Monoid Substitution where
     mempty = Subst mempty
 
-lookupType :: Members '[State TCState] r => QualifiedName -> Sem r Type
+lookupType :: Members '[State TCState, Fresh (TVar NextPass) (TVar NextPass)] r => QualifiedName -> Sem r Type
 lookupType v = gets (lookup v . view varTypes) <&> fromMaybe (error $ "lookupType: Typechecker cannot find variable: " <> show v)
+    
+removeInitialForall :: Members '[Fresh (TVar NextPass) (TVar NextPass)] r => Type -> Sem r Type
+removeInitialForall (TForall ps t) = foldrM (\p r -> freshVar p <&> \p' -> replaceTVar p p' r) t ps
+removeInitialForall x              = pure x
 
 insertType :: Members '[State TCState] r => QualifiedName -> Type -> Sem r ()
 insertType v t = modify (varTypes %~ insert v t)
 
-checkStmnt :: Members '[Writer [TConstraint], Fresh Text QualifiedName, State TCState] r => Statement Typecheck -> Sem r (Statement NextPass)
+getType' :: (Members '[Fresh (TVar NextPass) (TVar NextPass)] r, HasType a NextPass) => a -> Sem r Type
+getType' = removeInitialForall . getType
+
+checkStmnt :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass), State TCState] r 
+           => Statement Typecheck 
+           -> Sem r (Statement NextPass)
 checkStmnt (Import IgnoreExt li mod) = pure $ Import IgnoreExt li mod
 checkStmnt (_s@DefStruct{}) = error "checkStmnt: Typechecking records is NYI" 
 checkStmnt (Def IgnoreExt li (Decl IgnoreExt f (Ext ps) e) (coercePass -> ty)) = do
     insertType f ty
+    ty' <- removeInitialForall ty
     psTys <- traverse (\_ -> freshTV KStar) ps
     zipWithM_ insertType ps psTys
 
     e' <- check e
-    tellLI li [ty :~ foldr (:->) (getType e') psTys]
-    pure (Def IgnoreExt li (Decl (Ext ty) f (Ext (zip ps psTys)) e') ty)
+    eTy <- getType' e'
+    tellLI li [ty' :~ foldr (:->) eTy psTys]
+    pure (Def IgnoreExt li (Decl (Ext ty') f (Ext (zip ps psTys)) e') ty)
 
 checkStmnt (StatementX x _) = absurd x
 
-check :: Members '[Writer [TConstraint], Fresh Text QualifiedName, State TCState] r => Expr Typecheck -> Sem r (Expr NextPass)
+check :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass), State TCState] r 
+      => Expr Typecheck 
+      -> Sem r (Expr NextPass)
 check (IntLit IgnoreExt li n)   = pure (IntLit IgnoreExt li n)
 check (UnitLit li)              = pure (UnitLit li)
 check (Var IgnoreExt li vname)  = Var . Ext <$> lookupType vname <*> pure li <*> pure vname
 check (FCall IgnoreExt li f as) = do
     f' <- check f
     as' <- traverse check as
-
     ret <- freshTV KStar
-    tellLI li [getType f' :~ (foldr (:->) ret (fmap getType as'))]
+
+    fTy <- getType' f'
+
+    asTys <- traverse getType' as'
+
+    tellLI li [fTy :~ (foldr (:->) ret asTys)]
     pure (FCall (Ext ret) li f' as')
 check (If IgnoreExt li cond th el) = do
     cond' <- check cond
+    condTy <- getType' cond'
+    
     th' <- check th
+    thTy <- getType' th'
+    
     el' <- check el
-    tellLI li [getType cond' :~ boolT, getType th' :~ getType el']
+    elTy <- getType' el'
+
+    tellLI li [condTy :~ boolT, thTy :~ elTy]
     pure (If IgnoreExt li cond' th' el')
 check (Let IgnoreExt li (Decl IgnoreExt f (Ext ps) e) body) = do
     fTy <- freshTV KStar
     psTys <- traverse (\_ -> freshTV KStar) ps
 
     insertType f fTy
+
     zipWithM_ insertType ps psTys
     e' <- check e
+    eTy <- getType' e'
+    
     body' <- check body
 
-    tellLI li [fTy :~ foldr (:->) (getType e') psTys]
+    tellLI li [fTy :~ foldr (:->) eTy psTys]
     pure (Let IgnoreExt li (Decl (Ext fTy) f (Ext (zip ps psTys)) e') body')
 check (ExprX x _) = absurd x
 check _ = error "check: Typechecking records is NYI"
@@ -98,14 +127,17 @@ typecheck :: Members '[Error TypeError, Fresh Text QualifiedName, State TCState,
           => Module Typecheck 
           -> Sem r (Module NextPass)
 typecheck (Module (Ext deps) mname sts) = do
-    (constraints, sts') <- runWriterAssocR $ traverse checkStmnt sts
+    (constraints, sts') <- runWriterAssocR $ runFreshM freshenTV $ traverse checkStmnt sts
     dump constraints
     subst <- solve mempty constraints
     pure $ Module (Ext deps) mname (applySubst subst sts')
+        where
+            freshenTV :: forall r. Members '[Fresh Text QualifiedName] r => TVar NextPass -> Sem r (TVar NextPass)
+            freshenTV (MkTVar x k) = MkTVar <$> freshVar (originalName x) <*> pure k 
 
 solve :: Members '[Error TypeError, Output Log] r => Substitution -> [TConstraint] -> Sem r Substitution
 solve s (((applySubst s -> t1) :~ (applySubst s -> t2), li):cs) = do
-    log LogDebugVerbose $ "Solving constraint: " <> show (t1 :~ t2)
+    log LogDebugVerbose $ "Solving constraint: " <> ppConstraint (t1 :~ t2)
     s' <- runReader li $ unify t1 t2
     solve (s <> s') cs 
 solve s [] = pure s
@@ -113,7 +145,7 @@ solve s [] = pure s
 unify :: Members '[Reader LexInfo, Error TypeError, Output Log] r => Type -> Type -> Sem r Substitution
 unify t1 t2 = do
     s <- unify' t1 t2
-    log LogDebugVeryVerbose $ "Unified: " <> show t1 <> " ~ " <> show t2 <> "\n    -> " <> show s 
+    log LogDebugVeryVerbose $ "Unified: " <> ppType t1 <> " ~ " <> ppType t2 <> "\n    -> " <> show s 
     pure s
 
 unify' :: Members '[Reader LexInfo, Error TypeError, Output Log] r => Type -> Type -> Sem r Substitution
@@ -125,8 +157,10 @@ unify' t1 (TVar tv)              = bind tv t1
 unify' (TApp c1 a1) (TApp c2 a2) = do
     s <- unify c1 c2
     (s <>) <$> unify (applySubst s a1) (applySubst s a2)
-unify' t1@TCon{} t2@TApp{}       = throwLI \li -> NotEnoughArgs li t1 t2
-unify' t1@TApp{} t2@TCon{}       = throwLI \li -> NotEnoughArgs li t1 t2
+unify' t1@TCon{}    t2@TApp{}    = throwLI \li -> NotEnoughArgs li t1 t2
+unify' t1@TApp{}    t2@TCon{}    = throwLI \li -> NotEnoughArgs li t1 t2
+unify' t1@TForall{} t2           = throwLI \li -> HigherPoly li t1 t2
+unify' t1           t2@TForall{} = throwLI \li -> HigherPoly li t1 t2
 
 bind :: Members '[Reader LexInfo, Error TypeError] r => TVar NextPass -> Type -> Sem r Substitution
 bind tv t
@@ -144,6 +178,10 @@ occurs tv t = tv `elem` [tv' | TVar tv' <- universeBi t]
 freshTV :: Members '[Fresh Text QualifiedName] r => Kind -> Sem r Type
 freshTV k = freshVar "u" <&> \u -> TVar (MkTVar u k) 
 
+replaceTVar :: TVar NextPass -> TVar NextPass -> Type -> Type
+replaceTVar a b = transformBi \case
+    a' | a == a' -> b
+    c -> c
 
 applySubst :: Data from => Substitution -> from -> from
 applySubst s = transformBi \case
@@ -155,3 +193,20 @@ tellLI li xs = tell (fmap (,li) xs)
 
 throwLI :: Members '[Reader LexInfo, Error e] r => (LexInfo -> e) -> Sem r a
 throwLI e = ask >>= throw . e
+
+
+
+ppTC :: [TConstraint] -> Text
+ppTC = unlines . map (\(c, l) -> ppConstraint c <> "    @" <> show l) 
+
+ppConstraint :: TConstraintComp -> Text
+ppConstraint (t1 :~ t2) = ppType t1 <> " ~ " <> ppType t2
+
+ppType :: Type -> Text
+ppType (a :-> b)            = "(" <> ppType a <> " -> " <> ppType b <> ")"
+ppType (TVar (MkTVar v _))  = show v
+ppType (TCon v _)           = show v
+ppType (TApp a b)           = "(" <> ppType a <> " " <> ppType b <> ")"
+ppType (TForall ps t)       = "(∀" <> T.intercalate " " (map (\(MkTVar v _) -> show v) ps) <> ". " <> ppType t <> ")"
+
+-- (forall a3. ((->) (forall a3. a3))) (forall a3. a3)

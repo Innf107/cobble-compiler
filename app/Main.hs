@@ -12,7 +12,7 @@ main :: IO ()
 main = runCobble =<< execParser (info (mainOpts <**> helper) mainInfo)
     where
         mainOpts = hsubparser (
-              command "compile" (Compile <$> info compileOpts (progDesc "Compile a source fileto a datapack directly"))
+              command "compile" (Compile <$> info compileOpts (progDesc "Compile source files to a datapack"))
             ) 
         mainInfo = idm
 

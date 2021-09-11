@@ -111,6 +111,7 @@ infixr 5 `KFun`
 data Type (p :: Pass) = TCon (Name p) (XKind p)
                       | TApp (Type p) (Type p)
                       | TVar (TVar p)
+                      | TForall [TVar p] (Type p)
 
 data TVar (p :: Pass) = MkTVar (Name p) (XKind p)
 
@@ -229,6 +230,7 @@ instance ((XKind p) ~ Kind) => HasKind (Type p) where
             (KFun kp kr, ka)
                 | kp == ka -> pure kr
             (k1, k2) -> Left (k1, k2)
+        TForall _ t -> kind t
     
       
 class CoercePass t1 t2 p1 p2 | t1 -> p1, t2 -> p2 where
@@ -331,6 +333,7 @@ instance
         TCon n k -> TCon n k
         TApp t1 t2 -> TApp (coercePass t1) (coercePass t2)
         TVar t -> TVar (coercePass t)
+        TForall vs t -> TForall (map coercePass vs) (coercePass t)
 
 instance
     (   Name p1 ~ Name p2

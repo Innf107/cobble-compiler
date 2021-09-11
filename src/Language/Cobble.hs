@@ -221,6 +221,4 @@ dumpAsm = writeFile "dump-asm.mcasm" . renderAsm
         renderAsm :: [Block] -> Text
         renderAsm = T.intercalate "\n\n" . map (\(Block f is) -> "[" <> show f <> "]:\n" <> foldMap (\i -> "    " <> show i <> "\n") is)
 
-ppTC :: [TConstraint] -> Text
-ppTC = unlines . map (\(x, l) -> show x <> "    @" <> show l) 
 
