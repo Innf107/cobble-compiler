@@ -185,14 +185,14 @@ qualifyStmnts = \case
 
     (DefStruct IgnoreExt li n ps fields : sts) ->
             do
-                (def, fields', n', k) <- withTVars li ps $ \ps' -> 
+                (def, fields', n', k, ps') <- withTVars li ps $ \ps' -> 
                     let k = getConstrKind ps' in
                 --                  Ugly hack to allow recursive types :/
-                    withType li n k (RecordType []) $ \qn ->
-                        (\fs' -> (DefStruct (Ext k) li qn ps' fs', fs', qn, k)) 
+                    withType li n k (RecordType (coercePass ps') []) $ \qn ->
+                        (\fs' -> (DefStruct (Ext k) li qn ps' fs', fs', qn, k, coercePass ps')) 
                         <$> traverse (secondM (qualifyType li)) fields
                 (def :)
-                        <$> withType' li n n' k (RecordType (map (second coercePass) fields')) 
+                        <$> withType' li n n' k (RecordType ps' (map (second coercePass) fields')) 
                             (qualifyStmnts sts)
 
     (StatementX x _ : _) -> absurd x
@@ -208,14 +208,14 @@ qualifyExp = \case
     Let IgnoreExt li decl@(Decl _ n _ _) b  -> withVar li n $ \n' -> Let IgnoreExt li <$> qualifyDeclWith n' li decl <*> qualifyExp b
     Var IgnoreExt li n          -> Var IgnoreExt li <$> lookupVar li n
     StructConstruct IgnoreExt li structName fields -> lookupType li structName >>= \case
-            (structName', _k, RecordType tyFields) -> traverse (secondM qualifyExp) fields <&> \fields' -> 
-                StructConstruct (StructDef structName' (map (second coercePass) tyFields)) li structName' fields'
+            (structName', _k, RecordType ps tyFields) -> traverse (secondM qualifyExp) fields <&> \fields' -> 
+                StructConstruct (StructDef structName' (coercePass ps) (map (second coercePass) tyFields)) li structName' fields'
             (tyName', k, variant) -> throw (NotAStruct li tyName' k variant)
     StructAccess IgnoreExt li se f -> do
         allStructs <- asks (concatMap (toList . view scopeTypes))
         let possibleStructs = fromList $ allStructs & mapMaybe \(tyName, kind, tyVariant) -> case tyVariant of
-                RecordType fields -> if f `elem` (map fst fields) 
-                    then Just $ (tyName, StructDef tyName (map (second coercePass) fields))
+                RecordType ps fields -> if f `elem` (map fst fields) 
+                    then Just $ (tyName, StructDef tyName (coercePass ps) (map (second coercePass) fields))
                     else Nothing 
                 _ -> Nothing
         StructAccess possibleStructs li 

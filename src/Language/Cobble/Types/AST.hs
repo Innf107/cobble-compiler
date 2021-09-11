@@ -43,7 +43,7 @@ data ModSig = ModSig {
 ,   exportedFixities    :: Map QualifiedName Fixity
 } deriving (Generic, Typeable) -- Instances for @Eq@ and @Data@ are defined in Language.Cobble.Types.AST.Codegen
 
-data TypeVariant = RecordType [(UnqualifiedName, Type 'Codegen)]
+data TypeVariant = RecordType [TVar Codegen] [(UnqualifiedName, Type 'Codegen)]
                  | BuiltInType
                  deriving (Generic, Typeable)
 
@@ -141,10 +141,17 @@ mergeLexInfo (LexInfo {startPos, file}) (LexInfo {endPos}) = LexInfo {startPos, 
 
 data StructDef p = StructDef {
         _structName :: Name p
+    ,   _structParams :: [TVar p]
     ,   _structFields :: [(UnqualifiedName, Type p)]
     }
 
-type instance InstanceRequirements (StructDef p) = [Name p, Type p]
+structKind :: (IsKind (XKind p), Profunctor pf, Contravariant f) => Optic' pf f (StructDef p) (XKind p)
+structKind = to \sd -> foldr (\(MkTVar _ k) r -> k `kFun` r) kStar (_structParams sd)
+
+structType :: (IsKind (XKind p), Profunctor pf, Contravariant f) => Optic' pf f (StructDef p) (Type p)
+structType = to \sd -> TCon (_structName sd) (view structKind sd) 
+
+type instance InstanceRequirements (StructDef p) = [Name p, TVar p, Type p]
 
 -- | Represents a (initially left-associative) group of operators whose fixity has not been resolved yet.
 data OperatorGroup (p :: Pass) (f :: FixityStatus) 
@@ -241,7 +248,7 @@ coercePass :: (CoercePass t1 t2 p1 p2) => t1 -> t2
 coercePass = _coercePass
 {-# RULES "coercePass/coercePass" forall x. coercePass x = Unsafe.Coerce.unsafeCoerce x#-}
 
-newtype Ext (p :: Pass) t = Ext {getExt :: t} deriving (Show, Eq, Generic, Data)
+newtype Ext (p :: Pass) t = Ext {getExt :: t} deriving (Show, Eq, Generic, Data, Functor)
 data IgnoreExt (p :: Pass) = IgnoreExt deriving (Show, Eq, Generic, Data)
 data ExtVoid (p :: Pass) deriving (Show, Eq, Generic, Data)
 
@@ -260,6 +267,8 @@ instance CoercePass (ExtVoid p1) (ExtVoid p2) p1 p2 where
 instance (Coercible k1 k2, CoercePass v1 v2 p1 p2, Ord k2) => CoercePass (Map k1 v1) (Map k2 v2) p1 p2 where
     _coercePass = M.mapKeys coerce . fmap coercePass
 
+instance CoercePass a b p1 p2 => CoercePass [a] [b] p1 p2 where
+    _coercePass = map coercePass
 
 instance
     (   Name p1 ~ Name p2
@@ -344,9 +353,10 @@ instance
 instance
     (   Name p1 ~ Name p2
     ,   CoercePass (Type p1) (Type p2) p1 p2
+    ,   CoercePass (TVar p1) (TVar p2) p1 p2
     )
     => CoercePass (StructDef p1) (StructDef p2) p1 p2 where
-    _coercePass (StructDef n fs) = StructDef n (map (second coercePass) fs)
+    _coercePass (StructDef n ps fs) = StructDef n (coercePass ps) (map (second coercePass) fs)
 
 
 instance 

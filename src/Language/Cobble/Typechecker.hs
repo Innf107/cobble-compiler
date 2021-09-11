@@ -2,6 +2,7 @@
 module Language.Cobble.Typechecker where
 
 import Language.Cobble.Prelude
+import Language.Cobble.Util
 import Language.Cobble.Util.Convert
 import Language.Cobble.Util.Bitraversable
 import Language.Cobble.Util.Polysemy.Fresh
@@ -63,7 +64,7 @@ checkStmnt :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh (T
            => Statement Typecheck 
            -> Sem r (Statement NextPass)
 checkStmnt (Import IgnoreExt li mod) = pure $ Import IgnoreExt li mod
-checkStmnt (_s@DefStruct{}) = error "checkStmnt: Typechecking records is NYI" 
+checkStmnt (DefStruct (Ext k) li sname ps fields) = pure $ DefStruct (Ext k) li sname (map coercePass ps) (map (second coercePass) fields) 
 checkStmnt (Def IgnoreExt li (Decl IgnoreExt f (Ext ps) e) (coercePass -> ty)) = do
     insertType f ty
     ty' <- removeInitialForall ty
@@ -120,8 +121,29 @@ check (Let IgnoreExt li (Decl IgnoreExt f (Ext ps) e) body) = do
 
     tellLI li [fTy :~ foldr (:->) eTy psTys]
     pure (Let IgnoreExt li (Decl (Ext fTy) f (Ext (zip ps psTys)) e') body')
+check (StructConstruct structDef li structName fields) = do
+    let sTy = coercePass $ structDef ^. structType
+    
+    psTys <- traverse (freshVar . coercePass) (structDef ^. structParams)
+    let polyTypes :: M.Map (TVar NextPass) (TVar NextPass) = fromList $ zipWith (\x y -> (x, coercePass y)) psTys (structDef ^. structParams) 
+    -- Application is left associative
+    let retTy = foldl' (\r tv -> TApp r (TVar tv)) sTy psTys
+
+    fields' <- zipForM (structDef ^. structFields) fields \(name, (coercePass -> fieldType)) (_, fieldExpr) -> do
+        let fieldType' = fieldType & transform \case
+                TVar tv | Just tv' <- lookup tv polyTypes -> TVar tv'
+                x -> x
+        fieldExpr' <- check fieldExpr
+        exprTy <- getType' fieldExpr'
+        
+        tellLI li [exprTy :~ fieldType']
+
+        pure (name, fieldExpr')
+
+    pure (StructConstruct (Ext (coercePass structDef, retTy)) li structName fields')
+
+check (StructAccess possibleStructs li sexpr field) = error "Language.Cobble.Typechecker.check: StructAccess is NYI"
 check (ExprX x _) = absurd x
-check _ = error "check: Typechecking records is NYI"
 
 typecheck :: Members '[Error TypeError, Fresh Text QualifiedName, State TCState, Dump [TConstraint], Output Log] r 
           => Module Typecheck 

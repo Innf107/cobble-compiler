@@ -139,3 +139,11 @@ s = S {
 
 --! 5
 s.x
+
+--# occurs check : error
+
+f :: Int;
+f x = x;
+
+--! TypeError: Occurs Check
+1
