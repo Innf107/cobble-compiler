@@ -57,6 +57,7 @@ data Pass = SolveModules
           | QualifyNames
           | SemAnalysis
           | Typecheck
+          | PostProcess
           | Codegen
 
 

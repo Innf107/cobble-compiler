@@ -30,6 +30,8 @@ import Language.Cobble.Prelude.Parser (ParseError, parse)
 
 import Language.Cobble.Typechecker as TC
 
+import Language.Cobble.PostProcess as PP
+
 import Language.Cobble.MCAsm.Types
 import Language.Cobble.MCAsm.Types qualified as A
 
@@ -145,7 +147,7 @@ compileWithSig m = do
         ,   _scopeTVars = mempty
         }]
     let tcState = foldMap (\dsig -> TCState {
-                    _varTypes=exportedVars dsig
+                    _varTypes=coercePass $ exportedVars dsig
                 })
                 (getExt $ xModule m)
     qMod  <- mapError QualificationError $ runReader qualScopes $ qualify m
@@ -155,7 +157,9 @@ compileWithSig m = do
     (compMods, sig) <- freshWithInternal do
         tcMod <- dumpWhenWithM (asks ddumpTC) ppTC "dump-tc.tc" $ mapError TypeError $ evalState tcState $ typecheck saMod
 
-        let lc  = C2LC.compile primOps tcMod
+        let ppMod = postProcess tcMod
+
+        let lc  = C2LC.compile primOps ppMod
         whenM (asks ddumpLC) $ dumpLC lc
 
         cps     <- LC2CPS.compile lc
@@ -170,7 +174,7 @@ compileWithSig m = do
         let asm = TL2ASM.compile tl 
         whenM (asks ddumpAsm) $ dumpAsm asm
         
-        pure $ (ASM2MC.compile asm, extractSig tcMod)
+        pure $ (ASM2MC.compile asm, extractSig ppMod)
 
 
     pure (compMods, sig)

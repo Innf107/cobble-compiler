@@ -15,7 +15,7 @@ import qualified Data.Text as T
 
 import qualified Data.Map as M
 
-type NextPass = 'Codegen
+type NextPass = 'PostProcess
 
 type Type = C.Type NextPass
 
@@ -155,9 +155,8 @@ check (StructAccess possibleStructs li sexpr field) = do
     let structTys = map (coercePass . view structType) (toList possibleStructs) 
 
     tellLI li [OneOf sexprTy structTys]
-    error "check: StructAccess is NYI"
     -- Codegen needs the correct StructDef, but we don't know that until the constraint solver is done
-    -- pure (StructAccess (Ext ))
+    pure (StructAccess (Ext (coercePass possibleStructs, sexprTy, retTy)) li sexpr' field)
 check (ExprX x _) = absurd x
 
 typecheck :: Members '[Error TypeError, Fresh Text QualifiedName, State TCState, Dump [TConstraint], Output Log] r 
