@@ -28,11 +28,15 @@ data TypeError = DifferentConstructor LexInfo Type Type
                | NotEnoughArgs LexInfo Type Type
                | Occurs LexInfo (TVar NextPass) Type
                | HigherPoly LexInfo Type Type
+               | NoStructsForType LexInfo Type
+               | AmbiguousStructAccess LexInfo Type [Type]
                deriving (Show, Eq, Generic, Data)
 
 type TConstraint = (TConstraintComp, LexInfo)
 
-data TConstraintComp = Type :~ Type deriving (Show, Eq, Generic, Data)
+data TConstraintComp = Type :~ Type 
+                     | OneOf Type [Type]
+                     deriving (Show, Eq, Generic, Data)
 
 newtype Substitution = Subst {unSubst :: Map (TVar NextPass) Type} 
     deriving stock   (Show, Eq, Generic, Data)
@@ -142,7 +146,18 @@ check (StructConstruct structDef li structName fields) = do
 
     pure (StructConstruct (Ext (coercePass structDef, retTy)) li structName fields')
 
-check (StructAccess possibleStructs li sexpr field) = error "Language.Cobble.Typechecker.check: StructAccess is NYI"
+check (StructAccess possibleStructs li sexpr field) = do
+    sexpr' <- check sexpr
+    retTy <- freshTV KStar
+
+    sexprTy <- getType' sexpr'
+
+    let structTys = map (coercePass . view structType) (toList possibleStructs) 
+
+    tellLI li [OneOf sexprTy structTys]
+    error "check: StructAccess is NYI"
+    -- Codegen needs the correct StructDef, but we don't know that until the constraint solver is done
+    -- pure (StructAccess (Ext ))
 check (ExprX x _) = absurd x
 
 typecheck :: Members '[Error TypeError, Fresh Text QualifiedName, State TCState, Dump [TConstraint], Output Log] r 
@@ -162,6 +177,13 @@ solve s (((applySubst s -> t1) :~ (applySubst s -> t2), li):cs) = do
     log LogDebugVerbose $ "Solving constraint: " <> ppConstraint (t1 :~ t2)
     s' <- runReader li $ unify t1 t2
     solve (s <> s') cs 
+
+solve s ((OneOf (applySubst s -> t1) (map (applySubst s) -> ts), li):cs) = do
+    (rights <$> traverse (\t -> fmap (,t) <$> runError (runReader li (unify t1 t))) ts) >>= \case
+        [(s, _)] -> pure s
+        []  -> throw $ NoStructsForType li t1
+        ts  -> throw $ AmbiguousStructAccess li t1 (map snd ts)
+
 solve s [] = pure s
 
 unify :: Members '[Reader LexInfo, Error TypeError, Output Log] r => Type -> Type -> Sem r Substitution
@@ -222,7 +244,8 @@ ppTC :: [TConstraint] -> Text
 ppTC = unlines . map (\(c, l) -> ppConstraint c <> "    @" <> show l) 
 
 ppConstraint :: TConstraintComp -> Text
-ppConstraint (t1 :~ t2) = ppType t1 <> " ~ " <> ppType t2
+ppConstraint (t1 :~ t2)     = ppType t1 <> " ~ " <> ppType t2
+ppConstraint (OneOf t1 ts)  = ppType t1 <> " ∈ {" <> T.intercalate ", " (map ppType ts) <> "}"
 
 ppType :: Type -> Text
 ppType (a :-> b)            = "(" <> ppType a <> " -> " <> ppType b <> ")"

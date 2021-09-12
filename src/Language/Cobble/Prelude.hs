@@ -23,6 +23,7 @@ module Language.Cobble.Prelude (
     , censorM
     , HSType
     , (L.\\)
+    , module Data.Either
     ) where
 
 import qualified Relude
@@ -80,6 +81,8 @@ import Polysemy.Output
 import Data.Generics.Uniplate.Data
 
 import System.FilePath
+
+import Data.Either hiding (either)
 
 import Control.Lens hiding (
         universe
