@@ -17,11 +17,12 @@ data SemanticError = MissingField LexInfo UnqualifiedName
 runSemanticAnalysis :: Members '[Error SemanticError] r => Module SemAnalysis -> Sem r (Module NextPass)
 runSemanticAnalysis (Module x n sts) = fmap (coercePass . Module x n)
     $   transformBiM checkStructDef
-    =<< transformBiM checkAndReorderStructConstruct sts
+    =<< transformBiM checkAndReorderStructConstruct 
+    (transformBi implicitForall sts)
 
 
 checkStructDef :: Members '[Error SemanticError] r => Statement SemAnalysis -> Sem r (Statement SemAnalysis)
-checkStructDef (DefStruct IgnoreExt li name fields) = DefStruct IgnoreExt li name
+checkStructDef (DefStruct (Ext k) li name ps fields) = DefStruct (Ext k) li name ps
     <$> detectDuplicateFields li fields
 checkStructDef x = pure x
 
@@ -30,8 +31,17 @@ checkAndReorderStructConstruct (StructConstruct def li n fs) = StructConstruct d
     <$> reorderAndCheckFields li (view structFields def) fs
 checkAndReorderStructConstruct x = pure x
 
-
-
+-- inserts an implicit forall on every type signature. 
+-- This function *cannot* just @transformBi@ over @Type@s, since
+-- that would also apply on nested types.
+implicitForall :: Statement SemAnalysis -> Statement SemAnalysis
+implicitForall = \case
+    (Def x l d t) -> Def x l d (addForall t)
+    x -> x
+    where
+        addForall t = case ordNub [tv | TVar tv <- universeBi t] of
+            []      -> t
+            freeTVs -> TForall freeTVs t
 
 detectDuplicateFields :: Members '[Error SemanticError] r => LexInfo -> [(UnqualifiedName, a)] -> Sem r [(UnqualifiedName, a)]
 detectDuplicateFields li xs = case ks \\ unstableNub ks of

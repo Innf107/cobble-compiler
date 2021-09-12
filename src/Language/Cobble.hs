@@ -23,11 +23,14 @@ import Language.Cobble.ModuleSolver
 import Language.Cobble.Util.Polysemy.Time
 import Language.Cobble.Util.Polysemy.FileSystem
 import Language.Cobble.Util.Polysemy.Fresh
+import Language.Cobble.Util.Polysemy.Dump
 import Language.Cobble.Util
 
 import Language.Cobble.Prelude.Parser (ParseError, parse)
 
 import Language.Cobble.Typechecker as TC
+
+import Language.Cobble.PostProcess as PP
 
 import Language.Cobble.MCAsm.Types
 import Language.Cobble.MCAsm.Types qualified as A
@@ -77,6 +80,7 @@ data CompileOpts = CompileOpts {
       name::Text
     , debug::Bool
     , description::Text
+    , ddumpTC::Bool
     , ddumpAsm::Bool
     , ddumpLC::Bool
     , ddumpCPS::Bool
@@ -136,21 +140,26 @@ compileWithSig :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName]
                => S.Module 'QualifyNames
                -> Sem r ([CompiledModule], ModSig)
 compileWithSig m = do
-    let qualScopes = [Scope mempty mempty mempty]
+    let qualScopes = [Scope {
+            _scopeVars = mempty
+        ,   _scopeTypes = mempty
+        ,   _scopeFixities = mempty
+        ,   _scopeTVars = mempty
+        }]
     let tcState = foldMap (\dsig -> TCState {
-                    varTypes=exportedVars dsig
+                    _varTypes=coercePass $ exportedVars dsig
                 })
                 (getExt $ xModule m)
-    --compEnv <- asks \CompileOpts{name, debug, target} -> CompEnv {nameSpace=name, debug, A.target=target}
-
     qMod  <- mapError QualificationError $ runReader qualScopes $ qualify m
 
     saMod <- mapError SemanticError $ runSemanticAnalysis qMod
 
-    tcMod <- mapError TypeError $ evalState tcState $ runOutputSem (log LogWarning . displayTWarning) $ typecheckModule saMod
+    (compMods, sig) <- freshWithInternal do
+        tcMod <- dumpWhenWithM (asks ddumpTC) ppTC "dump-tc.tc" $ mapError TypeError $ evalState tcState $ typecheck saMod
 
-    compMods <- freshWithInternal do
-        let lc  = C2LC.compile primOps tcMod
+        let ppMod = postProcess tcMod
+
+        let lc  = C2LC.compile primOps ppMod
         whenM (asks ddumpLC) $ dumpLC lc
 
         cps     <- LC2CPS.compile lc
@@ -165,24 +174,20 @@ compileWithSig m = do
         let asm = TL2ASM.compile tl 
         whenM (asks ddumpAsm) $ dumpAsm asm
         
-        pure $ ASM2MC.compile asm
-    
-    let sig = extractSig tcMod
+        pure $ (ASM2MC.compile asm, extractSig ppMod)
+
 
     pure (compMods, sig)
-
-displayTWarning :: TypeWarning -> Text
-displayTWarning = show
 
 extractSig :: S.Module 'Codegen -> ModSig
 extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
 
 makePartialSig :: S.Statement 'Codegen -> ModSig
 makePartialSig = \case
-    Def _ _ (Decl _ n _ _) t    -> mempty {exportedVars = one (n, t)}
-    DefStruct IgnoreExt _ n fs  -> mempty {exportedTypes = one (n, (KStar, RecordType fs))} -- TODO: Change Kind when polymorphism is implemented
-    Import IgnoreExt _ _        -> mempty
-    StatementX v _              -> absurd v
+    Def _ _ (Decl _ n _ _) t        -> mempty {exportedVars = one (n, t)}
+    DefStruct (Ext k) _ n ps fs    -> mempty {exportedTypes = one (n, (k, RecordType ps fs))}
+    Import IgnoreExt _ _            -> mempty
+    StatementX v _                  -> absurd v
 
 getModName :: FilePath -> Text
 getModName = toText . FP.dropExtension . L.last . segments
@@ -219,6 +224,5 @@ dumpAsm = writeFile "dump-asm.mcasm" . renderAsm
     where
         renderAsm :: [Block] -> Text
         renderAsm = T.intercalate "\n\n" . map (\(Block f is) -> "[" <> show f <> "]:\n" <> foldMap (\i -> "    " <> show i <> "\n") is)
-
 
 

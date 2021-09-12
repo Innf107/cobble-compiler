@@ -16,7 +16,7 @@ type instance XDef           'Typecheck = IgnoreExt Typecheck
 type instance XDecl          'Typecheck = IgnoreExt Typecheck
 type instance XParam         'Typecheck = Ext Typecheck [Name 'Typecheck]
 type instance XImport        'Typecheck = IgnoreExt Typecheck
-type instance XDefStruct     'Typecheck = IgnoreExt Typecheck
+type instance XDefStruct     'Typecheck = Ext Typecheck Kind
 type instance XStatement     'Typecheck = ExtVoid Typecheck
 
 type instance XFCall            'Typecheck = IgnoreExt Typecheck

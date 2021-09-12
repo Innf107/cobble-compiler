@@ -174,9 +174,10 @@ fixity = "fixity declaration" <??> (\(ls, f) (le, i) -> (ls `mergeLexInfo` le, f
     <*> intLit
 
 defStruct :: Parser (Statement NextPass)
-defStruct = "struct definition" <??> (\ls n fs le -> DefStruct IgnoreExt (ls `mergeLexInfo` le) n fs)
+defStruct = "struct definition" <??> (\ls n ps fs le -> DefStruct IgnoreExt (ls `mergeLexInfo` le) n (map (\x -> MkTVar x ()) ps) fs)
     <$> reserved "struct"
     <*> ident'
+    <*> many ident'
     <* paren' "{" 
     <*> typedIdent' `sepBy` (reservedOp' ",")
     <*> paren "}"
@@ -223,7 +224,9 @@ typedIdent' = (\(_, y, z) -> (y, z)) <$> typedIdent
 typeP :: Parser (LexInfo, Type NextPass)
 typeP = "type" <??> do
             (ls, t1) <- namedType
-            functionType ls t1 <|> pure (ls, t1)
+            functionType ls t1 
+                <|> typeApp ls t1
+                <|> pure (ls, t1)
 
 namedType :: Parser (LexInfo, Type NextPass)
 namedType = withParen typeP <|> do
@@ -237,6 +240,11 @@ functionType li tyA = do
     reservedOp' "->"
     (le, tyB) <- typeP
     pure (li `mergeLexInfo` le, tyA -:> tyB)
+
+typeApp :: LexInfo -> Type NextPass -> Parser (LexInfo, Type NextPass)
+typeApp li tyA = do
+    (le, tyB) <- typeP
+    pure (li `mergeLexInfo` le, TApp tyA tyB)
 
 withParen :: Parser a -> Parser a
 withParen a = paren "(" *> a <* paren ")"

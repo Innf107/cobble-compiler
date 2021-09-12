@@ -16,7 +16,7 @@ type instance XDef           'SemAnalysis = IgnoreExt SemAnalysis
 type instance XDecl          'SemAnalysis = IgnoreExt SemAnalysis
 type instance XParam         'SemAnalysis = Ext SemAnalysis [Name 'Codegen]
 type instance XImport        'SemAnalysis = IgnoreExt SemAnalysis
-type instance XDefStruct     'SemAnalysis = IgnoreExt SemAnalysis
+type instance XDefStruct     'SemAnalysis = Ext SemAnalysis Kind
 type instance XStatement     'SemAnalysis = ExtVoid SemAnalysis
 
 type instance XFCall            'SemAnalysis = IgnoreExt SemAnalysis

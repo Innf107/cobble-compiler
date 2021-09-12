@@ -12,7 +12,7 @@ main :: IO ()
 main = runCobble =<< execParser (info (mainOpts <**> helper) mainInfo)
     where
         mainOpts = hsubparser (
-              command "compile" (Compile <$> info compileOpts (progDesc "Compile a source fileto a datapack directly"))
+              command "compile" (Compile <$> info compileOpts (progDesc "Compile source files to a datapack"))
             ) 
         mainInfo = idm
 
@@ -24,11 +24,12 @@ runCobble = \case
     Compile co -> runCompile co
 
 runCompile :: CompileCmdOpts -> IO ()
-runCompile CompileCmdOpts{compFiles, debug, packageName, description, logLevel, ddumpLC, ddumpCPS, ddumpReduced, ddumpTL, ddumpAsm} = do
+runCompile CompileCmdOpts{compFiles, debug, packageName, description, logLevel, ddumpTC, ddumpLC, ddumpCPS, ddumpReduced, ddumpTL, ddumpAsm} = do
     let opts = CompileOpts {
             name=packageName
         ,   debug
         ,   description
+        ,   ddumpTC
         ,   ddumpLC
         ,   ddumpCPS
         ,   ddumpReduced
@@ -65,6 +66,7 @@ data CompileCmdOpts = CompileCmdOpts {
     , debug :: Bool
     , logLevel :: LogLevel
     , description :: Text
+    , ddumpTC :: Bool
     , ddumpLC :: Bool
     , ddumpCPS :: Bool
     , ddumpReduced :: Bool
@@ -79,6 +81,7 @@ compileOpts = CompileCmdOpts
     <*> switch (long "debug" <> help "Debug mode keeps additional information at runtime")
     <*> option auto (long "log-level" <> metavar "LEVEL" <> value LogInfo <> help "Controls how much information is logged (LogWarning | LogInfo | LogVerbose | LogDebug | LogDebugVerbose)")
     <*> strOption (long "description" <> short 'd' <> metavar "DESCRIPTION" <> help "The datapack description for the datapack's pack.mcmeta")
+    <*> switch (long "ddump-tc" <> help "Write the typechecker constraints to a file")
     <*> switch (long "ddump-lc" <> help "Write the intermediate lambda calculus to a file")
     <*> switch (long "ddump-cps" <> help "Write the intermediate CPS to a file")
     <*> switch (long "ddump-reduced" <> help "Write the reduced intermediate CPS to a file")
