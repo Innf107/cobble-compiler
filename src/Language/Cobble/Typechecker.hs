@@ -179,7 +179,7 @@ solve s (((applySubst s -> t1) :~ (applySubst s -> t2), li):cs) = do
 
 solve s ((OneOf (applySubst s -> t1) (map (applySubst s) -> ts), li):cs) = do
     (rights <$> traverse (\t -> fmap (,t) <$> runError (runReader li (unify t1 t))) ts) >>= \case
-        [(s, _)] -> pure s
+        [(s', _)] -> solve (s <> s') cs
         []  -> throw $ NoStructsForType li t1
         ts  -> throw $ AmbiguousStructAccess li t1 (map snd ts)
 
