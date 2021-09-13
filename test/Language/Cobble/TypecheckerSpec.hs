@@ -81,6 +81,27 @@ spec = do
                 Left (SkolBinding _ (TSkol (MkTVar (QName "a") KStar)) (TSkol (MkTVar (QName "b") KStar))) -> True
                 e -> errorWithoutStackTrace $ show e
 
+    it "top level (forall) types keep foralls on local variable AST and are not instantiated (is this correct?)" do
+        runTypecheck [
+                "f :: a -> a;"
+            ,   "f x = x;"
+
+            ,   "g :: Int;"
+            ,   "g = f 5;"
+            ] `shouldSatisfy` \ast -> case [ty | VarType ty "f" <- universeBi ast] of
+                [TForall [MkTVar (QName "a") KStar] (TVar (MkTVar (QName "a") KStar) :-> TVar (MkTVar (QName "a") KStar))] -> True
+                tys -> errorWithoutStackTrace $ toString $ ppTypes tys
+
+    it "type variables and skolems unify" do
+        runTypecheck [
+                "f :: a -> a;"
+            ,   "f x = x;"
+
+            ,   "const :: a -> b -> a;"
+            ,   "const x y = f x;"
+            ] `shouldSatisfy` \ast -> case [ty | FCall (Ext ty) _ (VarType _ "f") _ <- universeBi ast] of
+                [TSkol (MkTVar (QName "a") KStar)] -> True
+                ts -> errorWithoutStackTrace $ toString $ ppTypes ts
 
 ppTypes :: [Type PostProcess] -> Text
 ppTypes = unlines . map ppType
