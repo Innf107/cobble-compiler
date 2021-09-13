@@ -16,6 +16,7 @@ import Language.Cobble.Util.Polysemy.Dump qualified as C
 import Language.Cobble qualified as C
 
 import Test.Hspec as S
+import GHC.Base (errorWithoutStackTrace)
 
 spec :: Spec
 spec = do
@@ -32,8 +33,8 @@ spec = do
                 "x :: Int;"
             ,   "x = let f y = y in f 3;"
             ] `shouldSatisfy` \ast -> case [ty | VarType ty "f" <- universeBi ast ] of
-                [TCon (QName "Int") _ :-> TCon (QName "Int") _] -> True
-                tys -> error $ ppTypes tys
+                [TCon (QName "Int") KStar :-> TCon (QName "Int") KStar] -> True
+                tys -> errorWithoutStackTrace $ toString $ ppTypes tys
     
     it "no let generalization [2]" do 
         runTypecheck [
@@ -47,8 +48,8 @@ spec = do
             ,   "x :: Int;"
             ,   "x = let f y = y in h (f 5) (g (f ()));"
             ] `shouldSatisfy` \case
-                Left (DifferentConstructor _ (TCon (QName "Int") _) (TCon (QName "Unit") _)) -> True
-                e -> error $ show e 
+                Left (DifferentConstructor _ (TCon (QName "Int") KStar) (TCon (QName "Unit") KStar)) -> True
+                e -> errorWithoutStackTrace $ show e 
 
     it "top level statements keep polymorphic type signature" do
         runTypecheck [
@@ -60,9 +61,9 @@ spec = do
 
             ,   "z :: Unit;"
             ,   "z = f ();"
-            ] `shouldSatisfy` \ast -> case [ty | Def _ _ (Decl (Ext _) (QName "f") _ _) ty <- universeBi ast] of
+            ] `shouldSatisfy` \ast -> case [ty | Def _ _ (Decl _ (QName "f") _ _) ty <- universeBi ast] of
                 [TForall [MkTVar (QName "a") KStar] (TVar (MkTVar (QName "a") KStar) :-> TVar (MkTVar (QName "a") KStar))] -> True
-                tys -> error $ ppTypes tys
+                tys -> errorWithoutStackTrace $ toString $ ppTypes tys
     -- Not sure if this *really* works... seemed a bit too easy
     it "tyvars in top level bindings become skolems" do
         runTypecheck [
@@ -70,7 +71,15 @@ spec = do
             ,   "f x = 5;"
             ] `shouldSatisfy` \case
                 Left (SkolBinding _ (TSkol (MkTVar (QName "a") KStar)) (TCon (QName "Int") KStar)) -> True
-                e -> error $ show e
+                e -> errorWithoutStackTrace $ show e
+
+    it "different skolems don't unify" do
+        runTypecheck [
+                "const :: a -> b -> a;"
+            ,   "const x y = y;"
+            ] `shouldSatisfy` \case
+                Left (SkolBinding _ (TSkol (MkTVar (QName "a") KStar)) (TSkol (MkTVar (QName "b") KStar))) -> True
+                e -> errorWithoutStackTrace $ show e
 
 
 ppTypes :: [Type PostProcess] -> Text

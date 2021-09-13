@@ -208,9 +208,11 @@ unify' (TApp c1 a1) (TApp c2 a2) = do
     (s <>) <$> unify (applySubst s a1) (applySubst s a2)
 
 
--- Not entirely sure about this, but it seems correct?
+-- Not entirely sure about this. In this article,
+-- every skolem unifies with any other skolem (which seems *very* wrong).
 -- (https://abby.how/posts/amulets-new-type-checker.html)
-unify' TSkol{} TSkol{} = pure mempty
+unify' (TSkol tv1) (TSkol tv2)
+    | tv1 == tv2 = pure mempty
 
 unify' t1@TCon{}    t2@TApp{}    = throwLI \li -> NotEnoughArgs li t1 t2
 unify' t1@TApp{}    t2@TCon{}    = throwLI \li -> NotEnoughArgs li t1 t2
