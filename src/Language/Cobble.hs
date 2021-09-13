@@ -9,6 +9,9 @@ module Language.Cobble (
     , CompilationError(..)
     , CompileOpts(..)
     , ControllerC
+
+
+    , primModSig
     ) where
 
 import Language.Cobble.Prelude hiding ((<.>), readFile, writeFile)

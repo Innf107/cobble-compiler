@@ -30,6 +30,7 @@ data TypeError = DifferentConstructor LexInfo Type Type
                | HigherPoly LexInfo Type Type
                | NoStructsForType LexInfo Type
                | AmbiguousStructAccess LexInfo Type [Type]
+               | SkolBinding LexInfo Type Type
                deriving (Show, Eq, Generic, Data)
 
 type TConstraint = (TConstraintComp, LexInfo)
@@ -54,15 +55,20 @@ instance Monoid Substitution where
 lookupType :: Members '[State TCState, Fresh (TVar NextPass) (TVar NextPass)] r => QualifiedName -> Sem r Type
 lookupType v = gets (lookup v . view varTypes) <&> fromMaybe (error $ "lookupType: Typechecker cannot find variable: " <> show v)
     
-removeInitialForall :: Members '[Fresh (TVar NextPass) (TVar NextPass)] r => Type -> Sem r Type
-removeInitialForall (TForall ps t) = foldrM (\p r -> freshVar p <&> \p' -> replaceTVar p p' r) t ps
-removeInitialForall x              = pure x
+instantiate :: Members '[Fresh (TVar NextPass) (TVar NextPass)] r => Type -> Sem r Type
+instantiate (TForall ps t) = foldrM (\p r -> freshVar p <&> \p' -> replaceTVar p (TVar p') r) t ps
+instantiate x              = pure x
+
+-- currently only skolemizes top level foralls (since higher-ranked polymorphism is not implemented yet)
+skolemize :: Members '[Fresh (TVar NextPass) (TVar NextPass)] r => Type -> Sem r Type
+skolemize (TForall ps t) = foldrM (\p r -> freshVar p <&> \p' -> replaceTVar p (TSkol p') r) t ps
+skolemize x              = pure x
 
 insertType :: Members '[State TCState] r => QualifiedName -> Type -> Sem r ()
 insertType v t = modify (varTypes %~ insert v t)
 
 getType' :: (Members '[Fresh (TVar NextPass) (TVar NextPass)] r, HasType a NextPass) => a -> Sem r Type
-getType' = removeInitialForall . getType
+getType' = instantiate . getType
 
 checkStmnt :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass), State TCState] r 
            => Statement Typecheck 
@@ -71,7 +77,7 @@ checkStmnt (Import IgnoreExt li mod) = pure $ Import IgnoreExt li mod
 checkStmnt (DefStruct (Ext k) li sname ps fields) = pure $ DefStruct (Ext k) li sname (map coercePass ps) (map (second coercePass) fields) 
 checkStmnt (Def IgnoreExt li (Decl IgnoreExt f (Ext ps) e) (coercePass -> ty)) = do
     insertType f ty
-    ty' <- removeInitialForall ty
+    ty' <- skolemize ty
     psTys <- traverse (\_ -> freshTV KStar) ps
     zipWithM_ insertType ps psTys
 
@@ -181,7 +187,7 @@ solve s ((OneOf (applySubst s -> t1) (map (applySubst s) -> ts), li):cs) = do
     (rights <$> traverse (\t -> fmap (,t) <$> runError (runReader li (unify t1 t))) ts) >>= \case
         [(s', _)] -> solve (s <> s') cs
         []  -> throw $ NoStructsForType li t1
-        ts  -> throw $ AmbiguousStructAccess li t1 (map snd ts)
+        ts'  -> throw $ AmbiguousStructAccess li t1 (map snd ts')
 
 solve s [] = pure s
 
@@ -200,10 +206,18 @@ unify' t1 (TVar tv)              = bind tv t1
 unify' (TApp c1 a1) (TApp c2 a2) = do
     s <- unify c1 c2
     (s <>) <$> unify (applySubst s a1) (applySubst s a2)
+
+
+-- Not entirely sure about this, but it seems correct?
+-- (https://abby.how/posts/amulets-new-type-checker.html)
+unify' TSkol{} TSkol{} = pure mempty
+
 unify' t1@TCon{}    t2@TApp{}    = throwLI \li -> NotEnoughArgs li t1 t2
 unify' t1@TApp{}    t2@TCon{}    = throwLI \li -> NotEnoughArgs li t1 t2
 unify' t1@TForall{} t2           = throwLI \li -> HigherPoly li t1 t2
 unify' t1           t2@TForall{} = throwLI \li -> HigherPoly li t1 t2
+unify' t1@TSkol{}   t2           = throwLI \li -> SkolBinding li t1 t2
+unify' t1           t2@TSkol{}   = throwLI \li -> SkolBinding li t1 t2    
 
 bind :: Members '[Reader LexInfo, Error TypeError] r => TVar NextPass -> Type -> Sem r Substitution
 bind tv t
@@ -221,9 +235,9 @@ occurs tv t = tv `elem` [tv' | TVar tv' <- universeBi t]
 freshTV :: Members '[Fresh Text QualifiedName] r => Kind -> Sem r Type
 freshTV k = freshVar "u" <&> \u -> TVar (MkTVar u k) 
 
-replaceTVar :: TVar NextPass -> TVar NextPass -> Type -> Type
+replaceTVar :: TVar NextPass -> Type -> Type -> Type
 replaceTVar a b = transformBi \case
-    a' | a == a' -> b
+    TVar a' | a == a' -> b
     c -> c
 
 applySubst :: Data from => Substitution -> from -> from
@@ -249,6 +263,7 @@ ppConstraint (OneOf t1 ts)  = ppType t1 <> " ∈ {" <> T.intercalate ", " (map p
 ppType :: Type -> Text
 ppType (a :-> b)            = "(" <> ppType a <> " -> " <> ppType b <> ")"
 ppType (TVar (MkTVar v _))  = show v
+ppType (TSkol (MkTVar v _)) = "@" <> show v
 ppType (TCon v _)           = show v
 ppType (TApp a b)           = "(" <> ppType a <> " " <> ppType b <> ")"
 ppType (TForall ps t)       = "(∀" <> T.intercalate " " (map (\(MkTVar v _) -> show v) ps) <> ". " <> ppType t <> ")"

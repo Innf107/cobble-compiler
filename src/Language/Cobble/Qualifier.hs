@@ -288,6 +288,7 @@ qualifyType :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, 
 qualifyType li = \case 
     TCon n ()           -> (\(n', k, _) -> TCon n' k) <$> lookupType li n
     TVar (MkTVar n ())  -> pure $ TVar (MkTVar (unsafeQualifiedName n n li) KStar)  -- TODO: Use lookupTVar
+    TSkol (MkTVar n ()) -> error "qualifyType: source-level skolems should not exist"
     TApp t1 t2          -> TApp <$> qualifyType li t1 <*> qualifyType li t2 
     TForall _ _         -> error "source-level foralls NYI"
 

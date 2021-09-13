@@ -43,4 +43,5 @@ postProcessExpr = \case
         getStructName (TCon name _) = name
         getStructName (TApp t1 _) = getStructName t1
         getStructName (TVar v) = error $ "postProcessExpr: Type checker inferred type variable for StructAccess expression: " <> show v
+        getStructName (TSkol v) = error $ "postProcessExpr: Type checker inferred skolem variable for StructAccess expression: " <> show v
         getStructName (TForall _ t) = getStructName t 
