@@ -12,6 +12,8 @@ import Data.Char
 import Text.Parsec hiding ((<|>))
 import Text.Parsec.Pos
 
+import Data.List qualified as L
+
 type NextPass = 'SolveModules
 
 
@@ -154,7 +156,14 @@ import_ = "import" <??> do
     pure (Import IgnoreExt (liStart `mergeLexInfo` liEnd) name)
 
 modName :: Parser (LexInfo, Name NextPass)
-modName = ident
+modName = joinSegments <$> some validSegment
+    where
+        joinSegments = L.foldr1 (\(l1, t1) (l2, t2) -> (l1 `mergeLexInfo` l2, t1 <> t2))
+        validSegment = "module name" <??> token' \case
+            Token l (Ident t)           -> Just (l, t)
+            Token l (Operator "/")      -> Just (l, "/")
+            Token l (ReservedOp ".")    -> Just (l, ".")
+            _ -> Nothing
 
 signature :: Parser (LexInfo, Name NextPass, Type NextPass)
 signature = "type signature" <??> do

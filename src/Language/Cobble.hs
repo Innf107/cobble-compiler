@@ -143,12 +143,17 @@ compileWithSig :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName]
                => S.Module 'QualifyNames
                -> Sem r ([CompiledModule], ModSig)
 compileWithSig m = do
-    let qualScopes = [Scope {
+    let qualScopes = Scope {
             _scopeVars = mempty
         ,   _scopeTypes = mempty
         ,   _scopeFixities = mempty
         ,   _scopeTVars = mempty
-        }]
+        } : map (\ModSig{exportedVars, exportedTypes, exportedFixities} -> Scope {
+                _scopeVars      = fromList $ map (\(qn, _) -> (originalName qn, qn)) $ M.toList exportedVars
+            ,   _scopeTypes     = fromList $ map (\(qn, (k, tv)) -> (originalName qn, (qn, k, tv))) $ M.toList exportedTypes
+            ,   _scopeFixities  = M.mapKeys originalName exportedFixities
+            ,   _scopeTVars     = mempty
+            }) (toList $ getExt $ xModule m)
     let tcState = foldMap (\dsig -> TCState {
                     _varTypes=coercePass $ exportedVars dsig
                 })

@@ -145,7 +145,7 @@ withTVars li tvs a = do
             
 
 
-
+-- currently unused..?
 withDeps :: (Members '[Reader [Scope]] r) => Dependencies -> Sem r a -> Sem r a
 withDeps deps a = foldr (\x r -> local (x:) r) a $ map (modSigToScope . snd) $ M.toList deps
     where
@@ -162,8 +162,7 @@ getConstrKind = foldr (\(MkTVar _ k) r -> k `KFun` r) KStar
 qualify :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
         => Module QualifyNames
         -> Sem r (Module NextPass)
-qualify (Module (Ext deps) name stmnts) = withDeps deps 
-                                        $ Module (Ext deps) (unsafeQualifiedName name name (LexInfo (SourcePos 0 0) (SourcePos 0 0) name)) 
+qualify (Module (Ext deps) name stmnts) = Module (Ext deps) (unsafeQualifiedName name name (LexInfo (SourcePos 0 0) (SourcePos 0 0) name)) 
                                        <$>qualifyStmnts stmnts
 
 qualifyStmnts :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
