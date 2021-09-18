@@ -8,14 +8,9 @@ import Language.Cobble.LC.Types as L
 
 import Language.Cobble.Codegen.PrimOps
 
-compile :: Map QualifiedName PrimOpInfo -> Module Codegen -> LCExpr
-compile prims (Module _deps _modname statements) = foldr makeLet (L.IntLit 0) 
-    $ concatMap compileStatement statements
+compile :: Map QualifiedName PrimOpInfo -> Module Codegen -> [LCDef]
+compile prims (Module _deps _modname statements) = concatMap compileStatement statements
     where
-        makeLet (LCDef n (Lambda x e)) r
-            | length [() | L.App (L.Var v) _ <- universeBi e, v == n] > 0 = L.LetRec n x e r
-        makeLet (LCDef n e) r = L.Let n e r
-
         compileStatement :: Statement Codegen -> [LCDef]
         compileStatement Import {} = []
         compileStatement DefStruct {} = []
@@ -39,3 +34,11 @@ compile prims (Module _deps _modname statements) = foldr makeLet (L.IntLit 0)
             Just i -> Select i (compileExpr structExp)
         compileExpr (C.If _ _ c th el)  = L.If (compileExpr c) (compileExpr th) (compileExpr el)
         compileExpr (ExprX x _) = absurd x
+
+collapseDefs :: [LCDef] -> LCExpr
+collapseDefs = foldr makeLet (L.IntLit 0) 
+    where
+        makeLet (LCDef n (Lambda x e)) r
+            | length [() | L.App (L.Var v) _ <- universeBi e, v == n] > 0 = L.LetRec n x e r
+        makeLet (LCDef n e) r = L.Let n e r
+

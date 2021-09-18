@@ -112,26 +112,48 @@ compileContentsToDataPack files = do
 compileAll :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r) => [FilePath] -> Sem r [CompiledModule]
 compileAll files = compileContents =<< traverse (\x -> (x,) <$> readFile x) files
 
-compileContents :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r) => [(FilePath, Text)] -> Sem r [CompiledModule]
+compileContents :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r) 
+                => [(FilePath, Text)] 
+                -> Sem r [CompiledModule]
 compileContents contents = do
     tokens <- traverse (\(fn, content) -> mapError LexError $ tokenize (toText fn) content) contents
     asts   <- traverse (\(ts, n) -> mapError ParseError $ fromEither $ parse (module_ (getModName n)) n ts) (zip tokens (map fst contents))
 
     orderedMods :: [(S.Module 'SolveModules, [Text])] <- mapError ModuleError $ findCompilationOrder asts
 
-    fmap join $ evalState (one ("prims", primModSig)) $ traverse compileAndAnnotateSig orderedMods
+    lcDefs <- fmap join $ evalState (one ("prims", primModSig)) $ traverse compileAndAnnotateSig orderedMods
+    
+    let lc = C2LC.collapseDefs lcDefs
+
+    whenM (asks ddumpLC) $ dumpLC lc
+
+    freshWithInternal do
+        cps     <- LC2CPS.compile lc
+        whenM (asks ddumpCPS) $ dumpCPS cps
+
+        let reduced = LC2CPS.reduceAdmin cps
+        whenM (asks ddumpReduced) $ dumpReduced reduced
+
+        tl      <- CPS2TL.compile reduced
+        whenM (asks ddumpTL) $ dumpTL tl
+        
+        let asm = TL2ASM.compile tl 
+        whenM (asks ddumpAsm) $ dumpAsm asm
+        
+        pure $ ASM2MC.compile asm
+
 
 compileAndAnnotateSig :: (ControllerC r, Members '[State (Map (S.Name 'QualifyNames) ModSig), Fresh (Text, LexInfo) QualifiedName] r)
                       => (S.Module 'SolveModules, [S.Name 'SolveModules])
-                      -> Sem r [CompiledModule]
+                      -> Sem r [LCDef]
 compileAndAnnotateSig (m, deps) = do
     annotatedMod :: (S.Module 'QualifyNames) <- S.Module
         <$> Ext . fromList <$> traverse (\d -> (internalQName d ,) <$> getDep d) ("prims" : deps)
         <*> pure (S.moduleName m)
         <*> pure (map (coercePass @(Statement SolveModules) @(Statement QualifyNames) @SolveModules @QualifyNames) (moduleStatements m))
-    (compMod, sig) <- compileWithSig annotatedMod
+    (lcdefs, sig) <- compileWithSig annotatedMod
     modify (insert (S.moduleName m) sig)
-    pure compMod
+    pure lcdefs
 
 
 getDep :: (ControllerC r, Member (State (Map (S.Name 'QualifyNames) ModSig)) r)
@@ -141,7 +163,7 @@ getDep n = maybe (error $ "Module dependency '" <> show n <> "' not found") pure
 --              TODO^: Should this really be a panic? 
 compileWithSig :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r)
                => S.Module 'QualifyNames
-               -> Sem r ([CompiledModule], ModSig)
+               -> Sem r ([LCDef], ModSig)
 compileWithSig m = do
     let qualScopes = Scope {
             _scopeVars = mempty
@@ -162,30 +184,16 @@ compileWithSig m = do
 
     saMod <- mapError SemanticError $ runSemanticAnalysis qMod
 
-    (compMods, sig) <- freshWithInternal do
+    (lcDefs, sig) <- freshWithInternal do
         tcMod <- dumpWhenWithM (asks ddumpTC) ppTC "dump-tc.tc" $ mapError TypeError $ evalState tcState $ typecheck saMod
 
         let ppMod = postProcess tcMod
 
         let lc  = C2LC.compile primOps ppMod
-        whenM (asks ddumpLC) $ dumpLC lc
 
-        cps     <- LC2CPS.compile lc
-        whenM (asks ddumpCPS) $ dumpCPS cps
+        pure (lc, extractSig ppMod)
 
-        let reduced = LC2CPS.reduceAdmin cps
-        whenM (asks ddumpReduced) $ dumpReduced reduced
-
-        tl      <- CPS2TL.compile reduced
-        whenM (asks ddumpTL) $ dumpTL tl
-        
-        let asm = TL2ASM.compile tl 
-        whenM (asks ddumpAsm) $ dumpAsm asm
-        
-        pure $ (ASM2MC.compile asm, extractSig ppMod)
-
-
-    pure (compMods, sig)
+    pure (lcDefs, sig)
 
 extractSig :: S.Module 'Codegen -> ModSig
 extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
