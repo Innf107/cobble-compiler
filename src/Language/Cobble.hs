@@ -12,6 +12,7 @@ module Language.Cobble (
 
 
     , primModSig
+    , modSigToScope
     ) where
 
 import Language.Cobble.Prelude hiding ((<.>), readFile, writeFile)
@@ -170,12 +171,8 @@ compileWithSig m = do
         ,   _scopeTypes = mempty
         ,   _scopeFixities = mempty
         ,   _scopeTVars = mempty
-        } : map (\ModSig{exportedVars, exportedTypes, exportedFixities} -> Scope {
-                _scopeVars      = fromList $ map (\(qn, _) -> (originalName qn, qn)) $ M.toList exportedVars
-            ,   _scopeTypes     = fromList $ map (\(qn, (k, tv)) -> (originalName qn, (qn, k, tv))) $ M.toList exportedTypes
-            ,   _scopeFixities  = M.mapKeys originalName exportedFixities
-            ,   _scopeTVars     = mempty
-            }) (toList $ getExt $ xModule m)
+        } : map modSigToScope (toList $ getExt $ xModule m)
+
     let tcState = foldMap (\dsig -> TCState {
                     _varTypes=coercePass $ exportedVars dsig
                 })
@@ -194,6 +191,14 @@ compileWithSig m = do
         pure (lc, extractSig ppMod)
 
     pure (lcDefs, sig)
+
+modSigToScope :: ModSig -> Scope
+modSigToScope (ModSig{exportedVars, exportedTypes, exportedFixities}) = Scope {
+                _scopeVars      = fromList $ map (\(qn, _) -> (originalName qn, qn)) $ M.toList exportedVars
+            ,   _scopeTypes     = fromList $ map (\(qn, (k, tv)) -> (originalName qn, (qn, k, tv))) $ M.toList exportedTypes
+            ,   _scopeFixities  = M.mapKeys originalName exportedFixities
+            ,   _scopeTVars     = mempty
+            }
 
 extractSig :: S.Module 'Codegen -> ModSig
 extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts

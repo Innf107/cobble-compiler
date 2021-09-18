@@ -113,7 +113,7 @@ pattern QName :: Text -> QualifiedName
 pattern QName name <- ReallyUnsafeQualifiedName name _ _
 
 runTypecheck :: [Text] -> Either TypeError (Module PostProcess)
-runTypecheck mod = run $ evalState (TCState mempty) $ ignoreOutput @Log $ C.dontDump @[TConstraint] $ runError $ C.runFreshQNamesState $ C.freshWithInternal 
+runTypecheck mod = run $ evalState (TCState {_varTypes = coercePass (exportedVars C.primModSig)}) $ ignoreOutput @Log $ C.dontDump @[TConstraint] $ runError $ C.runFreshQNamesState $ C.freshWithInternal 
                        $ cobbleCode (unlines mod) >>= typecheck
 
 cobbleCode :: (Member (C.Fresh (Text, LexInfo) QualifiedName) r) => Text -> Sem r (Module Typecheck)
@@ -125,12 +125,7 @@ cobbleCode content = do
             in 
             Module (Ext (one (internalQName "prims", C.primModSig))) pmname (coercePass psts) 
 
-    let qualScopes = [C.Scope {
-            _scopeVars = mempty
-        ,   _scopeTypes = mempty
-        ,   _scopeFixities = mempty
-        ,   _scopeTVars = mempty
-        }]
+    let qualScopes = [C.modSigToScope C.primModSig]
     qualified <- fmap (either (\e -> error $ "qualification error:" <> show e) id) $ runError @C.QualificationError $ runReader qualScopes $ C.qualify moduleSolved
     fmap (either (\e -> error $ "semantic error: " <> show e) id) $ runError @C.SemanticError $ C.runSemanticAnalysis qualified 
 
