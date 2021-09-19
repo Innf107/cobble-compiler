@@ -1,0 +1,27 @@
+-- Primop wrappers and common operations on integers
+
+-- primop wrappers
+infixl 6
+(+) :: Int -> Int -> Int;
+(+) x y = __add__ x y;
+
+infixl 6
+(-) :: Int -> Int -> Int;
+(-) x y = __sub__ x y;
+
+infixl 7
+(*) :: Int -> Int -> Int;
+(*) x y = __mul__ x y;
+
+infixl 7
+(//) :: Int -> Int -> Int;
+(//) x y = __div__ x y;
+
+-- TODO: will be moved to an `Ord` typeclass eventually
+(<=) :: Int -> Int -> Bool;
+(<=) x y = __le__ x y;
+
+-- TODO: (<), (>), (>=), and (==) need associated primops (for performance at least)
+
+negate :: Int -> Int;
+negate x = 0 - x;
