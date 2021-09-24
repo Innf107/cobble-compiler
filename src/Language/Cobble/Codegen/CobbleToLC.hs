@@ -14,6 +14,7 @@ compile prims (Module _deps _modname statements) = concatMap compileStatement st
         compileStatement :: Statement Codegen -> [LCDef]
         compileStatement Import {} = []
         compileStatement DefStruct {} = []
+        compileStatement DefVariant {} = []
         compileStatement (StatementX x _) = absurd x
         compileStatement (Def IgnoreExt _li (Decl (Ext _) fname (Ext params) body) _) = [
                 LCDef fname $ foldr (Lambda . fst) (compileExpr body) params
@@ -23,6 +24,7 @@ compile prims (Module _deps _modname statements) = concatMap compileStatement st
         compileExpr (C.IntLit _ _ i) = L.IntLit i
         compileExpr (UnitLit _)      = Tuple []
         compileExpr (C.Var _ _ n)    = L.Var n
+        compileExpr (C.VariantConstr _ _ n) = error "Variant Codegen is NYI"
         compileExpr (FCall (Ext _) l (C.Var (Ext _) _ v) ps) 
             | Just p <- lookup v prims = PrimOp (view primOp p) (map compileExpr $ toList ps) 
         compileExpr (FCall (Ext _) _ funEx pars) = foldl' App (compileExpr funEx) (fmap compileExpr pars)

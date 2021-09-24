@@ -17,6 +17,7 @@ type instance XDecl          'SemAnalysis = IgnoreExt SemAnalysis
 type instance XParam         'SemAnalysis = Ext SemAnalysis [Name 'Codegen]
 type instance XImport        'SemAnalysis = IgnoreExt SemAnalysis
 type instance XDefStruct     'SemAnalysis = Ext SemAnalysis Kind
+type instance XDefVariant    'SemAnalysis = Ext SemAnalysis Kind
 type instance XStatement     'SemAnalysis = ExtVoid SemAnalysis
 
 type instance XFCall            'SemAnalysis = IgnoreExt SemAnalysis
@@ -24,6 +25,7 @@ type instance XIntLit           'SemAnalysis = IgnoreExt SemAnalysis
 type instance XIf               'SemAnalysis = IgnoreExt SemAnalysis
 type instance XLet              'SemAnalysis = IgnoreExt SemAnalysis
 type instance XVar              'SemAnalysis = IgnoreExt SemAnalysis
+type instance XVariantConstr    'SemAnalysis = IgnoreExt SemAnalysis
 -- | @StructDef@ has its own @CoercePass@ instance, so we don't need @Ext@ here 
 type instance XStructConstruct  'SemAnalysis = StructDef SemAnalysis
 -- | @Map@ also has its own @CoercePass@ instance, so we don't need @Ext@ here

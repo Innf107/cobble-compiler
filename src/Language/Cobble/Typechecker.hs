@@ -52,9 +52,15 @@ instance Semigroup Substitution where
 instance Monoid Substitution where
     mempty = Subst mempty
 
+
+{- Note [lookupType for VariantConstr]
+For every pass after the Qualifier, Names are unique. 
+Thus, a @VariantConstr@ and a simple @Var@ can never share the same name and
+using the same Map for both is safe.
+-}
 lookupType :: Members '[State TCState, Fresh (TVar NextPass) (TVar NextPass)] r => QualifiedName -> Sem r Type
 lookupType v = gets (lookup v . view varTypes) <&> fromMaybe (error $ "lookupType: Typechecker cannot find variable: " <> show v)
-    
+
 instantiate :: Members '[Fresh (TVar NextPass) (TVar NextPass)] r => Type -> Sem r Type
 instantiate (TForall ps t) = foldrM (\p r -> freshVar p <&> \p' -> replaceTVar p (TVar p') r) t ps
 instantiate x              = pure x
@@ -75,6 +81,12 @@ checkStmnt :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh (T
            -> Sem r (Statement NextPass)
 checkStmnt (Import IgnoreExt li mod) = pure $ Import IgnoreExt li mod
 checkStmnt (DefStruct (Ext k) li sname ps fields) = pure $ DefStruct (Ext k) li sname (map coercePass ps) (map (second coercePass) fields) 
+checkStmnt (DefVariant (Ext k) li sname ps cs) = do
+    let cs' = map (second coercePass) cs
+    forM_ cs' \(cname, fs) -> do
+        let constrTy = foldr (:->) (TCon sname k) fs 
+        insertType cname constrTy
+    pure (DefVariant (Ext k) li sname (coercePass ps) cs')
 checkStmnt (Def IgnoreExt li (Decl IgnoreExt f (Ext ps) e) (coercePass -> ty)) = do
     insertType f ty
     ty' <- skolemize ty
@@ -94,6 +106,8 @@ check :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh (TVar N
 check (IntLit IgnoreExt li n)   = pure (IntLit IgnoreExt li n)
 check (UnitLit li)              = pure (UnitLit li)
 check (Var IgnoreExt li vname)  = Var . Ext <$> lookupType vname <*> pure li <*> pure vname
+-- See note [lookupType for VariantConstr]
+check (VariantConstr IgnoreExt li cname) = VariantConstr . Ext <$> lookupType cname <*> pure li <*> pure cname
 check (FCall IgnoreExt li f as) = do
     f' <- check f
     as' <- traverse check as

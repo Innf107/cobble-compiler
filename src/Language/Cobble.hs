@@ -168,6 +168,7 @@ compileWithSig :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName]
 compileWithSig m = do
     let qualScopes = Scope {
             _scopeVars = mempty
+        ,   _scopeVariantConstrs = mempty
         ,   _scopeTypes = mempty
         ,   _scopeFixities = mempty
         ,   _scopeTVars = mempty
@@ -193,11 +194,12 @@ compileWithSig m = do
     pure (lcDefs, sig)
 
 modSigToScope :: ModSig -> Scope
-modSigToScope (ModSig{exportedVars, exportedTypes, exportedFixities}) = Scope {
-                _scopeVars      = fromList $ map (\(qn, _) -> (originalName qn, qn)) $ M.toList exportedVars
-            ,   _scopeTypes     = fromList $ map (\(qn, (k, tv)) -> (originalName qn, (qn, k, tv))) $ M.toList exportedTypes
-            ,   _scopeFixities  = M.mapKeys originalName exportedFixities
-            ,   _scopeTVars     = mempty
+modSigToScope (ModSig{exportedVars, exportedVariantConstrs, exportedTypes, exportedFixities}) = Scope {
+                _scopeVars              = fromList $ map (\(qn, _) -> (originalName qn, qn)) $ M.toList exportedVars
+            ,   _scopeVariantConstrs    = fromList $ map (\(qn, _) -> (originalName qn, qn)) $ M.toList exportedVariantConstrs
+            ,   _scopeTypes             = fromList $ map (\(qn, (k, tv)) -> (originalName qn, (qn, k, tv))) $ M.toList exportedTypes
+            ,   _scopeFixities          = M.mapKeys originalName exportedFixities
+            ,   _scopeTVars             = mempty
             }
 
 extractSig :: S.Module 'Codegen -> ModSig
@@ -206,7 +208,8 @@ extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
 makePartialSig :: S.Statement 'Codegen -> ModSig
 makePartialSig = \case
     Def _ _ (Decl _ n _ _) t        -> mempty {exportedVars = one (n, t)}
-    DefStruct (Ext k) _ n ps fs    -> mempty {exportedTypes = one (n, (k, RecordType ps fs))}
+    DefStruct (Ext k) _ n ps fs     -> mempty {exportedTypes = one (n, (k, RecordType ps fs))}
+    DefVariant (Ext k) _ n ps cs    -> mempty {exportedTypes = one (n, (k, VariantType ps cs))}
     Import IgnoreExt _ _            -> mempty
     StatementX v _                  -> absurd v
 
@@ -217,6 +220,7 @@ getModName = toText . FP.dropExtension . L.last . segments
 primModSig :: ModSig
 primModSig = ModSig {
         exportedVars = fmap (view primOpType) $ primOps
+    ,   exportedVariantConstrs = mempty
             -- The type application is only necessary to satisfy the type checker since the value depending on the type 'r' is ignored
     ,   exportedTypes = fromList [
               (internalQName "Int", (KStar, BuiltInType))

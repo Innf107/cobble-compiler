@@ -102,12 +102,26 @@ spec = do
             ] `shouldSatisfy` \ast -> case [ty | FCall (Ext ty) _ (VarType _ "f") _ <- universeBi ast] of
                 [TSkol (MkTVar (QName "a") KStar)] -> True
                 ts -> errorWithoutStackTrace $ toString $ ppTypes ts
+    it "(recursive) variant constructors have the correct type" do
+        runTypecheck [
+                "variant IntList = Nil"
+            ,   "                | Cons Int IntList"
+            ,   "                ;"
+            ,   "f :: Int;"
+            ,   "f = let x = Cons in 0;"
+            ]  `shouldSatisfy` \ast -> case [ty | DeclType ty "x" <- universeBi ast] of
+                [intT :-> (TCon (QName "IntList") KStar :-> TCon (QName "IntList") KStar)] -> True
+                [] -> errorWithoutStackTrace $ "No variables found. AST:\n" <> show ast 
+                ts -> errorWithoutStackTrace $ toString $ ppTypes ts
 
 ppTypes :: [Type PostProcess] -> Text
 ppTypes = unlines . map ppType
 
 pattern VarType :: Type PostProcess -> Text -> Expr PostProcess
-pattern VarType ty name <- Var (Ext ty) _ (ReallyUnsafeQualifiedName name _ _)
+pattern VarType ty name <- Var (Ext ty) _ (QName name)
+
+pattern DeclType :: Type PostProcess -> Text -> Decl PostProcess
+pattern DeclType ty name <- Decl (Ext ty) (QName name) _ _
 
 pattern QName :: Text -> QualifiedName
 pattern QName name <- ReallyUnsafeQualifiedName name _ _

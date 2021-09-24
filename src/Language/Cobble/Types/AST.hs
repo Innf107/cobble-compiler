@@ -38,19 +38,21 @@ type family XModule (p :: Pass)
 -- everything that it exports
 -- (Variables, Functions, Types, etc.)
 data ModSig = ModSig {
-    exportedVars        :: Map QualifiedName (Type 'Codegen)
-,   exportedTypes       :: Map QualifiedName (Kind, TypeVariant)
-,   exportedFixities    :: Map QualifiedName Fixity
+    exportedVars            :: Map QualifiedName (Type 'Codegen)
+,   exportedVariantConstrs  :: Map QualifiedName (Type 'Codegen)
+,   exportedTypes           :: Map QualifiedName (Kind, TypeVariant)
+,   exportedFixities        :: Map QualifiedName Fixity
 } deriving (Generic, Typeable) -- Instances for @Eq@ and @Data@ are defined in Language.Cobble.Types.AST.Codegen
 
 data TypeVariant = RecordType [TVar Codegen] [(UnqualifiedName, Type 'Codegen)]
+                 | VariantType [TVar Codegen] [(QualifiedName, [Type Codegen])]
                  | BuiltInType
                  deriving (Generic, Typeable)
 
 type Dependencies = Map QualifiedName ModSig
 
-instance Semigroup ModSig where ModSig vs ts fs <> ModSig vs' ts' fs' = ModSig (vs <> vs') (ts <> ts') (fs <> fs')
-instance Monoid ModSig where mempty = ModSig mempty mempty mempty
+instance Semigroup ModSig where ModSig vs cs ts fs <> ModSig vs' cs' ts' fs' = ModSig (vs <> vs') (cs <> cs') (ts <> ts') (fs <> fs')
+instance Monoid ModSig where mempty = ModSig mempty mempty mempty mempty
 
 -- | A data kind representing the state of the AST at a certain Compiler pass.
 data Pass = SolveModules
@@ -62,17 +64,20 @@ data Pass = SolveModules
 
 
 data Statement (p :: Pass) =
-      Def        (XDef p)       LexInfo (Decl p) (Type p)
-    | Import     (XImport p)    LexInfo (Name p) -- TODO: qualified? exposing?
-    | DefStruct  (XDefStruct p) LexInfo (Name p) [(TVar p)] [(UnqualifiedName, Type p)]
-    | StatementX (XStatement p) LexInfo
+      Def        (XDef p)           LexInfo (Decl p) (Type p)
+    | Import     (XImport p)        LexInfo (Name p) -- TODO: qualified? exposing?
+    | DefStruct  (XDefStruct p)     LexInfo (Name p) [(TVar p)] [(UnqualifiedName, Type p)]
+    | DefVariant (XDefVariant p)    LexInfo (Name p) [(TVar p)] [(Name p, [Type p])]
+    | StatementX (XStatement p)     LexInfo
 
-type instance InstanceRequirements (Statement p) = [XDef p, XImport p, XDefStruct p, XStatement p, Name p, Type p, TVar p, Decl p]
+type instance InstanceRequirements (Statement p) = 
+    [XDef p, XImport p, XDefStruct p, XDefVariant p, XStatement p, Name p, Type p, TVar p, Decl p]
 
 type family XDef            (p :: Pass)
 type family XParam          (p :: Pass)
 type family XImport         (p :: Pass)
 type family XDefStruct      (p :: Pass)
+type family XDefVariant     (p :: Pass)
 type family XStatement      (p :: Pass)
 
 
@@ -89,18 +94,23 @@ data Expr (p :: Pass) =
     | If              (XIf p) LexInfo (Expr p) (Expr p) (Expr p)
     | Let             (XLet p) LexInfo (Decl p) (Expr p)
     | Var             (XVar p) LexInfo (Name p)
+    | VariantConstr   (XVariantConstr p) LexInfo (Name p)
     | StructConstruct (XStructConstruct p) LexInfo (Name p) [(UnqualifiedName, Expr p)]
     | StructAccess    (XStructAccess p) LexInfo (Expr p) UnqualifiedName
     | ExprX           (XExpr p) LexInfo
 
-type instance InstanceRequirements (Expr p) = [XFCall p, XIntLit p, XIf p, XLet p, Decl p, XVar p, Name p,
-        XStructConstruct p, XStructAccess p, XExpr p]
+type instance InstanceRequirements (Expr p) = 
+        [
+            XFCall p, XIntLit p, XIf p, XLet p, Decl p, XVar p, XVariantConstr p, Name p,
+            XStructConstruct p, XStructAccess p, XExpr p
+        ]
 
 type family XFCall           (p :: Pass)
 type family XIntLit          (p :: Pass)
 type family XIf              (p :: Pass)
 type family XLet             (p :: Pass)
 type family XVar             (p :: Pass)
+type family XVariantConstr   (p :: Pass)
 type family XStructConstruct (p :: Pass)
 type family XStructAccess    (p :: Pass)
 type family XExpr            (p :: Pass)
@@ -291,6 +301,7 @@ instance
     ,   CoercePass (XParam p1) (XParam p2) p1 p2
     ,   CoercePass (XImport p1) (XImport p2) p1 p2
     ,   CoercePass (XDefStruct p1) (XDefStruct p2) p1 p2
+    ,   CoercePass (XDefVariant p1) (XDefVariant p2) p1 p2
     ,   CoercePass (XStatement p1) (XStatement p2) p1 p2
     )
     => CoercePass (Statement p1) (Statement p2) p1 p2 where
@@ -298,6 +309,7 @@ instance
         Def x l d t -> Def (coercePass x) l (coercePass d) (coercePass t)
         Import x l n -> Import (coercePass x) l n
         DefStruct x l n ps fs -> DefStruct (coercePass x) l n (map coercePass ps) (map (second coercePass) fs)
+        DefVariant x l n ps vs -> DefVariant (coercePass x) l n (coercePass ps) (map (second (map coercePass)) vs)
         StatementX x l -> StatementX (coercePass x) l
 
 instance
@@ -309,6 +321,7 @@ instance
     ,   CoercePass (XParam p1) (XParam p2) p1 p2
     ,   CoercePass (XDecl p1) (XDecl p2) p1 p2
     ,   CoercePass (XVar p1) (XVar p2) p1 p2
+    ,   CoercePass (XVariantConstr p1) (XVariantConstr p2) p1 p2
     ,   CoercePass (XStructConstruct p1) (XStructConstruct p2) p1 p2
     ,   CoercePass (XStructAccess p1) (XStructAccess p2) p1 p2
     ,   CoercePass (XExpr p1) (XExpr p2) p1 p2
@@ -321,6 +334,7 @@ instance
         If x l c th el           -> If (coercePass x) l (coercePass c) (coercePass th) (coercePass el)
         Let x l d b              -> Let (coercePass x) l (coercePass d) (coercePass b)
         Var x l v                -> Var (coercePass x) l v
+        VariantConstr x l v      -> VariantConstr (coercePass x) l v
         StructConstruct x l c fs -> StructConstruct (coercePass x) l c (map (second coercePass) fs)
         StructAccess x l e f     -> StructAccess (coercePass x) l (coercePass e) f
         ExprX x l                -> ExprX (coercePass x) l
@@ -382,6 +396,7 @@ instance HasLexInfo (Expr p) where
         If _ li _ _ _            -> li
         Let _ li _ _             -> li
         Var _ li _               -> li
+        VariantConstr _ li _     -> li
         StructConstruct _ li _ _ -> li
         StructAccess _ li _ _    -> li
         ExprX _ li               -> li

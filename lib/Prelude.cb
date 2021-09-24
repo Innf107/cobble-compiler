@@ -1,3 +1,6 @@
 
+variant IntList = Nil
+                | Cons Int IntList;
+
 test :: Int;
 test = 5;
