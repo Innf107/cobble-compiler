@@ -196,7 +196,7 @@ compileWithSig m = do
 modSigToScope :: ModSig -> Scope
 modSigToScope (ModSig{exportedVars, exportedVariantConstrs, exportedTypes, exportedFixities}) = Scope {
                 _scopeVars              = fromList $ map (\(qn, _) -> (originalName qn, qn)) $ M.toList exportedVars
-            ,   _scopeVariantConstrs    = fromList $ map (\(qn, _) -> (originalName qn, qn)) $ M.toList exportedVariantConstrs
+            ,   _scopeVariantConstrs    = fromList $ map (\(qn, (_, ep, i)) -> (originalName qn, (qn, ep, i))) $ M.toList exportedVariantConstrs
             ,   _scopeTypes             = fromList $ map (\(qn, (k, tv)) -> (originalName qn, (qn, k, tv))) $ M.toList exportedTypes
             ,   _scopeFixities          = M.mapKeys originalName exportedFixities
             ,   _scopeTVars             = mempty
@@ -209,7 +209,10 @@ makePartialSig :: S.Statement 'Codegen -> ModSig
 makePartialSig = \case
     Def _ _ (Decl _ n _ _) t        -> mempty {exportedVars = one (n, t)}
     DefStruct (Ext k) _ n ps fs     -> mempty {exportedTypes = one (n, (k, RecordType ps fs))}
-    DefVariant (Ext k) _ n ps cs    -> mempty {exportedTypes = one (n, (k, VariantType ps cs))}
+    DefVariant (Ext k) _ n ps cs    -> mempty
+        {   exportedTypes = one (n, (k, VariantType ps (map (\(x,y,_) -> (x,y)) cs)))
+        ,   exportedVariantConstrs = fromList (map (\(n, _, Ext3_1 ty ep i) -> (n, (ty, ep, i))) cs)
+        }
     Import IgnoreExt _ _            -> mempty
     StatementX v _                  -> absurd v
 

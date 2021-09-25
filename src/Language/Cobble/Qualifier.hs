@@ -26,7 +26,7 @@ data QualificationError = NameNotFound LexInfo Text
                         | TypeAlreadyDeclaredInScope LexInfo Text
                         | TVarAlreadyDeclaredInScope LexInfo Text
                         | AmbiguousVarName LexInfo Text [QualifiedName]
-                        | AmbiguousVariantConstrName LexInfo Text [QualifiedName]
+                        | AmbiguousVariantConstrName LexInfo Text [(QualifiedName, Int)]
                         | AmbiguousTypeName LexInfo Text [(QualifiedName, Kind, TypeVariant)]
                         | AmbiguousTVarName LexInfo Text [(QualifiedName, Kind)]
                         deriving (Show, Eq)
@@ -35,7 +35,7 @@ data Scope = Scope {
         _scopeVars :: Map Text QualifiedName
     ,   _scopeTypes :: Map Text (QualifiedName, Kind, TypeVariant)
     ,   _scopeTVars :: Map Text (QualifiedName, Kind)
-    ,   _scopeVariantConstrs :: Map Text QualifiedName
+    ,   _scopeVariantConstrs :: Map Text (QualifiedName, Int, Int)
     ,   _scopeFixities :: Map Text Fixity
     } deriving (Show, Eq)
 
@@ -49,13 +49,13 @@ lookupVar l n = do
         [x] -> pure x
         xs  -> throw $ AmbiguousVarName l n xs
 
-lookupVariantConstr :: Members '[Reader [Scope], Error QualificationError] r => LexInfo -> Text -> Sem r QualifiedName 
+lookupVariantConstr :: Members '[Reader [Scope], Error QualificationError] r => LexInfo -> Text -> Sem r (QualifiedName, Int, Int) 
 lookupVariantConstr l n = do
     scopes <- ask
     case mapMaybe (lookup n . view scopeVariantConstrs) scopes of
         []  -> throw $ VariantConstrNotFound l n
         [x] -> pure x
-        xs  -> throw $ AmbiguousVariantConstrName l n xs
+        xs  -> throw $ AmbiguousVariantConstrName l n (map (\(qn, eps, _) -> (qn,eps)) xs)
 
 lookupType :: Members '[Reader [Scope], Error QualificationError] r 
            => LexInfo 
@@ -141,35 +141,39 @@ withVarAndFixity f l n a = do
                         .   (_head . scopeFixities %~ insert n f)) 
                         (a n')
 
-withVariantConstr :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
+withVariantConstr :: Members '[Reader [Scope], State Int, Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
         => LexInfo 
         -> Text 
-        -> (QualifiedName -> Sem r a) 
+        -> Int
+        -> (QualifiedName -> Int -> Sem r a) 
         -> Sem r a
-withVariantConstr l n a = do
+withVariantConstr l n ep a = do
         n' <- freshVar (n, l)
-        withVariantConstr' l n n' (a n')
+        ix <- state (\i -> (i, i+1))
+        withVariantConstr' l n ep ix n' (a n' ix)
 
 
 
 withVariantConstr' :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
         => LexInfo 
         -> Text
-        -> QualifiedName 
+        -> Int 
+        -> Int
+        -> QualifiedName
         -> Sem r a 
         -> Sem r a
-withVariantConstr' l n qn a = do
+withVariantConstr' l n ep i qn a = do
     alreadyInScope <- asks (member n .view (_head . scopeVariantConstrs))
     if alreadyInScope 
     then throw (VariantConstrAlreadyDeclaredInScope l n)
-    else local (_head . scopeVariantConstrs %~ insert n qn) a
+    else local (_head . scopeVariantConstrs %~ insert n (qn, ep, i)) a
 
 withVariantConstrs' :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
         => LexInfo 
-        -> [(Text, QualifiedName)]
+        -> [(Text, Int, Int, QualifiedName)]
         -> Sem r a 
         -> Sem r a
-withVariantConstrs' = withMany (\l (x,x') -> withVariantConstr' l x x')
+withVariantConstrs' = withMany (\l (x,ep,i,x') -> withVariantConstr' l x ep i x')
 
 
 withType :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
@@ -254,14 +258,14 @@ qualifyStmnts = \case
             let k = getConstrKind ps' in
             --                 Same ugly hack :/
             withType li n k (VariantType (coercePass ps') []) \n' -> do
-                constrs' <- forM constrs \(cname, ctys) -> do
+                constrs' <- evalState 0 $ forM constrs \(cname, ctys, IgnoreExt) -> do
                     ctys' <- traverse (qualifyType li) ctys
-                    withVariantConstr li cname \cname' -> 
-                        pure (cname', ctys')
-                pure (DefVariant (Ext k) li n' ps' constrs', k, n', ps', constrs')
+                    withVariantConstr li cname (length ctys) \cname' i -> 
+                        pure (cname', ctys', length ctys, i)
+                pure (DefVariant (Ext k) li n' ps' (map (\(x, y, ep, ix) -> (x,y, Ext (ep, ix))) constrs'), k, n', ps', constrs')
         (def :)
-            <$> (withType' li n n' k (VariantType (coercePass ps') (map (second coercePass) constrs')) 
-                $ withVariantConstrs' li (zipWith (\(x,_)(y,_) -> (x, y)) constrs constrs')
+            <$> (withType' li n n' k (VariantType (coercePass ps') (map (\(x,y,_,_) -> (x, coercePass y)) constrs')) 
+                $ withVariantConstrs' li (zipWith (\(x,_,_)(y,_,ep,i) -> (x, ep, i, y)) constrs constrs')
                 $ qualifyStmnts sts)
     (StatementX x _ : _) -> absurd x
 
@@ -275,7 +279,7 @@ qualifyExp = \case
     If IgnoreExt li cond th el  -> If IgnoreExt li <$> qualifyExp cond <*> qualifyExp th <*> qualifyExp el
     Let IgnoreExt li decl@(Decl _ n _ _) b  -> withVar li n $ \n' -> Let IgnoreExt li <$> qualifyDeclWith n' li decl <*> qualifyExp b
     Var IgnoreExt li n          -> Var IgnoreExt li <$> lookupVar li n
-    VariantConstr IgnoreExt li n -> VariantConstr IgnoreExt li <$> lookupVariantConstr li n
+    VariantConstr IgnoreExt li n -> lookupVariantConstr li n <&> \(n', ep, i) -> VariantConstr (Ext (ep, i)) li n'
     StructConstruct IgnoreExt li structName fields -> lookupType li structName >>= \case
             (structName', _k, RecordType ps tyFields) -> traverse (secondM qualifyExp) fields <&> \fields' -> 
                 StructConstruct (StructDef structName' (coercePass ps) (map (second coercePass) tyFields)) li structName' fields'

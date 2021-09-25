@@ -117,6 +117,11 @@ compileExpr = \case
         let (vsTLs, vsLocs, vsExps) = vs' & foldr (\(tls, locs, e) (tls', locs', es') -> (tls <> tls', locs <> locs', e : es')) ([], [], [])
         (vBindings, vNames) <- asVars vsExps
         pure (vsTLs, vsLocs <> vBindings, T.Tuple vNames)
+    C.Variant (qn, i) vs -> do
+        vs' <- traverse compileVal vs
+        let (vsTLs, vsLocs, vsExps) = vs' & foldr (\(tls, locs, e) (tls', locs', es') -> (tls <> tls', locs <> locs', e : es')) ([], [], [])
+        (vBindings, vNames) <- asVars vsExps
+        pure (vsTLs, vsLocs <> vBindings, T.Variant (qn, i) vNames)
     C.Select n v    -> do
         (vTLs, vLocs, vExp) <- compileVal v
         (tBindings, t') <- asVar vExp
@@ -190,8 +195,9 @@ freeVarsExpr' :: CPSExpr -> Set QualifiedName
 freeVarsExpr' = \case
     C.Val v         -> freeVarsVal' v
     C.Tuple vs      -> foldMap freeVarsVal' vs
+    C.Variant _ vs  -> foldMap freeVarsVal' vs
     C.Select _ v    -> freeVarsVal' v
-    C.PrimOp _ vs     -> foldMap freeVarsVal' vs
+    C.PrimOp _ vs   -> foldMap freeVarsVal' vs
 
 freeVarsVal' :: CPSVal -> Set QualifiedName
 freeVarsVal' = \case

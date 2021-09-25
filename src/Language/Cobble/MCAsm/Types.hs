@@ -60,6 +60,7 @@ data Instruction =
     | Malloc Register Int
     | Select Register Register Int
     | Store  Register Register Int
+    | StoreLit Register Int Int
 
     | SetScoreboard Text Objective Register
     deriving (Show, Eq, Generic, Data)

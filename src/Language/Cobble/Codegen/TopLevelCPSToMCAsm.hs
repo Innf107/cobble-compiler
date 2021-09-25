@@ -47,6 +47,10 @@ compileTLC = \case
     Let x (Tuple ys) c      -> Malloc (Reg x) (length ys)
                             :  imap (\i y -> Store (Reg x) (Reg y) i) ys
                             <> compileTLC c
+    Let x (Variant (qn, ix) ys) c -> Malloc (Reg x) (length ys + 1)
+                            : StoreLit (Reg x) ix 0
+                            : imap (\i y -> Store (Reg x) (Reg y) (i + 1)) ys
+                            <> compileTLC c
     Let x (PrimOp p ys) c   -> letPrimOp x p ys <> compileTLC c 
     Let x (T.Select n y) c  -> A.Select (Reg x) (Reg y) n : compileTLC c 
     App f xs                -> imap (\i x -> Move (argReg i) (Reg x)) xs

@@ -192,7 +192,7 @@ defStruct = "struct definition" <??> (\ls n ps fs le -> DefStruct IgnoreExt (ls 
     <*> paren "}"
    
 defVariant :: Parser (Statement NextPass)
-defVariant = "variant definition" <??> (\ls n ps cs -> DefVariant IgnoreExt (ls `mergeLexInfo` snd (unsafeLast cs)) n (map (`MkTVar`()) ps) (map fst cs))
+defVariant = "variant definition" <??> (\ls n ps cs -> DefVariant IgnoreExt (ls `mergeLexInfo` snd (unsafeLast cs)) n (map (`MkTVar`()) ps) (map (\((n,ts),_) -> (n, ts, IgnoreExt)) cs))
     <$> reserved "variant"
     <*> ident'
     <*> many ident'

@@ -31,7 +31,7 @@ instance HasType (Expr 'PostProcess) 'PostProcess where
     getType = \case
         FCall (Ext t) _ _ _                 -> t
         Var (Ext t) _ _                     -> t
-        VariantConstr (Ext t) _ _           -> t
+        VariantConstr (Ext (t,_,_)) _ _     -> t
         IntLit _ _ _                        -> intT
         If _ _ _ th _                       -> getType th
         UnitLit _                           -> unitT
@@ -42,7 +42,7 @@ instance HasType (Expr 'PostProcess) 'PostProcess where
     type_ = lens getType $ flip $ \t -> \case
         FCall _ l f as                      -> FCall (Ext t) l f as
         Var _ l n                           -> Var (Ext t) l n
-        VariantConstr _ l n                 -> VariantConstr (Ext t) l n
+        VariantConstr (Ext (_,e,i)) l n     -> VariantConstr (Ext (t,e,i)) l n
         IntLit x l i                        -> IntLit x l i
         If x l c th el                      -> If x l c (set type_ t th) (set type_ t el)
         UnitLit l                           -> UnitLit l
@@ -56,7 +56,7 @@ instance HasType (Expr 'Codegen) 'Codegen where
     getType = \case
         FCall (Ext t) _ _ _                 -> t
         Var (Ext t) _ _                     -> t
-        VariantConstr (Ext t) _ _           -> t
+        VariantConstr (Ext (t,_,_)) _ _     -> t
         IntLit _ _ _                        -> intT
         If _ _ _ th _                       -> getType th
         UnitLit _                           -> unitT
@@ -67,7 +67,7 @@ instance HasType (Expr 'Codegen) 'Codegen where
     type_ = lens getType $ flip $ \t -> \case
         FCall _ l f as                      -> FCall (Ext t) l f as
         Var _ l n                           -> Var (Ext t) l n
-        VariantConstr _ l n                 -> VariantConstr (Ext t) l n
+        VariantConstr (Ext (_,e,i)) l n     -> VariantConstr (Ext (t,e,i)) l n
         IntLit x l i                        -> IntLit x l i
         If x l c th el                      -> If x l c (set type_ t th) (set type_ t el)
         UnitLit l                           -> UnitLit l

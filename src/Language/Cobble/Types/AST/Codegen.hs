@@ -26,18 +26,22 @@ type instance XModule 'Codegen = Ext Codegen (Map (Name 'Codegen) ModSig)
 type instance XDecl      'Codegen = Ext Codegen (Type 'Codegen)
 type instance XParam     'Codegen = Ext Codegen [(Name 'Codegen, Type 'Codegen)]
 
-type instance XDef          'Codegen = IgnoreExt Codegen
-type instance XImport       'Codegen = IgnoreExt Codegen
-type instance XDefStruct    'Codegen = Ext Codegen Kind
-type instance XDefVariant   'Codegen = Ext Codegen Kind
-type instance XStatement    'Codegen = ExtVoid Codegen
+type instance XDef              'Codegen = IgnoreExt Codegen
+type instance XImport           'Codegen = IgnoreExt Codegen
+type instance XDefStruct        'Codegen = Ext Codegen Kind
+type instance XDefVariant       'Codegen = Ext Codegen Kind
+type instance XDefVariantClause 'Codegen = Ext3_1 Codegen (Type Codegen) Int Int
+type instance XStatement        'Codegen = ExtVoid Codegen
 
 type instance XFCall            'Codegen = Ext Codegen (Type 'Codegen)
 type instance XIntLit           'Codegen = IgnoreExt Codegen
 type instance XIf               'Codegen = IgnoreExt Codegen
 type instance XLet              'Codegen = IgnoreExt Codegen
 type instance XVar              'Codegen = Ext Codegen (Type 'Codegen)
-type instance XVariantConstr    'Codegen = Ext Codegen (Type 'Codegen)
+type instance XVariantConstr    'Codegen = Ext Codegen (Type 'Codegen, Int, Int)
+--                                                                     ^    ^
+--                                                                     |    constructor index
+--                                                                     expected number of args
 type instance XStructConstruct  'Codegen = Ext Codegen (StructDef 'Codegen, Type 'Codegen)
 type instance XStructAccess     'Codegen = Ext Codegen (StructDef 'Codegen, Type 'Codegen)
 type instance XExpr             'Codegen = ExtVoid Codegen

@@ -39,7 +39,7 @@ type family XModule (p :: Pass)
 -- (Variables, Functions, Types, etc.)
 data ModSig = ModSig {
     exportedVars            :: Map QualifiedName (Type 'Codegen)
-,   exportedVariantConstrs  :: Map QualifiedName (Type 'Codegen)
+,   exportedVariantConstrs  :: Map QualifiedName (Type 'Codegen, Int, Int)
 ,   exportedTypes           :: Map QualifiedName (Kind, TypeVariant)
 ,   exportedFixities        :: Map QualifiedName Fixity
 } deriving (Generic, Typeable) -- Instances for @Eq@ and @Data@ are defined in Language.Cobble.Types.AST.Codegen
@@ -67,18 +67,19 @@ data Statement (p :: Pass) =
       Def        (XDef p)           LexInfo (Decl p) (Type p)
     | Import     (XImport p)        LexInfo (Name p) -- TODO: qualified? exposing?
     | DefStruct  (XDefStruct p)     LexInfo (Name p) [(TVar p)] [(UnqualifiedName, Type p)]
-    | DefVariant (XDefVariant p)    LexInfo (Name p) [(TVar p)] [(Name p, [Type p])]
+    | DefVariant (XDefVariant p)    LexInfo (Name p) [(TVar p)] [(Name p, [Type p], XDefVariantClause p)]
     | StatementX (XStatement p)     LexInfo
 
 type instance InstanceRequirements (Statement p) = 
-    [XDef p, XImport p, XDefStruct p, XDefVariant p, XStatement p, Name p, Type p, TVar p, Decl p]
+    [XDef p, XImport p, XDefStruct p, XDefVariant p, XDefVariantClause p, XStatement p, Name p, Type p, TVar p, Decl p]
 
-type family XDef            (p :: Pass)
-type family XParam          (p :: Pass)
-type family XImport         (p :: Pass)
-type family XDefStruct      (p :: Pass)
-type family XDefVariant     (p :: Pass)
-type family XStatement      (p :: Pass)
+type family XDef                (p :: Pass)
+type family XParam              (p :: Pass)
+type family XImport             (p :: Pass)
+type family XDefStruct          (p :: Pass)
+type family XDefVariant         (p :: Pass)
+type family XDefVariantClause   (p :: Pass)
+type family XStatement          (p :: Pass)
 
 
 data Decl (p :: Pass) = Decl (XDecl p) (Name p) (XParam p) (Expr p)
@@ -264,12 +265,16 @@ coercePass = _coercePass
 newtype Ext (p :: Pass) t = Ext {getExt :: t} deriving (Show, Eq, Generic, Data, Functor)
 data IgnoreExt (p :: Pass) = IgnoreExt deriving (Show, Eq, Generic, Data)
 data ExtVoid (p :: Pass) deriving (Show, Eq, Generic, Data)
+data Ext3_1 (p :: Pass) a b c = Ext3_1 a b c deriving (Show, Eq, Generic, Data)
 
 absurd :: ExtVoid t -> a
 absurd x = case x of
 
 instance (Coercible t1 t2) => CoercePass (Ext p1 t1) (Ext p2 t2) p1 p2 where
-    _coercePass = coercePass
+    _coercePass (Ext x) = Ext (coerce x)
+
+instance (CoercePass a a' p1 p2, Coercible b b', Coercible c c') => CoercePass (Ext3_1 p1 a b c) (Ext3_1 p2 a' b' c') p1 p2 where
+    _coercePass (Ext3_1 x y z) = Ext3_1 (coercePass x) (coerce y) (coerce z)
 
 instance CoercePass (IgnoreExt p1) (IgnoreExt p2) p1 p2 where
     _coercePass = coerce
@@ -302,6 +307,7 @@ instance
     ,   CoercePass (XImport p1) (XImport p2) p1 p2
     ,   CoercePass (XDefStruct p1) (XDefStruct p2) p1 p2
     ,   CoercePass (XDefVariant p1) (XDefVariant p2) p1 p2
+    ,   CoercePass (XDefVariantClause p1) (XDefVariantClause p2) p1 p2
     ,   CoercePass (XStatement p1) (XStatement p2) p1 p2
     )
     => CoercePass (Statement p1) (Statement p2) p1 p2 where
@@ -309,7 +315,7 @@ instance
         Def x l d t -> Def (coercePass x) l (coercePass d) (coercePass t)
         Import x l n -> Import (coercePass x) l n
         DefStruct x l n ps fs -> DefStruct (coercePass x) l n (map coercePass ps) (map (second coercePass) fs)
-        DefVariant x l n ps vs -> DefVariant (coercePass x) l n (coercePass ps) (map (second (map coercePass)) vs)
+        DefVariant x l n ps vs -> DefVariant (coercePass x) l n (coercePass ps) (map (\(n,ps,cx) -> (n, coercePass ps, coercePass cx)) vs)
         StatementX x l -> StatementX (coercePass x) l
 
 instance
