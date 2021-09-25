@@ -14,6 +14,7 @@ compile prims (Module _deps _modname statements) = concatMap compileStatement st
         compileStatement :: Statement Codegen -> [LCDef]
         compileStatement Import {} = []
         compileStatement DefStruct {} = []
+        compileStatement DefVariant {} = []
         compileStatement (StatementX x _) = absurd x
         compileStatement (Def IgnoreExt _li (Decl (Ext _) fname (Ext params) body) _) = [
                 LCDef fname $ foldr (Lambda . fst) (compileExpr body) params
@@ -23,6 +24,12 @@ compile prims (Module _deps _modname statements) = concatMap compileStatement st
         compileExpr (C.IntLit _ _ i) = L.IntLit i
         compileExpr (UnitLit _)      = Tuple []
         compileExpr (C.Var _ _ n)    = L.Var n
+        compileExpr (C.VariantConstr (Ext (_, 0, i)) _ n) = Variant (n, i) []
+        compileExpr (C.VariantConstr (Ext (_, expectedParams, i)) _ n) = error $ "LC Codegen: Variant construction for partially applied constructor without args NYI"  
+        compileExpr (FCall _ _ (C.VariantConstr (Ext (_, expectedParams, i)) _ con) as)
+            | expectedParams == length as = L.Variant (con, i) (map compileExpr $ toList as)
+            | expectedParams >  length as = error "LC Codegen: Variant construction for partially applied constructor NYI"
+            | expectedParams <  length as = error $ "LC Codegen: too many arguments in variant construction. Expected: " <> show expectedParams <> ". Recieved: " <> show (length as) <> "."
         compileExpr (FCall (Ext _) l (C.Var (Ext _) _ v) ps) 
             | Just p <- lookup v prims = PrimOp (view primOp p) (map compileExpr $ toList ps) 
         compileExpr (FCall (Ext _) _ funEx pars) = foldl' App (compileExpr funEx) (fmap compileExpr pars)

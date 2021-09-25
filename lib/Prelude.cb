@@ -1,5 +1,8 @@
 import Int;  -- TODO: should be Data.Int
 import List; -- same here
 
+variant IntList = Nil
+                | Cons Int IntList;
+
 test :: Int;
 test = 5;

@@ -93,7 +93,7 @@ module_ :: Text -> Parser (Module NextPass)
 module_ mname = "module" <??> Module IgnoreExt mname <$> statements <* eof
 
 statement :: Parser (Statement NextPass)
-statement = "statement" <??> def <|> defStruct <|> import_
+statement = "statement" <??> def <|> defStruct <|> defVariant <|> import_
 
 expr :: Parser (Expr NextPass)
 expr = exprOrOp <&> \case
@@ -130,7 +130,7 @@ expr' = "expression (no fcall)" <??> (\e mf -> maybe e (\(le, fname) -> StructAc
     <*> optionMaybe (reservedOp' "." *> ident) 
 
 expr'' :: Parser (Expr NextPass)
-expr'' = "expression (no fcall / struct access)" <??> uncurry (IntLit IgnoreExt) <$> intLit <|> UnitLit <$> unitLit <|> letE <|> ifE <|> varOrStructConstruct <|> withParen expr
+expr'' = "expression (no fcall / struct access)" <??> uncurry (IntLit IgnoreExt) <$> intLit <|> UnitLit <$> unitLit <|> letE <|> ifE <|> varOrConstr <|> withParen expr
 
 
 def :: Parser (Statement NextPass)
@@ -191,6 +191,18 @@ defStruct = "struct definition" <??> (\ls n ps fs le -> DefStruct IgnoreExt (ls 
     <*> typedIdent' `sepBy` (reservedOp' ",")
     <*> paren "}"
    
+defVariant :: Parser (Statement NextPass)
+defVariant = "variant definition" <??> (\ls n ps cs -> DefVariant IgnoreExt (ls `mergeLexInfo` snd (unsafeLast cs)) n (map (`MkTVar`()) ps) (map (\((n,ts),_) -> (n, ts, IgnoreExt)) cs))
+    <$> reserved "variant"
+    <*> ident'
+    <*> many ident'
+    <*  reservedOp' "="
+    <*> (constr `sepBy1` reservedOp' "|")
+    where
+        constr = "variant constructor definition" <??> (\(ls, i) ts -> ((i, map snd ts), foldr (\x r -> fst x `mergeLexInfo` r) ls ts))
+            <$> ident
+            <*> many namedType
+
 
 ifE :: Parser (Expr NextPass)
 ifE = "if expression" <??> (\liStart te ee -> If IgnoreExt (liStart `mergeLexInfo` (getLexInfo ee)) te ee)
@@ -198,12 +210,12 @@ ifE = "if expression" <??> (\liStart te ee -> If IgnoreExt (liStart `mergeLexInf
     <*> (reserved "then" *> expr)
     <*> (reserved "else" *> expr)
 
-varOrStructConstruct :: Parser (Expr NextPass)
-varOrStructConstruct = "variable or struct construction" <??> do
+varOrConstr :: Parser (Expr NextPass)
+varOrConstr = "variable or struct construction" <??> do
     v <- ident
     m <- option False (paren' "{" >> pure True)
     case m of
-        False -> pure $ uncurry (Var IgnoreExt) v 
+        False -> pure $ makeVarOrVariantConstr v 
         True -> structConstructRest v
     where
         structConstructRest :: (LexInfo, Text) -> Parser (Expr NextPass)
@@ -213,10 +225,10 @@ varOrStructConstruct = "variable or struct construction" <??> do
             where
                 fieldUpdate = (,) <$> ident' <* reservedOp' "=" <*> expr
 
-
-var :: Parser (Expr NextPass)
-var = "variable" <??> uncurry (Var IgnoreExt) <$> ident
-
+        makeVarOrVariantConstr :: (LexInfo, Text) -> Expr NextPass
+        makeVarOrVariantConstr (li, name)
+            | isUpper (T.head name) = VariantConstr IgnoreExt li name
+            | otherwise             = Var IgnoreExt li name
 
 statements :: Parser [Statement NextPass]
 statements = many (statement <* reservedOp ";")

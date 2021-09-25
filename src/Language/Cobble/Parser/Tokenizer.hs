@@ -42,10 +42,10 @@ isIdentLetter :: Char -> Bool
 isIdentLetter c = isAlphaNum c || c `elem` "_"
 
 reserved :: [String]
-reserved = ["let", "in", "if", "then", "else", "import", "struct", "infixl", "infixr"]
+reserved = ["let", "in", "if", "then", "else", "import", "struct", "variant", "infixl", "infixr"]
 
 reservedOps :: [String]
-reservedOps = [".", "::", ";", ",", "=", "=>", "->"]
+reservedOps = [".", "::", ";", ",", "=", "=>", "->", "|"]
 
 isParen :: Char -> Bool
 isParen = (`elem`"()[]{}")

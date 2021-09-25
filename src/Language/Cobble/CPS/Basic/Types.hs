@@ -20,6 +20,7 @@ instance S.Show CPS where show = toString . prettyPrintCPS
 
 data CPSExpr = Val CPSVal
              | Tuple [CPSVal]
+             | Variant (QualifiedName, Int) [CPSVal]
              | Select Int CPSVal
              | PrimOp PrimOp [CPSVal]
              deriving (Eq, Generic, Data)
@@ -44,10 +45,11 @@ prettyPrintCPS = \case
 
 prettyPrintCPSExpr :: CPSExpr -> Text
 prettyPrintCPSExpr = \case
-    Val v       -> prettyPrintCPSVal v
-    Tuple vs    -> "(" <> T.intercalate ", " (map prettyPrintCPSVal vs) <> ")"
-    Select i v  -> "#" <> show i <> " " <> prettyPrintCPSVal v
-    PrimOp p vs -> "(" <> "__" <> show p <> "__" <> "[" <> T.intercalate "," (map prettyPrintCPSVal vs) <> "])"
+    Val v               -> prettyPrintCPSVal v
+    Tuple vs            -> "(" <> T.intercalate ", " (map prettyPrintCPSVal vs) <> ")"
+    Variant (con, i) vs -> show con <> "@" <> show i <> "[" <> T.intercalate "," (map prettyPrintCPSVal vs) <> "]"
+    Select i v          -> "#" <> show i <> " " <> prettyPrintCPSVal v
+    PrimOp p vs         -> "(" <> "__" <> show p <> "__" <> "[" <> T.intercalate "," (map prettyPrintCPSVal vs) <> "])"
 
 prettyPrintCPSVal :: CPSVal -> Text
 prettyPrintCPSVal = \case

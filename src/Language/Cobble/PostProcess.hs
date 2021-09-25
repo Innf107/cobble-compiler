@@ -16,6 +16,8 @@ postProcessStatement (Def IgnoreExt li (Decl (Ext ty') f (Ext xs) e) ty) =
 postProcessStatement (Import IgnoreExt li n) = Import IgnoreExt li n
 postProcessStatement (DefStruct (Ext k) li sname ps fields) = 
     DefStruct (Ext k) li sname (coercePass ps) (map (second coercePass) fields)
+postProcessStatement (DefVariant (Ext k) li vname ps constrs) = 
+    DefVariant (Ext k) li vname (coercePass ps) (map (\(n, ts, x) -> (n, coercePass ts, coercePass x)) constrs)
 postProcessStatement (StatementX x _) = absurd x
 
 postProcessExpr :: Expr PostProcess -> Expr NextPass
@@ -35,6 +37,7 @@ postProcessExpr = \case
     Let IgnoreExt li (Decl (Ext ty) f (Ext xs) e) b -> 
         Let IgnoreExt li (Decl (Ext (coercePass ty)) f (Ext (map (second coercePass) xs)) (postProcessExpr e)) (postProcessExpr b)
     Var (Ext ty) li n -> Var (Ext (coercePass ty)) li n
+    VariantConstr (Ext (ty, e, i)) li n -> VariantConstr (Ext (coercePass ty, e, i)) li n
     StructConstruct (Ext (sd, ty)) li sname fexprs -> 
         StructConstruct (Ext (coercePass sd, coercePass ty)) li sname (map (second postProcessExpr) fexprs)
     ExprX x _ -> absurd x

@@ -15,6 +15,7 @@ module Language.Cobble.Prelude (
     , module Data.Data
     , module Data.Foldable
     , module Data.These
+    , module Data.Either
     , (|:)
     , state 
     , whenAlt
@@ -23,7 +24,7 @@ module Language.Cobble.Prelude (
     , censorM
     , HSType
     , (L.\\)
-    , module Data.Either
+    , unsafeLast
     ) where
 
 import qualified Relude
@@ -146,3 +147,5 @@ instance ToText Char where
     
 type HSType = Relude.Type
     
+unsafeLast :: [a] -> a
+unsafeLast = L.last
