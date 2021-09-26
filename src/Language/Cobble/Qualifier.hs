@@ -96,8 +96,8 @@ withVar :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error 
         -> (QualifiedName -> Sem r a) 
         -> Sem r a
 withVar l n a = do
-                n' <- freshVar (n, l)
-                withVar' l n n' (a n')
+        n' <- freshVar (n, l)
+        withVar' l n n' (a n')
 
 withVar' :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
         => LexInfo 
@@ -110,7 +110,16 @@ withVar' l n qn a = do
     if alreadyInScope 
     then throw (VarAlreadyDeclaredInScope l n)
     else local (_head . scopeVars %~ insert n qn) a
-    
+
+withVars :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r
+    => LexInfo
+    -> [UnqualifiedName]
+    -> ([QualifiedName] -> Sem r a)
+    -> Sem r a
+withVars l ns a = do
+    ns' <- traverse (\n -> freshVar (n, l)) ns
+    withVars' l (zip ns ns') (a ns')
+
 withVars' :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r  
         => LexInfo 
         -> [(Text, QualifiedName)]
@@ -174,7 +183,7 @@ withVariantConstrs' :: Members '[Reader [Scope], Fresh (Text, LexInfo) Qualified
         -> Sem r a 
         -> Sem r a
 withVariantConstrs' = withMany (\l (x,ep,i,x') -> withVariantConstr' l x ep i x')
-
+    
 
 withType :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
          => LexInfo
@@ -250,7 +259,6 @@ qualifyStmnts = \case
                 <$> withType' li n n' k (RecordType ps' (map (second coercePass) fields')) 
                     (qualifyStmnts sts)
 
-
     -- Type Constructors should `not` just be treated as functions, since that would
     -- massively complicate codegen
     (DefVariant IgnoreExt li n ps constrs : sts) -> do
@@ -267,6 +275,20 @@ qualifyStmnts = \case
             <$> (withType' li n n' k (VariantType (coercePass ps') (map (\(x,y,_,_) -> (x, coercePass y)) constrs')) 
                 $ withVariantConstrs' li (zipWith (\(x,_,_)(y,_,ep,i) -> (x, ep, i, y)) constrs constrs')
                 $ qualifyStmnts sts)
+
+    -- Type class definitions cannot be recursive, which makes
+    -- removes the need for the "ugly hack" in DefStruct, 
+    -- making this considerably simpler
+    (DefClass IgnoreExt li n ps meths : sts) ->
+        withTVars li ps \ps' -> 
+            let k = foldr (\(MkTVar _ k) r -> k `KFun` r) KConstraint ps' in
+            withType li n k TyClass \n' ->
+                let (methNames, methTys) = unzip meths in
+                withVars li methNames \methNames' -> do
+                    meths' <- zip methNames' <$> (traverse (qualifyType li) methTys) 
+                    (:)
+                        <$> pure (DefClass (Ext k) li n' ps' meths')
+                        <*> qualifyStmnts sts
     (StatementX x _ : _) -> absurd x
 
 qualifyExp :: forall r. Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r

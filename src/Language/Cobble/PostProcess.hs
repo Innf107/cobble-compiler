@@ -18,6 +18,8 @@ postProcessStatement (DefStruct (Ext k) li sname ps fields) =
     DefStruct (Ext k) li sname (coercePass ps) (map (second coercePass) fields)
 postProcessStatement (DefVariant (Ext k) li vname ps constrs) = 
     DefVariant (Ext k) li vname (coercePass ps) (map (\(n, ts, x) -> (n, coercePass ts, coercePass x)) constrs)
+postProcessStatement (DefClass (Ext k) li sname ps meths) =
+    DefClass (Ext k) li sname (coercePass ps) (map (second coercePass) meths)
 postProcessStatement (StatementX x _) = absurd x
 
 postProcessExpr :: Expr PostProcess -> Expr NextPass

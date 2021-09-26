@@ -1,0 +1,18 @@
+--# definition : score
+class Eq a {
+    eq :: a -> a -> Bool;
+};
+--! 1
+1
+
+--# instance : score
+class Eq a {
+    eq :: a -> a -> Bool;
+};
+
+instance Eq Int {
+    eq x y = if __le__ x y then __le__ y x else False;
+};
+
+--! 1
+1

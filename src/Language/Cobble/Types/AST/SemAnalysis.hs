@@ -19,6 +19,7 @@ type instance XImport           SemAnalysis = IgnoreExt SemAnalysis
 type instance XDefStruct        SemAnalysis = Ext SemAnalysis Kind
 type instance XDefVariant       SemAnalysis = Ext SemAnalysis Kind
 type instance XDefVariantClause SemAnalysis = Ext SemAnalysis (Int, Int)
+type instance XDefClass         SemAnalysis = Ext SemAnalysis Kind
 type instance XStatement        SemAnalysis = ExtVoid SemAnalysis
 
 type instance XFCall            'SemAnalysis = IgnoreExt SemAnalysis

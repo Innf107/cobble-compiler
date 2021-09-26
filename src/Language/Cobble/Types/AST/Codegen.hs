@@ -31,6 +31,7 @@ type instance XImport           'Codegen = IgnoreExt Codegen
 type instance XDefStruct        'Codegen = Ext Codegen Kind
 type instance XDefVariant       'Codegen = Ext Codegen Kind
 type instance XDefVariantClause 'Codegen = Ext3_1 Codegen (Type Codegen) Int Int
+type instance XDefClass         'Codegen = Ext Codegen Kind
 type instance XStatement        'Codegen = ExtVoid Codegen
 
 type instance XFCall            'Codegen = Ext Codegen (Type 'Codegen)

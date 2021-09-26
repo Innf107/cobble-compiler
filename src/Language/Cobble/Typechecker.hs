@@ -87,6 +87,7 @@ checkStmnt (DefVariant (Ext k) li sname ps cs) = do
         insertType cname constrTy
         pure (cname, fs, Ext3_1 constrTy ep ix)
     pure (DefVariant (Ext k) li sname (coercePass ps) cs')
+checkStmnt s@(DefClass (Ext k) li cname ps meths) = pure $ DefClass (Ext k) li cname (coercePass ps) (map (second coercePass) meths)
 checkStmnt (Def IgnoreExt li (Decl IgnoreExt f (Ext ps) e) (coercePass -> ty)) = do
     insertType f ty
     ty' <- skolemize ty

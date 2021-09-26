@@ -47,6 +47,7 @@ data ModSig = ModSig {
 data TypeVariant = RecordType [TVar Codegen] [(UnqualifiedName, Type 'Codegen)]
                  | VariantType [TVar Codegen] [(QualifiedName, [Type Codegen])]
                  | BuiltInType
+                 | TyClass
                  deriving (Generic, Typeable)
 
 type Dependencies = Map QualifiedName ModSig
@@ -67,16 +68,18 @@ data Statement (p :: Pass) =
       Def        (XDef p)           LexInfo (Decl p) (Type p)
     | Import     (XImport p)        LexInfo (Name p) -- TODO: qualified? exposing?
     | DefStruct  (XDefStruct p)     LexInfo (Name p) [(TVar p)] [(UnqualifiedName, Type p)]
+    | DefClass   (XDefClass p)  LexInfo (Name p) [(TVar p)] [(Name p, Type p)]
     | DefVariant (XDefVariant p)    LexInfo (Name p) [(TVar p)] [(Name p, [Type p], XDefVariantClause p)]
     | StatementX (XStatement p)     LexInfo
 
 type instance InstanceRequirements (Statement p) = 
-    [XDef p, XImport p, XDefStruct p, XDefVariant p, XDefVariantClause p, XStatement p, Name p, Type p, TVar p, Decl p]
+    [XDef p, XImport p, XDefStruct p, XDefVariant p, XDefClass p, XDefVariantClause p, XStatement p, Name p, Type p, TVar p, Decl p]
 
 type family XDef                (p :: Pass)
 type family XParam              (p :: Pass)
 type family XImport             (p :: Pass)
 type family XDefStruct          (p :: Pass)
+type family XDefClass       (p :: Pass)
 type family XDefVariant         (p :: Pass)
 type family XDefVariantClause   (p :: Pass)
 type family XStatement          (p :: Pass)
@@ -116,7 +119,10 @@ type family XStructConstruct (p :: Pass)
 type family XStructAccess    (p :: Pass)
 type family XExpr            (p :: Pass)
 
-data Kind = KStar | KFun Kind Kind deriving (Eq, Ord, Generic, Data, Typeable)
+data Kind = KStar           
+          | KConstraint 
+          | KFun Kind Kind 
+          deriving (Eq, Ord, Generic, Data, Typeable)
 
 infixr 5 `KFun`
 
@@ -197,6 +203,7 @@ lowerPrecedence (RightFix p) (LeftFix p')   = p <= p'
 
 instance S.Show Kind where
     show KStar = "*"
+    show KConstraint = "Constraint"
     show (KFun k1 k2) = "(" <> show k1 <> " -> " <> show k2 <> ")"
 
 class TyLit n where
@@ -225,10 +232,13 @@ class IsKind t where
     kFun :: t -> t -> t
     kStar :: t
     kStar = fromKind KStar
+    kConstraint :: t
+    kConstraint = fromKind KConstraint
     fromKind :: Kind -> t
     fromKind KStar = kStar
     fromKind (KFun k1 k2) = kFun (fromKind k1) (fromKind k2)
-    {-# MINIMAL kFun, (fromKind | kStar) #-}
+    fromKind (KConstraint) = kConstraint
+    {-# MINIMAL kFun, (fromKind | (kStar, kConstraint)) #-}
 instance IsKind () where 
     fromKind _ = ()
     kFun _ _   = ()
@@ -308,6 +318,7 @@ instance
     ,   CoercePass (XDefStruct p1) (XDefStruct p2) p1 p2
     ,   CoercePass (XDefVariant p1) (XDefVariant p2) p1 p2
     ,   CoercePass (XDefVariantClause p1) (XDefVariantClause p2) p1 p2
+    ,   CoercePass (XDefClass p1) (XDefClass p2) p1 p2
     ,   CoercePass (XStatement p1) (XStatement p2) p1 p2
     )
     => CoercePass (Statement p1) (Statement p2) p1 p2 where
@@ -316,6 +327,7 @@ instance
         Import x l n -> Import (coercePass x) l n
         DefStruct x l n ps fs -> DefStruct (coercePass x) l n (map coercePass ps) (map (second coercePass) fs)
         DefVariant x l n ps vs -> DefVariant (coercePass x) l n (coercePass ps) (map (\(n,ps,cx) -> (n, coercePass ps, coercePass cx)) vs)
+        DefClass x l n ps ms -> DefClass (coercePass x) l n (coercePass ps) (map (second coercePass) ms)
         StatementX x l -> StatementX (coercePass x) l
 
 instance

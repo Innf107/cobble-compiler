@@ -20,6 +20,7 @@ type instance XImport           PostProcess = IgnoreExt PostProcess
 type instance XDefStruct        PostProcess = Ext PostProcess Kind
 type instance XDefVariant       PostProcess = Ext PostProcess Kind
 type instance XDefVariantClause PostProcess = Ext3_1 PostProcess (Type PostProcess) Int Int
+type instance XDefClass         PostProcess = Ext PostProcess Kind
 type instance XStatement        PostProcess = ExtVoid PostProcess
 
 type instance XFCall            PostProcess = Ext PostProcess (Type PostProcess)
