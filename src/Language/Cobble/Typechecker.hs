@@ -19,9 +19,16 @@ type NextPass = 'PostProcess
 
 type Type = C.Type NextPass
 
-newtype TCState = TCState {
+data TCState = TCState {
     _varTypes :: M.Map QualifiedName Type
-} deriving (Show, Eq, Generic, Data, Semigroup, Monoid)
+,   _tcInstances :: M.Map QualifiedName [Type] 
+    -- ^ Once multiparam typeclasses are implemented, this will have to be @M.Map QualfiedName [[Type]]@
+} deriving (Show, Eq, Generic, Data)
+instance Semigroup TCState where
+    (TCState t1 i1) <> (TCState t2 i2) = TCState (t1 <> t2) (i1 <> i2)
+instance Monoid TCState where
+    mempty = TCState mempty mempty
+
 makeLenses ''TCState
 
 data TypeError = DifferentConstructor LexInfo Type Type 
@@ -73,6 +80,11 @@ skolemize x              = pure x
 insertType :: Members '[State TCState] r => QualifiedName -> Type -> Sem r ()
 insertType v t = modify (varTypes %~ insert v t)
 
+insertInstance :: Members '[State TCState] r => QualifiedName -> Type -> Sem r ()
+insertInstance v t = modify $ tcInstances . at v %~ \case
+    Nothing -> Just [t]
+    Just ts -> Just (t:ts)
+
 getType' :: (Members '[Fresh (TVar NextPass) (TVar NextPass)] r, HasType a NextPass) => a -> Sem r Type
 getType' = instantiate . getType
 
@@ -88,7 +100,11 @@ checkStmnt (DefVariant (Ext k) li sname ps cs) = do
         pure (cname, fs, Ext3_1 constrTy ep ix)
     pure (DefVariant (Ext k) li sname (coercePass ps) cs')
 checkStmnt (DefClass (Ext k) li cname ps meths) = pure $ DefClass (Ext k) li cname (coercePass ps) (map (second coercePass) meths)
-checkStmnt (DefInstance IgnoreExt li cname ty decls) = undefined
+checkStmnt (DefInstance IgnoreExt li cname ty decls) = do
+    -- TODO: decls have to be reordered in SemAnalysis to match the order in the type class definition
+    insertInstance cname (coercePass ty)
+    _ <- forM decls \d@(Decl IgnoreExt fname ps e) -> undefined
+    undefined
 
 checkStmnt (Def IgnoreExt li (Decl IgnoreExt f (Ext ps) e) (coercePass -> ty)) = do
     insertType f ty
