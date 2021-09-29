@@ -13,8 +13,6 @@ import Data.Map qualified as M
 
 type NextPass = SemAnalysis
   
---type QualifyC r = Members '[State Int, State [Scope], Error QualificationError, Output Log] r
-
 data QualificationError = NameNotFound LexInfo Text
                         | VariantConstrNotFound LexInfo Text
                         | TypeNotFound LexInfo Text
@@ -29,6 +27,7 @@ data QualificationError = NameNotFound LexInfo Text
                         | AmbiguousVariantConstrName LexInfo Text [(QualifiedName, Int)]
                         | AmbiguousTypeName LexInfo Text [(QualifiedName, Kind, TypeVariant)]
                         | AmbiguousTVarName LexInfo Text [(QualifiedName, Kind)]
+                        | InstanceForNonClass LexInfo QualifiedName Kind TypeVariant
                         deriving (Show, Eq)
 
 data Scope = Scope {
@@ -276,7 +275,7 @@ qualifyStmnts = \case
                 $ withVariantConstrs' li (zipWith (\(x,_,_)(y,_,ep,i) -> (x, ep, i, y)) constrs constrs')
                 $ qualifyStmnts sts)
 
-    -- Type class definitions cannot be recursive, which makes
+    -- Type class definitions cannot be recursive, which
     -- removes the need for the "ugly hack" in DefStruct, 
     -- making this considerably simpler
     (DefClass IgnoreExt li n ps meths : sts) ->
@@ -289,6 +288,14 @@ qualifyStmnts = \case
                     (:)
                         <$> pure (DefClass (Ext k) li n' ps' meths')
                         <*> qualifyStmnts sts
+    (DefInstance IgnoreExt li cn t decls : sts) ->
+        lookupType li cn >>= \case
+            (cn', _, TyClass) -> do
+                t' <- qualifyType li t
+                (:)
+                    <$> (DefInstance IgnoreExt li cn' t' <$> forM decls \d -> qualifyExistingDecl li d)
+                    <*> qualifyStmnts sts
+            (cn', k, tv) -> throw (InstanceForNonClass li cn' k tv)
     (StatementX x _ : _) -> absurd x
 
 qualifyExp :: forall r. Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
@@ -361,6 +368,15 @@ qualifyExp = \case
         2  ...                                      1   2
 -}
 
+
+{-  Takes a name and qualifys the @Decl@ accordingly, replacing the old name with the new one.
+    No check is performed to verify that the names match.
+    
+    This should typically be used in conjunction with @withVar@, e.g.
+    ```
+    withVar li n >>= \n' -> qualifyDeclWith li n' decl
+    ```
+-}
 qualifyDeclWith :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
                 => QualifiedName
                 -> LexInfo
@@ -370,11 +386,13 @@ qualifyDeclWith n' li (Decl IgnoreExt _ (Ext params) e) =
     uncurry (Decl IgnoreExt n' . Ext)
     <$> foldr (\p r -> withVar li p \p' -> first (p' :) <$> r) (([],) <$> qualifyExp e) params
 
-qualifyDecl :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
+-- Qualifies a @Decl@ by looking up the name in the environment
+-- This should be used, when the function name is already known, e.g. in type class instances  
+qualifyExistingDecl :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
             => LexInfo
             -> Decl QualifyNames
             -> Sem r (Decl NextPass)
-qualifyDecl li d@(Decl _ n _ _) = withVar li n \n' -> qualifyDeclWith n' li d
+qualifyExistingDecl li d@(Decl _ n _ _) = lookupVar li n >>= \n' -> qualifyDeclWith n' li d
 
 qualifyType :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
             => LexInfo 

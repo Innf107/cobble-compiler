@@ -11,8 +11,8 @@ postProcess (Module (Ext deps) n sts) = Module (Ext deps) n (map postProcessStat
 
 -- more boilerplate :/
 postProcessStatement :: Statement PostProcess -> Statement NextPass
-postProcessStatement (Def IgnoreExt li (Decl (Ext ty') f (Ext xs) e) ty) = 
-    Def IgnoreExt li (Decl (Ext (coercePass ty')) f (Ext (map (second coercePass) xs)) (postProcessExpr e)) (coercePass ty)-- 
+postProcessStatement (Def IgnoreExt li decl ty) = 
+    Def IgnoreExt li (postProcessDecl decl) (coercePass ty)-- 
 postProcessStatement (Import IgnoreExt li n) = Import IgnoreExt li n
 postProcessStatement (DefStruct (Ext k) li sname ps fields) = 
     DefStruct (Ext k) li sname (coercePass ps) (map (second coercePass) fields)
@@ -20,7 +20,12 @@ postProcessStatement (DefVariant (Ext k) li vname ps constrs) =
     DefVariant (Ext k) li vname (coercePass ps) (map (\(n, ts, x) -> (n, coercePass ts, coercePass x)) constrs)
 postProcessStatement (DefClass (Ext k) li sname ps meths) =
     DefClass (Ext k) li sname (coercePass ps) (map (second coercePass) meths)
+postProcessStatement (DefInstance IgnoreExt li cname ty decls) =
+    DefInstance IgnoreExt li cname (coercePass ty) (map postProcessDecl decls)
 postProcessStatement (StatementX x _) = absurd x
+
+postProcessDecl :: Decl PostProcess -> Decl NextPass
+postProcessDecl (Decl (Ext ty') f (Ext xs) e) = Decl (Ext (coercePass ty')) f (Ext (map (second coercePass) xs)) (postProcessExpr e)
 
 postProcessExpr :: Expr PostProcess -> Expr NextPass
 postProcessExpr = \case 
@@ -36,8 +41,8 @@ postProcessExpr = \case
     IntLit IgnoreExt li n -> IntLit IgnoreExt li n
     UnitLit li -> UnitLit li
     If IgnoreExt li cond th el -> If IgnoreExt li (postProcessExpr cond) (postProcessExpr th) (postProcessExpr el) 
-    Let IgnoreExt li (Decl (Ext ty) f (Ext xs) e) b -> 
-        Let IgnoreExt li (Decl (Ext (coercePass ty)) f (Ext (map (second coercePass) xs)) (postProcessExpr e)) (postProcessExpr b)
+    Let IgnoreExt li decl b -> 
+        Let IgnoreExt li (postProcessDecl decl) (postProcessExpr b)
     Var (Ext ty) li n -> Var (Ext (coercePass ty)) li n
     VariantConstr (Ext (ty, e, i)) li n -> VariantConstr (Ext (coercePass ty, e, i)) li n
     StructConstruct (Ext (sd, ty)) li sname fexprs -> 

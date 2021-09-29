@@ -16,6 +16,7 @@ compile prims (Module _deps _modname statements) = concatMap compileStatement st
         compileStatement DefStruct {} = []
         compileStatement DefVariant {} = []
         compileStatement DefClass {} = []
+        compileStatement DefInstance {} = undefined 
         compileStatement (StatementX x _) = absurd x
         compileStatement (Def IgnoreExt _li (Decl (Ext _) fname (Ext params) body) _) = [
                 LCDef fname $ foldr (Lambda . fst) (compileExpr body) params

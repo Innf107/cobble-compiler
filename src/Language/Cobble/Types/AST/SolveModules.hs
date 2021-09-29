@@ -15,6 +15,7 @@ type instance XDefStruct        SolveModules = IgnoreExt SolveModules
 type instance XDefVariant       SolveModules = IgnoreExt SolveModules
 type instance XDefVariantClause SolveModules = IgnoreExt SolveModules
 type instance XDefClass         SolveModules = IgnoreExt SolveModules
+type instance XDefInstance      SolveModules = IgnoreExt SolveModules
 type instance XStatement        SolveModules = ExtVoid SolveModules
 
 

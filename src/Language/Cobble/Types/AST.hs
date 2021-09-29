@@ -65,21 +65,23 @@ data Pass = SolveModules
 
 
 data Statement (p :: Pass) =
-      Def        (XDef p)           LexInfo (Decl p) (Type p)
-    | Import     (XImport p)        LexInfo (Name p) -- TODO: qualified? exposing?
-    | DefStruct  (XDefStruct p)     LexInfo (Name p) [(TVar p)] [(UnqualifiedName, Type p)]
-    | DefClass   (XDefClass p)  LexInfo (Name p) [(TVar p)] [(Name p, Type p)]
-    | DefVariant (XDefVariant p)    LexInfo (Name p) [(TVar p)] [(Name p, [Type p], XDefVariantClause p)]
-    | StatementX (XStatement p)     LexInfo
+      Def           (XDef p)            LexInfo (Decl p) (Type p)
+    | Import        (XImport p)         LexInfo (Name p) -- TODO: qualified? exposing?
+    | DefStruct     (XDefStruct p)      LexInfo (Name p) [(TVar p)] [(UnqualifiedName, Type p)]
+    | DefClass      (XDefClass p)       LexInfo (Name p) [(TVar p)] [(Name p, Type p)]
+    | DefInstance   (XDefInstance p)    LexInfo (Name p) (Type p) [Decl p]
+    | DefVariant    (XDefVariant p)     LexInfo (Name p) [(TVar p)] [(Name p, [Type p], XDefVariantClause p)]
+    | StatementX    (XStatement p)      LexInfo
 
 type instance InstanceRequirements (Statement p) = 
-    [XDef p, XImport p, XDefStruct p, XDefVariant p, XDefClass p, XDefVariantClause p, XStatement p, Name p, Type p, TVar p, Decl p]
+    [XDef p, XImport p, XDefStruct p, XDefClass p, XDefInstance p, XDefVariant p, XDefVariantClause p, XStatement p, Name p, Type p, TVar p, Decl p]
 
 type family XDef                (p :: Pass)
 type family XParam              (p :: Pass)
 type family XImport             (p :: Pass)
 type family XDefStruct          (p :: Pass)
-type family XDefClass       (p :: Pass)
+type family XDefClass           (p :: Pass)
+type family XDefInstance        (p :: Pass)
 type family XDefVariant         (p :: Pass)
 type family XDefVariantClause   (p :: Pass)
 type family XStatement          (p :: Pass)
@@ -319,16 +321,18 @@ instance
     ,   CoercePass (XDefVariant p1) (XDefVariant p2) p1 p2
     ,   CoercePass (XDefVariantClause p1) (XDefVariantClause p2) p1 p2
     ,   CoercePass (XDefClass p1) (XDefClass p2) p1 p2
+    ,   CoercePass (XDefInstance p1) (XDefInstance p2) p1 p2
     ,   CoercePass (XStatement p1) (XStatement p2) p1 p2
     )
     => CoercePass (Statement p1) (Statement p2) p1 p2 where
     _coercePass = \case
         Def x l d t -> Def (coercePass x) l (coercePass d) (coercePass t)
         Import x l n -> Import (coercePass x) l n
-        DefStruct x l n ps fs -> DefStruct (coercePass x) l n (map coercePass ps) (map (second coercePass) fs)
-        DefVariant x l n ps vs -> DefVariant (coercePass x) l n (coercePass ps) (map (\(n,ps,cx) -> (n, coercePass ps, coercePass cx)) vs)
-        DefClass x l n ps ms -> DefClass (coercePass x) l n (coercePass ps) (map (second coercePass) ms)
-        StatementX x l -> StatementX (coercePass x) l
+        DefStruct x l n ps fs   -> DefStruct (coercePass x) l n (map coercePass ps) (map (second coercePass) fs)
+        DefVariant x l n ps vs  -> DefVariant (coercePass x) l n (coercePass ps) (map (\(n,ps,cx) -> (n, coercePass ps, coercePass cx)) vs)
+        DefClass x l n ps ms    -> DefClass (coercePass x) l n (coercePass ps) (map (second coercePass) ms)
+        DefInstance x l cn t ds -> DefInstance (coercePass x) l cn (coercePass t) (coercePass ds)
+        StatementX x l          -> StatementX (coercePass x) l
 
 instance
     (   Name p1 ~ Name p2

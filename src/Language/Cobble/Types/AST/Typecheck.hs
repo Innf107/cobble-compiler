@@ -20,6 +20,7 @@ type instance XDefStruct        Typecheck = Ext Typecheck Kind
 type instance XDefVariant       Typecheck = Ext Typecheck Kind
 type instance XDefVariantClause Typecheck = Ext Typecheck (Int, Int)
 type instance XDefClass         Typecheck = Ext Typecheck Kind
+type instance XDefInstance      Typecheck = IgnoreExt Typecheck
 type instance XStatement        Typecheck = ExtVoid Typecheck
 
 type instance XFCall            Typecheck = IgnoreExt Typecheck

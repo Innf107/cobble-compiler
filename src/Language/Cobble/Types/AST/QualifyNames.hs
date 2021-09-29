@@ -15,6 +15,7 @@ type instance XDefStruct        QualifyNames = IgnoreExt QualifyNames
 type instance XDefVariant       QualifyNames = IgnoreExt QualifyNames
 type instance XDefVariantClause QualifyNames = IgnoreExt QualifyNames
 type instance XDefClass         QualifyNames = IgnoreExt QualifyNames
+type instance XDefInstance      QualifyNames = IgnoreExt QualifyNames
 type instance XStatement        QualifyNames = ExtVoid QualifyNames
 
 

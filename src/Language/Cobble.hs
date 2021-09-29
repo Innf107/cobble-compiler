@@ -213,6 +213,7 @@ makePartialSig = \case
         {   exportedTypes = one (n, (k, TyClass))
         ,   exportedVars  = fromList meths
         }
+    DefInstance IgnoreExt li cname ty decls -> undefined
     DefVariant (Ext k) _ n ps cs    -> mempty
         {   exportedTypes = one (n, (k, VariantType ps (map (\(x,y,_) -> (x,y)) cs)))
         ,   exportedVariantConstrs = fromList (map (\(n, _, Ext3_1 ty ep i) -> (n, (ty, ep, i))) cs)

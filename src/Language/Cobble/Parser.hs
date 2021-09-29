@@ -93,7 +93,7 @@ module_ :: Text -> Parser (Module NextPass)
 module_ mname = "module" <??> Module IgnoreExt mname <$> statements <* eof
 
 statement :: Parser (Statement NextPass)
-statement = "statement" <??> def <|> defStruct <|> defVariant <|> defClass <|> import_
+statement = "statement" <??> def <|> defStruct <|> defVariant <|> defClass <|> defInstance <|> import_
 
 expr :: Parser (Expr NextPass)
 expr = exprOrOp <&> \case
@@ -138,16 +138,21 @@ def = "definition" <??> do
     mfixity <- optionMaybe fixity
     (liStartSig, sigName, ty) <- signature 
     reservedOp' ";"
-    name <- ident'
+
+    defDecl@(Decl _ name _ e) <- decl
+
     when (name /= sigName) $ fail "Function definition does not immediately follow its type signature"
     
-    params <- many ident'
-
-    reservedOp' "="
-    e <- expr
     pure $ Def (Ext (snd <$> mfixity)) 
             (maybe liStartSig fst mfixity `mergeLexInfo` getLexInfo e) 
-            (Decl IgnoreExt name (Ext params) e) ty
+            defDecl ty
+
+decl :: Parser (Decl NextPass)
+decl = "declaration" <??> (\f xs e -> Decl IgnoreExt f (Ext xs) e)
+    <$> ident'
+    <*> many ident'
+    <* reservedOp' "="
+    <*> expr
 
 import_ :: Parser (Statement NextPass)
 import_ = "import" <??> do
@@ -200,6 +205,15 @@ defClass = "class definition" <??> (\ls n ps cs le -> DefClass IgnoreExt (ls `me
     <*> many ident'
     <*  paren' "{"
     <*> many (signature' <* reservedOp' ";")
+    <*> paren "}"
+
+defInstance :: Parser (Statement NextPass)
+defInstance = "instance definition" <??> (\ls cn (_, t) ds le -> DefInstance IgnoreExt (ls `mergeLexInfo` le) cn t ds)
+    <$> reserved "instance"
+    <*> ident'
+    <*> typeP
+    <*  paren' "{"
+    <*> many (decl <* reservedOp' ";")
     <*> paren "}"
 
 ifE :: Parser (Expr NextPass)

@@ -11,7 +11,7 @@ class Eq a {
 };
 
 instance Eq Int {
-    eq x y = if __le__ x y then __le__ y x else False;
+    eq x y = if __le__ x y then __le__ y x else __false__ ();
 };
 
 --! 1
