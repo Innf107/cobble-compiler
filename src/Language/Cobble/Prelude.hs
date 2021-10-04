@@ -21,6 +21,7 @@ module Language.Cobble.Prelude (
     , whenAlt
     , ($$)
     , mapFromLeft
+    , munion
     , censorM
     , HSType
     , (L.\\)
@@ -105,6 +106,8 @@ import qualified Data.Text as T
 
 import qualified Data.List as L (init, last, (\\))
 
+import qualified Data.Map as M (unionWith)
+
 import Data.Foldable (foldrM)
 
 import Data.These
@@ -149,3 +152,6 @@ type HSType = Relude.Type
     
 unsafeLast :: [a] -> a
 unsafeLast = L.last
+
+munion :: (Ord k, Semigroup v) => Map k v -> Map k v -> Map k v
+munion = M.unionWith (<>)

@@ -25,7 +25,6 @@ type NameSpace = Text
 
 class HasType t p | t -> p where
     getType :: t -> Type p
-    type_ :: Lens' t (Type p)
 
 instance HasType (Expr 'PostProcess) 'PostProcess where
     getType = \case
@@ -38,18 +37,6 @@ instance HasType (Expr 'PostProcess) 'PostProcess where
         Let _ _ _ b                         -> getType b
         StructConstruct (Ext (_, t)) _ _ _  -> t
         StructAccess (Ext (_, _, t)) _ _ _  -> t
-        ExprX v _                           -> absurd v
-    type_ = lens getType $ flip $ \t -> \case
-        FCall _ l f as                      -> FCall (Ext t) l f as
-        Var _ l n                           -> Var (Ext t) l n
-        VariantConstr (Ext (_,e,i)) l n     -> VariantConstr (Ext (t,e,i)) l n
-        IntLit x l i                        -> IntLit x l i
-        If x l c th el                      -> If x l c (set type_ t th) (set type_ t el)
-        UnitLit l                           -> UnitLit l
-        Let x l d b                         -> Let x l d (set type_ t b)
-        StructConstruct (Ext (d, _)) l n ts -> StructConstruct (Ext (d, t)) l n ts
-        StructAccess (Ext (d, st, _)) l s f -> StructAccess (Ext (d, st, t)) l s f
-        ExprX v _                           -> absurd v
 
 
 instance HasType (Expr 'Codegen) 'Codegen where
@@ -63,20 +50,9 @@ instance HasType (Expr 'Codegen) 'Codegen where
         Let _ _ _ b                         -> getType b
         StructConstruct (Ext (_, t)) _ _ _  -> t
         StructAccess (Ext (_, t)) _ _ _     -> t
-        ExprX v _                           -> absurd v
-    type_ = lens getType $ flip $ \t -> \case
-        FCall _ l f as                      -> FCall (Ext t) l f as
-        Var _ l n                           -> Var (Ext t) l n
-        VariantConstr (Ext (_,e,i)) l n     -> VariantConstr (Ext (t,e,i)) l n
-        IntLit x l i                        -> IntLit x l i
-        If x l c th el                      -> If x l c (set type_ t th) (set type_ t el)
-        UnitLit l                           -> UnitLit l
-        Let x l d b                         -> Let x l d (set type_ t b)
-        StructConstruct (Ext (d, _)) l n ts -> StructConstruct (Ext (d, t)) l n ts
-        StructAccess (Ext (d, _)) l s f     -> StructAccess (Ext (d, t)) l s f
-        ExprX v _                           -> absurd v
 
+instance HasType (Decl PostProcess) PostProcess where
+    getType (Decl (Ext t) _ _ _) = t
 
 instance HasType (Type p) p where
     getType = id
-    type_ = id

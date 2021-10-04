@@ -85,6 +85,7 @@ tests:
 
 default-extensions:
   - NoImplicitPrelude
+  - StrictData
   - ApplicativeDo
   - LambdaCase
   - OverloadedStrings

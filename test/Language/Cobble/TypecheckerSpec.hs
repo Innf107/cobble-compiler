@@ -127,7 +127,12 @@ pattern QName :: Text -> QualifiedName
 pattern QName name <- ReallyUnsafeQualifiedName name _ _
 
 runTypecheck :: [Text] -> Either TypeError (Module PostProcess)
-runTypecheck mod = run $ evalState (TCState {_varTypes = coercePass (exportedVars C.primModSig)}) $ ignoreOutput @Log $ C.dontDump @[TConstraint] $ runError $ C.runFreshQNamesState $ C.freshWithInternal 
+runTypecheck mod = run $ evalState (TCState {_varTypes = coercePass (exportedVars C.primModSig), _tcInstances = mempty}) 
+                       $ ignoreOutput @Log 
+                       $ C.dontDump @[TConstraint] 
+                       $ runError 
+                       $ C.runFreshQNamesState 
+                       $ C.freshWithInternal 
                        $ cobbleCode (unlines mod) >>= typecheck
 
 cobbleCode :: (Member (C.Fresh (Text, LexInfo) QualifiedName) r) => Text -> Sem r (Module Typecheck)

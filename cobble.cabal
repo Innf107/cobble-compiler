@@ -81,6 +81,7 @@ library
       src
   default-extensions:
       NoImplicitPrelude
+      StrictData
       ApplicativeDo
       LambdaCase
       OverloadedStrings
@@ -163,6 +164,7 @@ executable cobble
       app
   default-extensions:
       NoImplicitPrelude
+      StrictData
       ApplicativeDo
       LambdaCase
       OverloadedStrings
@@ -266,6 +268,7 @@ test-suite cobble-test
       test
   default-extensions:
       NoImplicitPrelude
+      StrictData
       ApplicativeDo
       LambdaCase
       OverloadedStrings

@@ -100,24 +100,35 @@ checkStmnt (DefVariant (Ext k) li sname ps cs) = do
         pure (cname, fs, Ext3_1 constrTy ep ix)
     pure (DefVariant (Ext k) li sname (coercePass ps) cs')
 checkStmnt (DefClass (Ext k) li cname ps meths) = pure $ DefClass (Ext k) li cname (coercePass ps) (map (second coercePass) meths)
-checkStmnt (DefInstance IgnoreExt li cname ty decls) = do
-    -- TODO: decls have to be reordered in SemAnalysis to match the order in the type class definition
+checkStmnt (DefInstance (Ext defs) li cname ty decls) = do
     insertInstance cname (coercePass ty)
-    _ <- forM decls \d@(Decl IgnoreExt fname ps e) -> undefined
-    undefined
+    decls' :: [Decl NextPass] <- forM (zip defs decls) \((fname, coercePass -> ty), d@(Decl IgnoreExt declFname ps e)) -> do
+        -- sanity check
+        when (fname /= declFname) $ error $ "checkStmnt: Tyclass instance for '" <> show cname <> "' was not properly reordered"
+        
+        ty' <- skolemize ty
+        decl' <- checkDecl d
+        tellLI li [ty' :~ (getType decl')]
+        pure decl'
+    pure (DefInstance (coercePass $ Ext defs) li cname (coercePass ty) decls')
 
-checkStmnt (Def IgnoreExt li (Decl IgnoreExt f (Ext ps) e) (coercePass -> ty)) = do
+checkStmnt (Def IgnoreExt li decl@(Decl IgnoreExt f (Ext ps) e) (coercePass -> ty)) = do
     insertType f ty
     ty' <- skolemize ty
+    decl' <- checkDecl decl
+    tellLI li [ty' :~ getType decl']
+    pure (Def IgnoreExt li decl' ty)
+
+checkDecl :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass), State TCState] r
+          => Decl Typecheck 
+          -> Sem r (Decl NextPass)
+checkDecl (Decl IgnoreExt f (Ext ps) e) = do
     psTys <- traverse (\_ -> freshTV KStar) ps
     zipWithM_ insertType ps psTys
-
     e' <- check e
     eTy <- getType' e'
-    tellLI li [ty' :~ foldr (:->) eTy psTys]
-    pure (Def IgnoreExt li (Decl (Ext ty') f (Ext (zip ps psTys)) e') ty)
-
-checkStmnt (StatementX x _) = absurd x
+    let resTy = foldr (:->) eTy psTys
+    pure (Decl (Ext resTy) f (Ext (zip ps psTys)) e')
 
 check :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass), State TCState] r 
       => Expr Typecheck 
@@ -244,6 +255,8 @@ unify' (TApp c1 a1) (TApp c2 a2) = do
 -- Not entirely sure about this. In this article,
 -- every skolem unifies with any other skolem (which seems *very* wrong).
 -- (https://abby.how/posts/amulets-new-type-checker.html)
+-- UPDATE: In the actual amulet implementation, only the *same* skolems
+-- unify, which is the same we do here. 
 unify' (TSkol tv1) (TSkol tv2)
     | tv1 == tv2 = pure mempty
 

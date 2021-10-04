@@ -275,28 +275,28 @@ qualifyStmnts = \case
                 $ withVariantConstrs' li (zipWith (\(x,_,_)(y,_,ep,i) -> (x, ep, i, y)) constrs constrs')
                 $ qualifyStmnts sts)
 
-    -- Type class definitions cannot be recursive, which
-    -- removes the need for the "ugly hack" in DefStruct, 
-    -- making this considerably simpler
+    -- Typeclass definitions also need the ugly hack, because
+    -- the renamed methods have to be inserted in @withType@...
     (DefClass IgnoreExt li n ps meths : sts) ->
-        withTVars li ps \ps' -> 
-            let k = foldr (\(MkTVar _ k) r -> k `KFun` r) KConstraint ps' in
-            withType li n k TyClass \n' ->
+        withTVars li ps \ps' -> do
+            let k = foldr (\(MkTVar _ k) r -> k `KFun` r) KConstraint ps'
+            (n', meths') <- withType li n k (TyClass []) \n' ->
                 let (methNames, methTys) = unzip meths in
                 withVars li methNames \methNames' -> do
-                    meths' <- zip methNames' <$> (traverse (qualifyType li) methTys) 
+                    (n',) . zip methNames' <$> (traverse (qualifyType li) methTys) 
+            withType' li n n' k (TyClass (map (second coercePass) meths')) $
+                withVars' li (map (\(qn,_) -> (originalName qn, qn)) meths') $
                     (:)
                         <$> pure (DefClass (Ext k) li n' ps' meths')
                         <*> qualifyStmnts sts
     (DefInstance IgnoreExt li cn t decls : sts) ->
         lookupType li cn >>= \case
-            (cn', _, TyClass) -> do
+            (cn', _, TyClass tys) -> do
                 t' <- qualifyType li t
                 (:)
-                    <$> (DefInstance IgnoreExt li cn' t' <$> forM decls \d -> qualifyExistingDecl li d)
+                    <$> (DefInstance (Ext tys) li cn' t' <$> forM decls \d -> qualifyExistingDecl li d)
                     <*> qualifyStmnts sts
             (cn', k, tv) -> throw (InstanceForNonClass li cn' k tv)
-    (StatementX x _ : _) -> absurd x
 
 qualifyExp :: forall r. Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
            => Expr QualifyNames

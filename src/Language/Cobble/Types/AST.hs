@@ -42,18 +42,27 @@ data ModSig = ModSig {
 ,   exportedVariantConstrs  :: Map QualifiedName (Type 'Codegen, Int, Int)
 ,   exportedTypes           :: Map QualifiedName (Kind, TypeVariant)
 ,   exportedFixities        :: Map QualifiedName Fixity
+,   exportedInstances       :: Map QualifiedName [Type Codegen]
 } deriving (Generic, Typeable) -- Instances for @Eq@ and @Data@ are defined in Language.Cobble.Types.AST.Codegen
 
 data TypeVariant = RecordType [TVar Codegen] [(UnqualifiedName, Type 'Codegen)]
                  | VariantType [TVar Codegen] [(QualifiedName, [Type Codegen])]
                  | BuiltInType
-                 | TyClass
+                 | TyClass [(QualifiedName, Type Codegen)]
                  deriving (Generic, Typeable)
 
 type Dependencies = Map QualifiedName ModSig
 
-instance Semigroup ModSig where ModSig vs cs ts fs <> ModSig vs' cs' ts' fs' = ModSig (vs <> vs') (cs <> cs') (ts <> ts') (fs <> fs')
-instance Monoid ModSig where mempty = ModSig mempty mempty mempty mempty
+instance Semigroup ModSig where 
+    ModSig vs cs ts fs is <> ModSig vs' cs' ts' fs' is' = 
+        ModSig 
+            (vs <> vs') 
+            (cs <> cs') 
+            (ts <> ts') 
+            (fs <> fs') 
+            (is `munion` is')
+
+instance Monoid ModSig where mempty = ModSig mempty mempty mempty mempty mempty
 
 -- | A data kind representing the state of the AST at a certain Compiler pass.
 data Pass = SolveModules

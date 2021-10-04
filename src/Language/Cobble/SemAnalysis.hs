@@ -12,12 +12,15 @@ type NextPass = Typecheck
 data SemanticError = MissingField LexInfo UnqualifiedName
                    | NonExistantOrDuplicateFields LexInfo [UnqualifiedName]
                    | DuplicateStructDefFields LexInfo [UnqualifiedName]
+                   | MissingTyClassMethod LexInfo QualifiedName (Type Codegen)
+                   | DuplicateTyClassMethods LexInfo [Decl SemAnalysis]
                    deriving (Show, Eq)
 
 runSemanticAnalysis :: Members '[Error SemanticError] r => Module SemAnalysis -> Sem r (Module NextPass)
 runSemanticAnalysis (Module x n sts) = fmap (coercePass . Module x n)
-    $   transformBiM checkStructDef
+    $ transformBiM checkStructDef
     =<< transformBiM checkAndReorderStructConstruct 
+    =<< transformBiM reorderAndCheckInstances 
     (transformBi implicitForall sts)
 
 
@@ -65,3 +68,22 @@ reorderAndCheckFields li dfs fs = forM dfs \(n, _) -> do
     where
         fsMap :: Map UnqualifiedName b
         fsMap = fromList fs
+
+
+-- Reorders the methods in a typeclass instance to have the same
+-- order as the class declaration and checks for missing or duplicate methods.
+-- This is necessary for Codegen and expected by the typechecker
+reorderAndCheckInstances :: Members '[Error SemanticError] r => Statement SemAnalysis -> Sem r (Statement SemAnalysis)
+reorderAndCheckInstances = \case
+    DefInstance (Ext defMeths) li className ty decls -> do
+        reorderedDecls <- forM defMeths \(dmName, dmType) -> do
+            case lookup dmName declMap of
+                Nothing -> throw $ MissingTyClassMethod li dmName dmType
+                Just decl -> pure decl
+        case decls \\ reorderedDecls of
+            [] -> pure (DefInstance (Ext defMeths) li className ty reorderedDecls)
+            ds -> throw $ DuplicateTyClassMethods li ds
+        where
+            declMap :: Map QualifiedName (Decl SemAnalysis)
+            declMap = fromList (map (\d@(Decl _ n _ _) -> (n, d)) decls)
+    x -> pure x

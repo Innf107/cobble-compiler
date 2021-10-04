@@ -20,8 +20,8 @@ postProcessStatement (DefVariant (Ext k) li vname ps constrs) =
     DefVariant (Ext k) li vname (coercePass ps) (map (\(n, ts, x) -> (n, coercePass ts, coercePass x)) constrs)
 postProcessStatement (DefClass (Ext k) li sname ps meths) =
     DefClass (Ext k) li sname (coercePass ps) (map (second coercePass) meths)
-postProcessStatement (DefInstance IgnoreExt li cname ty decls) =
-    DefInstance IgnoreExt li cname (coercePass ty) (map postProcessDecl decls)
+postProcessStatement (DefInstance (Ext defs) li cname ty decls) =
+    DefInstance (Ext defs) li cname (coercePass ty) (map postProcessDecl decls)
 postProcessStatement (StatementX x _) = absurd x
 
 postProcessDecl :: Decl PostProcess -> Decl NextPass
