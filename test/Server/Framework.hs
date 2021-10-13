@@ -167,6 +167,7 @@ runWithServer a = do
             Just sout -> do
                 logLn "Waiting for the server to be ready"
                 waitUntil $ ("RCON running on" `T.isInfixOf`) . toText <$> hGetLine sout
+                hClose sout
                 logLn "Server started"
                 a)
 
