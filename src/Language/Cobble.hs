@@ -184,7 +184,10 @@ compileWithSig m = do
     saMod <- mapError SemanticError $ runSemanticAnalysis qMod
 
     (lcDefs, sig) <- freshWithInternal do
-        tcMod <- dumpWhenWithM (asks ddumpTC) ppTC "dump-tc.tc" $ mapError TypeError $ evalState tcState $ typecheck saMod
+        tcMod <- dumpWhenWithM (asks ddumpTC) ppGivens "dump-givens.tc" 
+            $ dumpWhenWithM (asks ddumpTC) ppWanteds "dump-wanteds.tc" 
+            $ dumpWhenWithM (asks ddumpTC) ppTC "dump-tc.tc" 
+            $ mapError TypeError $ evalState tcState $ typecheck saMod
 
         let ppMod = postProcess tcMod
 

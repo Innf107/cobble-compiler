@@ -28,6 +28,7 @@ data QualificationError = NameNotFound LexInfo Text
                         | AmbiguousTypeName LexInfo Text [(QualifiedName, Kind, TypeVariant)]
                         | AmbiguousTVarName LexInfo Text [(QualifiedName, Kind)]
                         | InstanceForNonClass LexInfo QualifiedName Kind TypeVariant
+                        | NonClassInConstraint LexInfo QualifiedName Kind TypeVariant
                         deriving (Show, Eq)
 
 data Scope = Scope {
@@ -283,7 +284,7 @@ qualifyStmnts = \case
             (n', meths') <- withType li n k (TyClass []) \n' ->
                 let (methNames, methTys) = unzip meths in
                 withVars li methNames \methNames' -> do
-                    (n',) . zip methNames' <$> (traverse (qualifyType li) methTys) 
+                    (n',) . zip methNames' <$> (traverse (qualifyTypeWithTVars (fromList (zip ps ps')) li) methTys) 
             withType' li n n' k (TyClass (map (second coercePass) meths')) $
                 withVars' li (map (\(qn,_) -> (originalName qn, qn)) meths') $
                     (:)
@@ -394,14 +395,40 @@ qualifyExistingDecl :: Members '[Error QualificationError, Reader [Scope], Fresh
             -> Sem r (Decl NextPass)
 qualifyExistingDecl li d@(Decl _ n _ _) = lookupVar li n >>= \n' -> qualifyDeclWith n' li d
 
+qualifyTypeWithTVars :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
+            => Map (TVar QualifyNames) (TVar NextPass)
+            -> LexInfo
+            -> Type QualifyNames
+            -> Sem r (Type NextPass)
+qualifyTypeWithTVars tvs li = \case
+    TCon n () -> (\(n', k, _) -> TCon n' k) <$> lookupType li n
+    TVar tv 
+        | Just tv' <- lookup tv tvs -> pure (TVar tv')
+        | MkTVar n () <- tv -> pure $ TVar (MkTVar (unsafeQualifiedName n n li) KStar)
+    TSkol (MkTVar _ ())     -> error "qualifyTypeWithTVars: source-level skolems should not exist"
+    TApp t1 t2              -> TApp <$> qualifyTypeWithTVars tvs li t1 <*> qualifyTypeWithTVars tvs li t2 
+    TForall _ _             -> error "source-level foralls NYI"
+    TConstraint constr t    -> TConstraint <$> qualifyConstraintWithTVars tvs li constr <*> qualifyTypeWithTVars tvs li t
+    where
+
 qualifyType :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
             => LexInfo 
             -> Type QualifyNames
             -> Sem r (Type NextPass)
-qualifyType li = \case 
-    TCon n ()           -> (\(n', k, _) -> TCon n' k) <$> lookupType li n
-    TVar (MkTVar n ())  -> pure $ TVar (MkTVar (unsafeQualifiedName n n li) KStar)  -- TODO: Use lookupTVar
-    TSkol (MkTVar n ()) -> error "qualifyType: source-level skolems should not exist"
-    TApp t1 t2          -> TApp <$> qualifyType li t1 <*> qualifyType li t2 
-    TForall _ _         -> error "source-level foralls NYI"
+qualifyType = qualifyTypeWithTVars mempty
+
+qualifyConstraintWithTVars :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
+                  => Map (TVar QualifyNames) (TVar NextPass)
+                  -> LexInfo
+                  -> Constraint QualifyNames
+                  -> Sem r (Constraint NextPass)
+qualifyConstraintWithTVars tvs li  (MkConstraint className arg) = lookupType li className >>= \case
+    (className', _, TyClass _) -> MkConstraint className' <$> qualifyTypeWithTVars tvs li arg
+    (className', k, v) -> throw $ NonClassInConstraint li className' k v
+
+qualifyConstraint :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
+                  => LexInfo
+                  -> Constraint QualifyNames
+                  -> Sem r (Constraint NextPass)
+qualifyConstraint = qualifyConstraintWithTVars mempty
 

@@ -17,7 +17,6 @@ compile prims (Module _deps _modname statements) = concatMap compileStatement st
         compileStatement DefVariant {} = []
         compileStatement DefClass {} = []
         compileStatement DefInstance {} = [] -- TODO: Should compile the instance to a dict 
-        compileStatement (StatementX x _) = absurd x
         compileStatement (Def IgnoreExt _li (Decl (Ext _) fname (Ext params) body) _) = [
                 LCDef fname $ foldr (Lambda . fst) (compileExpr body) params
             ]
@@ -42,7 +41,6 @@ compile prims (Module _deps _modname statements) = concatMap compileStatement st
             Nothing -> error "LC Codegen Panic: structAccess: field not found too late"
             Just i -> Select i (compileExpr structExp)
         compileExpr (C.If _ _ c th el)  = L.If (compileExpr c) (compileExpr th) (compileExpr el)
-        compileExpr (ExprX x _) = absurd x
 
 collapseDefs :: [LCDef] -> LCExpr
 collapseDefs = foldr makeLet (L.IntLit 0) 

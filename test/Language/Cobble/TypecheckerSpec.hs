@@ -18,6 +18,8 @@ import Language.Cobble qualified as C
 import Test.Hspec as S
 import GHC.Base (errorWithoutStackTrace)
 
+import Data.Map qualified as M
+
 spec :: Spec
 spec = do
     it "really simple variable inference" do
@@ -113,6 +115,31 @@ spec = do
                 [intT :-> (TCon (QName "IntList") KStar :-> TCon (QName "IntList") KStar)] -> True
                 [] -> errorWithoutStackTrace $ "No variables found. AST:\n" <> show ast 
                 ts -> errorWithoutStackTrace $ toString $ ppTypes ts
+    it "typeclass methods include constraints" do
+        runTypecheckWithState [
+                "class Eq a {"
+            ,   "    eq :: a -> a -> Bool;"
+            ,   "};"
+            ,   ""
+            ,   "f :: Bool;"
+            ,   "f = eq 1 1;"
+            ] `shouldSatisfy` \(TCState{_varTypes}, _) -> case [ty | (QName "eq", ty) <- M.toList _varTypes] of
+                    [TForall [a1] (TConstraint (MkConstraint (QName "Eq") (TVar a2)) (TVar a3 :-> (TVar a4 :-> boolT)))]
+                        | allEqual [a1, a2, a3, a4] -> True
+                    [] -> errorWithoutStackTrace $ "Not found in state: " <> show _varTypes
+                    ts -> errorWithoutStackTrace $ toString $ ppTypes ts
+
+allEqual :: Eq a => [a] -> Bool
+allEqual [] = True
+allEqual [_] = True
+allEqual (x:y:xs) = x == y && allEqual (y:xs)
+
+withAST :: (Module PostProcess -> [Type PostProcess]) -> (Type PostProcess -> Bool) -> Either TypeError (Module PostProcess) -> Bool
+withAST _ valid (Left err)      = errorWithoutStackTrace (show err) 
+withAST match valid (Right ast) = case match ast of
+    [t] | valid t  -> True
+    [] -> errorWithoutStackTrace $ "Not found"
+    ts -> errorWithoutStackTrace $ toString $ ppTypes ts
 
 ppTypes :: [Type PostProcess] -> Text
 ppTypes = unlines . map ppType
@@ -127,8 +154,13 @@ pattern QName :: Text -> QualifiedName
 pattern QName name <- ReallyUnsafeQualifiedName name _ _
 
 runTypecheck :: [Text] -> Either TypeError (Module PostProcess)
-runTypecheck mod = run $ evalState (TCState {_varTypes = coercePass (exportedVars C.primModSig), _tcInstances = mempty}) 
+runTypecheck = snd . runTypecheckWithState 
+
+runTypecheckWithState :: [Text] -> (TCState, Either TypeError (Module PostProcess))
+runTypecheckWithState mod = run $ runState (TCState {_varTypes = coercePass (exportedVars C.primModSig), _tcInstances = mempty}) 
                        $ ignoreOutput @Log 
+                       $ C.dontDump @[TGiven] 
+                       $ C.dontDump @[TWanted] 
                        $ C.dontDump @[TConstraint] 
                        $ runError 
                        $ C.runFreshQNamesState 

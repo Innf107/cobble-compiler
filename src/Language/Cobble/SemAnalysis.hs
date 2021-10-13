@@ -21,7 +21,7 @@ runSemanticAnalysis (Module x n sts) = fmap (coercePass . Module x n)
     $ transformBiM checkStructDef
     =<< transformBiM checkAndReorderStructConstruct 
     =<< transformBiM reorderAndCheckInstances 
-    (transformBi implicitForall sts)
+    (transformBi (implicitForall . implicitClassConstraints) sts)
 
 
 checkStructDef :: Members '[Error SemanticError] r => Statement SemAnalysis -> Sem r (Statement SemAnalysis)
@@ -41,10 +41,22 @@ implicitForall :: Statement SemAnalysis -> Statement SemAnalysis
 implicitForall = \case
     (Def x l d t) -> Def x l d (addForall t)
     x -> x
-    where
-        addForall t = case ordNub [tv | TVar tv <- universeBi t] of
-            []      -> t
-            freeTVs -> TForall freeTVs t
+
+implicitClassConstraints :: Statement SemAnalysis -> Statement SemAnalysis
+implicitClassConstraints = \case
+    (DefClass (Ext k) li cname ps meths) -> 
+        DefClass (Ext k) li cname ps
+        $ map (\(n, t) -> (n, addForall $ addConstraint t)) meths
+        where
+            addConstraint t = case ps of 
+                [p] -> TConstraint (MkConstraint cname (TVar p)) t
+                ps -> error $ "SemAnalysis.implicitClassConstraints: multi-param typeclasses NYI: " <> show ps
+    x -> x
+
+addForall :: Type SemAnalysis -> Type SemAnalysis
+addForall t = case ordNub [tv | TVar tv <- universeBi t] of
+    []      -> t
+    freeTVs -> TForall freeTVs t
 
 detectDuplicateFields :: Members '[Error SemanticError] r => LexInfo -> [(UnqualifiedName, a)] -> Sem r [(UnqualifiedName, a)]
 detectDuplicateFields li xs = case ks \\ unstableNub ks of

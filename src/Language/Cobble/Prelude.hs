@@ -24,6 +24,7 @@ module Language.Cobble.Prelude (
     , munion
     , censorM
     , HSType
+    , HSConstraint
     , (L.\\)
     , unsafeLast
     ) where
@@ -32,6 +33,7 @@ import qualified Relude
 import Relude hiding (
       universe
     , Type
+    , Constraint
     , TVar
     , absurd
     , ask
@@ -150,6 +152,8 @@ instance ToText Char where
     
 type HSType = Relude.Type
     
+type HSConstraint = Relude.Constraint
+
 unsafeLast :: [a] -> a
 unsafeLast = L.last
 

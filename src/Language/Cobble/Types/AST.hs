@@ -142,12 +142,20 @@ data Type (p :: Pass) = TCon (Name p) (XKind p)
                       | TVar (TVar p)
                       | TSkol (TVar p)
                       | TForall [TVar p] (Type p)
+                      | TConstraint (Constraint p) (Type p)
 
 data TVar (p :: Pass) = MkTVar (Name p) (XKind p)
 
+-- TODO: Ideally, @Constraint@ should be unnecessary and @TConstraint@
+-- should use @Type@ instead. For now there would be no advantage to
+-- this, so Constraint is implemented like this.
+-- TODO: Also, MultiParam Typeclasses!
+-- TODO: This should also really be a List of (Name, Type p), since you might have multiple constraints
+data Constraint p = MkConstraint (Name p) (Type p)
 
 type instance InstanceRequirements (Type p) = [Name p, XKind p, TVar p]
 type instance InstanceRequirements (TVar p) = [Name p, XKind p]
+type instance InstanceRequirements (Constraint p) = [Name p, XKind p, Type p]
 
 (-:>) :: (TyLit (Name p), IsKind (XKind p)) => Type p -> Type p -> Type p
 t1 -:> t2 = TApp (TApp (TCon tyFunT (kFun kStar (kFun kStar kStar))) t1) t2
@@ -155,10 +163,11 @@ infixr 5 -:>
 
 pattern (:->) :: (Name p ~ QualifiedName, Eq (Name p), XKind p ~ Kind) => Type p -> Type p -> Type p
 pattern (:->) t1 t2 = TApp (TApp (TCon (ReallyUnsafeQualifiedName "->" "-minus-gt" InternalLexInfo) (KFun KStar (KFun KStar KStar))) t1) t2
+infixr 1 :->
 
 pattern (:~>) :: (Name p ~ Text, Eq (Name p), XKind p ~ Kind) => Type p -> Type p -> Type p
 pattern (:~>) t1 t2 = TApp (TApp (TCon "->" (KFun KStar (KFun KStar KStar))) t1) t2
-
+infixr 1 :~>
 
 type family XKind (p :: Pass)
 
@@ -273,7 +282,11 @@ instance ((XKind p) ~ Kind) => HasKind (Type p) where
                 | kp == ka -> pure kr
             (k1, k2) -> Left (k1, k2)
         TForall _ t -> kind t
+        TConstraint _ t -> kind t 
     
+instance (HasKind (Type p)) => HasKind (Constraint p) where
+    kind _ = pure kConstraint 
+
       
 class CoercePass t1 t2 p1 p2 | t1 -> p1, t2 -> p2 where
     _coercePass :: t1 -> t2
@@ -384,6 +397,7 @@ instance
     (   Name p1 ~ Name p2
     ,   XKind p1 ~ XKind p2
     ,   CoercePass (TVar p1) (TVar p2) p1 p2
+    ,   CoercePass (Constraint p1) (Constraint p2) p1 p2
     )
     => CoercePass (Type p1) (Type p2) p1 p2 where
     _coercePass = \case
@@ -392,6 +406,14 @@ instance
         TVar t -> TVar (coercePass t)
         TSkol t -> TSkol (coercePass t)
         TForall vs t -> TForall (map coercePass vs) (coercePass t)
+        TConstraint n t -> TConstraint (coercePass n) (coercePass t)
+
+instance 
+    (   Name p1 ~ Name p2
+    ,   CoercePass (Type p1) (Type p2) p1 p2
+    )
+    => CoercePass (Constraint p1) (Constraint p2) p1 p2 where
+    _coercePass (MkConstraint cname arg) = MkConstraint cname (coercePass arg)
 
 instance
     (   Name p1 ~ Name p2

@@ -2,12 +2,12 @@ module Language.Cobble.Util.TypeUtils where
 
 import Language.Cobble.Prelude
 
-type AllC :: (k -> Constraint) -> [k] -> Constraint
+type AllC :: (k -> HSConstraint) -> [k] -> HSConstraint
 type family AllC c xs where
     AllC c '[] = ()
     AllC c (x : xs) = (c x, AllC c xs)
 
-type AllOnPass :: (k2 -> Constraint) -> k1 -> [(k1 -> k2)] -> Constraint
+type AllOnPass :: (k2 -> HSConstraint) -> k1 -> [(k1 -> k2)] -> HSConstraint
 type family AllOnPass c p xs where
     AllOnPass c p '[] = ()
     AllOnPass c p (x : xs) = (c (x p), AllOnPass c p xs)

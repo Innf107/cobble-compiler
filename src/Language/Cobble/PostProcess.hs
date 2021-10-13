@@ -47,7 +47,6 @@ postProcessExpr = \case
     VariantConstr (Ext (ty, e, i)) li n -> VariantConstr (Ext (coercePass ty, e, i)) li n
     StructConstruct (Ext (sd, ty)) li sname fexprs -> 
         StructConstruct (Ext (coercePass sd, coercePass ty)) li sname (map (second postProcessExpr) fexprs)
-    ExprX x _ -> absurd x
     where
         getStructName :: Type PostProcess -> QualifiedName
         getStructName (TCon name _) = name
@@ -55,3 +54,4 @@ postProcessExpr = \case
         getStructName (TVar v) = error $ "postProcessExpr: Type checker inferred type variable for StructAccess expression: " <> show v
         getStructName (TSkol v) = error $ "postProcessExpr: Type checker inferred skolem variable for StructAccess expression: " <> show v
         getStructName (TForall _ t) = getStructName t 
+        getStructName (TConstraint _ t) = getStructName t
