@@ -213,8 +213,8 @@ makePartialSig :: S.Statement 'Codegen -> ModSig
 makePartialSig = \case
     Def _ _ (Decl _ n _ _) t        -> mempty {exportedVars = one (n, t)}
     DefStruct (Ext k) _ n ps fs     -> mempty {exportedTypes = one (n, (k, RecordType ps fs))}
-    DefClass (Ext k) _ n _ meths   -> mempty 
-        {   exportedTypes = one (n, (k, TyClass meths))
+    DefClass (Ext k) _ n ps meths   -> mempty 
+        {   exportedTypes = one (n, (k, TyClass ps meths))
         ,   exportedVars  = fromList meths
         }
     DefInstance (Ext _) _ cname ty _ -> mempty {exportedInstances = one (cname, [ty])}

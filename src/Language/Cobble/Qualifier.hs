@@ -281,21 +281,21 @@ qualifyStmnts = \case
     (DefClass IgnoreExt li n ps meths : sts) ->
         withTVars li ps \ps' -> do
             let k = foldr (\(MkTVar _ k) r -> k `KFun` r) KConstraint ps'
-            (n', meths') <- withType li n k (TyClass []) \n' ->
+            (n', meths') <- withType li n k (TyClass (coercePass ps') []) \n' ->
                 let (methNames, methTys) = unzip meths in
                 withVars li methNames \methNames' -> do
                     (n',) . zip methNames' <$> (traverse (qualifyTypeWithTVars (fromList (zip ps ps')) li) methTys) 
-            withType' li n n' k (TyClass (map (second coercePass) meths')) $
+            withType' li n n' k (TyClass (coercePass ps') (map (second coercePass) meths')) $
                 withVars' li (map (\(qn,_) -> (originalName qn, qn)) meths') $
                     (:)
                         <$> pure (DefClass (Ext k) li n' ps' meths')
                         <*> qualifyStmnts sts
     (DefInstance IgnoreExt li cn t decls : sts) ->
         lookupType li cn >>= \case
-            (cn', _, TyClass tys) -> do
+            (cn', _, TyClass ps tys) -> do
                 t' <- qualifyType li t
                 (:)
-                    <$> (DefInstance (Ext tys) li cn' t' <$> forM decls \d -> qualifyExistingDecl li d)
+                    <$> (DefInstance (Ext (tys, ps)) li cn' t' <$> forM decls \d -> qualifyExistingDecl li d)
                     <*> qualifyStmnts sts
             (cn', k, tv) -> throw (InstanceForNonClass li cn' k tv)
 
@@ -417,13 +417,14 @@ qualifyType :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, 
             -> Sem r (Type NextPass)
 qualifyType = qualifyTypeWithTVars mempty
 
+-- TODO: TyClass carries parameters now, so this should be unnecessary?
 qualifyConstraintWithTVars :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
                   => Map (TVar QualifyNames) (TVar NextPass)
                   -> LexInfo
                   -> Constraint QualifyNames
                   -> Sem r (Constraint NextPass)
 qualifyConstraintWithTVars tvs li  (MkConstraint className arg) = lookupType li className >>= \case
-    (className', _, TyClass _) -> MkConstraint className' <$> qualifyTypeWithTVars tvs li arg
+    (className', _, TyClass _ _) -> MkConstraint className' <$> qualifyTypeWithTVars tvs li arg
     (className', k, v) -> throw $ NonClassInConstraint li className' k v
 
 qualifyConstraint :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r

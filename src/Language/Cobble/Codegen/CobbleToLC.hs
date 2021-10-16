@@ -8,6 +8,8 @@ import Language.Cobble.LC.Types as L
 
 import Language.Cobble.Codegen.PrimOps
 
+import Data.Text qualified as T
+
 compile :: Map QualifiedName PrimOpInfo -> Module Codegen -> [LCDef]
 compile prims (Module _deps _modname statements) = concatMap compileStatement statements
     where
@@ -16,7 +18,9 @@ compile prims (Module _deps _modname statements) = concatMap compileStatement st
         compileStatement DefStruct {} = []
         compileStatement DefVariant {} = []
         compileStatement DefClass {} = []
-        compileStatement DefInstance {} = [] -- TODO: Should compile the instance to a dict 
+        compileStatement (DefInstance (Ext _classMeths) _li cname ty meths) = [
+                LCDef (dictName cname ty) $ Tuple (map compileToLambda meths)
+            ]
         compileStatement (Def IgnoreExt _li (Decl (Ext _) fname (Ext params) body) _) = [
                 LCDef fname $ foldr (Lambda . fst) (compileExpr body) params
             ]
@@ -26,7 +30,7 @@ compile prims (Module _deps _modname statements) = concatMap compileStatement st
         compileExpr (UnitLit _)      = Tuple []
         compileExpr (C.Var _ _ n)    = L.Var n
         compileExpr (C.VariantConstr (Ext (_, 0, i)) _ n) = Variant (n, i) []
-        compileExpr (C.VariantConstr (Ext (_, expectedParams, i)) _ n) = error $ "LC Codegen: Variant construction for partially applied constructor without args NYI"  
+        compileExpr (C.VariantConstr (Ext (_, _expectedParams, _i)) _ _n) = error $ "LC Codegen: Variant construction for partially applied constructor without args NYI"  
         compileExpr (FCall _ _ (C.VariantConstr (Ext (_, expectedParams, i)) _ con) as)
             | expectedParams == length as = L.Variant (con, i) (map compileExpr $ toList as)
             | expectedParams >  length as = error "LC Codegen: Variant construction for partially applied constructor NYI"
@@ -41,6 +45,20 @@ compile prims (Module _deps _modname statements) = concatMap compileStatement st
             Nothing -> error "LC Codegen Panic: structAccess: field not found too late"
             Just i -> Select i (compileExpr structExp)
         compileExpr (C.If _ _ c th el)  = L.If (compileExpr c) (compileExpr th) (compileExpr el)
+
+        compileToLambda :: Decl Codegen -> LCExpr
+        compileToLambda (Decl (Ext _ty) _ (Ext xs) e) = foldr Lambda (compileExpr e) (map fst xs)
+
+dictName :: QualifiedName -> Type Codegen -> QualifiedName
+dictName (ReallyUnsafeQualifiedName original renamed li) ty = unsafeQualifiedName ("d_" <> original <> showTypeName ty) ("d_" <> renamed <> showTypeName ty) li
+    
+showTypeName :: Type Codegen -> Text
+showTypeName (TCon n _) = renamed n
+showTypeName (TApp t1 t2) = showTypeName t1 <> "_" <> showTypeName t2
+showTypeName (TVar (MkTVar n _)) = "v" <> renamed n
+showTypeName (TSkol (MkTVar n _)) = "s" <> renamed n
+showTypeName (TForall ps t) = "forall-" <> T.intercalate "-" (map (\(MkTVar n _) -> renamed n) ps)  <> "_" <> showTypeName t
+showTypeName (TConstraint (MkConstraint cname ct) t) = "constr-" <> renamed cname <> "-" <> showTypeName ct <> "_" <> showTypeName t
 
 collapseDefs :: [LCDef] -> LCExpr
 collapseDefs = foldr makeLet (L.IntLit 0) 

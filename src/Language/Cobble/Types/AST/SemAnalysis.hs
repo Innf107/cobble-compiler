@@ -22,7 +22,7 @@ type instance XDefVariantClause SemAnalysis = Ext SemAnalysis (Int, Int)
 type instance XDefClass         SemAnalysis = Ext SemAnalysis Kind
 -- XDefInstance uses a list of pairs instead of a Map, because SemAnalysis shuffles declarations around
 -- to have the same order as class declaration.
-type instance XDefInstance      SemAnalysis = Ext SemAnalysis [(QualifiedName, Type Codegen)]
+type instance XDefInstance      SemAnalysis = Ext SemAnalysis ([(QualifiedName, Type Codegen)], [TVar Codegen])
 type instance XStatement        SemAnalysis = ExtVoid SemAnalysis
 
 type instance XFCall            'SemAnalysis = IgnoreExt SemAnalysis

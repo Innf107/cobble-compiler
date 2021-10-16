@@ -44,7 +44,7 @@ data TypeError = DifferentConstructor LexInfo Type Type
 
 type TConstraint = (TConstraintComp, LexInfo)
 
-data TConstraintComp = Type :~ Type 
+data TConstraintComp = Type :~ Type
                      | OneOf Type [Type]
                      deriving (Show, Eq, Generic, Data)
 
@@ -128,25 +128,29 @@ checkStmnt (DefVariant (Ext k) li sname ps cs) = do
         pure (cname, fs, Ext3_1 constrTy ep ix)
     pure (DefVariant (Ext k) li sname (coercePass ps) cs')
 checkStmnt (DefClass (Ext k) li cname ps meths) = do
-    -- Assumes that implicit foralls have been implemented and constraints have been added
+    -- Assumes that implicit foralls and constraints have been added
     -- in SemAnalysis
     forM_ meths \(mname, mtype) -> do
         insertType mname (coercePass mtype)
     
     pure $ DefClass (Ext k) li cname (coercePass ps) (map (second coercePass) meths)
-checkStmnt (DefInstance (Ext defs) li cname ty decls) = do
-    insertInstance li cname (coercePass ty)
-    decls' :: [Decl NextPass] <- forM (zip defs decls) \((fname, coercePass -> ty), d@(Decl IgnoreExt declFname ps e)) -> do
+checkStmnt (DefInstance (Ext (defs, classPs)) li cname (coercePass -> ty) decls) = do
+    insertInstance li cname ty
+    decls' <- forM (zip defs decls) \((fname, coercePass -> declTy), d@(Decl IgnoreExt declFname _ _)) -> do
         -- sanity check
         when (fname /= declFname) $ error $ "checkStmnt: Tyclass instance for '" <> show cname <> "' was not properly reordered"
         
-        ty' <- skolemize li ty
+        let declTy' = case coercePass classPs of
+                [p] -> replaceTVar p ty declTy
+                _ -> error $ "checkStmnt: Multiparam instances NYI: " <> show classPs
+
+        ty' <- skolemize li declTy'
         decl' <- checkDecl d
         tellLI li [ty' :~ (getType decl')]
         pure decl'
-    pure (DefInstance (coercePass $ Ext defs) li cname (coercePass ty) decls')
+    pure (DefInstance (Ext (map (second coercePass) defs, coercePass classPs)) li cname (coercePass ty) decls')
 
-checkStmnt (Def IgnoreExt li decl@(Decl IgnoreExt f (Ext ps) e) (coercePass -> ty)) = do
+checkStmnt (Def IgnoreExt li decl@(Decl IgnoreExt f _ _) (coercePass -> ty)) = do
     insertType f ty
     ty' <- skolemize li ty
     decl' <- checkDecl decl
@@ -324,7 +328,7 @@ solveGivensWanteds givens (w@(TWanted c li) : wanteds) subst = case mapMaybe (\g
 solveGivensWanteds _ [] subst = pure subst
 
 constraintApplies :: TGiven -> TWanted -> Bool
-constraintApplies (TGiven (MkConstraint gc gt) li) (TWanted (MkConstraint wc wt) _) 
+constraintApplies (TGiven (MkConstraint gc gt) _) (TWanted (MkConstraint wc wt) _) 
     | gc == wc  = morePolymorphic gt wt
     | otherwise = False
     where
@@ -336,7 +340,7 @@ constraintApplies (TGiven (MkConstraint gc gt) li) (TWanted (MkConstraint wc wt)
         morePolymorphic (TVar _) _                  = True
         morePolymorphic (TSkol v1) (TSkol v2)       = v1 == v2
         morePolymorphic (TSkol _) _                 = False
-        morePolymorphic (TForall _ _) t             = error "morePolymorphic: foralls in constraint are not implemented!"
+        morePolymorphic (TForall _ _) _             = error "morePolymorphic: foralls in constraint are not implemented!"
         morePolymorphic (TConstraint _ _) _         = error "morePolymorphic: nested constraints are not implemented!"
 
 

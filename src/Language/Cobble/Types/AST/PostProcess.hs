@@ -23,7 +23,7 @@ type instance XDefVariantClause PostProcess = Ext3_1 PostProcess (Type PostProce
 type instance XDefClass         PostProcess = Ext PostProcess Kind
 -- XDefInstance uses a list of pairs instead of a Map, because SemAnalysis shuffles declarations around
 -- to have the same order as class declaration.
-type instance XDefInstance      PostProcess = Ext PostProcess [(QualifiedName, Type Codegen)]
+type instance XDefInstance      PostProcess = Ext PostProcess ([(QualifiedName, Type Codegen)], [TVar Codegen])
 type instance XStatement        PostProcess = ExtVoid PostProcess
 
 type instance XFCall            PostProcess = Ext PostProcess (Type PostProcess)

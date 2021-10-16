@@ -121,13 +121,45 @@ spec = do
             ,   "    eq :: a -> a -> Bool;"
             ,   "};"
             ,   ""
-            ,   "f :: Bool;"
-            ,   "f = eq 1 1;"
+            ,   "x :: Bool;"
+            ,   "x = eq 1 1;"
             ] `shouldSatisfy` \(TCState{_varTypes}, _) -> case [ty | (QName "eq", ty) <- M.toList _varTypes] of
                     [TForall [a1] (TConstraint (MkConstraint (QName "Eq") (TVar a2)) (TVar a3 :-> (TVar a4 :-> boolT)))]
                         | allEqual [a1, a2, a3, a4] -> True
                     [] -> errorWithoutStackTrace $ "Not found in state: " <> show _varTypes
                     ts -> errorWithoutStackTrace $ toString $ ppTypes ts
+    it "typeclass methods preserve foralls and constraints on variables" do
+        runTypecheck [
+                "class Eq a {"
+            ,   "    eq :: a -> a -> Bool;"
+            ,   "};"
+            ,   ""
+            ,   "instance Eq Int {"
+            ,   "    eq x y = if __le__ x y then __le__ y x else __false__ ();"
+            ,   "};"
+            ,   ""
+            ,   "x :: Bool;"
+            ,   "x = eq 1 1;"
+            ] `shouldSatisfy` withAST (\ast -> [ty | VarType ty "eq" <- universeBi ast]) \case
+                (TForall [a1] (TConstraint (MkConstraint (QName "Eq") (TVar a2)) (TVar a3 :-> (TVar a4 :-> boolT))))
+                    | allEqual [a1, a2, a3, a4] -> True
+                _ -> False
+    it "application of typeclass methods have monomorphic types without constraints" do
+        runTypecheck [
+                "class Eq a {"
+            ,   "    eq :: a -> a -> Bool;"
+            ,   "};"
+            ,   ""
+            ,   "instance Eq Int {"
+            ,   "    eq x y = if __le__ x y then __le__ y x else __false__ ();"
+            ,   "};"
+            ,   ""
+            ,   "x :: Bool;"
+            ,   "x = eq 1 1;"
+            ] `shouldSatisfy` withAST (\ast -> [ty | FCall (Ext ty) _ (VarType _ "eq") _ :: Expr PostProcess <- universeBi ast]) \case
+                (TCon (QName "Bool") KStar) -> True
+                _ -> False
+
 
 allEqual :: Eq a => [a] -> Bool
 allEqual [] = True

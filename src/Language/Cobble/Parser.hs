@@ -255,11 +255,24 @@ signature' :: Parser (Text, Type NextPass)
 signature' = (\(_, y, z) -> (y, z)) <$> signature
 
 typeP :: Parser (LexInfo, Type NextPass)
-typeP = "type" <??> do
+typeP = "type" <??> constrained <|> unconstrained
+    where
+        constrained = do
+            (ls, c) <- try $ constraint <* reservedOp' "=>"
+            (\(le, t) -> (ls `mergeLexInfo` le, TConstraint c t))
+                <$> unconstrained
+        unconstrained = do
             (ls, t1) <- namedType
             functionType ls t1 
                 <|> typeApp ls t1
                 <|> pure (ls, t1)
+        
+            
+
+constraint :: Parser (LexInfo, Constraint NextPass)
+constraint = (\(ls, n) (le, t) -> (ls `mergeLexInfo` le, MkConstraint n t))
+    <$> ident
+    <*> typeP
 
 namedType :: Parser (LexInfo, Type NextPass)
 namedType = withParen typeP <|> do

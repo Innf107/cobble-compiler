@@ -48,7 +48,7 @@ data ModSig = ModSig {
 data TypeVariant = RecordType [TVar Codegen] [(UnqualifiedName, Type 'Codegen)]
                  | VariantType [TVar Codegen] [(QualifiedName, [Type Codegen])]
                  | BuiltInType
-                 | TyClass [(QualifiedName, Type Codegen)]
+                 | TyClass [TVar Codegen] [(QualifiedName, Type Codegen)]
                  deriving (Generic, Typeable)
 
 type Dependencies = Map QualifiedName ModSig

@@ -34,7 +34,7 @@ type instance XDefVariantClause Codegen = Ext3_1 Codegen (Type Codegen) Int Int
 type instance XDefClass         Codegen = Ext Codegen Kind
 -- XDefInstance uses a list of pairs instead of a Map, because SemAnalysis shuffles declarations around
 -- to have the same order as class declaration.
-type instance XDefInstance      Codegen = Ext Codegen [(QualifiedName, Type Codegen)]
+type instance XDefInstance      Codegen = Ext Codegen ([(QualifiedName, Type Codegen)], [TVar Codegen])
 type instance XStatement        Codegen = ExtVoid Codegen
 
 type instance XFCall            Codegen = Ext Codegen (Type Codegen)

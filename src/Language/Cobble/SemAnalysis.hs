@@ -50,7 +50,7 @@ implicitClassConstraints = \case
         where
             addConstraint t = case ps of 
                 [p] -> TConstraint (MkConstraint cname (TVar p)) t
-                ps -> error $ "SemAnalysis.implicitClassConstraints: multi-param typeclasses NYI: " <> show ps
+                _   -> error $ "SemAnalysis.implicitClassConstraints: multi-param typeclasses NYI: " <> show ps
     x -> x
 
 addForall :: Type SemAnalysis -> Type SemAnalysis
@@ -87,13 +87,13 @@ reorderAndCheckFields li dfs fs = forM dfs \(n, _) -> do
 -- This is necessary for Codegen and expected by the typechecker
 reorderAndCheckInstances :: Members '[Error SemanticError] r => Statement SemAnalysis -> Sem r (Statement SemAnalysis)
 reorderAndCheckInstances = \case
-    DefInstance (Ext defMeths) li className ty decls -> do
+    DefInstance (Ext (defMeths, classPS)) li className ty decls -> do
         reorderedDecls <- forM defMeths \(dmName, dmType) -> do
             case lookup dmName declMap of
                 Nothing -> throw $ MissingTyClassMethod li dmName dmType
                 Just decl -> pure decl
         case decls \\ reorderedDecls of
-            [] -> pure (DefInstance (Ext defMeths) li className ty reorderedDecls)
+            [] -> pure (DefInstance (Ext (map (second coercePass) defMeths, coercePass classPS)) li className ty reorderedDecls)
             ds -> throw $ DuplicateTyClassMethods li ds
         where
             declMap :: Map QualifiedName (Decl SemAnalysis)
