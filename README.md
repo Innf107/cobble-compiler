@@ -1,7 +1,7 @@
 # Cobble - A purely functional programming language that compiles to minecraft datapacks
 
 ## Installation
-Right now, the only way to install cobble is to build it from source.
+The most current release can be found here: https://link.us1.storjshare.io/s/jv2rsbkaz6b5dvvlzn3yxkouwvza/releases/cobble
 
 ### Prerequisites
 To install cobble, you need to have [haskell stack](https://docs.haskellstack.org/en/stable/README/) as well as [zlib](https://www.zlib.net/) installed.
