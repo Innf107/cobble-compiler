@@ -14,7 +14,7 @@ module Language.Cobble.Prelude (
     , module Language.Cobble.Util.ListLike
     , module Data.Data
     , module Data.Foldable
-    , module Data.These
+    --, module Data.These
     , module Data.Either
     , (|:)
     , state 
@@ -111,8 +111,6 @@ import qualified Data.List as L (init, last, (\\))
 import qualified Data.Map as M (unionWith)
 
 import Data.Foldable (foldrM)
-
-import Data.These
 
 (|:) :: a -> NonEmpty a -> NonEmpty a
 a |: (x :| xs) = a :| (x : xs)

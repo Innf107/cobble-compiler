@@ -175,7 +175,7 @@ compileWithSig m = do
         } : map modSigToScope (toList $ getExt $ xModule m)
 
     let tcState = foldMap (\dsig -> TCState {
-                    _varTypes=coercePass $ exportedVars dsig
+                    _varTypes= fmap coercePass $ exportedVars dsig
                 ,   _tcInstances = coercePass $ exportedInstances dsig
                 })
                 (getExt $ xModule m)
@@ -211,11 +211,12 @@ extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
 
 makePartialSig :: S.Statement 'Codegen -> ModSig
 makePartialSig = \case
-    Def _ _ (Decl _ n _ _) t        -> mempty {exportedVars = one (n, t)}
+    Def _ _ (Decl (Ext2_1 _ gs) n _ _) t        -> mempty {exportedVars = one (n, t)} -- TODO: what about gs?
     DefStruct (Ext k) _ n ps fs     -> mempty {exportedTypes = one (n, (k, RecordType ps fs))}
     DefClass (Ext k) _ n ps meths   -> mempty 
         {   exportedTypes = one (n, (k, TyClass ps meths))
-        ,   exportedVars  = fromList meths
+        ,   exportedVars  = fromList $ 
+                map (second coercePass) meths
         }
     DefInstance (Ext _) _ cname ty _ -> mempty {exportedInstances = one (cname, [ty])}
     DefVariant (Ext k) _ tyName ps cs    -> mempty
@@ -261,5 +262,4 @@ dumpAsm = writeFile "dump-asm.mcasm" . renderAsm
     where
         renderAsm :: [Block] -> Text
         renderAsm = T.intercalate "\n\n" . map (\(Block f is) -> "[" <> show f <> "]:\n" <> foldMap (\i -> "    " <> show i <> "\n") is)
-
 

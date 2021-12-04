@@ -11,6 +11,9 @@ import Language.Cobble.Types.AST
 import Language.Cobble.Types.Instances
 import Language.Cobble.Types.QualifiedName
 
+-- Ugh...
+import Language.Cobble.Types.AST.PostProcess
+
 -- Defined here because the instances need
 -- @Type 'Codegen@ to be defined
 deriving instance Show ModSig
@@ -23,7 +26,7 @@ deriving instance Data TypeVariant
 
 type instance XModule Codegen = Ext Codegen (Map (Name Codegen) ModSig)
 
-type instance XDecl      Codegen = Ext Codegen (Type Codegen)
+type instance XDecl      Codegen = Ext2_1 Codegen (Type Codegen) [TGiven]
 type instance XParam     Codegen = Ext Codegen [(Name Codegen, Type Codegen)]
 
 type instance XDef              Codegen = IgnoreExt Codegen
@@ -41,7 +44,7 @@ type instance XFCall            Codegen = Ext Codegen (Type Codegen)
 type instance XIntLit           Codegen = IgnoreExt Codegen
 type instance XIf               Codegen = IgnoreExt Codegen
 type instance XLet              Codegen = IgnoreExt Codegen
-type instance XVar              Codegen = Ext Codegen (Type Codegen)
+type instance XVar              Codegen = Ext2_1 Codegen (Type Codegen) [TWanted]
 type instance XVariantConstr    Codegen = Ext Codegen (Type Codegen, Int, Int)
 --                                                                    ^    ^
 --                                                                    |    constructor index

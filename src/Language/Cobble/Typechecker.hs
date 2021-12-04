@@ -1,4 +1,5 @@
 {-#LANGUAGE TemplateHaskell#-}
+{-#OPTIONS_GHC -Wno-orphans#-}
 module Language.Cobble.Typechecker where
 
 import Language.Cobble.Prelude
@@ -15,7 +16,7 @@ import qualified Data.Text as T
 
 import qualified Data.Map as M
 
-type NextPass = 'PostProcess
+type NextPass = PostProcess
 
 type Type = C.Type NextPass
 
@@ -44,12 +45,11 @@ data TypeError = DifferentConstructor LexInfo Type Type
 
 type TConstraint = (TConstraintComp, LexInfo)
 
+
 data TConstraintComp = Type :~ Type
                      | OneOf Type [Type]
                      deriving (Show, Eq, Generic, Data)
 
-data TGiven  = TGiven  (Constraint NextPass) LexInfo deriving (Show, Eq, Generic, Data)
-data TWanted = TWanted (Constraint NextPass) LexInfo deriving (Show, Eq, Generic, Data)
 
 newtype Substitution = Subst {unSubst :: Map (TVar NextPass) Type} 
     deriving stock   (Show, Eq, Generic, Data)
@@ -74,28 +74,33 @@ lookupType :: Members '[State TCState, Fresh (TVar NextPass) (TVar NextPass)] r 
 lookupType v = gets (lookup v . view varTypes) <&> fromMaybe (error $ "lookupType: Typechecker cannot find variable: " <> show v)
 
 instantiate :: forall r. Members '[Fresh (TVar NextPass) (TVar NextPass), Writer [TWanted]] r => LexInfo -> Type -> Sem r Type
-instantiate li (TForall ps t) = instantiateConstraints =<< foldrM (\p r -> freshVar p <&> \p' -> replaceTVar p (TVar p') r) t ps
+instantiate li ty = fst <$> instantiateWithWanteds li ty
+
+instantiateWithWanteds :: forall r. Members '[Fresh (TVar NextPass) (TVar NextPass), Writer [TWanted]] r => LexInfo -> Type -> Sem r (Type, [TWanted])
+instantiateWithWanteds li = \case
+    (TForall ps t) -> instantiateConstraints =<< foldrM (\p r -> freshVar p <&> \p' -> replaceTVar p (TVar p') r) t ps
+    ty -> instantiateConstraints ty
     where
-        instantiateConstraints :: Type -> Sem r Type
-        instantiateConstraints (TConstraint c t) = do
-            tell [TWanted c li]
-            pure t
-        instantiateConstraints x = pure x
-instantiate _ x              = pure x
+        instantiateConstraints :: Type -> Sem r (Type, [TWanted])
+        instantiateConstraints (TConstraint c ty) = do
+            let wanted = TWanted c li
+            tell [wanted]
+            (second (wanted:)) <$> instantiateConstraints ty
+        instantiateConstraints x = pure (x, [])
 
 -- currently only skolemizes top level foralls (since higher-ranked polymorphism is not implemented yet)
 skolemize :: forall r. Members '[Fresh (TVar NextPass) (TVar NextPass), Writer [TGiven]] r => LexInfo -> Type -> Sem r Type
 skolemize li (TForall ps t) = skolemizeConstraints =<< foldrM (\p r -> freshVar p <&> \p' -> replaceTVar p (TSkol p') r) t ps
     where 
         skolemizeConstraints :: Type -> Sem r Type 
-        skolemizeConstraints (TConstraint c t) = do
+        skolemizeConstraints (TConstraint c ty) = do
             tell [TGiven c li]
-            pure t
+            skolemizeConstraints ty
         skolemizeConstraints x = pure x
 skolemize _ x              = pure x
 
 insertType :: Members '[State TCState] r => QualifiedName -> Type -> Sem r ()
-insertType v t = modify (varTypes %~ insert v t)
+insertType v n = modify (varTypes %~ insert v n)
 
 insertInstance :: Members '[State TCState, Writer [TGiven]] r => LexInfo -> QualifiedName -> Type -> Sem r ()
 insertInstance li v t = addToState >> emitGiven
@@ -144,36 +149,41 @@ checkStmnt (DefInstance (Ext (defs, classPs)) li cname (coercePass -> ty) decls)
                 [p] -> replaceTVar p ty declTy
                 _ -> error $ "checkStmnt: Multiparam instances NYI: " <> show classPs
 
-        ty' <- skolemize li declTy'
-        decl' <- checkDecl d
+        (givens, ty') <- tapAssocR @[TGiven] $ skolemize li declTy'
+        -- traceM $ show declFname <> ": " <> show givens <> " arising from: " <> toString (ppType declTy')
+        decl' <- checkDecl d givens
         tellLI li [ty' :~ (getType decl')]
         pure decl'
     pure (DefInstance (Ext (map (second coercePass) defs, coercePass classPs)) li cname (coercePass ty) decls')
 
 checkStmnt (Def IgnoreExt li decl@(Decl IgnoreExt f _ _) (coercePass -> ty)) = do
     insertType f ty
-    ty' <- skolemize li ty
-    decl' <- checkDecl decl
+    (givens, ty') <- tapAssocR @[TGiven] $ skolemize li ty
+    decl' <- checkDecl decl givens
     tellLI li [ty' :~ getType decl']
     pure (Def IgnoreExt li decl' ty)
 
 checkDecl :: Members '[Writer [TConstraint], Writer [TWanted], Writer [TGiven], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass), State TCState] r
           => Decl Typecheck 
+          -> [TGiven]
           -> Sem r (Decl NextPass)
-checkDecl (Decl IgnoreExt f (Ext ps) e) = do
+checkDecl (Decl IgnoreExt f (Ext ps) e) gs = do
     psTys <- traverse (\_ -> freshTV KStar) ps
     zipWithM_ insertType ps psTys
     e' <- check e
     eTy <- getType' e'
     let resTy = foldr (:->) eTy psTys
-    pure (Decl (Ext resTy) f (Ext (zip ps psTys)) e')
+    pure (Decl (Ext2_1 resTy gs) f (Ext (zip ps psTys)) e')
 
 check :: Members '[Writer [TConstraint], Writer [TWanted], Writer [TGiven], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass), State TCState] r 
       => Expr Typecheck 
       -> Sem r (Expr NextPass)
 check (IntLit IgnoreExt li n)   = pure (IntLit IgnoreExt li n)
 check (UnitLit li)              = pure (UnitLit li)
-check (Var IgnoreExt li vname)  = Var . Ext <$> lookupType vname <*> pure li <*> pure vname
+check (Var IgnoreExt li vname)  = do
+    (ty, wanteds) <- instantiateWithWanteds li =<< lookupType vname
+    -- traceM (show vname <> ": " <> show wanteds)
+    pure $ Var (Ext2_1 ty wanteds) li vname
 -- See note [lookupType for VariantConstr]
 check (VariantConstr (Ext (e,i)) li cname) = VariantConstr . Ext . (,e,i) <$> lookupType cname <*> pure li <*> pure cname
 check (FCall IgnoreExt li f as) = do
@@ -212,7 +222,10 @@ check (Let IgnoreExt li (Decl IgnoreExt f (Ext ps) e) body) = do
     body' <- check body
 
     tellLI li [fTy :~ foldr (:->) eTy psTys]
-    pure (Let IgnoreExt li (Decl (Ext fTy) f (Ext (zip ps psTys)) e') body')
+    -- TODO: Let removes all constraints, which is intended, but we need to make sure
+    -- that all constraints are properly instantiated 
+    -- (which should probably be fine thanks to the lack of generalization).
+    pure (Let IgnoreExt li (Decl (Ext2_1 fTy []) f (Ext (zip ps psTys)) e') body')
 check (StructConstruct structDef li structName fields) = do
     let sTy = coercePass $ structDef ^. structType
     
@@ -283,38 +296,38 @@ solve s ((OneOf (applySubst s -> t1) (map (applySubst s) -> ts), li):cs) = do
 solve s [] = pure s
 
 unify :: Members '[Reader LexInfo, Error TypeError, Output Log] r => Type -> Type -> Sem r Substitution
-unify t1 t2 = do
-    s <- unify' t1 t2
+unify t1 t2 = runReader [] $ unify' t1 t2
+
+unify' :: Members '[Reader LexInfo, Reader [Constraint NextPass], Error TypeError, Output Log] r => Type -> Type -> Sem r Substitution
+unify' t1 t2 = do
+    s <- unify'' t1 t2
     log LogDebugVeryVerbose $ "Unified: " <> ppType t1 <> " ~ " <> ppType t2 <> "\n    -> " <> show s 
     pure s
 
-unify' :: Members '[Reader LexInfo, Error TypeError, Output Log] r => Type -> Type -> Sem r Substitution
-unify' t1@(TCon c1 _k1) t2@(TCon c2 _k2)
+unify'' :: Members '[Reader LexInfo, Reader [Constraint NextPass], Error TypeError, Output Log] r => Type -> Type -> Sem r Substitution
+unify'' t1@(TCon c1 _k1) t2@(TCon c2 _k2)
     | c1 == c2 = pure mempty
     | otherwise = throwLI \li -> DifferentConstructor li t1 t2
-unify' (TVar tv) t2              = bind tv t2
-unify' t1 (TVar tv)              = bind tv t1
-unify' (TApp c1 a1) (TApp c2 a2) = do
-    s <- unify c1 c2
-    (s <>) <$> unify (applySubst s a1) (applySubst s a2)
+unify'' (TVar tv) t2              = bind tv t2
+unify'' t1 (TVar tv)              = bind tv t1
+unify'' (TApp c1 a1) (TApp c2 a2) = do
+    s <- unify' c1 c2
+    (s <>) <$> unify' (applySubst s a1) (applySubst s a2)
 
-
--- Not entirely sure about this. In this article,
--- every skolem unifies with any other skolem (which seems *very* wrong).
--- (https://abby.how/posts/amulets-new-type-checker.html)
--- UPDATE: In the actual amulet implementation, only the *same* skolems
--- unify, which is the same we do here. 
-unify' (TSkol tv1) (TSkol tv2)
+-- Skolems only unify with themselves
+unify'' (TSkol tv1) (TSkol tv2)
     | tv1 == tv2 = pure mempty
 
-unify' t1@TCon{}    t2@TApp{}    = throwLI \li -> NotEnoughArgs li t1 t2
-unify' t1@TApp{}    t2@TCon{}    = throwLI \li -> NotEnoughArgs li t1 t2
-unify' t1@TForall{} t2           = throwLI \li -> HigherPoly li t1 t2
-unify' t1           t2@TForall{} = throwLI \li -> HigherPoly li t1 t2
-unify' t1@TConstraint{} t2       = throwLI \li -> HigherPoly li t1 t2
-unify' t1       t2@TConstraint{} = throwLI \li -> HigherPoly li t1 t2
-unify' t1@TSkol{}   t2           = throwLI \li -> SkolBinding li t1 t2
-unify' t1           t2@TSkol{}   = throwLI \li -> SkolBinding li t1 t2
+unify'' t1@TCon{}    t2@TApp{}    = throwLI \li -> NotEnoughArgs li t1 t2
+unify'' t1@TApp{}    t2@TCon{}    = throwLI \li -> NotEnoughArgs li t1 t2
+unify'' t1@TForall{} t2           = throwLI \li -> HigherPoly li t1 t2
+unify'' t1           t2@TForall{} = throwLI \li -> HigherPoly li t1 t2
+
+unify'' t1@TConstraint{} t2      = throwLI \li -> HigherPoly li t1 t2
+unify'' t1 t2@TConstraint{}      = throwLI \li -> HigherPoly li t1 t2
+
+unify'' t1@TSkol{}   t2           = throwLI \li -> SkolBinding li t1 t2
+unify'' t1           t2@TSkol{}   = throwLI \li -> SkolBinding li t1 t2
 
 solveGivensWanteds :: Members '[Error TypeError] r
                    => [TGiven]
@@ -324,8 +337,14 @@ solveGivensWanteds :: Members '[Error TypeError] r
 solveGivensWanteds givens (w@(TWanted c li) : wanteds) subst = case mapMaybe (\g -> if constraintApplies g w then Just g else Nothing) givens of
     [_] -> solveGivensWanteds givens wanteds subst
     [] -> throw $ NoInstanceFor li c
-    is -> throw $ AmbiguousInstanceFor li c is
+    is  | allEqual (map (\(TGiven c _) -> c) is) -> solveGivensWanteds givens wanteds subst
+        | otherwise -> throw $ AmbiguousInstanceFor li c is
 solveGivensWanteds _ [] subst = pure subst
+
+allEqual :: Eq a => [a] -> Bool
+allEqual [] = True
+allEqual [_] = True
+allEqual (x:y:xs) = x == y && allEqual (y:xs)
 
 constraintApplies :: TGiven -> TWanted -> Bool
 constraintApplies (TGiven (MkConstraint gc gt) _) (TWanted (MkConstraint wc wt) _) 
@@ -344,13 +363,14 @@ constraintApplies (TGiven (MkConstraint gc gt) _) (TWanted (MkConstraint wc wt) 
         morePolymorphic (TConstraint _ _) _         = error "morePolymorphic: nested constraints are not implemented!"
 
 
-bind :: Members '[Reader LexInfo, Error TypeError] r => TVar NextPass -> Type -> Sem r Substitution
+bind :: Members '[Reader LexInfo, Reader [Constraint NextPass], Error TypeError] r => TVar NextPass -> Type -> Sem r Substitution
 bind tv t
     | occurs tv t   = throwLI (\li -> Occurs li tv t)
     | TVar tv == t  = pure mempty
-    | otherwise     = pure (Subst (one (tv, t)))
+    | otherwise     = ask <&> \cs -> (Subst (one (tv, addConstraints cs t)))
 
-
+addConstraints :: [Constraint NextPass] -> Type -> Type
+addConstraints cs t = foldr TConstraint t cs
 
 occurs :: TVar NextPass -> Type -> Bool
 occurs _ TVar{} = False
@@ -403,3 +423,15 @@ ppType (TConstraint c t)    = ppConstraint c <> " => " <> ppType t
 
 ppConstraint :: Constraint NextPass -> Text
 ppConstraint (MkConstraint n t) = show n <> " " <> ppType t
+
+extractConstraints :: Type -> [Constraint NextPass]
+extractConstraints (TForall _ t) = extractConstraints t
+extractConstraints (TConstraint c t) = c : extractConstraints t
+extractConstraints _ = []
+
+tapWith :: (Members '[Writer o] r) => (Sem (Writer o : r) a -> Sem r (o, a)) -> Sem (Writer o : r) a -> Sem r (o, a)
+tapWith runW x = runW x >>= \(o, res) -> tell o >> pure (o, res)
+
+tapAssocR :: (Members '[Writer o] r, Monoid o) => Sem (Writer o : r) a -> Sem r (o, a)
+tapAssocR = tapWith runWriterAssocR
+

@@ -16,7 +16,7 @@ import Language.Cobble.Util.Polysemy.Dump qualified as C
 import Language.Cobble qualified as C
 
 import Test.Hspec as S
-import GHC.Base (errorWithoutStackTrace)
+import GHC.Base (errorWithoutStackTrace, undefined)
 
 import Data.Map qualified as M
 
@@ -124,10 +124,10 @@ spec = do
             ,   "x :: Bool;"
             ,   "x = eq 1 1;"
             ] `shouldSatisfy` \(TCState{_varTypes}, _) -> case [ty | (QName "eq", ty) <- M.toList _varTypes] of
-                    [TForall [a1] (TConstraint (MkConstraint (QName "Eq") (TVar a2)) (TVar a3 :-> (TVar a4 :-> boolT)))]
+                    [(TForall [a1] (TConstraint (MkConstraint (QName "Eq") (TVar a2)) (TVar a3 :-> (TVar a4 :-> boolT))), _)]
                         | allEqual [a1, a2, a3, a4] -> True
                     [] -> errorWithoutStackTrace $ "Not found in state: " <> show _varTypes
-                    ts -> errorWithoutStackTrace $ toString $ ppTypes ts
+                    (map fst -> ts) -> errorWithoutStackTrace $ toString $ ppTypes ts
     it "typeclass methods preserve foralls and constraints on variables" do
         runTypecheck [
                 "class Eq a {"
@@ -144,7 +144,7 @@ spec = do
                 (TForall [a1] (TConstraint (MkConstraint (QName "Eq") (TVar a2)) (TVar a3 :-> (TVar a4 :-> boolT))))
                     | allEqual [a1, a2, a3, a4] -> True
                 _ -> False
-    it "application of typeclass methods have monomorphic types without constraints" do
+    it "application of typeclass methods keep constraints" do
         runTypecheck [
                 "class Eq a {"
             ,   "    eq :: a -> a -> Bool;"
@@ -157,14 +157,37 @@ spec = do
             ,   "x :: Bool;"
             ,   "x = eq 1 1;"
             ] `shouldSatisfy` withAST (\ast -> [ty | FCall (Ext ty) _ (VarType _ "eq") _ :: Expr PostProcess <- universeBi ast]) \case
-                (TCon (QName "Bool") KStar) -> True
+                (TConstraint (MkConstraint (QName "Eq") (TCon (QName "Int") KStar)) (TCon (QName "Bool") KStar)) -> True
                 _ -> False
 
+    describe "unify" do
+        it "includes all constraints contained in the left type" do
+            let eq = MkConstraint (internalQName "Eq")
+            let a = MkTVar (internalQName "a") KStar
+            runUnify (unify 
+                (TConstraint (eq intT) (intT :-> TVar a))
+                (intT :-> boolT)
+                )
+                `shouldBe`
+                Right (Subst (fromList [
+                    (a, TConstraint (eq intT) boolT)
+                ]))
+        it "includes all constraints contained in the right type" do
+            let eq = MkConstraint (internalQName "Eq")
+            let a = MkTVar (internalQName "a") KStar
+            let b = MkTVar (internalQName "b") KStar
+            runUnify (unify 
+                (intT :-> TVar b)
+                (TConstraint (eq intT) (intT :-> TVar a))
+                )
+                `shouldBe`
+                Right (Subst (fromList [
+                    (b, TConstraint (eq intT) (TVar a))
+                ]))
 
-allEqual :: Eq a => [a] -> Bool
-allEqual [] = True
-allEqual [_] = True
-allEqual (x:y:xs) = x == y && allEqual (y:xs)
+runUnify :: Sem '[Reader LexInfo, Output Log, Error TypeError] a -> Either TypeError a
+runUnify = run . runError . ignoreOutput . runReader InternalLexInfo
+    
 
 withAST :: (Module PostProcess -> [Type PostProcess]) -> (Type PostProcess -> Bool) -> Either TypeError (Module PostProcess) -> Bool
 withAST _ valid (Left err)      = errorWithoutStackTrace (show err) 
@@ -189,7 +212,7 @@ runTypecheck :: [Text] -> Either TypeError (Module PostProcess)
 runTypecheck = snd . runTypecheckWithState 
 
 runTypecheckWithState :: [Text] -> (TCState, Either TypeError (Module PostProcess))
-runTypecheckWithState mod = run $ runState (TCState {_varTypes = coercePass (exportedVars C.primModSig), _tcInstances = mempty}) 
+runTypecheckWithState mod = run $ runState (TCState {_varTypes = M.map (first coercePass) (exportedVars C.primModSig), _tcInstances = mempty}) 
                        $ ignoreOutput @Log 
                        $ C.dontDump @[TGiven] 
                        $ C.dontDump @[TWanted] 

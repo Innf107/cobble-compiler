@@ -47,11 +47,20 @@ implicitClassConstraints = \case
     (DefClass (Ext k) li cname ps meths) -> 
         DefClass (Ext k) li cname ps
         $ map (\(n, t) -> (n, addForall $ addConstraint t)) meths
-        where
+          where
             addConstraint t = case ps of 
                 [p] -> TConstraint (MkConstraint cname (TVar p)) t
                 _   -> error $ "SemAnalysis.implicitClassConstraints: multi-param typeclasses NYI: " <> show ps
+
+    (DefInstance (Ext (defMeths, ps)) li cname ty meths) -> 
+        DefInstance (Ext (map (\(n, t) -> (n, coercePass $ addForall $ addConstraint (coercePass t))) defMeths, ps)) li cname ty meths
+          where
+            addConstraint t = case coercePass ps of 
+                [p] -> TConstraint (MkConstraint cname (TVar p)) t
+                _   -> error $ "SemAnalysis.implicitClassConstraints: multi-param typeclasses NYI: " <> show ps
+    
     x -> x
+
 
 addForall :: Type SemAnalysis -> Type SemAnalysis
 addForall t = case ordNub [tv | TVar tv <- universeBi t] of

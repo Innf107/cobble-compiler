@@ -11,9 +11,20 @@ import Language.Cobble.Types.AST
 import Language.Cobble.Types.Instances
 import Language.Cobble.Types.QualifiedName
 
+deriving instance Show TWanted
+deriving instance Eq TWanted
+deriving instance Generic TWanted
+deriving instance Data TWanted
+
+
+deriving instance Show TGiven
+deriving instance Eq TGiven
+deriving instance Generic TGiven
+deriving instance Data TGiven
+
 type instance XModule PostProcess = Ext PostProcess (Map (Name PostProcess) ModSig)
 
-type instance XDecl             PostProcess = Ext PostProcess (Type PostProcess)
+type instance XDecl             PostProcess = Ext2_1 PostProcess (Type PostProcess) [TGiven]
 type instance XParam            PostProcess = Ext PostProcess [(Name PostProcess, Type PostProcess)]
 type instance XDef              PostProcess = IgnoreExt PostProcess
 type instance XImport           PostProcess = IgnoreExt PostProcess
@@ -30,11 +41,11 @@ type instance XFCall            PostProcess = Ext PostProcess (Type PostProcess)
 type instance XIntLit           PostProcess = IgnoreExt PostProcess
 type instance XIf               PostProcess = IgnoreExt PostProcess
 type instance XLet              PostProcess = IgnoreExt PostProcess
-type instance XVar              PostProcess = Ext PostProcess (Type PostProcess)
+type instance XVar              PostProcess = Ext2_1 PostProcess (Type PostProcess) [TWanted]
 type instance XVariantConstr    PostProcess = Ext PostProcess (Type PostProcess, Int, Int)
---                                                                     ^    ^
---                                                                     |    constructor index
---                                                                     expected number of args
+--                                                                               ^    ^
+--                                                                               |    constructor index
+--                                                                               expected number of args
 type instance XStructConstruct  PostProcess = Ext PostProcess (StructDef PostProcess, Type PostProcess)
 type instance XStructAccess     PostProcess = Ext PostProcess (Map QualifiedName (StructDef PostProcess), Type PostProcess, Type PostProcess)
 type instance XExpr             PostProcess = ExtVoid PostProcess

@@ -22,10 +22,9 @@ postProcessStatement (DefClass (Ext k) li sname ps meths) =
     DefClass (Ext k) li sname (coercePass ps) (map (second coercePass) meths)
 postProcessStatement (DefInstance (Ext (defs, classPs)) li cname ty decls) =
     DefInstance (Ext (map (second coercePass) defs, coercePass classPs)) li cname (coercePass ty) (map postProcessDecl decls)
-postProcessStatement (StatementX x _) = absurd x
 
 postProcessDecl :: Decl PostProcess -> Decl NextPass
-postProcessDecl (Decl (Ext ty') f (Ext xs) e) = Decl (Ext (coercePass ty')) f (Ext (map (second coercePass) xs)) (postProcessExpr e)
+postProcessDecl (Decl (Ext2_1 ty' gs) f (Ext xs) e) = Decl (Ext2_1 (coercePass ty') gs) f (Ext (map (second coercePass) xs)) (postProcessExpr e)
 
 postProcessExpr :: Expr PostProcess -> Expr NextPass
 postProcessExpr = \case 
@@ -43,7 +42,7 @@ postProcessExpr = \case
     If IgnoreExt li cond th el -> If IgnoreExt li (postProcessExpr cond) (postProcessExpr th) (postProcessExpr el) 
     Let IgnoreExt li decl b -> 
         Let IgnoreExt li (postProcessDecl decl) (postProcessExpr b)
-    Var (Ext ty) li n -> Var (Ext (coercePass ty)) li n
+    Var (Ext2_1 ty ws) li n -> Var (Ext2_1 (coercePass ty) ws) li n
     VariantConstr (Ext (ty, e, i)) li n -> VariantConstr (Ext (coercePass ty, e, i)) li n
     StructConstruct (Ext (sd, ty)) li sname fexprs -> 
         StructConstruct (Ext (coercePass sd, coercePass ty)) li sname (map (second postProcessExpr) fexprs)

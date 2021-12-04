@@ -153,6 +153,9 @@ data TVar (p :: Pass) = MkTVar (Name p) (XKind p)
 -- TODO: This should also really be a List of (Name, Type p), since you might have multiple constraints
 data Constraint p = MkConstraint (Name p) (Type p)
 
+data TGiven  = TGiven  (Constraint PostProcess) LexInfo
+data TWanted = TWanted (Constraint PostProcess) LexInfo
+
 type instance InstanceRequirements (Type p) = [Name p, XKind p, TVar p]
 type instance InstanceRequirements (TVar p) = [Name p, XKind p]
 type instance InstanceRequirements (Constraint p) = [Name p, XKind p, Type p]
@@ -299,6 +302,8 @@ coercePass = _coercePass
 newtype Ext (p :: Pass) t = Ext {getExt :: t} deriving (Show, Eq, Generic, Data, Functor)
 data IgnoreExt (p :: Pass) = IgnoreExt deriving (Show, Eq, Generic, Data)
 data ExtVoid (p :: Pass) deriving (Show, Eq, Generic, Data)
+data Ext2_1 (p :: Pass) a b = Ext2_1 a b deriving (Show, Eq, Generic, Data)
+data Ext2_12 (p :: Pass) a b = Ext2_12 a b deriving (Show, Eq, Generic, Data)
 data Ext3_1 (p :: Pass) a b c = Ext3_1 a b c deriving (Show, Eq, Generic, Data)
 
 absurd :: ExtVoid t -> a
@@ -306,6 +311,12 @@ absurd x = case x of
 
 instance (Coercible t1 t2) => CoercePass (Ext p1 t1) (Ext p2 t2) p1 p2 where
     _coercePass (Ext x) = Ext (coerce x)
+
+instance (CoercePass a a' p1 p2, Coercible b b') => CoercePass (Ext2_1 p1 a b) (Ext2_1 p2 a' b') p1 p2 where
+    _coercePass (Ext2_1 x y) = Ext2_1 (coercePass x) (coerce y)
+
+instance (CoercePass a a' p1 p2, CoercePass b b' p1 p2, Coercible b b') => CoercePass (Ext2_12 p1 a b) (Ext2_12 p2 a' b') p1 p2 where
+    _coercePass (Ext2_12 x y) = Ext2_12 (coercePass x) (coercePass y)
 
 instance (CoercePass a a' p1 p2, Coercible b b', Coercible c c') => CoercePass (Ext3_1 p1 a b c) (Ext3_1 p2 a' b' c') p1 p2 where
     _coercePass (Ext3_1 x y z) = Ext3_1 (coercePass x) (coerce y) (coerce z)

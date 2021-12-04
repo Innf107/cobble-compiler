@@ -32,7 +32,7 @@ data QualificationError = NameNotFound LexInfo Text
                         deriving (Show, Eq)
 
 data Scope = Scope {
-        _scopeVars :: Map Text QualifiedName
+        _scopeVars :: Map Text (QualifiedName)
     ,   _scopeTypes :: Map Text (QualifiedName, Kind, TypeVariant)
     ,   _scopeTVars :: Map Text (QualifiedName, Kind)
     ,   _scopeVariantConstrs :: Map Text (QualifiedName, Int, Int)
