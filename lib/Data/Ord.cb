@@ -1,0 +1,9 @@
+
+variant Ordering = LT | EQ | GT;
+
+-- TODO: class Eq a => Ord a
+class Ord a {
+    compare :: a -> a -> Ordering;
+};
+
+

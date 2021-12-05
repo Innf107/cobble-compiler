@@ -1,0 +1,12 @@
+-- laws:
+-- associativity: (x + y) + z = x + (y + z)
+class Semigroup a {
+    plus :: a -> a -> a;
+};
+
+(+) :: Semigroup a => a -> a -> a;
+(+) = plus;
+
+instance Semigroup Int {
+    plus x y = __add__ x y;
+};

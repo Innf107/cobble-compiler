@@ -1,0 +1,21 @@
+import Bool; -- TODO: Data.Bool
+
+class Eq a {
+    eq :: a -> a -> Bool; -- TODO: typeclass methods should support infix declarations
+};
+
+infixl 4 
+(==) :: Eq a => a -> a -> Bool;
+(==) = eq;
+
+infixl 4
+(/=) :: Eq a => a -> a -> Bool;
+(/=) x y = not (x == y);
+
+instance Eq Int {
+    eq x y = __eq__ x y;
+};
+
+instance Eq Bool {
+    eq x y = if x then y else not y;
+};
