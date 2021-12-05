@@ -19,6 +19,10 @@ type instance XImport           Typecheck = IgnoreExt Typecheck
 type instance XDefStruct        Typecheck = Ext Typecheck Kind
 type instance XDefVariant       Typecheck = Ext Typecheck Kind
 type instance XDefVariantClause Typecheck = Ext Typecheck (Int, Int)
+type instance XDefClass         Typecheck = Ext Typecheck Kind
+-- XDefInstance uses a list of pairs instead of a Map, because SemAnalysis shuffles declarations around
+-- to have the same order as class declaration.
+type instance XDefInstance      Typecheck = Ext Typecheck ([(QualifiedName, Type Codegen)], [TVar Codegen])
 type instance XStatement        Typecheck = ExtVoid Typecheck
 
 type instance XFCall            Typecheck = IgnoreExt Typecheck

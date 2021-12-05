@@ -1,4 +1,5 @@
 {-#LANGUAGE TemplateHaskell#-}
+{-#OPTIONS_GHC -Wno-orphans#-}
 module Language.Cobble.Typechecker where
 
 import Language.Cobble.Prelude
@@ -15,13 +16,20 @@ import qualified Data.Text as T
 
 import qualified Data.Map as M
 
-type NextPass = 'PostProcess
+type NextPass = PostProcess
 
 type Type = C.Type NextPass
 
-newtype TCState = TCState {
+data TCState = TCState {
     _varTypes :: M.Map QualifiedName Type
-} deriving (Show, Eq, Generic, Data, Semigroup, Monoid)
+,   _tcInstances :: M.Map QualifiedName [Type] 
+    -- ^ Once multiparam typeclasses are implemented, this will have to be @M.Map QualfiedName [[Type]]@
+} deriving (Show, Eq, Generic, Data)
+instance Semigroup TCState where
+    (TCState t1 i1) <> (TCState t2 i2) = TCState (t1 <> t2) (i1 <> i2)
+instance Monoid TCState where
+    mempty = TCState mempty mempty
+
 makeLenses ''TCState
 
 data TypeError = DifferentConstructor LexInfo Type Type 
@@ -31,13 +39,17 @@ data TypeError = DifferentConstructor LexInfo Type Type
                | NoStructsForType LexInfo Type
                | AmbiguousStructAccess LexInfo Type [Type]
                | SkolBinding LexInfo Type Type
+               | NoInstanceFor LexInfo (Constraint NextPass)
+               | AmbiguousInstanceFor LexInfo (Constraint NextPass) [TGiven]
                deriving (Show, Eq, Generic, Data)
 
 type TConstraint = (TConstraintComp, LexInfo)
 
-data TConstraintComp = Type :~ Type 
+
+data TConstraintComp = Type :~ Type
                      | OneOf Type [Type]
                      deriving (Show, Eq, Generic, Data)
+
 
 newtype Substitution = Subst {unSubst :: Map (TVar NextPass) Type} 
     deriving stock   (Show, Eq, Generic, Data)
@@ -61,22 +73,55 @@ using the same Map for both is safe.
 lookupType :: Members '[State TCState, Fresh (TVar NextPass) (TVar NextPass)] r => QualifiedName -> Sem r Type
 lookupType v = gets (lookup v . view varTypes) <&> fromMaybe (error $ "lookupType: Typechecker cannot find variable: " <> show v)
 
-instantiate :: Members '[Fresh (TVar NextPass) (TVar NextPass)] r => Type -> Sem r Type
-instantiate (TForall ps t) = foldrM (\p r -> freshVar p <&> \p' -> replaceTVar p (TVar p') r) t ps
-instantiate x              = pure x
+instantiate :: forall r. Members '[Fresh (TVar NextPass) (TVar NextPass), Writer [TWanted]] r => LexInfo -> Type -> Sem r Type
+instantiate li ty = fst <$> instantiateWithWanteds li ty
+
+instantiateWithWanteds :: forall r. Members '[Fresh (TVar NextPass) (TVar NextPass), Writer [TWanted]] r => LexInfo -> Type -> Sem r (Type, [TWanted])
+instantiateWithWanteds li = \case
+    (TForall ps t) -> instantiateConstraints =<< foldrM (\p r -> freshVar p <&> \p' -> replaceTVar p (TVar p') r) t ps
+    ty -> instantiateConstraints ty
+    where
+        instantiateConstraints :: Type -> Sem r (Type, [TWanted])
+        instantiateConstraints (TConstraint c ty) = do
+            let wanted = TWanted c li
+            tell [wanted]
+            (second (wanted:)) <$> instantiateConstraints ty
+        instantiateConstraints x = pure (x, [])
 
 -- currently only skolemizes top level foralls (since higher-ranked polymorphism is not implemented yet)
-skolemize :: Members '[Fresh (TVar NextPass) (TVar NextPass)] r => Type -> Sem r Type
-skolemize (TForall ps t) = foldrM (\p r -> freshVar p <&> \p' -> replaceTVar p (TSkol p') r) t ps
-skolemize x              = pure x
+skolemize :: forall r. Members '[Fresh (TVar NextPass) (TVar NextPass), Writer [TGiven]] r => LexInfo -> Type -> Sem r Type
+skolemize li (TForall ps t) = skolemizeConstraints =<< foldrM (\p r -> freshVar p <&> \p' -> replaceTVar p (TSkol p') r) t ps
+    where 
+        skolemizeConstraints :: Type -> Sem r Type 
+        skolemizeConstraints (TConstraint c ty) = do
+            tell [TGiven c li]
+            skolemizeConstraints ty
+        skolemizeConstraints x = pure x
+skolemize _ x              = pure x
 
 insertType :: Members '[State TCState] r => QualifiedName -> Type -> Sem r ()
-insertType v t = modify (varTypes %~ insert v t)
+insertType v n = modify (varTypes %~ insert v n)
 
-getType' :: (Members '[Fresh (TVar NextPass) (TVar NextPass)] r, HasType a NextPass) => a -> Sem r Type
-getType' = instantiate . getType
+insertInstance :: Members '[State TCState, Writer [TGiven]] r => LexInfo -> QualifiedName -> Type -> Sem r ()
+insertInstance li v t = addToState >> emitGiven
+    where  
+        addToState = modify $ tcInstances . at v %~ \case
+            Nothing -> Just [t]
+            Just ts -> Just (t:ts)
+        emitGiven = tell [TGiven (MkConstraint v t) li]
 
-checkStmnt :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass), State TCState] r 
+getType' :: (Members '[Fresh (TVar NextPass) (TVar NextPass), Writer [TWanted]] r, HasType a NextPass, HasLexInfo a) 
+         => a 
+         -> Sem r Type
+getType' x = getTypeWith' (getLexInfo x) x
+
+getTypeWith' :: (Members '[Fresh (TVar NextPass) (TVar NextPass), Writer [TWanted]] r, HasType a NextPass) 
+             => LexInfo 
+             -> a 
+             -> Sem r Type
+getTypeWith' li = instantiate li . getType
+
+checkStmnt :: Members '[Writer [TConstraint], Writer [TWanted], Writer [TGiven], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass), State TCState] r 
            => Statement Typecheck 
            -> Sem r (Statement NextPass)
 checkStmnt (Import IgnoreExt li mod) = pure $ Import IgnoreExt li mod
@@ -87,25 +132,58 @@ checkStmnt (DefVariant (Ext k) li sname ps cs) = do
         insertType cname constrTy
         pure (cname, fs, Ext3_1 constrTy ep ix)
     pure (DefVariant (Ext k) li sname (coercePass ps) cs')
-checkStmnt (Def IgnoreExt li (Decl IgnoreExt f (Ext ps) e) (coercePass -> ty)) = do
+checkStmnt (DefClass (Ext k) li cname ps meths) = do
+    -- Assumes that implicit foralls and constraints have been added
+    -- in SemAnalysis
+    forM_ meths \(mname, mtype) -> do
+        insertType mname (coercePass mtype)
+    
+    pure $ DefClass (Ext k) li cname (coercePass ps) (map (second coercePass) meths)
+checkStmnt (DefInstance (Ext (defs, classPs)) li cname (coercePass -> ty) decls) = do
+    insertInstance li cname ty
+    decls' <- forM (zip defs decls) \((fname, coercePass -> declTy), d@(Decl IgnoreExt declFname _ _)) -> do
+        -- sanity check
+        when (fname /= declFname) $ error $ "checkStmnt: Tyclass instance for '" <> show cname <> "' was not properly reordered"
+        
+        let declTy' = case coercePass classPs of
+                [p] -> replaceTVar p ty declTy
+                _ -> error $ "checkStmnt: Multiparam instances NYI: " <> show classPs
+
+        (givens, ty') <- tapAssocR @[TGiven] $ skolemize li declTy'
+        -- traceM $ show declFname <> ": " <> show givens <> " arising from: " <> toString (ppType declTy')
+        decl' <- checkDecl d givens
+        tellLI li [ty' :~ (getType decl')]
+        pure decl'
+    pure (DefInstance (Ext (map (second coercePass) defs, coercePass classPs)) li cname (coercePass ty) decls')
+
+checkStmnt (Def IgnoreExt li decl@(Decl IgnoreExt f _ _) (coercePass -> ty)) = do
     insertType f ty
-    ty' <- skolemize ty
+    (givens, ty') <- tapAssocR @[TGiven] $ skolemize li ty
+    decl' <- checkDecl decl givens
+    tellLI li [ty' :~ getType decl']
+    pure (Def IgnoreExt li decl' ty)
+
+checkDecl :: Members '[Writer [TConstraint], Writer [TWanted], Writer [TGiven], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass), State TCState] r
+          => Decl Typecheck 
+          -> [TGiven]
+          -> Sem r (Decl NextPass)
+checkDecl (Decl IgnoreExt f (Ext ps) e) gs = do
     psTys <- traverse (\_ -> freshTV KStar) ps
     zipWithM_ insertType ps psTys
-
     e' <- check e
     eTy <- getType' e'
-    tellLI li [ty' :~ foldr (:->) eTy psTys]
-    pure (Def IgnoreExt li (Decl (Ext ty') f (Ext (zip ps psTys)) e') ty)
+    let resTy = foldr (:->) eTy psTys
+    pure (Decl (Ext2_1 resTy gs) f (Ext (zip ps psTys)) e')
 
-checkStmnt (StatementX x _) = absurd x
-
-check :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass), State TCState] r 
+check :: Members '[Writer [TConstraint], Writer [TWanted], Writer [TGiven], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass), State TCState] r 
       => Expr Typecheck 
       -> Sem r (Expr NextPass)
 check (IntLit IgnoreExt li n)   = pure (IntLit IgnoreExt li n)
 check (UnitLit li)              = pure (UnitLit li)
-check (Var IgnoreExt li vname)  = Var . Ext <$> lookupType vname <*> pure li <*> pure vname
+check (Var IgnoreExt li vname)  = do
+    (ty, wanteds) <- instantiateWithWanteds li =<< lookupType vname
+    -- traceM (show vname <> ": " <> show wanteds)
+    pure $ Var (Ext2_1 ty wanteds) li vname
 -- See note [lookupType for VariantConstr]
 check (VariantConstr (Ext (e,i)) li cname) = VariantConstr . Ext . (,e,i) <$> lookupType cname <*> pure li <*> pure cname
 check (FCall IgnoreExt li f as) = do
@@ -144,7 +222,10 @@ check (Let IgnoreExt li (Decl IgnoreExt f (Ext ps) e) body) = do
     body' <- check body
 
     tellLI li [fTy :~ foldr (:->) eTy psTys]
-    pure (Let IgnoreExt li (Decl (Ext fTy) f (Ext (zip ps psTys)) e') body')
+    -- TODO: Let removes all constraints, which is intended, but we need to make sure
+    -- that all constraints are properly instantiated 
+    -- (which should probably be fine thanks to the lack of generalization).
+    pure (Let IgnoreExt li (Decl (Ext2_1 fTy []) f (Ext (zip ps psTys)) e') body')
 check (StructConstruct structDef li structName fields) = do
     let sTy = coercePass $ structDef ^. structType
     
@@ -177,23 +258,32 @@ check (StructAccess possibleStructs li sexpr field) = do
     tellLI li [OneOf sexprTy structTys]
     -- Codegen needs the correct StructDef, but we don't know that until the constraint solver is done
     pure (StructAccess (Ext (coercePass possibleStructs, sexprTy, retTy)) li sexpr' field)
-check (ExprX x _) = absurd x
 
-typecheck :: Members '[Error TypeError, Fresh Text QualifiedName, State TCState, Dump [TConstraint], Output Log] r 
+typecheck :: Members '[Error TypeError, Fresh Text QualifiedName, State TCState, Dump [TConstraint], Dump [TGiven], Dump [TWanted], Output Log] r 
           => Module Typecheck 
           -> Sem r (Module NextPass)
 typecheck (Module (Ext deps) mname sts) = do
-    (constraints, sts') <- runWriterAssocR $ runFreshM freshenTV $ traverse checkStmnt sts
+    (constraints, (givens, (wanteds, sts'))) <- runWriterAssocR @[TConstraint] 
+                                            $ runWriterAssocR @[TGiven] 
+                                            $ runWriterAssocR @[TWanted]
+                                            $ runFreshM freshenTV 
+                                            $ traverse checkStmnt sts
+    
     dump constraints
     subst <- solve mempty constraints
-    pure $ Module (Ext deps) mname (applySubst subst sts')
+    let givens'  = applySubst subst givens
+        wanteds' = applySubst subst wanteds
+    dump givens'
+    dump wanteds'
+    subst' <- solveGivensWanteds givens' wanteds' subst
+    pure $ Module (Ext deps) mname (applySubst subst' sts')
         where
             freshenTV :: forall r. Members '[Fresh Text QualifiedName] r => TVar NextPass -> Sem r (TVar NextPass)
             freshenTV (MkTVar x k) = MkTVar <$> freshVar (originalName x) <*> pure k 
 
 solve :: Members '[Error TypeError, Output Log] r => Substitution -> [TConstraint] -> Sem r Substitution
 solve s (((applySubst s -> t1) :~ (applySubst s -> t2), li):cs) = do
-    log LogDebugVerbose $ "Solving constraint: " <> ppConstraint (t1 :~ t2)
+    log LogDebugVerbose $ "Solving constraint: " <> ppTConstraint (t1 :~ t2)
     s' <- runReader li $ unify t1 t2
     solve (s <> s') cs 
 
@@ -206,42 +296,81 @@ solve s ((OneOf (applySubst s -> t1) (map (applySubst s) -> ts), li):cs) = do
 solve s [] = pure s
 
 unify :: Members '[Reader LexInfo, Error TypeError, Output Log] r => Type -> Type -> Sem r Substitution
-unify t1 t2 = do
-    s <- unify' t1 t2
+unify t1 t2 = runReader [] $ unify' t1 t2
+
+unify' :: Members '[Reader LexInfo, Reader [Constraint NextPass], Error TypeError, Output Log] r => Type -> Type -> Sem r Substitution
+unify' t1 t2 = do
+    s <- unify'' t1 t2
     log LogDebugVeryVerbose $ "Unified: " <> ppType t1 <> " ~ " <> ppType t2 <> "\n    -> " <> show s 
     pure s
 
-unify' :: Members '[Reader LexInfo, Error TypeError, Output Log] r => Type -> Type -> Sem r Substitution
-unify' t1@(TCon c1 _k1) t2@(TCon c2 _k2)
+unify'' :: Members '[Reader LexInfo, Reader [Constraint NextPass], Error TypeError, Output Log] r => Type -> Type -> Sem r Substitution
+unify'' t1@(TCon c1 _k1) t2@(TCon c2 _k2)
     | c1 == c2 = pure mempty
     | otherwise = throwLI \li -> DifferentConstructor li t1 t2
-unify' (TVar tv) t2              = bind tv t2
-unify' t1 (TVar tv)              = bind tv t1
-unify' (TApp c1 a1) (TApp c2 a2) = do
-    s <- unify c1 c2
-    (s <>) <$> unify (applySubst s a1) (applySubst s a2)
+unify'' (TVar tv) t2              = bind tv t2
+unify'' t1 (TVar tv)              = bind tv t1
+unify'' (TApp c1 a1) (TApp c2 a2) = do
+    s <- unify' c1 c2
+    (s <>) <$> unify' (applySubst s a1) (applySubst s a2)
 
-
--- Not entirely sure about this. In this article,
--- every skolem unifies with any other skolem (which seems *very* wrong).
--- (https://abby.how/posts/amulets-new-type-checker.html)
-unify' (TSkol tv1) (TSkol tv2)
+-- Skolems only unify with themselves
+unify'' (TSkol tv1) (TSkol tv2)
     | tv1 == tv2 = pure mempty
 
-unify' t1@TCon{}    t2@TApp{}    = throwLI \li -> NotEnoughArgs li t1 t2
-unify' t1@TApp{}    t2@TCon{}    = throwLI \li -> NotEnoughArgs li t1 t2
-unify' t1@TForall{} t2           = throwLI \li -> HigherPoly li t1 t2
-unify' t1           t2@TForall{} = throwLI \li -> HigherPoly li t1 t2
-unify' t1@TSkol{}   t2           = throwLI \li -> SkolBinding li t1 t2
-unify' t1           t2@TSkol{}   = throwLI \li -> SkolBinding li t1 t2    
+unify'' t1@TCon{}    t2@TApp{}    = throwLI \li -> NotEnoughArgs li t1 t2
+unify'' t1@TApp{}    t2@TCon{}    = throwLI \li -> NotEnoughArgs li t1 t2
+unify'' t1@TForall{} t2           = throwLI \li -> HigherPoly li t1 t2
+unify'' t1           t2@TForall{} = throwLI \li -> HigherPoly li t1 t2
 
-bind :: Members '[Reader LexInfo, Error TypeError] r => TVar NextPass -> Type -> Sem r Substitution
+unify'' t1@TConstraint{} t2      = throwLI \li -> HigherPoly li t1 t2
+unify'' t1 t2@TConstraint{}      = throwLI \li -> HigherPoly li t1 t2
+
+unify'' t1@TSkol{}   t2           = throwLI \li -> SkolBinding li t1 t2
+unify'' t1           t2@TSkol{}   = throwLI \li -> SkolBinding li t1 t2
+
+solveGivensWanteds :: Members '[Error TypeError] r
+                   => [TGiven]
+                   -> [TWanted]
+                   -> Substitution
+                   -> Sem r Substitution
+solveGivensWanteds givens (w@(TWanted c li) : wanteds) subst = case mapMaybe (\g -> if constraintApplies g w then Just g else Nothing) givens of
+    [_] -> solveGivensWanteds givens wanteds subst
+    [] -> throw $ NoInstanceFor li c
+    is  | allEqual (map (\(TGiven c _) -> c) is) -> solveGivensWanteds givens wanteds subst
+        | otherwise -> throw $ AmbiguousInstanceFor li c is
+solveGivensWanteds _ [] subst = pure subst
+
+allEqual :: Eq a => [a] -> Bool
+allEqual [] = True
+allEqual [_] = True
+allEqual (x:y:xs) = x == y && allEqual (y:xs)
+
+constraintApplies :: TGiven -> TWanted -> Bool
+constraintApplies (TGiven (MkConstraint gc gt) _) (TWanted (MkConstraint wc wt) _) 
+    | gc == wc  = morePolymorphic gt wt
+    | otherwise = False
+    where
+        morePolymorphic :: Type -> Type -> Bool
+        morePolymorphic (TCon c1 _) (TCon c2 _)     = c1 == c2
+        morePolymorphic (TCon _ _) _                = False
+        morePolymorphic (TApp a1 b1) (TApp a2 b2)   = morePolymorphic a1 a2 && morePolymorphic b1 b2
+        morePolymorphic (TApp _ _) _                = False
+        morePolymorphic (TVar _) _                  = True
+        morePolymorphic (TSkol v1) (TSkol v2)       = v1 == v2
+        morePolymorphic (TSkol _) _                 = False
+        morePolymorphic (TForall _ _) _             = error "morePolymorphic: foralls in constraint are not implemented!"
+        morePolymorphic (TConstraint _ _) _         = error "morePolymorphic: nested constraints are not implemented!"
+
+
+bind :: Members '[Reader LexInfo, Reader [Constraint NextPass], Error TypeError] r => TVar NextPass -> Type -> Sem r Substitution
 bind tv t
     | occurs tv t   = throwLI (\li -> Occurs li tv t)
     | TVar tv == t  = pure mempty
-    | otherwise     = pure (Subst (one (tv, t)))
+    | otherwise     = ask <&> \cs -> (Subst (one (tv, addConstraints cs t)))
 
-
+addConstraints :: [Constraint NextPass] -> Type -> Type
+addConstraints cs t = foldr TConstraint t cs
 
 occurs :: TVar NextPass -> Type -> Bool
 occurs _ TVar{} = False
@@ -270,11 +399,18 @@ throwLI e = ask >>= throw . e
 
 
 ppTC :: [TConstraint] -> Text
-ppTC = unlines . map (\(c, l) -> ppConstraint c <> "    @" <> show l) 
+ppTC = unlines . map (\(c, l) -> ppTConstraint c <> "    @" <> show l) 
 
-ppConstraint :: TConstraintComp -> Text
-ppConstraint (t1 :~ t2)     = ppType t1 <> " ~ " <> ppType t2
-ppConstraint (OneOf t1 ts)  = ppType t1 <> " ∈ {" <> T.intercalate ", " (map ppType ts) <> "}"
+ppWanteds :: [TWanted] -> Text
+ppWanteds = unlines . map (\(TWanted c li) -> ppConstraint c <> " @" <> show li)
+
+ppGivens :: [TGiven] -> Text
+ppGivens = unlines . map (\(TGiven c li) -> ppConstraint c <> " @" <> show li)
+
+
+ppTConstraint :: TConstraintComp -> Text
+ppTConstraint (t1 :~ t2)     = ppType t1 <> " ~ " <> ppType t2
+ppTConstraint (OneOf t1 ts)  = ppType t1 <> " ∈ {" <> T.intercalate ", " (map ppType ts) <> "}"
 
 ppType :: Type -> Text
 ppType (a :-> b)            = "(" <> ppType a <> " -> " <> ppType b <> ")"
@@ -283,5 +419,19 @@ ppType (TSkol (MkTVar v _)) = "@" <> show v
 ppType (TCon v _)           = show v
 ppType (TApp a b)           = "(" <> ppType a <> " " <> ppType b <> ")"
 ppType (TForall ps t)       = "(∀" <> T.intercalate " " (map (\(MkTVar v _) -> show v) ps) <> ". " <> ppType t <> ")"
+ppType (TConstraint c t)    = ppConstraint c <> " => " <> ppType t
 
--- (forall a3. ((->) (forall a3. a3))) (forall a3. a3)
+ppConstraint :: Constraint NextPass -> Text
+ppConstraint (MkConstraint n t) = show n <> " " <> ppType t
+
+extractConstraints :: Type -> [Constraint NextPass]
+extractConstraints (TForall _ t) = extractConstraints t
+extractConstraints (TConstraint c t) = c : extractConstraints t
+extractConstraints _ = []
+
+tapWith :: (Members '[Writer o] r) => (Sem (Writer o : r) a -> Sem r (o, a)) -> Sem (Writer o : r) a -> Sem r (o, a)
+tapWith runW x = runW x >>= \(o, res) -> tell o >> pure (o, res)
+
+tapAssocR :: (Members '[Writer o] r, Monoid o) => Sem (Writer o : r) a -> Sem r (o, a)
+tapAssocR = tapWith runWriterAssocR
+

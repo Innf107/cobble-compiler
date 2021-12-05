@@ -13,8 +13,6 @@ import Data.Map qualified as M
 
 type NextPass = SemAnalysis
   
---type QualifyC r = Members '[State Int, State [Scope], Error QualificationError, Output Log] r
-
 data QualificationError = NameNotFound LexInfo Text
                         | VariantConstrNotFound LexInfo Text
                         | TypeNotFound LexInfo Text
@@ -29,10 +27,12 @@ data QualificationError = NameNotFound LexInfo Text
                         | AmbiguousVariantConstrName LexInfo Text [(QualifiedName, Int)]
                         | AmbiguousTypeName LexInfo Text [(QualifiedName, Kind, TypeVariant)]
                         | AmbiguousTVarName LexInfo Text [(QualifiedName, Kind)]
+                        | InstanceForNonClass LexInfo QualifiedName Kind TypeVariant
+                        | NonClassInConstraint LexInfo QualifiedName Kind TypeVariant
                         deriving (Show, Eq)
 
 data Scope = Scope {
-        _scopeVars :: Map Text QualifiedName
+        _scopeVars :: Map Text (QualifiedName)
     ,   _scopeTypes :: Map Text (QualifiedName, Kind, TypeVariant)
     ,   _scopeTVars :: Map Text (QualifiedName, Kind)
     ,   _scopeVariantConstrs :: Map Text (QualifiedName, Int, Int)
@@ -96,8 +96,8 @@ withVar :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error 
         -> (QualifiedName -> Sem r a) 
         -> Sem r a
 withVar l n a = do
-                n' <- freshVar (n, l)
-                withVar' l n n' (a n')
+        n' <- freshVar (n, l)
+        withVar' l n n' (a n')
 
 withVar' :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
         => LexInfo 
@@ -110,7 +110,16 @@ withVar' l n qn a = do
     if alreadyInScope 
     then throw (VarAlreadyDeclaredInScope l n)
     else local (_head . scopeVars %~ insert n qn) a
-    
+
+withVars :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r
+    => LexInfo
+    -> [UnqualifiedName]
+    -> ([QualifiedName] -> Sem r a)
+    -> Sem r a
+withVars l ns a = do
+    ns' <- traverse (\n -> freshVar (n, l)) ns
+    withVars' l (zip ns ns') (a ns')
+
 withVars' :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r  
         => LexInfo 
         -> [(Text, QualifiedName)]
@@ -174,7 +183,7 @@ withVariantConstrs' :: Members '[Reader [Scope], Fresh (Text, LexInfo) Qualified
         -> Sem r a 
         -> Sem r a
 withVariantConstrs' = withMany (\l (x,ep,i,x') -> withVariantConstr' l x ep i x')
-
+    
 
 withType :: Members '[Reader [Scope], Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
          => LexInfo
@@ -250,7 +259,6 @@ qualifyStmnts = \case
                 <$> withType' li n n' k (RecordType ps' (map (second coercePass) fields')) 
                     (qualifyStmnts sts)
 
-
     -- Type Constructors should `not` just be treated as functions, since that would
     -- massively complicate codegen
     (DefVariant IgnoreExt li n ps constrs : sts) -> do
@@ -267,7 +275,29 @@ qualifyStmnts = \case
             <$> (withType' li n n' k (VariantType (coercePass ps') (map (\(x,y,_,_) -> (x, coercePass y)) constrs')) 
                 $ withVariantConstrs' li (zipWith (\(x,_,_)(y,_,ep,i) -> (x, ep, i, y)) constrs constrs')
                 $ qualifyStmnts sts)
-    (StatementX x _ : _) -> absurd x
+
+    -- Typeclass definitions also need the ugly hack, because
+    -- the renamed methods have to be inserted in @withType@...
+    (DefClass IgnoreExt li n ps meths : sts) ->
+        withTVars li ps \ps' -> do
+            let k = foldr (\(MkTVar _ k) r -> k `KFun` r) KConstraint ps'
+            (n', meths') <- withType li n k (TyClass (coercePass ps') []) \n' ->
+                let (methNames, methTys) = unzip meths in
+                withVars li methNames \methNames' -> do
+                    (n',) . zip methNames' <$> (traverse (qualifyTypeWithTVars (fromList (zip ps ps')) li) methTys) 
+            withType' li n n' k (TyClass (coercePass ps') (map (second coercePass) meths')) $
+                withVars' li (map (\(qn,_) -> (originalName qn, qn)) meths') $
+                    (:)
+                        <$> pure (DefClass (Ext k) li n' ps' meths')
+                        <*> qualifyStmnts sts
+    (DefInstance IgnoreExt li cn t decls : sts) ->
+        lookupType li cn >>= \case
+            (cn', _, TyClass ps tys) -> do
+                t' <- qualifyType li t
+                (:)
+                    <$> (DefInstance (Ext (tys, ps)) li cn' t' <$> forM decls \d -> qualifyExistingDecl li d)
+                    <*> qualifyStmnts sts
+            (cn', k, tv) -> throw (InstanceForNonClass li cn' k tv)
 
 qualifyExp :: forall r. Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
            => Expr QualifyNames
@@ -339,6 +369,15 @@ qualifyExp = \case
         2  ...                                      1   2
 -}
 
+
+{-  Takes a name and qualifys the @Decl@ accordingly, replacing the old name with the new one.
+    No check is performed to verify that the names match.
+    
+    This should typically be used in conjunction with @withVar@, e.g.
+    ```
+    withVar li n >>= \n' -> qualifyDeclWith li n' decl
+    ```
+-}
 qualifyDeclWith :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
                 => QualifiedName
                 -> LexInfo
@@ -348,20 +387,49 @@ qualifyDeclWith n' li (Decl IgnoreExt _ (Ext params) e) =
     uncurry (Decl IgnoreExt n' . Ext)
     <$> foldr (\p r -> withVar li p \p' -> first (p' :) <$> r) (([],) <$> qualifyExp e) params
 
-qualifyDecl :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
+-- Qualifies a @Decl@ by looking up the name in the environment
+-- This should be used, when the function name is already known, e.g. in type class instances  
+qualifyExistingDecl :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
             => LexInfo
             -> Decl QualifyNames
             -> Sem r (Decl NextPass)
-qualifyDecl li d@(Decl _ n _ _) = withVar li n \n' -> qualifyDeclWith n' li d
+qualifyExistingDecl li d@(Decl _ n _ _) = lookupVar li n >>= \n' -> qualifyDeclWith n' li d
+
+qualifyTypeWithTVars :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
+            => Map (TVar QualifyNames) (TVar NextPass)
+            -> LexInfo
+            -> Type QualifyNames
+            -> Sem r (Type NextPass)
+qualifyTypeWithTVars tvs li = \case
+    TCon n () -> (\(n', k, _) -> TCon n' k) <$> lookupType li n
+    TVar tv 
+        | Just tv' <- lookup tv tvs -> pure (TVar tv')
+        | MkTVar n () <- tv -> pure $ TVar (MkTVar (unsafeQualifiedName n n li) KStar)
+    TSkol (MkTVar _ ())     -> error "qualifyTypeWithTVars: source-level skolems should not exist"
+    TApp t1 t2              -> TApp <$> qualifyTypeWithTVars tvs li t1 <*> qualifyTypeWithTVars tvs li t2 
+    TForall _ _             -> error "source-level foralls NYI"
+    TConstraint constr t    -> TConstraint <$> qualifyConstraintWithTVars tvs li constr <*> qualifyTypeWithTVars tvs li t
+    where
 
 qualifyType :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
             => LexInfo 
             -> Type QualifyNames
             -> Sem r (Type NextPass)
-qualifyType li = \case 
-    TCon n ()           -> (\(n', k, _) -> TCon n' k) <$> lookupType li n
-    TVar (MkTVar n ())  -> pure $ TVar (MkTVar (unsafeQualifiedName n n li) KStar)  -- TODO: Use lookupTVar
-    TSkol (MkTVar n ()) -> error "qualifyType: source-level skolems should not exist"
-    TApp t1 t2          -> TApp <$> qualifyType li t1 <*> qualifyType li t2 
-    TForall _ _         -> error "source-level foralls NYI"
+qualifyType = qualifyTypeWithTVars mempty
+
+-- TODO: TyClass carries parameters now, so this should be unnecessary?
+qualifyConstraintWithTVars :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
+                  => Map (TVar QualifyNames) (TVar NextPass)
+                  -> LexInfo
+                  -> Constraint QualifyNames
+                  -> Sem r (Constraint NextPass)
+qualifyConstraintWithTVars tvs li  (MkConstraint className arg) = lookupType li className >>= \case
+    (className', _, TyClass _ _) -> MkConstraint className' <$> qualifyTypeWithTVars tvs li arg
+    (className', k, v) -> throw $ NonClassInConstraint li className' k v
+
+qualifyConstraint :: Members '[Error QualificationError, Reader [Scope], Fresh (Text, LexInfo) QualifiedName] r
+                  => LexInfo
+                  -> Constraint QualifyNames
+                  -> Sem r (Constraint NextPass)
+qualifyConstraint = qualifyConstraintWithTVars mempty
 

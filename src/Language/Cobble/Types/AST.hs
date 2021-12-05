@@ -42,17 +42,27 @@ data ModSig = ModSig {
 ,   exportedVariantConstrs  :: Map QualifiedName (Type 'Codegen, Int, Int)
 ,   exportedTypes           :: Map QualifiedName (Kind, TypeVariant)
 ,   exportedFixities        :: Map QualifiedName Fixity
+,   exportedInstances       :: Map QualifiedName [Type Codegen]
 } deriving (Generic, Typeable) -- Instances for @Eq@ and @Data@ are defined in Language.Cobble.Types.AST.Codegen
 
 data TypeVariant = RecordType [TVar Codegen] [(UnqualifiedName, Type 'Codegen)]
                  | VariantType [TVar Codegen] [(QualifiedName, [Type Codegen])]
                  | BuiltInType
+                 | TyClass [TVar Codegen] [(QualifiedName, Type Codegen)]
                  deriving (Generic, Typeable)
 
 type Dependencies = Map QualifiedName ModSig
 
-instance Semigroup ModSig where ModSig vs cs ts fs <> ModSig vs' cs' ts' fs' = ModSig (vs <> vs') (cs <> cs') (ts <> ts') (fs <> fs')
-instance Monoid ModSig where mempty = ModSig mempty mempty mempty mempty
+instance Semigroup ModSig where 
+    ModSig vs cs ts fs is <> ModSig vs' cs' ts' fs' is' = 
+        ModSig 
+            (vs <> vs') 
+            (cs <> cs') 
+            (ts <> ts') 
+            (fs <> fs') 
+            (is `munion` is')
+
+instance Monoid ModSig where mempty = ModSig mempty mempty mempty mempty mempty
 
 -- | A data kind representing the state of the AST at a certain Compiler pass.
 data Pass = SolveModules
@@ -64,19 +74,23 @@ data Pass = SolveModules
 
 
 data Statement (p :: Pass) =
-      Def        (XDef p)           LexInfo (Decl p) (Type p)
-    | Import     (XImport p)        LexInfo (Name p) -- TODO: qualified? exposing?
-    | DefStruct  (XDefStruct p)     LexInfo (Name p) [(TVar p)] [(UnqualifiedName, Type p)]
-    | DefVariant (XDefVariant p)    LexInfo (Name p) [(TVar p)] [(Name p, [Type p], XDefVariantClause p)]
-    | StatementX (XStatement p)     LexInfo
+      Def           (XDef p)            LexInfo (Decl p) (Type p)
+    | Import        (XImport p)         LexInfo (Name p) -- TODO: qualified? exposing?
+    | DefStruct     (XDefStruct p)      LexInfo (Name p) [(TVar p)] [(UnqualifiedName, Type p)]
+    | DefClass      (XDefClass p)       LexInfo (Name p) [(TVar p)] [(Name p, Type p)]
+    | DefInstance   (XDefInstance p)    LexInfo (Name p) (Type p) [Decl p]
+    | DefVariant    (XDefVariant p)     LexInfo (Name p) [(TVar p)] [(Name p, [Type p], XDefVariantClause p)]
+    | StatementX    (XStatement p)      LexInfo
 
 type instance InstanceRequirements (Statement p) = 
-    [XDef p, XImport p, XDefStruct p, XDefVariant p, XDefVariantClause p, XStatement p, Name p, Type p, TVar p, Decl p]
+    [XDef p, XImport p, XDefStruct p, XDefClass p, XDefInstance p, XDefVariant p, XDefVariantClause p, XStatement p, Name p, Type p, TVar p, Decl p]
 
 type family XDef                (p :: Pass)
 type family XParam              (p :: Pass)
 type family XImport             (p :: Pass)
 type family XDefStruct          (p :: Pass)
+type family XDefClass           (p :: Pass)
+type family XDefInstance        (p :: Pass)
 type family XDefVariant         (p :: Pass)
 type family XDefVariantClause   (p :: Pass)
 type family XStatement          (p :: Pass)
@@ -116,7 +130,10 @@ type family XStructConstruct (p :: Pass)
 type family XStructAccess    (p :: Pass)
 type family XExpr            (p :: Pass)
 
-data Kind = KStar | KFun Kind Kind deriving (Eq, Ord, Generic, Data, Typeable)
+data Kind = KStar           
+          | KConstraint 
+          | KFun Kind Kind 
+          deriving (Eq, Ord, Generic, Data, Typeable)
 
 infixr 5 `KFun`
 
@@ -125,12 +142,23 @@ data Type (p :: Pass) = TCon (Name p) (XKind p)
                       | TVar (TVar p)
                       | TSkol (TVar p)
                       | TForall [TVar p] (Type p)
+                      | TConstraint (Constraint p) (Type p)
 
 data TVar (p :: Pass) = MkTVar (Name p) (XKind p)
 
+-- TODO: Ideally, @Constraint@ should be unnecessary and @TConstraint@
+-- should use @Type@ instead. For now there would be no advantage to
+-- this, so Constraint is implemented like this.
+-- TODO: Also, MultiParam Typeclasses!
+-- TODO: This should also really be a List of (Name, Type p), since you might have multiple constraints
+data Constraint p = MkConstraint (Name p) (Type p)
+
+data TGiven  = TGiven  (Constraint PostProcess) LexInfo
+data TWanted = TWanted (Constraint PostProcess) LexInfo
 
 type instance InstanceRequirements (Type p) = [Name p, XKind p, TVar p]
 type instance InstanceRequirements (TVar p) = [Name p, XKind p]
+type instance InstanceRequirements (Constraint p) = [Name p, XKind p, Type p]
 
 (-:>) :: (TyLit (Name p), IsKind (XKind p)) => Type p -> Type p -> Type p
 t1 -:> t2 = TApp (TApp (TCon tyFunT (kFun kStar (kFun kStar kStar))) t1) t2
@@ -138,10 +166,11 @@ infixr 5 -:>
 
 pattern (:->) :: (Name p ~ QualifiedName, Eq (Name p), XKind p ~ Kind) => Type p -> Type p -> Type p
 pattern (:->) t1 t2 = TApp (TApp (TCon (ReallyUnsafeQualifiedName "->" "-minus-gt" InternalLexInfo) (KFun KStar (KFun KStar KStar))) t1) t2
+infixr 1 :->
 
 pattern (:~>) :: (Name p ~ Text, Eq (Name p), XKind p ~ Kind) => Type p -> Type p -> Type p
 pattern (:~>) t1 t2 = TApp (TApp (TCon "->" (KFun KStar (KFun KStar KStar))) t1) t2
-
+infixr 1 :~>
 
 type family XKind (p :: Pass)
 
@@ -197,6 +226,7 @@ lowerPrecedence (RightFix p) (LeftFix p')   = p <= p'
 
 instance S.Show Kind where
     show KStar = "*"
+    show KConstraint = "Constraint"
     show (KFun k1 k2) = "(" <> show k1 <> " -> " <> show k2 <> ")"
 
 class TyLit n where
@@ -225,10 +255,13 @@ class IsKind t where
     kFun :: t -> t -> t
     kStar :: t
     kStar = fromKind KStar
+    kConstraint :: t
+    kConstraint = fromKind KConstraint
     fromKind :: Kind -> t
     fromKind KStar = kStar
     fromKind (KFun k1 k2) = kFun (fromKind k1) (fromKind k2)
-    {-# MINIMAL kFun, (fromKind | kStar) #-}
+    fromKind (KConstraint) = kConstraint
+    {-# MINIMAL kFun, (fromKind | (kStar, kConstraint)) #-}
 instance IsKind () where 
     fromKind _ = ()
     kFun _ _   = ()
@@ -252,7 +285,11 @@ instance ((XKind p) ~ Kind) => HasKind (Type p) where
                 | kp == ka -> pure kr
             (k1, k2) -> Left (k1, k2)
         TForall _ t -> kind t
+        TConstraint _ t -> kind t 
     
+instance (HasKind (Type p)) => HasKind (Constraint p) where
+    kind _ = pure kConstraint 
+
       
 class CoercePass t1 t2 p1 p2 | t1 -> p1, t2 -> p2 where
     _coercePass :: t1 -> t2
@@ -265,6 +302,8 @@ coercePass = _coercePass
 newtype Ext (p :: Pass) t = Ext {getExt :: t} deriving (Show, Eq, Generic, Data, Functor)
 data IgnoreExt (p :: Pass) = IgnoreExt deriving (Show, Eq, Generic, Data)
 data ExtVoid (p :: Pass) deriving (Show, Eq, Generic, Data)
+data Ext2_1 (p :: Pass) a b = Ext2_1 a b deriving (Show, Eq, Generic, Data)
+data Ext2_12 (p :: Pass) a b = Ext2_12 a b deriving (Show, Eq, Generic, Data)
 data Ext3_1 (p :: Pass) a b c = Ext3_1 a b c deriving (Show, Eq, Generic, Data)
 
 absurd :: ExtVoid t -> a
@@ -272,6 +311,12 @@ absurd x = case x of
 
 instance (Coercible t1 t2) => CoercePass (Ext p1 t1) (Ext p2 t2) p1 p2 where
     _coercePass (Ext x) = Ext (coerce x)
+
+instance (CoercePass a a' p1 p2, Coercible b b') => CoercePass (Ext2_1 p1 a b) (Ext2_1 p2 a' b') p1 p2 where
+    _coercePass (Ext2_1 x y) = Ext2_1 (coercePass x) (coerce y)
+
+instance (CoercePass a a' p1 p2, CoercePass b b' p1 p2, Coercible b b') => CoercePass (Ext2_12 p1 a b) (Ext2_12 p2 a' b') p1 p2 where
+    _coercePass (Ext2_12 x y) = Ext2_12 (coercePass x) (coercePass y)
 
 instance (CoercePass a a' p1 p2, Coercible b b', Coercible c c') => CoercePass (Ext3_1 p1 a b c) (Ext3_1 p2 a' b' c') p1 p2 where
     _coercePass (Ext3_1 x y z) = Ext3_1 (coercePass x) (coerce y) (coerce z)
@@ -308,15 +353,19 @@ instance
     ,   CoercePass (XDefStruct p1) (XDefStruct p2) p1 p2
     ,   CoercePass (XDefVariant p1) (XDefVariant p2) p1 p2
     ,   CoercePass (XDefVariantClause p1) (XDefVariantClause p2) p1 p2
+    ,   CoercePass (XDefClass p1) (XDefClass p2) p1 p2
+    ,   CoercePass (XDefInstance p1) (XDefInstance p2) p1 p2
     ,   CoercePass (XStatement p1) (XStatement p2) p1 p2
     )
     => CoercePass (Statement p1) (Statement p2) p1 p2 where
     _coercePass = \case
         Def x l d t -> Def (coercePass x) l (coercePass d) (coercePass t)
         Import x l n -> Import (coercePass x) l n
-        DefStruct x l n ps fs -> DefStruct (coercePass x) l n (map coercePass ps) (map (second coercePass) fs)
-        DefVariant x l n ps vs -> DefVariant (coercePass x) l n (coercePass ps) (map (\(n,ps,cx) -> (n, coercePass ps, coercePass cx)) vs)
-        StatementX x l -> StatementX (coercePass x) l
+        DefStruct x l n ps fs   -> DefStruct (coercePass x) l n (map coercePass ps) (map (second coercePass) fs)
+        DefVariant x l n ps vs  -> DefVariant (coercePass x) l n (coercePass ps) (map (\(n,ps,cx) -> (n, coercePass ps, coercePass cx)) vs)
+        DefClass x l n ps ms    -> DefClass (coercePass x) l n (coercePass ps) (map (second coercePass) ms)
+        DefInstance x l cn t ds -> DefInstance (coercePass x) l cn (coercePass t) (coercePass ds)
+        StatementX x l          -> StatementX (coercePass x) l
 
 instance
     (   Name p1 ~ Name p2
@@ -359,6 +408,7 @@ instance
     (   Name p1 ~ Name p2
     ,   XKind p1 ~ XKind p2
     ,   CoercePass (TVar p1) (TVar p2) p1 p2
+    ,   CoercePass (Constraint p1) (Constraint p2) p1 p2
     )
     => CoercePass (Type p1) (Type p2) p1 p2 where
     _coercePass = \case
@@ -367,6 +417,14 @@ instance
         TVar t -> TVar (coercePass t)
         TSkol t -> TSkol (coercePass t)
         TForall vs t -> TForall (map coercePass vs) (coercePass t)
+        TConstraint n t -> TConstraint (coercePass n) (coercePass t)
+
+instance 
+    (   Name p1 ~ Name p2
+    ,   CoercePass (Type p1) (Type p2) p1 p2
+    )
+    => CoercePass (Constraint p1) (Constraint p2) p1 p2 where
+    _coercePass (MkConstraint cname arg) = MkConstraint cname (coercePass arg)
 
 instance
     (   Name p1 ~ Name p2
