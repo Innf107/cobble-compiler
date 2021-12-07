@@ -118,7 +118,7 @@ compileContents :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName
                 -> Sem r [CompiledModule]
 compileContents contents = do
     tokens <- traverse (\(fn, content) -> mapError LexError $ tokenize (toText fn) content) contents
-    asts   <- traverse (\(ts, n) -> mapError ParseError $ fromEither $ parse (module_ (getModName n)) n ts) (zip tokens (map fst contents))
+    asts   <- traverse (\(ts, n) -> mapError ParseError $ fromEither $ parse module_ n ts) (zip tokens (map fst contents))
 
     orderedMods :: [(S.Module 'SolveModules, [Text])] <- mapError ModuleError $ findCompilationOrder asts
 

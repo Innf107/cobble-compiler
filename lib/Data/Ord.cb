@@ -1,3 +1,4 @@
+module Data.Ord;
 
 variant Ordering = LT | EQ | GT;
 

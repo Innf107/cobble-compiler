@@ -1,3 +1,5 @@
+module Data.Semigroup;
+
 -- laws:
 -- associativity: (x + y) + z = x + (y + z)
 class Semigroup a {

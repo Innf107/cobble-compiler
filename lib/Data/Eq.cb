@@ -1,4 +1,6 @@
-import Bool; -- TODO: Data.Bool
+module Data.Eq;
+
+import Data.Bool;
 
 class Eq a {
     eq :: a -> a -> Bool; -- TODO: typeclass methods should support infix declarations

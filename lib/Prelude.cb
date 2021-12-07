@@ -1,6 +1,8 @@
-import Bool;
-import Eq;
-import Ord;
-import Semigroup;
+module Prelude;
+
+import Data.Bool;
+import Data.Eq;
+import Data.Ord;
+import Data.Semigroup;
 
 

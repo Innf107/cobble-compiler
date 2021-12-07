@@ -125,7 +125,7 @@ compileForTest program = do
             ,   description="testing"
             }
             liftIO $ logLn "Compiling Cobble code"
-            liftIO $ runControllerC opts $ timeToIO $ compileContentsToDataPack (map (\(TModule x y) -> (x, y)) program)
+            liftIO $ runControllerC opts $ timeToIO $ compileContentsToDataPack (map (\(TModule x y) -> (x, "module " <> toText x <> ";\n" <> y)) program)
 
 matchesExpectation :: [Text] -> Expectation -> Bool
 matchesExpectation res = \case

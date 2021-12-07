@@ -1,3 +1,4 @@
+module Data.Bool;
 
 -- TODO: Booleans should really be implemented
 -- as a variant, but for now we have to stick to primops
