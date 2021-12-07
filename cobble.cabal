@@ -72,6 +72,7 @@ library
       Language.Cobble.Util.Polysemy.Dump
       Language.Cobble.Util.Polysemy.FileSystem
       Language.Cobble.Util.Polysemy.Fresh
+      Language.Cobble.Util.Polysemy.StackState
       Language.Cobble.Util.Polysemy.Time
       Language.Cobble.Util.TypeUtils
       Lib
@@ -81,6 +82,7 @@ library
       src
   default-extensions:
       NoImplicitPrelude
+      StrictData
       ApplicativeDo
       LambdaCase
       OverloadedStrings
@@ -133,9 +135,8 @@ library
   build-depends:
       base >=4.7 && <5
     , bytestring
-    , cereal
-    , connection
     , containers
+    , data-default
     , directory
     , dlist
     , filepath
@@ -149,7 +150,6 @@ library
     , relude
     , template-haskell
     , text
-    , these
     , time
     , uniplate
     , zip-archive
@@ -163,6 +163,7 @@ executable cobble
       app
   default-extensions:
       NoImplicitPrelude
+      StrictData
       ApplicativeDo
       LambdaCase
       OverloadedStrings
@@ -215,10 +216,9 @@ executable cobble
   build-depends:
       base >=4.7 && <5
     , bytestring
-    , cereal
     , cobble
-    , connection
     , containers
+    , data-default
     , directory
     , dlist
     , filepath
@@ -233,7 +233,6 @@ executable cobble
     , relude
     , template-haskell
     , text
-    , these
     , time
     , uniplate
     , zip-archive
@@ -266,6 +265,7 @@ test-suite cobble-test
       test
   default-extensions:
       NoImplicitPrelude
+      StrictData
       ApplicativeDo
       LambdaCase
       OverloadedStrings
@@ -318,10 +318,9 @@ test-suite cobble-test
   build-depends:
       base >=4.7 && <5
     , bytestring
-    , cereal
     , cobble
-    , connection
     , containers
+    , data-default
     , directory
     , dlist
     , filepath
@@ -337,7 +336,6 @@ test-suite cobble-test
     , relude
     , template-haskell
     , text
-    , these
     , time
     , uniplate
     , zip-archive

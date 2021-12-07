@@ -175,7 +175,8 @@ compileWithSig m = do
         } : map modSigToScope (toList $ getExt $ xModule m)
 
     let tcState = foldMap (\dsig -> TCState {
-                    _varTypes=coercePass $ exportedVars dsig
+                    _varTypes= fmap coercePass $ exportedVars dsig
+                ,   _tcInstances = coercePass $ exportedInstances dsig
                 })
                 (getExt $ xModule m)
     qMod  <- mapError QualificationError $ runReader qualScopes $ qualify m
@@ -183,7 +184,10 @@ compileWithSig m = do
     saMod <- mapError SemanticError $ runSemanticAnalysis qMod
 
     (lcDefs, sig) <- freshWithInternal do
-        tcMod <- dumpWhenWithM (asks ddumpTC) ppTC "dump-tc.tc" $ mapError TypeError $ evalState tcState $ typecheck saMod
+        tcMod <- dumpWhenWithM (asks ddumpTC) ppGivens "dump-givens.tc" 
+            $ dumpWhenWithM (asks ddumpTC) ppWanteds "dump-wanteds.tc" 
+            $ dumpWhenWithM (asks ddumpTC) ppTC "dump-tc.tc" 
+            $ mapError TypeError $ evalState tcState $ typecheck saMod
 
         let ppMod = postProcess tcMod
 
@@ -207,14 +211,19 @@ extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
 
 makePartialSig :: S.Statement 'Codegen -> ModSig
 makePartialSig = \case
-    Def _ _ (Decl _ n _ _) t        -> mempty {exportedVars = one (n, t)}
+    Def _ _ (Decl (Ext2_1 _ gs) n _ _) t        -> mempty {exportedVars = one (n, t)} -- TODO: what about gs?
     DefStruct (Ext k) _ n ps fs     -> mempty {exportedTypes = one (n, (k, RecordType ps fs))}
-    DefVariant (Ext k) _ n ps cs    -> mempty
-        {   exportedTypes = one (n, (k, VariantType ps (map (\(x,y,_) -> (x,y)) cs)))
-        ,   exportedVariantConstrs = fromList (map (\(n, _, Ext3_1 ty ep i) -> (n, (ty, ep, i))) cs)
+    DefClass (Ext k) _ n ps meths   -> mempty 
+        {   exportedTypes = one (n, (k, TyClass ps meths))
+        ,   exportedVars  = fromList $ 
+                map (second coercePass) meths
+        }
+    DefInstance (Ext _) _ cname ty _ -> mempty {exportedInstances = one (cname, [ty])}
+    DefVariant (Ext k) _ tyName ps cs    -> mempty
+        {   exportedTypes = one (tyName, (k, VariantType ps (map (\(x,y,_) -> (x,y)) cs)))
+        ,   exportedVariantConstrs = fromList (map (\(cname, _, Ext3_1 ty ep i) -> (cname, (ty, ep, i))) cs)
         }
     Import IgnoreExt _ _            -> mempty
-    StatementX v _                  -> absurd v
 
 getModName :: FilePath -> Text
 getModName = toText . FP.dropExtension . L.last . segments
@@ -233,6 +242,7 @@ primModSig = ModSig {
             , (internalQName "->", (KStar `KFun` KStar `KFun` KStar, BuiltInType))
             ]
     ,   exportedFixities = mempty
+    ,   exportedInstances = mempty
     }
 
 dumpLC :: (Members '[FileSystem FilePath Text] r) => LCExpr -> Sem r ()
@@ -252,5 +262,4 @@ dumpAsm = writeFile "dump-asm.mcasm" . renderAsm
     where
         renderAsm :: [Block] -> Text
         renderAsm = T.intercalate "\n\n" . map (\(Block f is) -> "[" <> show f <> "]:\n" <> foldMap (\i -> "    " <> show i <> "\n") is)
-
 

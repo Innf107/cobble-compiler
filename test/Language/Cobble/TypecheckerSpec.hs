@@ -18,13 +18,15 @@ import Language.Cobble qualified as C
 import Test.Hspec as S
 import GHC.Base (errorWithoutStackTrace)
 
+import Data.Map qualified as M
+
 spec :: Spec
 spec = do
     it "really simple variable inference" do
         runTypecheck [
                 "x :: Int;"
             ,   "x = let y = 5 in let z = y in y;"
-            ] `shouldSatisfy` \ast -> case [ty | Var (Ext ty) _ (ReallyUnsafeQualifiedName "y" _ _) :: Expr PostProcess <- universeBi ast] of
+            ] `shouldSatisfy` \ast -> case [ty | Var (Ext2_1 ty _) _ (ReallyUnsafeQualifiedName "y" _ _) :: Expr PostProcess <- universeBi ast] of
                     [] -> False
                     xs -> all (== intT) xs
 
@@ -81,7 +83,7 @@ spec = do
                 Left (SkolBinding _ (TSkol (MkTVar (QName "a") KStar)) (TSkol (MkTVar (QName "b") KStar))) -> True
                 e -> errorWithoutStackTrace $ show e
 
-    it "top level (forall) types keep foralls on local variable AST and are not instantiated (is this correct?)" do
+    it "polymorphic (forall) types are instantiated at usage site" do
         runTypecheck [
                 "f :: a -> a;"
             ,   "f x = x;"
@@ -89,7 +91,7 @@ spec = do
             ,   "g :: Int;"
             ,   "g = f 5;"
             ] `shouldSatisfy` \ast -> case [ty | VarType ty "f" <- universeBi ast] of
-                [TForall [MkTVar (QName "a") KStar] (TVar (MkTVar (QName "a") KStar) :-> TVar (MkTVar (QName "a") KStar))] -> True
+                [IntT :-> IntT] -> True
                 tys -> errorWithoutStackTrace $ toString $ ppTypes tys
 
     it "type variables and skolems unify" do
@@ -110,7 +112,7 @@ spec = do
             ,   "f :: Int;"
             ,   "f = let x = Cons in 0;"
             ]  `shouldSatisfy` \ast -> case [ty | DeclType ty "x" <- universeBi ast] of
-                [intT :-> (TCon (QName "IntList") KStar :-> TCon (QName "IntList") KStar)] -> True
+                [IntT :-> (TCon (QName "IntList") KStar :-> TCon (QName "IntList") KStar)] -> True
                 [] -> errorWithoutStackTrace $ "No variables found. AST:\n" <> show ast 
                 ts -> errorWithoutStackTrace $ toString $ ppTypes ts
     it "polymorphic variant constructors have fully applied types" do
@@ -122,20 +124,102 @@ spec = do
                 [TApp (TCon (QName "List") (KStar `KFun` KStar)) _] -> True
                 [] -> errorWithoutStackTrace $ "No types found. AST:\n" <> show ast 
                 ts -> errorWithoutStackTrace $ toString $ ppTypes ts
+    it "typeclass methods include constraints" do
+        runTypecheckWithState [
+                "class Eq a {"
+            ,   "    eq :: a -> a -> Bool;"
+            ,   "};"
+            ,   ""
+            ,   "x :: Bool;"
+            ,   "x = eq 1 1;"
+            ] `shouldSatisfy` \(TCState{_varTypes}, _) -> case [ty | (QName "eq", ty) <- M.toList _varTypes] of
+                    [TForall [a1] (TConstraint (MkConstraint (QName "Eq") (TVar a2)) (TVar a3 :-> (TVar a4 :-> boolT)))]
+                        | allEqual [a1, a2, a3, a4] -> True
+                    [] -> errorWithoutStackTrace $ "Not found in state: " <> show _varTypes
+                    ts -> errorWithoutStackTrace $ toString $ ppTypes ts
+    it "typeclass methods are instantiated with constraints on variables" do
+        runTypecheck [
+                "class Eq a {"
+            ,   "    eq :: a -> a -> Bool;"
+            ,   "};"
+            ,   ""
+            ,   "instance Eq Int {"
+            ,   "    eq x y = if __le__ x y then __le__ y x else __false__ ();"
+            ,   "};"
+            ,   ""
+            ,   "x :: Bool;"
+            ,   "x = eq 1 1;"
+            ] `shouldSatisfy` withAST' (show . first ppType) (\ast -> [(ty, cs) | Var (Ext2_1 ty cs) _ (QName "eq") :: Expr PostProcess <- universeBi ast]) \case
+                (IntT :-> IntT :-> BoolT, [TWanted (MkConstraint (QName "Eq") IntT) _]) -> True
+                _ -> False
+    it "application of typeclass methods lose constraints" do
+        runTypecheck [
+                "class Eq a {"
+            ,   "    eq :: a -> a -> Bool;"
+            ,   "};"
+            ,   ""
+            ,   "instance Eq Int {"
+            ,   "    eq x y = if __le__ x y then __le__ y x else __false__ ();"
+            ,   "};"
+            ,   ""
+            ,   "x :: Bool;"
+            ,   "x = eq 1 1;"
+            ] `shouldSatisfy` withAST (\ast -> [ty | FCall (Ext ty) _ (VarType _ "eq") _ :: Expr PostProcess <- universeBi ast]) \case
+                BoolT -> True
+                _ -> False
+
+runUnify :: Sem '[Reader LexInfo, Output Log, Error TypeError] a -> Either TypeError a
+runUnify = run . runError . ignoreOutput . runReader InternalLexInfo
+    
+
+withAST :: (Module PostProcess -> [Type PostProcess]) -> (Type PostProcess -> Bool) -> Either TypeError (Module PostProcess) -> Bool
+withAST _ valid (Left err)      = errorWithoutStackTrace (show err) 
+withAST match valid (Right ast) = case match ast of
+    [t] | valid t  -> True
+    [] -> errorWithoutStackTrace $ "Not found"
+    ts -> errorWithoutStackTrace $ toString $ ppTypes ts
+
+withAST' :: (a -> Text) -> (Module PostProcess -> [a]) -> (a -> Bool) -> Either TypeError (Module PostProcess) -> Bool
+withAST' _ _ valid (Left err)      = errorWithoutStackTrace (show err)
+withAST' pretty match valid (Right ast) = case match ast of
+    [t] | valid t  -> True
+    [] -> errorWithoutStackTrace $ "Not found"
+    ts -> errorWithoutStackTrace $ toString $ unlines $ map pretty ts
+
 ppTypes :: [Type PostProcess] -> Text
 ppTypes = unlines . map ppType
 
 pattern VarType :: Type PostProcess -> Text -> Expr PostProcess
-pattern VarType ty name <- Var (Ext ty) _ (QName name)
+pattern VarType ty name <- Var (Ext2_1 ty _) _ (QName name)
 
 pattern DeclType :: Type PostProcess -> Text -> Decl PostProcess
-pattern DeclType ty name <- Decl (Ext ty) (QName name) _ _
+pattern DeclType ty name <- Decl (Ext2_1 ty _) (QName name) _ _
 
 pattern QName :: Text -> QualifiedName
 pattern QName name <- ReallyUnsafeQualifiedName name _ _
 
+pattern IntT :: Type PostProcess
+pattern IntT <- ((==intT) -> True)
+        where
+            IntT = intT
+
+pattern BoolT :: Type PostProcess
+pattern BoolT <- ((==boolT) -> True)
+        where
+            BoolT = boolT
+
 runTypecheck :: [Text] -> Either TypeError (Module PostProcess)
-runTypecheck mod = run $ evalState (TCState {_varTypes = coercePass (exportedVars C.primModSig)}) $ ignoreOutput @Log $ C.dontDump @[TConstraint] $ runError $ C.runFreshQNamesState $ C.freshWithInternal 
+runTypecheck = snd . runTypecheckWithState 
+
+runTypecheckWithState :: [Text] -> (TCState, Either TypeError (Module PostProcess))
+runTypecheckWithState mod = run $ runState (TCState {_varTypes = M.map coercePass (exportedVars C.primModSig), _tcInstances = mempty}) 
+                       $ ignoreOutput @Log 
+                       $ C.dontDump @[TGiven] 
+                       $ C.dontDump @[TWanted] 
+                       $ C.dontDump @[TConstraint] 
+                       $ runError 
+                       $ C.runFreshQNamesState 
+                       $ C.freshWithInternal 
                        $ cobbleCode (unlines mod) >>= typecheck
 
 cobbleCode :: (Member (C.Fresh (Text, LexInfo) QualifiedName) r) => Text -> Sem r (Module Typecheck)
