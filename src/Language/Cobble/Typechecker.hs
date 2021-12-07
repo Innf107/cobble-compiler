@@ -82,8 +82,9 @@ checkStmnt :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh (T
 checkStmnt (Import IgnoreExt li mod) = pure $ Import IgnoreExt li mod
 checkStmnt (DefStruct (Ext k) li sname ps fields) = pure $ DefStruct (Ext k) li sname (map coercePass ps) (map (second coercePass) fields) 
 checkStmnt (DefVariant (Ext k) li sname ps cs) = do
+    let appliedType :: Type = foldl' TApp (TCon sname k) (map (TVar . coercePass) ps)
     cs' <- forM cs \(cname, coercePass -> fs, Ext (ep, ix)) -> do
-        let constrTy = foldr (:->) (TCon sname k) fs
+        let constrTy = foldr (:->) appliedType fs 
         insertType cname constrTy
         pure (cname, fs, Ext3_1 constrTy ep ix)
     pure (DefVariant (Ext k) li sname (coercePass ps) cs')

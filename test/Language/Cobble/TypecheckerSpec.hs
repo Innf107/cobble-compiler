@@ -113,7 +113,15 @@ spec = do
                 [intT :-> (TCon (QName "IntList") KStar :-> TCon (QName "IntList") KStar)] -> True
                 [] -> errorWithoutStackTrace $ "No variables found. AST:\n" <> show ast 
                 ts -> errorWithoutStackTrace $ toString $ ppTypes ts
-
+    it "polymorphic variant constructors have fully applied types" do
+        runTypecheck [
+                "variant List a = Nil | Cons a (List a);"
+            ,   "x :: Int;"
+            ,   "x = let y = Nil in let z = y in 5;"
+            ]   `shouldSatisfy` \ast -> case [ty | VarType ty "y" <- universeBi ast] of
+                [TApp (TCon (QName "List") (KStar `KFun` KStar)) _] -> True
+                [] -> errorWithoutStackTrace $ "No types found. AST:\n" <> show ast 
+                ts -> errorWithoutStackTrace $ toString $ ppTypes ts
 ppTypes :: [Type PostProcess] -> Text
 ppTypes = unlines . map ppType
 
