@@ -7,7 +7,8 @@ import Data.Text qualified as T
 
 header :: Text
 header = unlines [
-        "function __setTestScoreboardUnsafe__(x)"
+        "#!/usr/bin/env lua"
+    ,   "function __setTestScoreboardUnsafe__(x)"
     ,   "    print(x)"
     ,   "end"
     ]
