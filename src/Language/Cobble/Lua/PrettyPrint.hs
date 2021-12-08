@@ -20,7 +20,7 @@ prettyLuaStmnts = unlines . map prettyLuaStmnt
 
 prettyLuaStmnt :: LuaStmnt -> Text
 prettyLuaStmnt = \case 
-    Assign x e -> x <> " = " <> prettyLuaExpr e
+    Assign x e -> "local " <> x <> " = " <> prettyLuaExpr e
     DefFunction f xs body -> "function " <> f <> "(" <> T.intercalate ", " xs <> ")\n" 
         <> prettyLuaStmnts body
         <> "end"
@@ -33,9 +33,9 @@ prettyLuaStmnt = \case
 
 prettyLuaExpr :: LuaExpr -> Text
 prettyLuaExpr = \case
-    Function xs sts -> "function (" <> T.intercalate ", " xs <> ")\n"
+    Function xs sts -> "(function (" <> T.intercalate ", " xs <> ")\n"
         <> prettyLuaStmnts sts
-        <> "end"
+        <> "end)"
     Call f es -> prettyLuaExpr f <> "(" <> T.intercalate ", " (map prettyLuaExpr es) <> ")"
     Var x -> x
     Table es -> "{" <> T.intercalate ", " (map prettyLuaExpr es) <> "}"

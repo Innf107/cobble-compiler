@@ -3,18 +3,20 @@ module Language.Cobble (
     , compileContents
     , compileToDataPack
     , compileContentsToDataPack
+    , compileToLuaFile
     , runControllerC
     , LogLevel(..)
     , Log(..)
     , CompilationError(..)
     , CompileOpts(..)
+    , Target(..)
     , ControllerC
 
 
     , primModSig
     ) where
 
-import Language.Cobble.Prelude hiding ((<.>), readFile, writeFile)
+import Language.Cobble.Prelude hiding ((<.>), readFile, writeFile, combine)
 
 import Language.Cobble.Types as S
 import Language.Cobble.Parser.Tokenizer as S
@@ -40,6 +42,9 @@ import Language.Cobble.MCAsm.Types qualified as A
 
 import Language.Cobble.McFunction.Types
 
+import Language.Cobble.Lua.Types as Lua
+import Language.Cobble.Lua.PrettyPrint as Lua
+
 import Language.Cobble.Codegen.PrimOps
 
 import Language.Cobble.Codegen.CobbleToLC as C2LC
@@ -47,6 +52,8 @@ import Language.Cobble.Codegen.LCToBasicCPS as LC2CPS
 import Language.Cobble.Codegen.BasicCPSToTopLevelCPS as CPS2TL
 import Language.Cobble.Codegen.TopLevelCPSToMCAsm as TL2ASM
 import Language.Cobble.Codegen.MCAsmToMCFunction as ASM2MC
+
+import Language.Cobble.Codegen.CPSToLua as CPS2Lua
 
 import Language.Cobble.LC.Types as LC
 import Language.Cobble.LC.PrettyPrint as LC
@@ -60,6 +67,8 @@ import Data.Text qualified as T
 import System.FilePath qualified as FP
 
 import qualified Control.Exception as Ex
+
+import qualified GHC.Read as R
 
 data CompilationError = LexError LexicalError
                       | ParseError ParseError
@@ -83,6 +92,7 @@ data CompileOpts = CompileOpts {
       name::Text
     , debug::Bool
     , description::Text
+    , target::Target
     , ddumpTC::Bool
     , ddumpAsm::Bool
     , ddumpLC::Bool
@@ -91,11 +101,54 @@ data CompileOpts = CompileOpts {
     , ddumpTL::Bool
     }
 
+data Target = MC117
+            | Lua
+            deriving (Show, Eq)
+instance R.Read Target where
+    readsPrec _ "mc-1.17" = [(MC117, "")]
+    readsPrec _ "lua" = [(Lua, "")] 
+    readsPrec _ _ = []
+
 askDataPackOpts :: (Member (Reader CompileOpts) r) => Sem r DataPackOptions
 askDataPackOpts = ask <&> \(CompileOpts{name, description}) -> DataPackOptions {
         name
     ,   description
     }
+
+class Compiled m where
+    compileFromLC :: forall r. (ControllerC r, Members '[Fresh Text QualifiedName] r) => LCExpr -> Sem r m
+    combine :: [m] -> m
+
+instance Compiled [CompiledModule] where
+    compileFromLC lc = do
+        cps     <- LC2CPS.compile lc
+        whenM (asks ddumpCPS) $ dumpCPS cps
+
+        let reduced = LC2CPS.reduceAdmin cps
+        whenM (asks ddumpReduced) $ dumpReduced reduced
+
+        tl      <- CPS2TL.compile reduced
+        whenM (asks ddumpTL) $ dumpTL tl
+        
+        let asm = TL2ASM.compile tl 
+        whenM (asks ddumpAsm) $ dumpAsm asm
+        
+        pure $ ASM2MC.compile asm
+    combine = join
+
+instance Compiled [LuaStmnt] where
+    compileFromLC lc = do
+        cps <- LC2CPS.compile lc
+        whenM (asks ddumpCPS) $ dumpCPS cps
+        
+        let reduced = LC2CPS.reduceAdmin cps
+        whenM (asks ddumpReduced) $ dumpReduced reduced
+
+        pure (CPS2Lua.compile reduced)
+    combine = join
+
+compileToLuaFile :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r) => [FilePath] -> Sem r Text
+compileToLuaFile files = prettyLua <$> compileAll files
 
 compileToDataPack :: (ControllerC r, Members '[Time, Fresh (Text, LexInfo) QualifiedName] r) => [FilePath] -> Sem r LByteString
 compileToDataPack files = do
@@ -109,21 +162,21 @@ compileContentsToDataPack files = do
     opts <- askDataPackOpts
     makeDataPack opts cmods
 
-compileAll :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r) => [FilePath] -> Sem r [CompiledModule]
+compileAll :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m) => [FilePath] -> Sem r m
 compileAll files = compileContents =<< traverse (\x -> (x,) <$> readFile x) files
 
-compileContents :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r) => [(FilePath, Text)] -> Sem r [CompiledModule]
+compileContents :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m) => [(FilePath, Text)] -> Sem r m
 compileContents contents = do
     tokens <- traverse (\(fn, content) -> mapError LexError $ tokenize (toText fn) content) contents
     asts   <- traverse (\(ts, n) -> mapError ParseError $ fromEither $ parse (module_ (getModName n)) n ts) (zip tokens (map fst contents))
 
     orderedMods :: [(S.Module 'SolveModules, [Text])] <- mapError ModuleError $ findCompilationOrder asts
 
-    fmap join $ evalState (one ("prims", primModSig)) $ traverse compileAndAnnotateSig orderedMods
+    fmap combine $ evalState (one ("prims", primModSig)) $ traverse compileAndAnnotateSig orderedMods
 
-compileAndAnnotateSig :: (ControllerC r, Members '[State (Map (S.Name 'QualifyNames) ModSig), Fresh (Text, LexInfo) QualifiedName] r)
+compileAndAnnotateSig :: (ControllerC r, Members '[State (Map (S.Name 'QualifyNames) ModSig), Fresh (Text, LexInfo) QualifiedName] r, Compiled m)
                       => (S.Module 'SolveModules, [S.Name 'SolveModules])
-                      -> Sem r [CompiledModule]
+                      -> Sem r m
 compileAndAnnotateSig (m, deps) = do
     annotatedMod :: (S.Module 'QualifyNames) <- S.Module
         <$> Ext . fromList <$> traverse (\d -> (internalQName d ,) <$> getDep d) ("prims" : deps)
@@ -139,9 +192,9 @@ getDep :: (ControllerC r, Member (State (Map (S.Name 'QualifyNames) ModSig)) r)
        -> Sem r ModSig
 getDep n = maybe (error $ "Module dependency '" <> show n <> "' not found") pure =<< gets (lookup n)
 --              TODO^: Should this really be a panic? 
-compileWithSig :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r)
+compileWithSig :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m)
                => S.Module 'QualifyNames
-               -> Sem r ([CompiledModule], ModSig)
+               -> Sem r (m, ModSig)
 compileWithSig m = do
     let qualScopes = [Scope {
             _scopeVars = mempty
@@ -164,20 +217,10 @@ compileWithSig m = do
 
         let lc  = C2LC.compile primOps ppMod
         whenM (asks ddumpLC) $ dumpLC lc
-
-        cps     <- LC2CPS.compile lc
-        whenM (asks ddumpCPS) $ dumpCPS cps
-
-        let reduced = LC2CPS.reduceAdmin cps
-        whenM (asks ddumpReduced) $ dumpReduced reduced
-
-        tl      <- CPS2TL.compile reduced
-        whenM (asks ddumpTL) $ dumpTL tl
         
-        let asm = TL2ASM.compile tl 
-        whenM (asks ddumpAsm) $ dumpAsm asm
-        
-        pure $ (ASM2MC.compile asm, extractSig ppMod)
+        compiled <- compileFromLC lc
+
+        pure $ (compiled, extractSig ppMod)
 
 
     pure (compMods, sig)

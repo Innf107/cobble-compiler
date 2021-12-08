@@ -24,11 +24,12 @@ runCobble = \case
     Compile co -> runCompile co
 
 runCompile :: CompileCmdOpts -> IO ()
-runCompile CompileCmdOpts{compFiles, debug, packageName, description, logLevel, ddumpTC, ddumpLC, ddumpCPS, ddumpReduced, ddumpTL, ddumpAsm} = do
+runCompile CompileCmdOpts{compFiles, debug, packageName, description, target, logLevel, ddumpTC, ddumpLC, ddumpCPS, ddumpReduced, ddumpTL, ddumpAsm} = do
     let opts = CompileOpts {
             name=packageName
         ,   debug
         ,   description
+        ,   target
         ,   ddumpTC
         ,   ddumpLC
         ,   ddumpCPS
@@ -36,11 +37,19 @@ runCompile CompileCmdOpts{compFiles, debug, packageName, description, logLevel, 
         ,   ddumpTL    
         ,   ddumpAsm 
         }
-    (logs, edatapackBS) <- runControllerC opts (timeToIO $ compileToDataPack compFiles)
-    traverse_ (printLog logLevel) logs
-    case edatapackBS of
-        Left e -> failWithCompError e
-        Right datapackBS -> writeFileLBS (toString packageName <> ".zip") datapackBS
+    case target of
+        MC117 -> do
+            (logs, edatapackBS) <- runControllerC opts (timeToIO $ compileToDataPack compFiles)
+            traverse_ (printLog logLevel) logs
+            case edatapackBS of
+                Left e -> failWithCompError e
+                Right datapackBS -> writeFileLBS (toString packageName <> ".zip") datapackBS
+        Lua -> do
+            (logs, eluaFile) <- runControllerC opts (compileToLuaFile compFiles)
+            traverse_ (printLog logLevel) logs
+            case eluaFile of
+                Left e -> failWithCompError e
+                Right luaFile -> writeFileText (toString packageName <> ".lua") luaFile
 
 printLog :: LogLevel -> Log -> IO ()
 printLog maxLevel (Log lvl o) = when (lvl <= maxLevel)
@@ -66,6 +75,7 @@ data CompileCmdOpts = CompileCmdOpts {
     , debug :: Bool
     , logLevel :: LogLevel
     , description :: Text
+    , target :: Target
     , ddumpTC :: Bool
     , ddumpLC :: Bool
     , ddumpCPS :: Bool
@@ -81,6 +91,7 @@ compileOpts = CompileCmdOpts
     <*> switch (long "debug" <> help "Debug mode keeps additional information at runtime")
     <*> option auto (long "log-level" <> metavar "LEVEL" <> value LogInfo <> help "Controls how much information is logged (LogWarning | LogInfo | LogVerbose | LogDebug | LogDebugVerbose)")
     <*> strOption (long "description" <> short 'd' <> metavar "DESCRIPTION" <> help "The datapack description for the datapack's pack.mcmeta")
+    <*> option auto (long "target" <> metavar "TARGET" <> value MC117 <> help "Possible targets: mc-1.17, lua")
     <*> switch (long "ddump-tc" <> help "Write the typechecker constraints to a file")
     <*> switch (long "ddump-lc" <> help "Write the intermediate lambda calculus to a file")
     <*> switch (long "ddump-cps" <> help "Write the intermediate CPS to a file")
