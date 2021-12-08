@@ -126,10 +126,10 @@ checkStmnt :: Members '[Writer [TConstraint], Writer [TWanted], Writer [TGiven],
            -> Sem r (Statement NextPass)
 checkStmnt (Import IgnoreExt li mod) = pure $ Import IgnoreExt li mod
 checkStmnt (DefStruct (Ext k) li sname ps fields) = pure $ DefStruct (Ext k) li sname (map coercePass ps) (map (second coercePass) fields) 
-checkStmnt (DefVariant (Ext k) li sname ps cs) = do
-    let appliedType :: Type = foldl' TApp (TCon sname k) (map (TVar . coercePass) ps)
+checkStmnt (DefVariant (Ext k) li sname (coercePass -> ps) cs) = do
+    let appliedType :: Type = foldl' TApp (TCon sname k) (map TVar ps)
     cs' <- forM cs \(cname, coercePass -> fs, Ext (ep, ix)) -> do
-        let constrTy = foldr (:->) appliedType fs 
+        let constrTy = TForall ps (foldr (:->) appliedType fs )
         insertType cname constrTy
         pure (cname, fs, Ext3_1 constrTy ep ix)
     pure (DefVariant (Ext k) li sname (coercePass ps) cs')
@@ -186,7 +186,7 @@ check (Var IgnoreExt li vname)  = do
     -- traceM (show vname <> ": " <> show wanteds)
     pure $ Var (Ext2_1 ty wanteds) li vname
 -- See note [lookupType for VariantConstr]
-check (VariantConstr (Ext (e,i)) li cname) = VariantConstr . Ext . (,e,i) <$> lookupType cname <*> pure li <*> pure cname
+check (VariantConstr (Ext (e,i)) li cname) = VariantConstr . Ext . (,e,i) <$> (instantiate li =<< lookupType cname) <*> pure li <*> pure cname
 check (FCall IgnoreExt li f as) = do
     f' <- check f
     as' <- traverse check as

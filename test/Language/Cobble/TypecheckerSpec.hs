@@ -124,6 +124,15 @@ spec = do
                 [TApp (TCon (QName "List") (KStar `KFun` KStar)) _] -> True
                 [] -> errorWithoutStackTrace $ "No types found. AST:\n" <> show ast 
                 ts -> errorWithoutStackTrace $ toString $ ppTypes ts
+    it "tyvars in polymorphic variant constructors are properly instantiated" do
+        runTypecheck [
+                "variant Test a = MkTest;"
+            ,   "x :: Test b;"
+            ,   "x = MkTest;"
+            ,   "y :: Test c;"
+            ,   "y = MkTest;"
+            ] `shouldSatisfy` isRight
+            
     it "typeclass methods include constraints" do
         runTypecheckWithState [
                 "class Eq a {"
