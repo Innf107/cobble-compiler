@@ -185,6 +185,10 @@ check (Var IgnoreExt li vname)  = do
     -- traceM (show vname <> ": " <> show wanteds)
     pure $ Var (Ext2_1 ty wanteds) li vname
 -- See note [lookupType for VariantConstr]
+check (Ascription IgnoreExt li e ty) = do
+    e' <- check e
+    tellLI li [getType e' :~ coercePass ty]
+    pure e' -- Ascriptions are removed after type checking
 check (VariantConstr (Ext (e,i)) li cname) = VariantConstr . Ext . (,e,i) <$> lookupType cname <*> pure li <*> pure cname
 check (FCall IgnoreExt li f as) = do
     f' <- check f

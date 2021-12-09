@@ -109,6 +109,7 @@ data Expr (p :: Pass) =
     | If              (XIf p) LexInfo (Expr p) (Expr p) (Expr p)
     | Let             (XLet p) LexInfo (Decl p) (Expr p)
     | Var             (XVar p) LexInfo (Name p)
+    | Ascription      (XAscription p) LexInfo (Expr p) (Type p)
     | VariantConstr   (XVariantConstr p) LexInfo (Name p)
     | StructConstruct (XStructConstruct p) LexInfo (Name p) [(UnqualifiedName, Expr p)]
     | StructAccess    (XStructAccess p) LexInfo (Expr p) UnqualifiedName
@@ -116,7 +117,7 @@ data Expr (p :: Pass) =
 
 type instance InstanceRequirements (Expr p) = 
         [
-            XFCall p, XIntLit p, XIf p, XLet p, Decl p, XVar p, XVariantConstr p, Name p,
+            XFCall p, XIntLit p, XIf p, XLet p, Decl p, XVar p, XAscription p, XVariantConstr p, Name p, Type p,
             XStructConstruct p, XStructAccess p, XExpr p
         ]
 
@@ -125,6 +126,7 @@ type family XIntLit          (p :: Pass)
 type family XIf              (p :: Pass)
 type family XLet             (p :: Pass)
 type family XVar             (p :: Pass)
+type family XAscription      (p :: Pass)
 type family XVariantConstr   (p :: Pass)
 type family XStructConstruct (p :: Pass)
 type family XStructAccess    (p :: Pass)
@@ -369,12 +371,14 @@ instance
 
 instance
     (   Name p1 ~ Name p2
+    ,   CoercePass (Type p1) (Type p2) p1 p2
     ,   CoercePass (XFCall p1) (XFCall p2) p1 p2
     ,   CoercePass (XIntLit p1) (XIntLit p2) p1 p2
     ,   CoercePass (XIf p1) (XIf p2) p1 p2
     ,   CoercePass (XLet p1) (XLet p2) p1 p2
     ,   CoercePass (XParam p1) (XParam p2) p1 p2
     ,   CoercePass (XDecl p1) (XDecl p2) p1 p2
+    ,   CoercePass (XAscription p1) (XAscription p2) p1 p2
     ,   CoercePass (XVar p1) (XVar p2) p1 p2
     ,   CoercePass (XVariantConstr p1) (XVariantConstr p2) p1 p2
     ,   CoercePass (XStructConstruct p1) (XStructConstruct p2) p1 p2
@@ -389,6 +393,7 @@ instance
         If x l c th el           -> If (coercePass x) l (coercePass c) (coercePass th) (coercePass el)
         Let x l d b              -> Let (coercePass x) l (coercePass d) (coercePass b)
         Var x l v                -> Var (coercePass x) l v
+        Ascription x l e t       -> Ascription (coercePass x) l (coercePass e) (coercePass t)
         VariantConstr x l v      -> VariantConstr (coercePass x) l v
         StructConstruct x l c fs -> StructConstruct (coercePass x) l c (map (second coercePass) fs)
         StructAccess x l e f     -> StructAccess (coercePass x) l (coercePass e) f
@@ -460,6 +465,7 @@ instance HasLexInfo (Expr p) where
         If _ li _ _ _            -> li
         Let _ li _ _             -> li
         Var _ li _               -> li
+        Ascription _ li _ _      -> li
         VariantConstr _ li _     -> li
         StructConstruct _ li _ _ -> li
         StructAccess _ li _ _    -> li

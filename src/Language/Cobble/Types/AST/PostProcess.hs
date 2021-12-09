@@ -42,6 +42,7 @@ type instance XIntLit           PostProcess = IgnoreExt PostProcess
 type instance XIf               PostProcess = IgnoreExt PostProcess
 type instance XLet              PostProcess = IgnoreExt PostProcess
 type instance XVar              PostProcess = Ext2_1 PostProcess (Type PostProcess) [TWanted]
+type instance XAscription       PostProcess = ExtVoid PostProcess
 type instance XVariantConstr    PostProcess = Ext PostProcess (Type PostProcess, Int, Int)
 --                                                                               ^    ^
 --                                                                               |    constructor index

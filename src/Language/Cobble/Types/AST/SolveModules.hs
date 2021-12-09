@@ -24,6 +24,7 @@ type instance XIntLit           'SolveModules = IgnoreExt SolveModules
 type instance XIf               'SolveModules = IgnoreExt SolveModules
 type instance XLet              'SolveModules = IgnoreExt SolveModules
 type instance XVar              'SolveModules = IgnoreExt SolveModules
+type instance XAscription       'SolveModules = IgnoreExt SolveModules
 type instance XVariantConstr    'SolveModules = IgnoreExt SolveModules
 type instance XStructConstruct  'SolveModules = IgnoreExt SolveModules
 type instance XStructAccess     'SolveModules = IgnoreExt 'SolveModules

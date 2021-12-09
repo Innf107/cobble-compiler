@@ -309,6 +309,7 @@ qualifyExp = \case
     If IgnoreExt li cond th el  -> If IgnoreExt li <$> qualifyExp cond <*> qualifyExp th <*> qualifyExp el
     Let IgnoreExt li decl@(Decl _ n _ _) b  -> withVar li n $ \n' -> Let IgnoreExt li <$> qualifyDeclWith n' li decl <*> qualifyExp b
     Var IgnoreExt li n          -> Var IgnoreExt li <$> lookupVar li n
+    Ascription IgnoreExt li e ty -> Ascription IgnoreExt li <$> qualifyExp e <*> qualifyType li ty
     VariantConstr IgnoreExt li n -> lookupVariantConstr li n <&> \(n', ep, i) -> VariantConstr (Ext (ep, i)) li n'
     StructConstruct IgnoreExt li structName fields -> lookupType li structName >>= \case
             (structName', _k, RecordType ps tyFields) -> traverse (secondM qualifyExp) fields <&> \fields' -> 
