@@ -158,6 +158,27 @@ spec = do
             ] `shouldSatisfy` withAST (\ast -> [ty | FCall (Ext ty) _ (VarType _ "eq") _ :: Expr PostProcess <- universeBi ast]) \case
                 BoolT -> True
                 _ -> False
+    it "ascriptions narrow the type" do
+        runTypecheck [
+                "struct Test a {};"
+            ,   ""
+            ,   "x :: Test a;"
+            ,   "x = Test{};"
+            ,   ""
+            ,   "y :: Test a;"
+            ,   "y = x :: Test Int;"
+            ] `shouldSatisfy` \case
+                Left (SkolBinding _ _ _) -> True
+                x -> error $ show x 
+    it "ascriptions can mention in-scope type variables" do
+        runTypecheck [
+                "struct Test a {};"
+            ,   ""
+            ,   "f :: a -> b -> Test a;"
+            ,   "f a b = let y = Test {} :: Test b in y;"
+            ] `shouldSatisfy` \case
+                Left (SkolBinding _ _ _) -> True
+                x -> error $ show x
 
 runUnify :: Sem '[Reader LexInfo, Output Log, Error TypeError] a -> Either TypeError a
 runUnify = run . runError . ignoreOutput . runReader InternalLexInfo
