@@ -101,10 +101,10 @@ expr = merge
         <*> optionMaybe ascription
     where
         ascription = "ascription" 
-            <??> (,) 
-            <$> reservedOp "::"
-            <*> typeP
-        merge e (Just (ls, (le, ty))) = Ascription IgnoreExt (mergeLexInfo ls le) e ty
+            <??>  
+            reservedOp "::"
+            *> typeP
+        merge e (Just (le, ty)) = Ascription IgnoreExt (mergeLexInfo (getLexInfo e) le) e ty
         merge e Nothing = e
 
 exprWithoutAscription :: Parser (Expr NextPass)

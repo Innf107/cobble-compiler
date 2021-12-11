@@ -252,6 +252,7 @@ test-suite cobble-test
       Language.Cobble.PackagerSpec
       Language.Cobble.Parser.TokenizerSpec
       Language.Cobble.ParserSpec
+      Language.Cobble.QualifierSpec
       Language.Cobble.TestUtil
       Language.Cobble.TypecheckerSpec
       Language.Cobble.Types.PrettyPrintSpec

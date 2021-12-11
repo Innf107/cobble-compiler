@@ -13,6 +13,21 @@ data StackState s m a where
 
 makeSem ''StackState
 
+sgets :: Member (StackState s) r => (s -> s') -> Sem r s'
+sgets f = f <$> sget
+
+-- | Duplicates the current state.
+-- The same as sget >>= spush
+sdup :: Member (StackState s) r => Sem r ()
+sdup = sget >>= spush
+
+withFrame :: Member (StackState s) r => Sem r a -> Sem r a
+withFrame x = sdup *> x <* spop
+
+-- | Like withFrame but with an additional action afterwards, whose result is ignored
+withFrame' :: Member (StackState s) r => Sem r a -> Sem r b -> Sem r a
+withFrame' x y = withFrame x <* y
+
 headDef :: Default a => [a] -> a
 headDef (x : _) = x
 headDef [] = def

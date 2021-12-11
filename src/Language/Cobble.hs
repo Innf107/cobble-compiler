@@ -28,6 +28,7 @@ import Language.Cobble.Util.Polysemy.Time
 import Language.Cobble.Util.Polysemy.FileSystem
 import Language.Cobble.Util.Polysemy.Fresh
 import Language.Cobble.Util.Polysemy.Dump
+import Language.Cobble.Util.Polysemy.StackState
 import Language.Cobble.Util
 
 import Language.Cobble.Prelude.Parser (ParseError, parse)
@@ -179,7 +180,7 @@ compileWithSig m = do
                 ,   _tcInstances = coercePass $ exportedInstances dsig
                 })
                 (getExt $ xModule m)
-    qMod  <- mapError QualificationError $ runReader qualScopes $ qualify m
+    qMod  <- mapError QualificationError $ evalStackStatePanic (mconcat qualScopes) $ qualify m
 
     saMod <- mapError SemanticError $ runSemanticAnalysis qMod
 
