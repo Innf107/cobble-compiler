@@ -65,6 +65,22 @@ spec = do
                     ]) | a1 == a2 && a2 == a3 -> True
                 Right (Module _ _ sts) -> errorWithoutStackTrace (show sts)
                 Left e -> errorWithoutStackTrace (show e)
+    it "ascriptions can mention in scope tyvars" do
+        runQualifier [
+                "struct Test a {};"
+            ,   ""
+            ,   "f :: a -> b -> Test a;"
+            ,   "f x y = let z = Test {} :: Test a in z;"
+            ] `shouldSatisfy` \case
+                Right (Module _ _ [
+                        _
+                    ,   Def _ _ (Decl _ _ _ 
+                            (Let _ _ (Decl _ _ _ (Ascription _ _ _ (TApp _ (TVar a1)))) _)) 
+                            (TVar a2 :-> TVar b :-> TApp _ (TVar a3))
+                    ]) | a1 == a2 && a2 == a3 -> True
+                Right (Module _ _ sts) -> errorWithoutStackTrace (show sts)
+                Left e -> errorWithoutStackTrace (show e)
+
 
 runQualifier :: [Text] -> Either C.QualificationError (Module SemAnalysis)
 runQualifier content = run $ do
