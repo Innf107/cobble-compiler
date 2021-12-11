@@ -29,6 +29,7 @@ library
       Language.Cobble.Codegen.BasicCPSToTopLevelCPS
       Language.Cobble.Codegen.CobbleToLC
       Language.Cobble.Codegen.Common
+      Language.Cobble.Codegen.CPSToLua
       Language.Cobble.Codegen.LCToBasicCPS
       Language.Cobble.Codegen.MCAsmToMCFunction
       Language.Cobble.Codegen.PrimOps
@@ -37,6 +38,8 @@ library
       Language.Cobble.CPS.TopLevel.Types
       Language.Cobble.LC.PrettyPrint
       Language.Cobble.LC.Types
+      Language.Cobble.Lua.PrettyPrint
+      Language.Cobble.Lua.Types
       Language.Cobble.MCAsm.Types
       Language.Cobble.McFunction.PrettyPrint
       Language.Cobble.McFunction.Types
@@ -111,6 +114,7 @@ library
       TupleSections
       DisambiguateRecordFields
       ImportQualifiedPost
+      ImplicitParams
       NegativeLiterals
       DeriveGeneric
       DeriveDataTypeable
@@ -192,6 +196,7 @@ executable cobble
       TupleSections
       DisambiguateRecordFields
       ImportQualifiedPost
+      ImplicitParams
       NegativeLiterals
       DeriveGeneric
       DeriveDataTypeable
@@ -295,6 +300,7 @@ test-suite cobble-test
       TupleSections
       DisambiguateRecordFields
       ImportQualifiedPost
+      ImplicitParams
       NegativeLiterals
       DeriveGeneric
       DeriveDataTypeable

@@ -112,6 +112,7 @@ default-extensions:
   - TupleSections
   - DisambiguateRecordFields
   - ImportQualifiedPost
+  - ImplicitParams
   - NegativeLiterals
   - DeriveGeneric
   - DeriveDataTypeable
