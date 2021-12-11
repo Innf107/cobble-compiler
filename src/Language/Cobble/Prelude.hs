@@ -14,22 +14,26 @@ module Language.Cobble.Prelude (
     , module Language.Cobble.Util.ListLike
     , module Data.Data
     , module Data.Foldable
-    , module Data.These
+    --, module Data.These
+    , module Data.Either
     , (|:)
     , state 
     , whenAlt
     , ($$)
     , mapFromLeft
+    , munion
     , censorM
     , HSType
+    , HSConstraint
     , (L.\\)
-    , module Data.Either
+    , unsafeLast
     ) where
 
 import qualified Relude
 import Relude hiding (
       universe
     , Type
+    , Constraint
     , TVar
     , absurd
     , ask
@@ -95,6 +99,7 @@ import Control.Lens hiding (
     ,   transformM
     ,   transform
     ,   (<.>)
+    ,   op
     )
 
 import Data.Data hiding (Fixity)
@@ -104,9 +109,9 @@ import qualified Data.Text as T
 
 import qualified Data.List as L (init, last, (\\))
 
-import Data.Foldable (foldrM)
+import qualified Data.Map as M (unionWith)
 
-import Data.These
+import Data.Foldable (foldrM)
 
 (|:) :: a -> NonEmpty a -> NonEmpty a
 a |: (x :| xs) = a :| (x : xs)
@@ -146,3 +151,10 @@ instance ToText Char where
     
 type HSType = Relude.Type
     
+type HSConstraint = Relude.Constraint
+
+unsafeLast :: [a] -> a
+unsafeLast = L.last
+
+munion :: (Ord k, Semigroup v) => Map k v -> Map k v -> Map k v
+munion = M.unionWith (<>)

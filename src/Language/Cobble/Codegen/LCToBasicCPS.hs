@@ -26,9 +26,14 @@ compileExpr = flip \kval -> let k = staticCont kval in \case
         compileExpr f =<< C.Admin f' <$> compileExpr a (C.Admin v' (C.App3 (C.Var f') kval (C.Var v')))
     L.Tuple es          -> freshVar "t" >>= \t' -> do
         vars <- traverse freshVar $ map (("x" <>) . show) (indexes es)
-        foldrM (\(i, e) r -> compileExpr e (C.Admin (vars !! i) r))
+        foldrM (\(v, e) r -> compileExpr e (C.Admin v r))
             (C.Let t' (C.Tuple (map C.Var vars)) (k (C.Var t')))
-            (zipIndex es)
+            (zip vars es)
+    L.Variant (con, i) es -> freshVar "v" >>= \t' -> do
+        vars <- traverse freshVar $ map (("x" <>) . show) (indexes es)
+        foldrM (\(v, e) r -> compileExpr e (C.Admin v r))
+            (C.Let t' (C.Variant (con, i) (map C.Var vars)) (k (C.Var t')))
+            (zip vars es)
     L.Select n e        -> freshVar "t" >>= \t' -> freshVar "y" >>= \y' -> compileExpr e (C.Admin t' (C.Let y' (C.Select n (C.Var t')) (k (C.Var y'))))
     L.PrimOp p es       -> freshVar "p" >>= \p' -> do
         vars <- traverse freshVar $ map (("x" <>) . show @Text) (indexes es)

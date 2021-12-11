@@ -34,14 +34,12 @@ dependencies:
 - time
 - uniplate
 - containers
-- cereal
-- connection
 - bytestring
 - random
 - dlist
 - mcrcon
-- these
 - recursion-schemes
+- data-default
 
 library:
   source-dirs: src
@@ -85,6 +83,7 @@ tests:
 
 default-extensions:
   - NoImplicitPrelude
+  - StrictData
   - ApplicativeDo
   - LambdaCase
   - OverloadedStrings

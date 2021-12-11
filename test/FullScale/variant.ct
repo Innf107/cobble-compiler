@@ -1,0 +1,26 @@
+--# definition : score
+variant IntList = Nil
+                | Cons Int IntList;
+
+--! 1
+1 
+
+--# construction : score
+variant IntList = Nil
+                | Cons Int IntList;
+
+x :: IntList;
+x = Nil;
+
+--! 1
+1
+
+--# recursive construction : score
+variant IntList = Nil
+                | Cons Int IntList;
+
+x :: IntList;
+x = Cons 1 Nil;
+
+--! 1
+1

@@ -15,6 +15,7 @@ compile (C.If c th el) = [L.If (compileVal c) (compile th) (compile el)]
 compileExpr :: CPSExpr -> LuaExpr
 compileExpr (Val v) = compileVal v
 compileExpr (Tuple vs) = Table (map compileVal vs)
+compileExpr (Variant (_, i) vs) = Table (L.IntLit i : map compileVal vs)
 compileExpr (Select i v) = TableIndex (compileVal v) (i + 1) -- lua arrays start at 1
 compileExpr (PrimOp p vs) = compilePrimOp p vs
 

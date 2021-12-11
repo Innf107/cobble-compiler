@@ -14,6 +14,7 @@ module Language.Cobble (
 
 
     , primModSig
+    , modSigToScope
     ) where
 
 import Language.Cobble.Prelude hiding ((<.>), readFile, writeFile, combine)
@@ -29,6 +30,7 @@ import Language.Cobble.Util.Polysemy.Time
 import Language.Cobble.Util.Polysemy.FileSystem
 import Language.Cobble.Util.Polysemy.Fresh
 import Language.Cobble.Util.Polysemy.Dump
+import Language.Cobble.Util.Polysemy.StackState
 import Language.Cobble.Util
 
 import Language.Cobble.Prelude.Parser (ParseError, parse)
@@ -117,7 +119,6 @@ askDataPackOpts = ask <&> \(CompileOpts{name, description}) -> DataPackOptions {
 
 class Compiled m where
     compileFromLC :: forall r. (ControllerC r, Members '[Fresh Text QualifiedName] r) => LCExpr -> Sem r m
-    combine :: [m] -> m
 
 instance Compiled [CompiledModule] where
     compileFromLC lc = do
@@ -134,7 +135,6 @@ instance Compiled [CompiledModule] where
         whenM (asks ddumpAsm) $ dumpAsm asm
         
         pure $ ASM2MC.compile asm
-    combine = join
 
 instance Compiled [LuaStmnt] where
     compileFromLC lc = do
@@ -145,7 +145,6 @@ instance Compiled [LuaStmnt] where
         whenM (asks ddumpReduced) $ dumpReduced reduced
 
         pure (CPS2Lua.compile reduced)
-    combine = join
 
 compileToLuaFile :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r) => [FilePath] -> Sem r Text
 compileToLuaFile files = prettyLua <$> compileAll files
@@ -165,75 +164,101 @@ compileContentsToDataPack files = do
 compileAll :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m) => [FilePath] -> Sem r m
 compileAll files = compileContents =<< traverse (\x -> (x,) <$> readFile x) files
 
-compileContents :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m) => [(FilePath, Text)] -> Sem r m
+compileContents :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m) 
+                => [(FilePath, Text)] 
+                -> Sem r m
 compileContents contents = do
     tokens <- traverse (\(fn, content) -> mapError LexError $ tokenize (toText fn) content) contents
     asts   <- traverse (\(ts, n) -> mapError ParseError $ fromEither $ parse (module_ (getModName n)) n ts) (zip tokens (map fst contents))
 
     orderedMods :: [(S.Module 'SolveModules, [Text])] <- mapError ModuleError $ findCompilationOrder asts
 
-    fmap combine $ evalState (one ("prims", primModSig)) $ traverse compileAndAnnotateSig orderedMods
+    lcDefs <- fmap join $ evalState (one ("prims", primModSig)) $ traverse compileAndAnnotateSig orderedMods
+    
+    let lc = C2LC.collapseDefs lcDefs
 
-compileAndAnnotateSig :: (ControllerC r, Members '[State (Map (S.Name 'QualifyNames) ModSig), Fresh (Text, LexInfo) QualifiedName] r, Compiled m)
+    whenM (asks ddumpLC) $ dumpLC lc
+
+    freshWithInternal $ compileFromLC lc
+
+compileAndAnnotateSig :: (ControllerC r, Members '[State (Map (S.Name 'QualifyNames) ModSig), Fresh (Text, LexInfo) QualifiedName] r)
                       => (S.Module 'SolveModules, [S.Name 'SolveModules])
-                      -> Sem r m
+                      -> Sem r [LCDef]
 compileAndAnnotateSig (m, deps) = do
     annotatedMod :: (S.Module 'QualifyNames) <- S.Module
         <$> Ext . fromList <$> traverse (\d -> (internalQName d ,) <$> getDep d) ("prims" : deps)
         <*> pure (S.moduleName m)
         <*> pure (map (coercePass @(Statement SolveModules) @(Statement QualifyNames) @SolveModules @QualifyNames) (moduleStatements m))
-    (compMod, sig) <- compileWithSig annotatedMod
+    (lcdefs, sig) <- compileWithSig annotatedMod
     modify (insert (S.moduleName m) sig)
-    pure compMod
-
+    pure lcdefs
 
 getDep :: (ControllerC r, Member (State (Map (S.Name 'QualifyNames) ModSig)) r)
        => S.Name 'SolveModules
        -> Sem r ModSig
 getDep n = maybe (error $ "Module dependency '" <> show n <> "' not found") pure =<< gets (lookup n)
 --              TODO^: Should this really be a panic? 
-compileWithSig :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m)
+compileWithSig :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r)
                => S.Module 'QualifyNames
-               -> Sem r (m, ModSig)
+               -> Sem r ([LCDef], ModSig)
 compileWithSig m = do
-    let qualScopes = [Scope {
+    let qualScopes = Scope {
             _scopeVars = mempty
+        ,   _scopeVariantConstrs = mempty
         ,   _scopeTypes = mempty
         ,   _scopeFixities = mempty
         ,   _scopeTVars = mempty
-        }]
+        } : map modSigToScope (toList $ getExt $ xModule m)
+
     let tcState = foldMap (\dsig -> TCState {
-                    _varTypes=coercePass $ exportedVars dsig
+                    _varTypes= fmap coercePass $ exportedVars dsig
+                ,   _tcInstances = coercePass $ exportedInstances dsig
                 })
                 (getExt $ xModule m)
-    qMod  <- mapError QualificationError $ runReader qualScopes $ qualify m
+    qMod  <- mapError QualificationError $ evalStackStatePanic (mconcat qualScopes) $ qualify m
 
     saMod <- mapError SemanticError $ runSemanticAnalysis qMod
 
-    (compMods, sig) <- freshWithInternal do
-        tcMod <- dumpWhenWithM (asks ddumpTC) ppTC "dump-tc.tc" $ mapError TypeError $ evalState tcState $ typecheck saMod
+    freshWithInternal do
+        tcMod <- dumpWhenWithM (asks ddumpTC) ppGivens "dump-givens.tc" 
+            $ dumpWhenWithM (asks ddumpTC) ppWanteds "dump-wanteds.tc" 
+            $ dumpWhenWithM (asks ddumpTC) ppTC "dump-tc.tc" 
+            $ mapError TypeError $ evalState tcState $ typecheck saMod
 
         let ppMod = postProcess tcMod
 
         let lc  = C2LC.compile primOps ppMod
-        whenM (asks ddumpLC) $ dumpLC lc
-        
-        compiled <- compileFromLC lc
 
-        pure $ (compiled, extractSig ppMod)
+        pure (lc, extractSig ppMod)
 
 
-    pure (compMods, sig)
+modSigToScope :: ModSig -> Scope
+modSigToScope (ModSig{exportedVars, exportedVariantConstrs, exportedTypes, exportedFixities}) = Scope {
+                _scopeVars              = fromList $ map (\(qn, _) -> (originalName qn, qn)) $ M.toList exportedVars
+            ,   _scopeVariantConstrs    = fromList $ map (\(qn, (_, ep, i)) -> (originalName qn, (qn, ep, i))) $ M.toList exportedVariantConstrs
+            ,   _scopeTypes             = fromList $ map (\(qn, (k, tv)) -> (originalName qn, (qn, k, tv))) $ M.toList exportedTypes
+            ,   _scopeFixities          = M.mapKeys originalName exportedFixities
+            ,   _scopeTVars             = mempty
+            }
 
 extractSig :: S.Module 'Codegen -> ModSig
 extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
 
 makePartialSig :: S.Statement 'Codegen -> ModSig
 makePartialSig = \case
-    Def _ _ (Decl _ n _ _) t        -> mempty {exportedVars = one (n, t)}
-    DefStruct (Ext k) _ n ps fs    -> mempty {exportedTypes = one (n, (k, RecordType ps fs))}
+    Def _ _ (Decl (Ext2_1 _ gs) n _ _) t        -> mempty {exportedVars = one (n, t)} -- TODO: what about gs?
+    DefStruct (Ext k) _ n ps fs     -> mempty {exportedTypes = one (n, (k, RecordType ps fs))}
+    DefClass (Ext k) _ n ps meths   -> mempty 
+        {   exportedTypes = one (n, (k, TyClass ps meths))
+        ,   exportedVars  = fromList $ 
+                map (second coercePass) meths
+        }
+    DefInstance (Ext _) _ cname ty _ -> mempty {exportedInstances = one (cname, [ty])}
+    DefVariant (Ext k) _ tyName ps cs    -> mempty
+        {   exportedTypes = one (tyName, (k, VariantType ps (map (\(x,y,_) -> (x,y)) cs)))
+        ,   exportedVariantConstrs = fromList (map (\(cname, _, Ext3_1 ty ep i) -> (cname, (ty, ep, i))) cs)
+        }
     Import IgnoreExt _ _            -> mempty
-    StatementX v _                  -> absurd v
 
 getModName :: FilePath -> Text
 getModName = toText . FP.dropExtension . L.last . segments
@@ -242,6 +267,7 @@ getModName = toText . FP.dropExtension . L.last . segments
 primModSig :: ModSig
 primModSig = ModSig {
         exportedVars = fmap (view primOpType) $ primOps
+    ,   exportedVariantConstrs = mempty
             -- The type application is only necessary to satisfy the type checker since the value depending on the type 'r' is ignored
     ,   exportedTypes = fromList [
               (internalQName "Int", (KStar, BuiltInType))
@@ -251,6 +277,7 @@ primModSig = ModSig {
             , (internalQName "->", (KStar `KFun` KStar `KFun` KStar, BuiltInType))
             ]
     ,   exportedFixities = mempty
+    ,   exportedInstances = mempty
     }
 
 dumpLC :: (Members '[FileSystem FilePath Text] r) => LCExpr -> Sem r ()
@@ -270,5 +297,4 @@ dumpAsm = writeFile "dump-asm.mcasm" . renderAsm
     where
         renderAsm :: [Block] -> Text
         renderAsm = T.intercalate "\n\n" . map (\(Block f is) -> "[" <> show f <> "]:\n" <> foldMap (\i -> "    " <> show i <> "\n") is)
-
 

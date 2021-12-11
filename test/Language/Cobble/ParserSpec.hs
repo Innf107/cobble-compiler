@@ -174,9 +174,9 @@ spec = do
             it "can be chosen by expr" do
                 testParse expr "True" `shouldBe` Right (BoolLit IgnoreExt (LexInfo 1 1 "Test") True)
                 testParse expr "False" `shouldBe` Right (BoolLit IgnoreExt (LexInfo 1 1 "Test") False) -}
-        describe "var" do
+        describe "varOrConstr" do
             it "parses correct inputs" do
-                testParse var "x" `shouldBe` Right (Var IgnoreExt (LexInfo (SourcePos 1 1) (SourcePos 1 2) "Test") "x")
+                testParse varOrConstr "x" `shouldBe` Right (Var IgnoreExt (LexInfo (SourcePos 1 1) (SourcePos 1 2) "Test") "x")
             it "can be chosen by expr" do
                 testParse expr "x" `shouldBe` Right (Var IgnoreExt (LexInfo (SourcePos 1 1) (SourcePos 1 2) "Test") "x")
 

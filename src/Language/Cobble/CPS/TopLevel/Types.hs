@@ -21,6 +21,7 @@ data TLExp = IntLit Int
            | Var QualifiedName
            | Halt
            | Tuple [QualifiedName]
+           | Variant (QualifiedName, Int) [QualifiedName]
            | Select Int QualifiedName
            | PrimOp PrimOp [QualifiedName]
            deriving (Eq, Generic, Data)
@@ -40,9 +41,10 @@ instance Show TLC where
 
 instance Show TLExp where
     show = \case
-        IntLit n    -> show n
-        Var x       -> show x
-        Halt        -> "halt"
-        Tuple xs    -> "(" <> intercalate ", " (map show xs) <> ")"
-        Select i x  -> show x <> "#" <> show i
-        PrimOp p xs -> "(__" <> show p <> "__[" <> intercalate ", " (map show xs) <> "])"
+        IntLit n            -> show n
+        Var x               -> show x
+        Halt                -> "halt"
+        Tuple xs            -> "(" <> intercalate ", " (map show xs) <> ")"
+        Variant (con,i) xs  -> show con <> "@" <> show i <> "[" <> intercalate "," (map show xs) <> "]"
+        Select i x          -> show x <> "#" <> show i
+        PrimOp p xs         -> "(__" <> show p <> "__[" <> intercalate ", " (map show xs) <> "])"

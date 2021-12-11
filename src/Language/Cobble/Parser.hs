@@ -12,6 +12,8 @@ import Data.Char
 import Text.Parsec hiding ((<|>))
 import Text.Parsec.Pos
 
+import Data.List qualified as L
+
 type NextPass = 'SolveModules
 
 
@@ -91,10 +93,22 @@ module_ :: Text -> Parser (Module NextPass)
 module_ mname = "module" <??> Module IgnoreExt mname <$> statements <* eof
 
 statement :: Parser (Statement NextPass)
-statement = "statement" <??> def <|> defStruct <|> import_
+statement = "statement" <??> def <|> defStruct <|> defVariant <|> defClass <|> defInstance <|> import_
 
 expr :: Parser (Expr NextPass)
-expr = exprOrOp <&> \case
+expr = merge 
+        <$> exprWithoutAscription 
+        <*> optionMaybe ascription
+    where
+        ascription = "ascription" 
+            <??>  
+            reservedOp "::"
+            *> typeP
+        merge e (Just (le, ty)) = Ascription IgnoreExt (mergeLexInfo (getLexInfo e) le) e ty
+        merge e Nothing = e
+
+exprWithoutAscription :: Parser (Expr NextPass)
+exprWithoutAscription = exprOrOp <&> \case
     OpLeaf e -> e
     opGroup  -> ExprX opGroup (leftLI opGroup `mergeLexInfo` rightLI opGroup)  
     where
@@ -128,7 +142,7 @@ expr' = "expression (no fcall)" <??> (\e mf -> maybe e (\(le, fname) -> StructAc
     <*> optionMaybe (reservedOp' "." *> ident) 
 
 expr'' :: Parser (Expr NextPass)
-expr'' = "expression (no fcall / struct access)" <??> uncurry (IntLit IgnoreExt) <$> intLit <|> UnitLit <$> unitLit <|> letE <|> ifE <|> varOrStructConstruct <|> withParen expr
+expr'' = "expression (no fcall / struct access)" <??> uncurry (IntLit IgnoreExt) <$> intLit <|> UnitLit <$> unitLit <|> letE <|> ifE <|> varOrConstr <|> withParen expr
 
 
 def :: Parser (Statement NextPass)
@@ -136,16 +150,21 @@ def = "definition" <??> do
     mfixity <- optionMaybe fixity
     (liStartSig, sigName, ty) <- signature 
     reservedOp' ";"
-    name <- ident'
+
+    defDecl@(Decl _ name _ e) <- decl
+
     when (name /= sigName) $ fail "Function definition does not immediately follow its type signature"
     
-    params <- many ident'
-
-    reservedOp' "="
-    e <- expr
     pure $ Def (Ext (snd <$> mfixity)) 
             (maybe liStartSig fst mfixity `mergeLexInfo` getLexInfo e) 
-            (Decl IgnoreExt name (Ext params) e) ty
+            defDecl ty
+
+decl :: Parser (Decl NextPass)
+decl = "declaration" <??> (\f xs e -> Decl IgnoreExt f (Ext xs) e)
+    <$> ident'
+    <*> many ident'
+    <* reservedOp' "="
+    <*> expr
 
 import_ :: Parser (Statement NextPass)
 import_ = "import" <??> do
@@ -154,17 +173,14 @@ import_ = "import" <??> do
     pure (Import IgnoreExt (liStart `mergeLexInfo` liEnd) name)
 
 modName :: Parser (LexInfo, Name NextPass)
-modName = ident
-
-signature :: Parser (LexInfo, Name NextPass, Type NextPass)
-signature = "type signature" <??> do
-    (liStart, i) <- ident
-    reservedOp' "::"
-    (liEnd, t) <- typeP
-    pure (liStart `mergeLexInfo` liEnd, i, t)
-
-signature' :: Parser (Name NextPass, Type NextPass)
-signature' = fmap (\(_, n, t) -> (n, t)) signature
+modName = joinSegments <$> some validSegment
+    where
+        joinSegments = L.foldr1 (\(l1, t1) (l2, t2) -> (l1 `mergeLexInfo` l2, t1 <> t2))
+        validSegment = "module name" <??> token' \case
+            Token l (Ident t)           -> Just (l, t)
+            Token l (Operator "/")      -> Just (l, "/")
+            Token l (ReservedOp ".")    -> Just (l, ".")
+            _ -> Nothing
 
 fixity :: Parser (LexInfo, Fixity)
 fixity = "fixity declaration" <??> (\(ls, f) (le, i) -> (ls `mergeLexInfo` le, f i))
@@ -179,9 +195,38 @@ defStruct = "struct definition" <??> (\ls n ps fs le -> DefStruct IgnoreExt (ls 
     <*> ident'
     <*> many ident'
     <* paren' "{" 
-    <*> typedIdent' `sepBy` (reservedOp' ",")
+    <*> signature' `sepBy` (reservedOp' ",")
     <*> paren "}"
    
+defVariant :: Parser (Statement NextPass)
+defVariant = "variant definition" <??> (\ls n ps cs -> DefVariant IgnoreExt (ls `mergeLexInfo` snd (unsafeLast cs)) n (map (`MkTVar`()) ps) (map (\((n,ts),_) -> (n, ts, IgnoreExt)) cs))
+    <$> reserved "variant"
+    <*> ident'
+    <*> many ident'
+    <*  reservedOp' "="
+    <*> (constr `sepBy1` reservedOp' "|")
+    where
+        constr = "variant constructor definition" <??> (\(ls, i) ts -> ((i, map snd ts), foldr (\x r -> fst x `mergeLexInfo` r) ls ts))
+            <$> ident
+            <*> many namedType
+
+defClass :: Parser (Statement NextPass)
+defClass = "class definition" <??> (\ls n ps cs le -> DefClass IgnoreExt (ls `mergeLexInfo` le) n (map (\v -> MkTVar v ()) ps) cs)
+    <$> reserved "class"
+    <*> ident'
+    <*> many ident'
+    <*  paren' "{"
+    <*> many (signature' <* reservedOp' ";")
+    <*> paren "}"
+
+defInstance :: Parser (Statement NextPass)
+defInstance = "instance definition" <??> (\ls cn (_, t) ds le -> DefInstance IgnoreExt (ls `mergeLexInfo` le) cn t ds)
+    <$> reserved "instance"
+    <*> ident'
+    <*> typeP
+    <*  paren' "{"
+    <*> many (decl <* reservedOp' ";")
+    <*> paren "}"
 
 ifE :: Parser (Expr NextPass)
 ifE = "if expression" <??> (\liStart te ee -> If IgnoreExt (liStart `mergeLexInfo` (getLexInfo ee)) te ee)
@@ -189,12 +234,12 @@ ifE = "if expression" <??> (\liStart te ee -> If IgnoreExt (liStart `mergeLexInf
     <*> (reserved "then" *> expr)
     <*> (reserved "else" *> expr)
 
-varOrStructConstruct :: Parser (Expr NextPass)
-varOrStructConstruct = "variable or struct construction" <??> do
+varOrConstr :: Parser (Expr NextPass)
+varOrConstr = "variable or struct construction" <??> do
     v <- ident
     m <- option False (paren' "{" >> pure True)
     case m of
-        False -> pure $ uncurry (Var IgnoreExt) v 
+        False -> pure $ makeVarOrVariantConstr v 
         True -> structConstructRest v
     where
         structConstructRest :: (LexInfo, Text) -> Parser (Expr NextPass)
@@ -204,29 +249,42 @@ varOrStructConstruct = "variable or struct construction" <??> do
             where
                 fieldUpdate = (,) <$> ident' <* reservedOp' "=" <*> expr
 
-
-var :: Parser (Expr NextPass)
-var = "variable" <??> uncurry (Var IgnoreExt) <$> ident
-
+        makeVarOrVariantConstr :: (LexInfo, Text) -> Expr NextPass
+        makeVarOrVariantConstr (li, name)
+            | isUpper (T.head name) = VariantConstr IgnoreExt li name
+            | otherwise             = Var IgnoreExt li name
 
 statements :: Parser [Statement NextPass]
 statements = many (statement <* reservedOp ";")
 
-typedIdent :: Parser (LexInfo, Text, Type NextPass)
-typedIdent = "typed identifier" <??> (\(ls, n) (le, t) -> (ls `mergeLexInfo` le, n, t))
+signature :: Parser (LexInfo, Text, Type NextPass)
+signature = "signature" <??> (\(ls, n) (le, t) -> (ls `mergeLexInfo` le, n, t))
     <$> ident 
     <*  reservedOp' "::"
     <*> typeP
 
-typedIdent' :: Parser (Text, Type NextPass)
-typedIdent' = (\(_, y, z) -> (y, z)) <$> typedIdent
+signature' :: Parser (Text, Type NextPass)
+signature' = (\(_, y, z) -> (y, z)) <$> signature
 
 typeP :: Parser (LexInfo, Type NextPass)
-typeP = "type" <??> do
+typeP = "type" <??> constrained <|> unconstrained
+    where
+        constrained = do
+            (ls, c) <- try $ constraint <* reservedOp' "=>"
+            (\(le, t) -> (ls `mergeLexInfo` le, TConstraint c t))
+                <$> unconstrained
+        unconstrained = do
             (ls, t1) <- namedType
             functionType ls t1 
                 <|> typeApp ls t1
                 <|> pure (ls, t1)
+        
+            
+
+constraint :: Parser (LexInfo, Constraint NextPass)
+constraint = (\(ls, n) (le, t) -> (ls `mergeLexInfo` le, MkConstraint n t))
+    <$> ident
+    <*> typeP
 
 namedType :: Parser (LexInfo, Type NextPass)
 namedType = withParen typeP <|> do

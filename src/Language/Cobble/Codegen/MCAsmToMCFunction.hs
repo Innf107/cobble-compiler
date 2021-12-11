@@ -64,17 +64,24 @@ compileInstruction = \case
             ,   Scoreboard (Players (F.Add (reg aptrReg) aptrObj 1))
             ]
         ]  
-    Select x a i                  -> pure [
+    Select x a i -> pure [
         Execute 
             $ EAs (Entity [SScores [(ixObj, i)]]) 
             $ EIf (IScore self aptrObj (IEQ (reg a) regs)) 
-            $ ERun (Scoreboard (Players (Operation (reg x) regs SAssign self regs)))] 
-    Store a x i                   -> pure [
+            $ ERun (Scoreboard (Players (Operation (reg x) regs SAssign self regs)))
+        ] 
+    Store a x i -> pure [
         Execute 
             $ EAs (Entity [SScores [(ixObj, i)]]) 
             $ EIf (IScore self aptrObj (IEQ (reg a) regs)) 
-            $ ERun (Scoreboard (Players (Operation self regs SAssign (reg x) regs)))] 
-
+            $ ERun (Scoreboard (Players (Operation self regs SAssign (reg x) regs)))
+        ] 
+    StoreLit a x i -> pure [
+        Execute
+            $ EAs (Entity [SScores [(ixObj, i)]])
+            $ EIf (IScore self aptrObj (IEQ (reg a) regs))
+            $ ERun (Scoreboard (Players (Set self regs x)))
+        ]
     SetScoreboard player obj x  -> pure [Scoreboard (Players (Operation (Player player) obj SAssign (reg x) regs))]
     where 
         asExec :: Instruction -> (ExecuteArg -> ExecuteArg) -> Sem r [Command]

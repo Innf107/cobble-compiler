@@ -20,6 +20,7 @@ prettyPrintLCExpr = \case
     App fexpr aexpr         -> prettyPrintLCExprParens fexpr <> " " <> prettyPrintLCExprParens aexpr
     IntLit i                -> show i
     Tuple as                -> "[" <> T.intercalate ", " (map prettyPrintLCExpr $ toList as) <> "]"
+    Variant (con,i) as      -> show con <> "@" <> show i <> "[" <> T.intercalate ", " (map prettyPrintLCExpr $ toList as) <> "]" 
     Select i t              -> prettyPrintLCExprParens t <> "._" <> show i
     If c th el              ->      "if " <> prettyPrintLCExpr c 
                                 <> " then " <> prettyPrintLCExpr th 

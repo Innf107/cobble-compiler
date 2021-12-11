@@ -2,13 +2,15 @@ module Language.Cobble.Types.LexInfo where
 
 import Language.Cobble.Prelude
 
+import Text.Show qualified as S
+
 type FileName = Text
 
 data LexInfo = LexInfo {
       startPos :: SourcePos
     , endPos :: SourcePos
     , file :: FileName
-    } deriving (Show, Eq, Ord, Generic, Data, Typeable)
+    } deriving (Eq, Ord, Generic, Data, Typeable)
 
 instance Hashable LexInfo
 
@@ -21,4 +23,6 @@ instance Hashable SourcePos
 pattern InternalLexInfo :: LexInfo
 pattern InternalLexInfo = LexInfo (SourcePos 0 0) (SourcePos 0 0) "<internal>"
 
-
+instance S.Show LexInfo where
+  show (LexInfo{startPos,endPos, file}) = toString $ file <> ":" <> show (line startPos) <> ":" <> show (column startPos) 
+                                                          <> "-" <> show (line endPos) <> ":" <> show (column endPos)
