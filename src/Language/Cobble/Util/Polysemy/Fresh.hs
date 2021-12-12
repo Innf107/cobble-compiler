@@ -37,7 +37,7 @@ mapFresh f = interpret \case
     FreshVar x -> f <$> freshVar x
 
 freshWithInternal :: (Member (Fresh (Text, LexInfo) QualifiedName) r) => Sem (Fresh Text QualifiedName : r) a -> Sem r a
-freshWithInternal =  interpret \case
+freshWithInternal = interpret \case
     FreshVar x -> freshVar (x, InternalLexInfo)
 
 runFreshQNamesStateInitial :: Int -> Sem (Fresh (Text, LexInfo) QualifiedName : r) a -> Sem r a

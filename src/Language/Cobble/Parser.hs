@@ -1,6 +1,7 @@
 module Language.Cobble.Parser (
     module Language.Cobble.Parser
 ,   parse
+,   eof
 ) where
 
 import Language.Cobble.Prelude.Parser hiding (assign)

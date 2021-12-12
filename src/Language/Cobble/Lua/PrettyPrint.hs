@@ -5,37 +5,34 @@ import Language.Cobble.Lua.Types
 
 import Data.Text qualified as T
 
-header :: Text
-header = unlines [
-        "#!/usr/bin/env lua"
-    ,   "function __setTestScoreboardUnsafe__(x)"
-    ,   "    print(x)"
-    ,   "end"
-    ]
 
 prettyLua :: [LuaStmnt] -> Text
-prettyLua = (header <>) . prettyLuaStmnts 
+prettyLua = unlines . map prettyLuaStmnt
 
-prettyLuaStmnts :: [LuaStmnt] -> Text
-prettyLuaStmnts = unlines . map prettyLuaStmnt
+-- Top level @Assign@s cannot be written as "local ..."
+-- in the lua repl
+prettyLuaForRepl :: [LuaStmnt] -> Text
+prettyLuaForRepl = unlines . map \case
+    Assign x e -> x <> " = " <> prettyLuaExpr e
+    st -> prettyLuaStmnt st
 
 prettyLuaStmnt :: LuaStmnt -> Text
 prettyLuaStmnt = \case 
     Assign x e -> "local " <> x <> " = " <> prettyLuaExpr e
     DefFunction f xs body -> "function " <> f <> "(" <> T.intercalate ", " xs <> ")\n" 
-        <> prettyLuaStmnts body
+        <> prettyLua body
         <> "end"
     Return e -> "return " <> prettyLuaExpr e 
     If c th el -> "if " <> prettyLuaExpr c <> " then\n"
-        <> prettyLuaStmnts th
+        <> prettyLua th
         <> "else\n"
-        <> prettyLuaStmnts el 
+        <> prettyLua el 
         <> "end"
 
 prettyLuaExpr :: LuaExpr -> Text
 prettyLuaExpr = \case
     Function xs sts -> "(function (" <> T.intercalate ", " xs <> ")\n"
-        <> prettyLuaStmnts sts
+        <> prettyLua sts
         <> "end)"
     Call f es -> prettyLuaExpr f <> "(" <> T.intercalate ", " (map prettyLuaExpr es) <> ")"
     Var x -> x

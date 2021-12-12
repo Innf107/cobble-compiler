@@ -1,5 +1,8 @@
 {-#LANGUAGE TemplateHaskell#-}
-module Language.Cobble.Interactive where
+module Language.Cobble.Interactive (
+    module Language.Cobble.Interactive
+,   module Language.Cobble.Interactive.Types
+) where
 
 import Language.Cobble.Prelude
 
@@ -20,6 +23,7 @@ import Language.Cobble.Typechecker (TConstraint)
 
 import Language.Cobble.Lua.Types
 import Language.Cobble.Lua.PrettyPrint
+import Language.Cobble.Codegen.CPSToLua (luaHeader)
 import Language.Cobble.Codegen.CobbleToLC qualified as C2LC
 import Language.Cobble.LC.Types
 
@@ -39,24 +43,34 @@ data InteractiveState = InteractiveState {
 
 initialInteractiveState :: InteractiveState
 initialInteractiveState = InteractiveState {
-        _modSigs = mempty
+        _modSigs = one (internalQName "prims", primModSig)
     ,   _imports = []
     }
 
 makeLenses ''InteractiveState
 
 
-runInteractive :: Members '[Fresh (Text, LexInfo) QualifiedName, Embed IO] r => Sem (E.Interactive : r) a -> Sem r a
-runInteractive = runEmbedded (Lua.run :: forall a. Lua a -> IO a) . freshWithInternal . evalState initialInteractiveState . reinterpret3 \case
-    E.Eval cmd -> eval cmd
 
-eval :: Members '[State InteractiveState, Fresh Text QualifiedName, Embed Lua] r => Text -> Sem r InteractiveOutput
-eval content = wrapCompilationError do
+runInteractive :: Members '[Embed Lua, Dump [LuaStmnt]] r => Sem (E.Interactive : r) a -> Sem r a
+runInteractive = runFreshQNamesState . evalState initialInteractiveState . addInit . reinterpret2 \case
+    E.Eval cmd -> runEval cmd
+    E.EvalLua cmd -> runInLuaRaw cmd
+    where
+        addInit a = init *> a
+
+init :: Members '[Embed Lua] r => Sem r ()
+init = do
+    embed $ Lua.openlibs
+    runInLuaRaw luaHeader
+    pure ()
+
+runEval :: Members '[State InteractiveState, Fresh (Text, LexInfo) QualifiedName, Embed Lua, Dump [LuaStmnt]] r => Text -> Sem r InteractiveOutput
+runEval content = wrapCompilationError $ freshWithInternal do
     toks <- mapError LexError $ T.tokenize "<interactive>" content
-    ast :: [Statement QualifyNames] <- fmap coercePass $ mapError ParseError $ fromEither $ P.parse P.statements "<interactive>" toks
+    ast <- fmap coercePass $ mapError ParseError $ fromEither $ P.parse (P.statements <* P.eof) "<interactive>" toks
     
     lastModSigs <- gets _modSigs
-    lastImports <- gets _imports  
+    lastImports <- gets _imports
 
     modName <- newInteractiveModName
     
@@ -66,13 +80,15 @@ eval content = wrapCompilationError do
     modify (imports %~ (<> [makeImport (renamed modName)]))
     
     luaStmnts <- ignoreDumps $ compileFromLC (C2LC.collapseDefs lc)
+    dump luaStmnts
 
     runInLua luaStmnts
 
 runInLua :: Members '[Embed Lua] r => [LuaStmnt] -> Sem r InteractiveOutput
-runInLua stmnts = do
-    let luaCode = prettyLua stmnts 
-    embed $ do
+runInLua stmnts = runInLuaRaw (prettyLuaForRepl stmnts) 
+
+runInLuaRaw :: Members '[Embed Lua] r => Text -> Sem r InteractiveOutput
+runInLuaRaw luaCode = embed $ do
         status <- Lua.loadbuffer (encodeUtf8 luaCode) "interactive"
         case status of
             Lua.OK -> do 
@@ -83,8 +99,8 @@ runInLua stmnts = do
 newInteractiveModName :: Members '[Fresh Text QualifiedName] r => Sem r QualifiedName
 newInteractiveModName = (\qn -> unsafeQualifiedName (renamed qn) (renamed qn) (location qn)) <$> freshVar "interactive"
 
-runCompile :: Sem (Fresh (Text, LexInfo) QualifiedName : Dump [TGiven] : Dump [TWanted] : Dump [TConstraint] : Output Log : r) a -> Sem r a
-runCompile = ignoreOutput . dontDump . dontDump . dontDump . runFreshQNamesState
+runCompile :: Sem (Dump [TGiven] : Dump [TWanted] : Dump [TConstraint] : Output Log : r) a -> Sem r a
+runCompile = ignoreOutput . dontDump . dontDump . dontDump
 
 makeImport :: Text -> Statement QualifyNames
 makeImport modName = (Import IgnoreExt InternalLexInfo modName)

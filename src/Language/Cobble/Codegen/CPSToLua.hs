@@ -38,3 +38,17 @@ compilePrimOp P.LE [x, y] = L.LE (compileVal x) (compileVal y)
 compilePrimOp SetTestScoreboardUnsafe [x] = L.Call (L.Var "__setTestScoreboardUnsafe__") [compileVal x]
 compilePrimOp p xs = error $ "CPSToLua.compilePrimOp: invalid combination of primop and arguments: " <> show (PrimOp p xs) 
 
+
+fileLuaHeader :: Text
+fileLuaHeader = unlines [
+        "#!/usr/bin/env lua"
+    ,   luaHeader
+    ]
+
+luaHeader :: Text
+luaHeader = unlines [
+        "function __setTestScoreboardUnsafe__(x)"
+    ,   "    print(x)"
+    ,   "end"
+    ]
+

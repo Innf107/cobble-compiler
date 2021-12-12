@@ -7,13 +7,27 @@ import Language.Cobble.Packager
 
 import Options.Applicative
 import Language.Cobble.Util.Polysemy.Time
+import Language.Cobble.Util.Polysemy.Dump
+
+import Language.Cobble.Lua.PrettyPrint
+
+import Language.Cobble.Interactive qualified as I
+import Language.Cobble.Interactive.Effect qualified as I
+
+import Data.Text qualified as T
+
+import HsLua qualified as Lua
+
+import Polysemy.Embed
 
 main :: IO ()
 main = runCobble =<< execParser (info (mainOpts <**> helper) mainInfo)
     where
         mainOpts = hsubparser (
               command "compile" (Compile <$> info compileOpts (progDesc "Compile source files to a datapack"))
-            ) 
+            ) <|> hsubparser (
+                command "interactive" (Interactive <$> info interactiveOpts (progDesc "Run in an interactive REPL"))
+            )
         mainInfo = idm
 
 cobbleInfo :: InfoMod CobbleAction
@@ -22,6 +36,7 @@ cobbleInfo = mempty
 runCobble :: CobbleAction -> IO ()
 runCobble = \case
     Compile co -> runCompile co
+    Interactive opts -> runInteractive opts
 
 runCompile :: CompileCmdOpts -> IO ()
 runCompile CompileCmdOpts{compFiles, debug, packageName, description, target, logLevel, ddumpTC, ddumpLC, ddumpCPS, ddumpReduced, ddumpTL, ddumpAsm} = do
@@ -35,7 +50,7 @@ runCompile CompileCmdOpts{compFiles, debug, packageName, description, target, lo
         ,   ddumpCPS
         ,   ddumpReduced
         ,   ddumpTL    
-        ,   ddumpAsm 
+        ,   ddumpAsm
         }
     case target of
         MC117 -> do
@@ -50,6 +65,27 @@ runCompile CompileCmdOpts{compFiles, debug, packageName, description, target, lo
             case eluaFile of
                 Left e -> failWithCompError e
                 Right luaFile -> writeFileText (toString packageName <> ".lua") luaFile
+
+runInteractive :: InteractiveCmdOpts -> IO ()
+runInteractive InteractiveCmdOpts{ddumpLua} = do 
+    printHeader
+    Lua.run $ runM $ dumpWhenWithTo liftIO ddumpLua prettyLuaForRepl stderr $ I.runInteractive $ forever do
+        embedLua $ putStr "λ> "
+        embedLua $ hFlush stdout
+        command <- embedLua $ getLine
+        case T.stripPrefix ":lua" command of
+            Just l -> I.evalLua l >>= embedLua . print
+            Nothing -> do 
+                res <- I.eval command
+                embedLua $ print res
+        where
+            embedLua :: Members '[Embed I.Lua] r => IO a -> Sem r a
+            embedLua = embed . liftIO
+
+printHeader :: IO ()
+printHeader = do
+    putStrLn "Cobble Interactive"
+    putStrLn ":? for help"
 
 printLog :: LogLevel -> Log -> IO ()
 printLog maxLevel (Log lvl o) = when (lvl <= maxLevel)
@@ -67,7 +103,9 @@ printLog maxLevel (Log lvl o) = when (lvl <= maxLevel)
 failWithCompError :: CompilationError -> IO a
 failWithCompError e = fail $ "CompilationError: " <> show e
 
-data CobbleAction = Compile CompileCmdOpts deriving (Show, Eq)
+data CobbleAction = Compile CompileCmdOpts 
+                  | Interactive InteractiveCmdOpts
+                  deriving (Show, Eq)
 
 data CompileCmdOpts = CompileCmdOpts {
       compFiles :: [FilePath]
@@ -84,6 +122,10 @@ data CompileCmdOpts = CompileCmdOpts {
     , ddumpAsm :: Bool
     } deriving (Show, Eq)
 
+data InteractiveCmdOpts = InteractiveCmdOpts {
+    ddumpLua :: Bool
+} deriving (Show, Eq)
+
 compileOpts :: Parser CompileCmdOpts
 compileOpts = CompileCmdOpts
     <$> some (argument str (metavar "SOURCEFILES"))
@@ -98,3 +140,7 @@ compileOpts = CompileCmdOpts
     <*> switch (long "ddump-reduced" <> help "Write the reduced intermediate CPS to a file")
     <*> switch (long "ddump-tl" <> help "Write the intermediate TopLevel CPS to a file")
     <*> switch (long "ddump-asm" <> help "Write the intermediate ASM to a file")
+
+interactiveOpts :: Parser InteractiveCmdOpts
+interactiveOpts = InteractiveCmdOpts
+    <$> switch (long "ddump-lua" <> help "Write lua output to stderr")

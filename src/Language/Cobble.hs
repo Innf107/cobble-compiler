@@ -154,8 +154,9 @@ instance Compiled [LuaStmnt] where
 
         pure (CPS2Lua.compile reduced)
 
+
 compileToLuaFile :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Members Dumps r) => [FilePath] -> Sem r Text
-compileToLuaFile files = prettyLua <$> compileAll files
+compileToLuaFile files = (fileLuaHeader <>) . prettyLua <$> compileAll files
 
 compileToDataPack :: (ControllerC r, Members '[Time, Fresh (Text, LexInfo) QualifiedName] r, Members Dumps r) => [FilePath] -> Sem r LByteString
 compileToDataPack files = do
