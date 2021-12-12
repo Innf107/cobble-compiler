@@ -147,6 +147,7 @@ library
     , directory
     , dlist
     , filepath
+    , hslua
     , lens
     , mcrcon
     , parsec
@@ -230,6 +231,7 @@ executable cobble
     , directory
     , dlist
     , filepath
+    , hslua
     , lens
     , mcrcon
     , optparse-applicative
@@ -334,6 +336,7 @@ test-suite cobble-test
     , directory
     , dlist
     , filepath
+    , hslua
     , hspec
     , lens
     , mcrcon

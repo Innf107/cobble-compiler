@@ -15,6 +15,55 @@ packages:
   original:
     git: https://github.com/Innf107/mcrcon
     commit: 4178833e4610ed04dbb89f5d0e693ffb6f231afd
+- completed:
+    hackage: hslua-2.0.1@sha256:d8f3f8f3be9239940daecdeb7334567732fe922ba6194e08d4c1dff4a2795969,4176
+    pantry-tree:
+      size: 679
+      sha256: 864692c65529281acb6e7ddf60d60431d5d94d012934398f9a1db1d2c068951b
+  original:
+    hackage: hslua-2.0.1
+- completed:
+    hackage: hslua-classes-2.0.0@sha256:77892ad3e81bd5a6e28d264f1d062839346569660368aa5f606805ae8f347d97,3794
+    pantry-tree:
+      size: 1112
+      sha256: f2d7dea6c3d537c9d1697cadf9bf5a86f968d2e471140ecf7e5e3c40d5ec039c
+  original:
+    hackage: hslua-classes-2.0.0@sha256:77892ad3e81bd5a6e28d264f1d062839346569660368aa5f606805ae8f347d97,3794
+- completed:
+    hackage: hslua-core-2.0.0.2@sha256:18397c8649129c3adaaa43b68c2ed9f5fad7b96d7f43b9355ffad4ff55ff4693,4061
+    pantry-tree:
+      size: 1792
+      sha256: 99ffb7edf793856b360e15d58df97bf5e728fa009deeac027852bc82d52b766e
+  original:
+    hackage: hslua-core-2.0.0.2@sha256:18397c8649129c3adaaa43b68c2ed9f5fad7b96d7f43b9355ffad4ff55ff4693,4061
+- completed:
+    hackage: hslua-marshalling-2.0.1@sha256:40eff33e386aa4f99fb22f12fc9fe673752ed5ccb09566d575bce3cfe1776166,3839
+    pantry-tree:
+      size: 1020
+      sha256: 26bd92c2d2558f2de0122fd28b3de9fe63936d660516551760bb0ee22df6c1ef
+  original:
+    hackage: hslua-marshalling-2.0.1@sha256:40eff33e386aa4f99fb22f12fc9fe673752ed5ccb09566d575bce3cfe1776166,3839
+- completed:
+    hackage: hslua-objectorientation-2.0.1@sha256:28362bb7e476e5fae3382ef545146f81b9a64fa4e2c5ec627dfa5618d671d003,3335
+    pantry-tree:
+      size: 583
+      sha256: a2601024075c0b8f8bf864e59701f26e53893ef776d0374542223f1a1d6e75b2
+  original:
+    hackage: hslua-objectorientation-2.0.1@sha256:28362bb7e476e5fae3382ef545146f81b9a64fa4e2c5ec627dfa5618d671d003,3335
+- completed:
+    hackage: hslua-packaging-2.0.0@sha256:0b62de0ffe7a6e051730c29433f06a0570137564cb605df2b3921b87dc76bad2,3476
+    pantry-tree:
+      size: 1076
+      sha256: 6aeb7cf613a4bf50419ea5aeee5caa6db6ca23fea925b5e0701a4a27b1dab29f
+  original:
+    hackage: hslua-packaging-2.0.0@sha256:0b62de0ffe7a6e051730c29433f06a0570137564cb605df2b3921b87dc76bad2,3476
+- completed:
+    hackage: lua-2.0.1@sha256:81c31670932cdbee9e6b8b1d1216fb5e734ab78b3c29d603e6d46a249ebd19cb,8045
+    pantry-tree:
+      size: 5305
+      sha256: 3853098fbac9fa7f7f02bf8346d0f5af0602fae1ece0a9f2345208dbbd88fd40
+  original:
+    hackage: lua-2.0.1@sha256:81c31670932cdbee9e6b8b1d1216fb5e734ab78b3c29d603e6d46a249ebd19cb,8045
 snapshots:
 - completed:
     size: 571803
