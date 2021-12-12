@@ -1,7 +1,10 @@
 module Language.Cobble.Util where
 
 import Language.Cobble.Prelude
+import GHC.Base (Symbol)
   
+newtype Tagged (s :: Symbol) a = Tagged {unTagged :: a} deriving (Show, Eq, Functor)
+
 mapCompose ::  (f (g a) -> f' (g' b)) -> Compose f g a -> Compose f' g' b
 mapCompose f = Compose . f . getCompose
 

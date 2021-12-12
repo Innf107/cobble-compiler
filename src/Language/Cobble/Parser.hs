@@ -1,4 +1,7 @@
-module Language.Cobble.Parser where
+module Language.Cobble.Parser (
+    module Language.Cobble.Parser
+,   parse
+) where
 
 import Language.Cobble.Prelude.Parser hiding (assign)
 import Language.Cobble.Types

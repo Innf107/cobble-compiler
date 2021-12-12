@@ -55,6 +55,7 @@ library:
   - -Werror=incomplete-record-updates
   - -Werror=missing-fields
   - -freverse-errors
+  - -fconstraint-solver-iterations=0 # necessary for some heavy polysemy incantations
 
 executables:
   cobble:

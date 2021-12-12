@@ -5,6 +5,8 @@ module Language.Cobble (
     , compileContentsToDataPack
     , compileToLuaFile
     , runControllerC
+    , dumpToFilesWithConfig
+    , ignoreDumps
     , LogLevel(..)
     , Log(..)
     , CompilationError(..)
@@ -15,6 +17,11 @@ module Language.Cobble (
 
     , primModSig
     , modSigToScope
+    , ModSig
+
+    -- low level api
+    , compileWithSig
+    , Compiled (..)
     ) where
 
 import Language.Cobble.Prelude hiding ((<.>), readFile, writeFile, combine)
@@ -81,6 +88,7 @@ data CompilationError = LexError LexicalError
                       | Panic Text
                       deriving (Show, Eq)
 
+type Dumps = '[Dump [Block], Dump TL, Dump (Tagged "Reduced" CPS), Dump CPS, Dump LCExpr, Dump [TConstraint], Dump [TWanted], Dump [TGiven]]
 
 type ControllerC r = Members '[Reader CompileOpts, Error CompilationError, FileSystem FilePath Text, Output Log] r
 
@@ -118,53 +126,66 @@ askDataPackOpts = ask <&> \(CompileOpts{name, description}) -> DataPackOptions {
     }
 
 class Compiled m where
-    compileFromLC :: forall r. (ControllerC r, Members '[Fresh Text QualifiedName] r) => LCExpr -> Sem r m
+    compileFromLC :: forall r. (Members '[Fresh Text QualifiedName] r, Members Dumps r) => LCExpr -> Sem r m
 
 instance Compiled [CompiledModule] where
     compileFromLC lc = do
-        cps     <- LC2CPS.compile lc
-        whenM (asks ddumpCPS) $ dumpCPS cps
+        cps <- LC2CPS.compile lc
+        dump cps
 
         let reduced = LC2CPS.reduceAdmin cps
-        whenM (asks ddumpReduced) $ dumpReduced reduced
+        dump (Tagged @"Reduced" reduced)
 
-        tl      <- CPS2TL.compile reduced
-        whenM (asks ddumpTL) $ dumpTL tl
-        
+        tl <- CPS2TL.compile reduced
+        dump tl
+
         let asm = TL2ASM.compile tl 
-        whenM (asks ddumpAsm) $ dumpAsm asm
-        
+        dump asm
+
         pure $ ASM2MC.compile asm
 
 instance Compiled [LuaStmnt] where
     compileFromLC lc = do
         cps <- LC2CPS.compile lc
-        whenM (asks ddumpCPS) $ dumpCPS cps
-        
+        dump cps
+
         let reduced = LC2CPS.reduceAdmin cps
-        whenM (asks ddumpReduced) $ dumpReduced reduced
+        dump (Tagged @"Reduced" reduced)
 
         pure (CPS2Lua.compile reduced)
 
-compileToLuaFile :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r) => [FilePath] -> Sem r Text
+compileToLuaFile :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Members Dumps r) => [FilePath] -> Sem r Text
 compileToLuaFile files = prettyLua <$> compileAll files
 
-compileToDataPack :: (ControllerC r, Members '[Time, Fresh (Text, LexInfo) QualifiedName] r) => [FilePath] -> Sem r LByteString
+compileToDataPack :: (ControllerC r, Members '[Time, Fresh (Text, LexInfo) QualifiedName] r, Members Dumps r) => [FilePath] -> Sem r LByteString
 compileToDataPack files = do
     cmods <- compileAll files
     opts <- askDataPackOpts
     makeDataPack opts cmods
 
-compileContentsToDataPack :: (ControllerC r, Members '[Time, Fresh (Text, LexInfo) QualifiedName] r) => [(FilePath, Text)] -> Sem r LByteString
+compileContentsToDataPack :: (ControllerC r, Members '[Time, Fresh (Text, LexInfo) QualifiedName] r, Members Dumps r) => [(FilePath, Text)] -> Sem r LByteString
 compileContentsToDataPack files = do
     cmods <- compileContents files
     opts <- askDataPackOpts
     makeDataPack opts cmods
 
-compileAll :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m) => [FilePath] -> Sem r m
+compileAll :: 
+        (   ControllerC r
+        ,   Members '[
+                Fresh (Text, LexInfo) QualifiedName
+            ] r
+        ,   Members Dumps r
+        ,   Compiled m) 
+           => [FilePath] -> Sem r m
 compileAll files = compileContents =<< traverse (\x -> (x,) <$> readFile x) files
 
-compileContents :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m) 
+compileContents :: 
+                (   ControllerC r
+                ,   Members '[
+                        Fresh (Text, LexInfo) QualifiedName
+                    ] r
+                ,   Members Dumps r
+                ,   Compiled m) 
                 => [(FilePath, Text)] 
                 -> Sem r m
 compileContents contents = do
@@ -177,11 +198,18 @@ compileContents contents = do
     
     let lc = C2LC.collapseDefs lcDefs
 
-    whenM (asks ddumpLC) $ dumpLC lc
+    dump lc
 
     freshWithInternal $ compileFromLC lc
 
-compileAndAnnotateSig :: (ControllerC r, Members '[State (Map (S.Name 'QualifyNames) ModSig), Fresh (Text, LexInfo) QualifiedName] r)
+compileAndAnnotateSig :: ( ControllerC r
+                         , Members '[
+                             State (Map (S.Name 'QualifyNames) ModSig)
+                           , Fresh (Text, LexInfo) QualifiedName
+                           , Dump [TConstraint]
+                           , Dump [TWanted]
+                           , Dump [TGiven]
+                         ] r)
                       => (S.Module 'SolveModules, [S.Name 'SolveModules])
                       -> Sem r [LCDef]
 compileAndAnnotateSig (m, deps) = do
@@ -198,7 +226,8 @@ getDep :: (ControllerC r, Member (State (Map (S.Name 'QualifyNames) ModSig)) r)
        -> Sem r ModSig
 getDep n = maybe (error $ "Module dependency '" <> show n <> "' not found") pure =<< gets (lookup n)
 --              TODO^: Should this really be a panic? 
-compileWithSig :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r)
+compileWithSig :: (Members '[Error CompilationError, Dump [TConstraint], Dump [TWanted], Dump [TGiven], Output Log, 
+                             Fresh (Text, LexInfo) QualifiedName] r)
                => S.Module 'QualifyNames
                -> Sem r ([LCDef], ModSig)
 compileWithSig m = do
@@ -220,10 +249,7 @@ compileWithSig m = do
     saMod <- mapError SemanticError $ runSemanticAnalysis qMod
 
     freshWithInternal do
-        tcMod <- dumpWhenWithM (asks ddumpTC) ppGivens "dump-givens.tc" 
-            $ dumpWhenWithM (asks ddumpTC) ppWanteds "dump-wanteds.tc" 
-            $ dumpWhenWithM (asks ddumpTC) ppTC "dump-tc.tc" 
-            $ mapError TypeError $ evalState tcState $ typecheck saMod
+        tcMod <- mapError TypeError $ evalState tcState $ typecheck saMod
 
         let ppMod = postProcess tcMod
 
@@ -280,21 +306,19 @@ primModSig = ModSig {
     ,   exportedInstances = mempty
     }
 
-dumpLC :: (Members '[FileSystem FilePath Text] r) => LCExpr -> Sem r ()
-dumpLC = writeFile "dump-lc.lc" . prettyPrintLCExpr
+dumpToFilesWithConfig :: (Members '[FileSystem FilePath Text, Reader CompileOpts] r) => Sem (Dump [Block] : Dump TL : Dump (Tagged "Reduced" CPS) : Dump CPS : Dump LCExpr : Dump [TConstraint] : Dump [TWanted] : Dump [TGiven] : r) a -> Sem r a
+dumpToFilesWithConfig = dumpWhenWithM (asks ddumpTC) ppGivens "dump-givens.tc" 
+                      . dumpWhenWithM (asks ddumpTC) ppWanteds "dump-wanteds.tc" 
+                      . dumpWhenWithM (asks ddumpTC) ppTC "dump-tc.tc" 
+                      . dumpWhenWithM (asks ddumpLC) prettyPrintLCExpr "dump-lc.lc"
+                      . dumpWhenWithM (asks ddumpCPS) show "dump-cps.lc"
+                      . dumpWhenWithM (asks ddumpReduced) show "dump-reduced-cps.lc"
+                      . dumpWhenWithM (asks ddumpTL) show "dump-tl.lc"
+                      . dumpWhenWithM (asks ddumpAsm) renderAsm "dump-asm.mcasm"
 
-dumpCPS :: (Members '[FileSystem FilePath Text] r) => CPS -> Sem r ()
-dumpCPS = writeFile "dump-cps.lc" . show
+ignoreDumps :: Sem (Dump [Block] : Dump TL : Dump (Tagged "Reduced" CPS) : Dump CPS : Dump LCExpr : Dump [TConstraint] : Dump [TWanted] : Dump [TGiven] : r) a -> Sem r a
+ignoreDumps = dontDump . dontDump . dontDump . dontDump . dontDump . dontDump . dontDump. dontDump
 
-dumpReduced :: (Members '[FileSystem FilePath Text] r) => CPS -> Sem r ()
-dumpReduced = writeFile "dump-reduced-cps.lc" . show
-
-dumpTL :: (Members '[FileSystem FilePath Text] r) => TL -> Sem r ()
-dumpTL = writeFile "dump-tl.lc" . show 
-
-dumpAsm :: (Members '[FileSystem FilePath Text] r) => [Block] -> Sem r ()
-dumpAsm = writeFile "dump-asm.mcasm" . renderAsm
-    where
-        renderAsm :: [Block] -> Text
-        renderAsm = T.intercalate "\n\n" . map (\(Block f is) -> "[" <> show f <> "]:\n" <> foldMap (\i -> "    " <> show i <> "\n") is)
+renderAsm :: [Block] -> Text
+renderAsm = T.intercalate "\n\n" . map (\(Block f is) -> "[" <> show f <> "]:\n" <> foldMap (\i -> "    " <> show i <> "\n") is)
 

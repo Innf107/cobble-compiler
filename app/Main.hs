@@ -39,13 +39,13 @@ runCompile CompileCmdOpts{compFiles, debug, packageName, description, target, lo
         }
     case target of
         MC117 -> do
-            (logs, edatapackBS) <- runControllerC opts (timeToIO $ compileToDataPack compFiles)
+            (logs, edatapackBS) <- runControllerC opts $ dumpToFilesWithConfig $ timeToIO $ compileToDataPack compFiles
             traverse_ (printLog logLevel) logs
             case edatapackBS of
                 Left e -> failWithCompError e
                 Right datapackBS -> writeFileLBS (toString packageName <> ".zip") datapackBS
         Lua -> do
-            (logs, eluaFile) <- runControllerC opts (compileToLuaFile compFiles)
+            (logs, eluaFile) <- runControllerC opts $ dumpToFilesWithConfig $ compileToLuaFile compFiles
             traverse_ (printLog logLevel) logs
             case eluaFile of
                 Left e -> failWithCompError e

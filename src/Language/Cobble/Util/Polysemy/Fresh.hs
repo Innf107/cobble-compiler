@@ -11,6 +11,7 @@ module Language.Cobble.Util.Polysemy.Fresh (
     , runFreshQNamesStateInitial
     
     , freshWithInternal
+    , mapFresh
     ) where
 
 import Language.Cobble.Prelude
@@ -31,6 +32,9 @@ freshVar3 x y z = (,,) <$> freshVar x <*> freshVar y <*> freshVar z
 runFreshQNamesState :: Sem (Fresh (Text, LexInfo) QualifiedName : r) a -> Sem r a
 runFreshQNamesState = runFreshQNamesStateInitial 0
 
+mapFresh :: (Member (Fresh a b) r) => (b -> c) -> Sem (Fresh a c : r) x -> Sem r x
+mapFresh f = interpret \case
+    FreshVar x -> f <$> freshVar x
 
 freshWithInternal :: (Member (Fresh (Text, LexInfo) QualifiedName) r) => Sem (Fresh Text QualifiedName : r) a -> Sem r a
 freshWithInternal =  interpret \case

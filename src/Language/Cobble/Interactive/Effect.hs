@@ -2,8 +2,9 @@
 module Language.Cobble.Interactive.Effect where
 
 import Language.Cobble.Prelude
+import Language.Cobble.Interactive.Types
 
 data Interactive m a where
-    Eval :: Text -> Interactive m Text
+    Eval :: Text -> Interactive m InteractiveOutput
 
 makeSem ''Interactive

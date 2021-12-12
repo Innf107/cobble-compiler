@@ -36,6 +36,9 @@ library
       Language.Cobble.Codegen.TopLevelCPSToMCAsm
       Language.Cobble.CPS.Basic.Types
       Language.Cobble.CPS.TopLevel.Types
+      Language.Cobble.Interactive
+      Language.Cobble.Interactive.Effect
+      Language.Cobble.Interactive.Types
       Language.Cobble.LC.PrettyPrint
       Language.Cobble.LC.Types
       Language.Cobble.Lua.PrettyPrint
@@ -135,7 +138,7 @@ library
       NumDecimals
       RoleAnnotations
       QuantifiedConstraints
-  ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wredundant-constraints -Werror=incomplete-patterns -Werror=incomplete-record-updates -Werror=missing-fields -freverse-errors
+  ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wredundant-constraints -Werror=incomplete-patterns -Werror=incomplete-record-updates -Werror=missing-fields -freverse-errors -fconstraint-solver-iterations=0
   build-depends:
       base >=4.7 && <5
     , bytestring
