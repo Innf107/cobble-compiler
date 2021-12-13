@@ -96,7 +96,19 @@ statement :: Parser (Statement NextPass)
 statement = "statement" <??> def <|> defStruct <|> defVariant <|> defClass <|> defInstance <|> import_
 
 expr :: Parser (Expr NextPass)
-expr = exprOrOp <&> \case
+expr = merge 
+        <$> exprWithoutAscription 
+        <*> optionMaybe ascription
+    where
+        ascription = "ascription" 
+            <??>  
+            reservedOp "::"
+            *> typeP
+        merge e (Just (le, ty)) = Ascription IgnoreExt (mergeLexInfo (getLexInfo e) le) e ty
+        merge e Nothing = e
+
+exprWithoutAscription :: Parser (Expr NextPass)
+exprWithoutAscription = exprOrOp <&> \case
     OpLeaf e -> e
     opGroup  -> ExprX opGroup (leftLI opGroup `mergeLexInfo` rightLI opGroup)  
     where

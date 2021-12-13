@@ -45,6 +45,7 @@ type instance XIntLit           Codegen = IgnoreExt Codegen
 type instance XIf               Codegen = IgnoreExt Codegen
 type instance XLet              Codegen = IgnoreExt Codegen
 type instance XVar              Codegen = Ext2_1 Codegen (Type Codegen) [TWanted]
+type instance XAscription       Codegen = ExtVoid Codegen
 type instance XVariantConstr    Codegen = Ext Codegen (Type Codegen, Int, Int)
 --                                                                    ^    ^
 --                                                                    |    constructor index

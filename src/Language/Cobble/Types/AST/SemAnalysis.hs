@@ -30,6 +30,7 @@ type instance XIntLit           'SemAnalysis = IgnoreExt SemAnalysis
 type instance XIf               'SemAnalysis = IgnoreExt SemAnalysis
 type instance XLet              'SemAnalysis = IgnoreExt SemAnalysis
 type instance XVar              'SemAnalysis = IgnoreExt SemAnalysis
+type instance XAscription       'SemAnalysis = IgnoreExt SemAnalysis
 type instance XVariantConstr    'SemAnalysis = Ext SemAnalysis (Int, Int)
 --                                                               ^    ^
 --                                                               |    constructor index

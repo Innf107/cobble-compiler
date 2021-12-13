@@ -99,6 +99,7 @@ import Control.Lens hiding (
     ,   transformM
     ,   transform
     ,   (<.>)
+    ,   op
     )
 
 import Data.Data hiding (Fixity)

@@ -4,8 +4,6 @@ import Language.Cobble.Prelude
 import Language.Cobble.Typechecker as TC hiding (Type)
 import Language.Cobble.Types
 
-
-
 import Language.Cobble.Parser qualified as C
 import Language.Cobble.Parser.Tokenizer qualified as C
 import Language.Cobble.Qualifier qualified as C
@@ -13,6 +11,7 @@ import Language.Cobble.SemAnalysis qualified as C
 import Language.Cobble.Prelude.Parser qualified as C (ParseError, parse)
 import Language.Cobble.Util.Polysemy.Fresh qualified as C
 import Language.Cobble.Util.Polysemy.Dump qualified as C
+import Language.Cobble.Util.Polysemy.StackState qualified as C
 import Language.Cobble qualified as C
 
 import Test.Hspec as S
@@ -176,6 +175,28 @@ spec = do
             ] `shouldSatisfy` withAST (\ast -> [ty | FCall (Ext ty) _ (VarType _ "eq") _ :: Expr PostProcess <- universeBi ast]) \case
                 BoolT -> True
                 _ -> False
+    it "ascriptions narrow the type" do
+        runTypecheck [
+                "struct Test a {};"
+            ,   ""
+            ,   "x :: Test a;"
+            ,   "x = Test{};"
+            ,   ""
+            ,   "y :: Test a;"
+            ,   "y = x :: Test Int;"
+            ] `shouldSatisfy` \case
+                Left (SkolBinding _ _ _) -> True
+                x -> errorWithoutStackTrace $ show x 
+    it "ascriptions can mention in-scope type variables" do
+        runTypecheck [
+                "struct Test a {};"
+            ,   ""
+            ,   "f :: a -> b -> Test a;"
+            ,   "f a b = let y = Test {} :: Test b in y;"
+            ] `shouldSatisfy` \case
+                Left (SkolBinding _ _ _) -> True
+                Right (Module _ _ sts) -> errorWithoutStackTrace (show sts)
+                Left e -> errorWithoutStackTrace $ show e
 
 runUnify :: Sem '[Reader LexInfo, Output Log, Error TypeError] a -> Either TypeError a
 runUnify = run . runError . ignoreOutput . runReader InternalLexInfo
@@ -227,7 +248,7 @@ runTypecheckWithState mod = run $ runState (TCState {_varTypes = M.map coercePas
                        $ C.dontDump @[TWanted] 
                        $ C.dontDump @[TConstraint] 
                        $ runError 
-                       $ C.runFreshQNamesState 
+                       $ C.runFreshQNamesState
                        $ C.freshWithInternal 
                        $ cobbleCode (unlines mod) >>= typecheck
 
@@ -240,8 +261,8 @@ cobbleCode content = do
             in 
             Module (Ext (one (internalQName "prims", C.primModSig))) pmname (coercePass psts) 
 
-    let qualScopes = [C.modSigToScope C.primModSig]
-    qualified <- fmap (either (\e -> error $ "qualification error:" <> show e) id) $ runError @C.QualificationError $ runReader qualScopes $ C.qualify moduleSolved
+    let qualScope = C.modSigToScope C.primModSig
+    qualified <- fmap (either (\e -> error $ "qualification error:" <> show e) id) $ runError @C.QualificationError $ C.evalStackStatePanic qualScope $ C.qualify moduleSolved
     fmap (either (\e -> error $ "semantic error: " <> show e) id) $ runError @C.SemanticError $ C.runSemanticAnalysis qualified 
 
 

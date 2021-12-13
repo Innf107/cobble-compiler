@@ -6,5 +6,6 @@ test.cb
 test.mamod
 dump-*
 test.zip
+test.lua
 tests.log
 cobble.iml

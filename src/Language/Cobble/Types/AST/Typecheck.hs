@@ -30,6 +30,7 @@ type instance XIntLit           Typecheck = IgnoreExt Typecheck
 type instance XIf               Typecheck = IgnoreExt Typecheck
 type instance XLet              Typecheck = IgnoreExt Typecheck
 type instance XVar              Typecheck = IgnoreExt Typecheck
+type instance XAscription       Typecheck = IgnoreExt Typecheck
 type instance XVariantConstr    Typecheck = Ext Typecheck (Int, Int)
 --                                                           ^    ^
 --                                                           |    constructor index

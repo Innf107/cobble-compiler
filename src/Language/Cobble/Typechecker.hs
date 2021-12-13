@@ -90,7 +90,7 @@ instantiateWithWanteds li = \case
 
 -- currently only skolemizes top level foralls (since higher-ranked polymorphism is not implemented yet)
 skolemize :: forall r. Members '[Fresh (TVar NextPass) (TVar NextPass), Writer [TGiven]] r => LexInfo -> Type -> Sem r Type
-skolemize li (TForall ps t) = skolemizeConstraints =<< foldrM (\p r -> freshVar p <&> \p' -> replaceTVar p (TSkol p') r) t ps
+skolemize li (TForall ps t) = skolemizeConstraints $ foldr (\p r -> replaceTVar p (TSkol p) r) t ps
     where 
         skolemizeConstraints :: Type -> Sem r Type 
         skolemizeConstraints (TConstraint c ty) = do
@@ -187,6 +187,11 @@ check (Var IgnoreExt li vname)  = do
     pure $ Var (Ext2_1 ty wanteds) li vname
 -- See note [lookupType for VariantConstr]
 check (VariantConstr (Ext (e,i)) li cname) = VariantConstr . Ext . (,e,i) <$> (instantiate li =<< lookupType cname) <*> pure li <*> pure cname
+check (Ascription IgnoreExt li e ty) = do
+    e' <- check e
+    ty' <- skolemize li (coercePass ty)
+    tellLI li [getType e' :~ ty']
+    pure e' -- Ascriptions are removed after type checking
 check (FCall IgnoreExt li f as) = do
     f' <- check f
     as' <- traverse check as

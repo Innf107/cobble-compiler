@@ -24,6 +24,7 @@ type instance XIntLit           'QualifyNames = IgnoreExt QualifyNames
 type instance XIf               'QualifyNames = IgnoreExt QualifyNames
 type instance XLet              'QualifyNames = IgnoreExt QualifyNames
 type instance XVar              'QualifyNames = IgnoreExt QualifyNames
+type instance XAscription       'QualifyNames = IgnoreExt QualifyNames
 type instance XVariantConstr    'QualifyNames = IgnoreExt QualifyNames
 type instance XStructConstruct  'QualifyNames = IgnoreExt QualifyNames
 type instance XStructAccess     'QualifyNames = IgnoreExt QualifyNames

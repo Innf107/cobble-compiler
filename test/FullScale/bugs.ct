@@ -2,14 +2,14 @@
 
 infixl 5
 (+) :: Int -> Int -> Int;
-(+) x y = __add__;
+(+) x y = __add__ x y;
 
 x :: Int;
 x = 1 +(2 +(3));
 
 infixl 5
 (-) :: Int -> Int -> Int;
-(-) x y = __sub__;
+(-) x y = __sub__ x y;
 
 --! 0
 0
