@@ -76,8 +76,9 @@ runInteractive InteractiveCmdOpts{ddumpLua} = do
         embedLua $ hFlush stdout
         command <- embedLua $ getLine
         runInteractiveCommands command [
-                ([":lua", ":l"],    \l -> I.evalLua l >>= embedLua . prettyResult)
-            ,   ([":type", ":t"],   \l -> I.getType l >>= embedLua . prettyResult)
+                ([":lua ", ":l "],    \l -> I.evalLua l >>= embedLua . prettyResult)
+            ,   ([":type ", ":t "],   \l -> I.getType l >>= embedLua . prettyResult)
+            ,   ([":help", ":?"],   \_ -> embedLua printHelp)
             ]
             (I.eval command >>= embedLua . print)
         where
@@ -92,7 +93,7 @@ runInteractiveCommands :: Text -> [([Text], Text -> a)] -> a -> a
 runInteractiveCommands input cmds def = go cmds
     where
         go [] = def
-        go ((prefs, cmd) : cmds) = case asumMap (\x -> T.stripPrefix (x <> " ") input) prefs of
+        go ((prefs, cmd) : cmds) = case asumMap (`T.stripPrefix` input) prefs of
             Just l -> cmd l
             Nothing -> go cmds
 
@@ -100,6 +101,16 @@ printHeader :: IO ()
 printHeader = do
     putStrLn "Cobble Interactive"
     putStrLn ":? for help"
+
+printHelp :: IO ()
+printHelp = putTextLn $ unlines [
+        "Cobble interactive"
+    ,   ""
+    ,   "Available commands:"
+    ,   "    :help, :?                  display this list of commands"
+    ,   "    :type, :t <expr>           show the type of <expr>"
+    ,   "    :lua,  :l <stmnt>          execute <stmnt> as lua code (may break things)"
+    ]
 
 printLog :: LogLevel -> Log -> IO ()
 printLog maxLevel (Log lvl o) = when (lvl <= maxLevel)
