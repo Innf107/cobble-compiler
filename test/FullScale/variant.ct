@@ -24,3 +24,19 @@ x = Cons 1 Nil;
 
 --! 1
 1
+
+--# partial application : score
+
+variant List a = Nil | Cons a (List a);
+
+f :: (List Int) -> (List Int);
+f = Cons 5;
+
+g :: Int -> (List Int) -> (List Int);
+g = Cons;
+
+h :: List Int;
+h = f (g 5 Nil);
+
+--! 1
+1

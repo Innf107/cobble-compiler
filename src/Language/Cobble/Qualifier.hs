@@ -82,9 +82,10 @@ qualifyStmnt (DefVariant IgnoreExt li n tvs constrs) = runReader li $ do
     tvs' <- traverse (qualifyTVar KStar) tvs -- TODO: [Kind inference]: probably shouldn't be KStar
     let k = getTyConKind tvs'
     constrs' <- withFrame $ forM2 [0..] constrs \i (cn, tys, IgnoreExt) -> do
-        zipWithM_ addTVar tvs tvs'
         -- The type needs to be locally added as a dummy variant to allow recursive types.
         addType n n' k (VariantType (coercePass tvs') [])
+        zipWithM_ addTVar tvs tvs'
+
         cn' <- freshVar (cn, li)
         tys' <- traverse (qualifyType False) tys
         pure (cn', tys', Ext (length tys', i))

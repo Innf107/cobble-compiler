@@ -227,7 +227,7 @@ compileWithSig m = do
 
         let ppMod = postProcess tcMod
 
-        let lc  = C2LC.compile primOps ppMod
+        lc <- C2LC.compile primOps ppMod
 
         pure (lc, extractSig ppMod)
 
