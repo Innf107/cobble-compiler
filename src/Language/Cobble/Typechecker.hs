@@ -264,15 +264,33 @@ check (StructAccess possibleStructs li sexpr field) = do
     -- Codegen needs the correct StructDef, but we don't know that until the constraint solver is done
     pure (StructAccess (Ext (coercePass possibleStructs, sexprTy, retTy)) li sexpr' field)
 
-typecheck :: Members '[Error TypeError, Fresh Text QualifiedName, State TCState, Dump [TConstraint], Dump [TGiven], Dump [TWanted], Output Log] r 
-          => Module Typecheck 
-          -> Sem r (Module NextPass)
-typecheck (Module (Ext deps) mname sts) = do
-    (constraints, (givens, (wanteds, sts'))) <- runWriterAssocR @[TConstraint] 
+class Data b => Checkable a b | a -> b, b -> a where
+    check' :: Members '[Writer [TConstraint], Writer [TWanted], Writer [TGiven], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass), State TCState] r
+           => a 
+           -> Sem r b
+    applySubst' :: Substitution -> b -> b
+
+instance Checkable (Expr Typecheck) (Expr NextPass) where
+    check' = check
+    applySubst' = applySubst
+
+instance Checkable (Statement Typecheck) (Statement NextPass) where
+    check' = checkStmnt
+    applySubst' = applySubst
+
+instance Checkable (Module Typecheck) (Module NextPass) where
+    check' (Module (Ext deps) mname sts) = Module (Ext deps) mname <$> traverse checkStmnt sts
+    applySubst' s (Module (Ext deps) mname sts) = Module (Ext deps) mname (applySubst s sts)
+
+typecheck :: (Checkable m1 m2, Members '[Error TypeError, Fresh Text QualifiedName, State TCState, Dump [TConstraint], Dump [TGiven], Dump [TWanted], Output Log] r)
+          => m1
+          -> Sem r m2
+typecheck m = do
+    (constraints, (givens, (wanteds, m'))) <- runWriterAssocR @[TConstraint] 
                                             $ runWriterAssocR @[TGiven] 
                                             $ runWriterAssocR @[TWanted]
                                             $ runFreshM freshenTV 
-                                            $ traverse checkStmnt sts
+                                            $ check' m
     
     dump constraints
     subst <- solve mempty constraints
@@ -281,10 +299,11 @@ typecheck (Module (Ext deps) mname sts) = do
     dump givens'
     dump wanteds'
     subst' <- solveGivensWanteds givens' wanteds' subst
-    pure $ Module (Ext deps) mname (applySubst subst' sts')
-        where
-            freshenTV :: forall r. Members '[Fresh Text QualifiedName] r => TVar NextPass -> Sem r (TVar NextPass)
-            freshenTV (MkTVar x k) = MkTVar <$> freshVar (originalName x) <*> pure k 
+    pure $ applySubst subst' m'
+        
+freshenTV :: forall r. Members '[Fresh Text QualifiedName] r => TVar NextPass -> Sem r (TVar NextPass)
+freshenTV (MkTVar x k) = MkTVar <$> freshVar (originalName x) <*> pure k 
+    
 
 solve :: Members '[Error TypeError, Output Log] r => Substitution -> [TConstraint] -> Sem r Substitution
 solve s (((applySubst s -> t1) :~ (applySubst s -> t2), li):cs) = do

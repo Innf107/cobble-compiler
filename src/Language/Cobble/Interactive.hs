@@ -18,8 +18,10 @@ import Language.Cobble.Parser qualified as P
 
 import Language.Cobble.Util.Polysemy.Fresh
 import Language.Cobble.Util.Polysemy.Dump
+import Language.Cobble.Util.Polysemy.StackState
 
-import Language.Cobble.Typechecker (TConstraint)
+import Language.Cobble.Typechecker
+import Language.Cobble.Qualifier
 
 import Language.Cobble.Lua.Types
 import Language.Cobble.Lua.PrettyPrint
@@ -88,8 +90,28 @@ runEval content = wrapCompilationError $ freshWithInternal do
 runGetType :: Members '[State InteractiveState, Fresh (Text, LexInfo) QualifiedName, Embed Lua, Dump [LuaStmnt]] r 
            => Text 
            -> Sem r InteractiveOutput
-runGetType exprText = do
-    error ":type NYI"
+runGetType exprText = wrapCompilationError do
+    sigs <- gets _modSigs
+
+    toks <- mapError LexError $ T.tokenize "<interactive>" exprText
+    ast :: Expr QualifyNames <- fmap coercePass $ mapError ParseError $ fromEither $ P.parse (P.expr <* P.eof) "<interactive>" toks
+    qualified <- mapError QualificationError $ evalStackStatePanic (mconcat (map modSigToScope (toList sigs))) $ qualifyExpr ast
+    
+    let semAnalysed :: Expr Typecheck = coercePass qualified
+
+    tcState <- foldMap (\dsig -> TCState {
+                    _varTypes= fmap coercePass $ exportedVars dsig
+                ,   _tcInstances = coercePass $ exportedInstances dsig
+                }) . toList <$> gets _modSigs
+
+    typechecked <- mapError TypeError
+                $ freshWithInternal 
+                $ evalState tcState 
+                $ ignoreDumps 
+                $ ignoreOutput
+                $ typecheck semAnalysed
+    
+    pure (TypeOfResult exprText (getType typechecked)) 
 
 runInLua :: Members '[Embed Lua] r => [LuaStmnt] -> Sem r InteractiveOutput
 runInLua stmnts = runInLuaRaw (prettyLuaForRepl stmnts) 

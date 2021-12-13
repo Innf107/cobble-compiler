@@ -14,6 +14,8 @@ import Language.Cobble.Lua.PrettyPrint
 import Language.Cobble.Interactive qualified as I
 import Language.Cobble.Interactive.Effect qualified as I
 
+import Language.Cobble.Typechecker (ppType)
+
 import Data.Text qualified as T
 
 import HsLua qualified as Lua
@@ -74,19 +76,23 @@ runInteractive InteractiveCmdOpts{ddumpLua} = do
         embedLua $ hFlush stdout
         command <- embedLua $ getLine
         runInteractiveCommands command [
-                ([":lua", ":l"],    \l -> I.evalLua l >>= embedLua . print)
-            ,   ([":type", ":t"],   \l -> I.getType l >>= embedLua . print)
+                ([":lua", ":l"],    \l -> I.evalLua l >>= embedLua . prettyResult)
+            ,   ([":type", ":t"],   \l -> I.getType l >>= embedLua . prettyResult)
             ]
             (I.eval command >>= embedLua . print)
         where
             embedLua :: Members '[Embed I.Lua] r => IO a -> Sem r a
             embedLua = embed . liftIO
 
+            prettyResult :: I.InteractiveOutput -> IO ()
+            prettyResult (I.TypeOfResult expr ty) = putTextLn $ expr <> " :: " <> ppType ty
+            prettyResult x = print x
+
 runInteractiveCommands :: Text -> [([Text], Text -> a)] -> a -> a
 runInteractiveCommands input cmds def = go cmds
     where
         go [] = def
-        go ((prefs, cmd) : cmds) = case asumMap (`T.stripPrefix` input) prefs of
+        go ((prefs, cmd) : cmds) = case asumMap (\x -> T.stripPrefix (x <> " ") input) prefs of
             Just l -> cmd l
             Nothing -> go cmds
 
