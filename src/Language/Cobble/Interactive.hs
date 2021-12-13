@@ -55,6 +55,7 @@ runInteractive :: Members '[Embed Lua, Dump [LuaStmnt]] r => Sem (E.Interactive 
 runInteractive = runFreshQNamesState . evalState initialInteractiveState . addInit . reinterpret2 \case
     E.Eval cmd -> runEval cmd
     E.EvalLua cmd -> runInLuaRaw cmd
+    E.GetType cmd -> runGetType cmd
     where
         addInit a = init *> a
 
@@ -83,6 +84,12 @@ runEval content = wrapCompilationError $ freshWithInternal do
     dump luaStmnts
 
     runInLua luaStmnts
+
+runGetType :: Members '[State InteractiveState, Fresh (Text, LexInfo) QualifiedName, Embed Lua, Dump [LuaStmnt]] r 
+           => Text 
+           -> Sem r InteractiveOutput
+runGetType exprText = do
+    error ":type NYI"
 
 runInLua :: Members '[Embed Lua] r => [LuaStmnt] -> Sem r InteractiveOutput
 runInLua stmnts = runInLuaRaw (prettyLuaForRepl stmnts) 

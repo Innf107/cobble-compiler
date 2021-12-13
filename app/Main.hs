@@ -73,14 +73,22 @@ runInteractive InteractiveCmdOpts{ddumpLua} = do
         embedLua $ putStr "λ> "
         embedLua $ hFlush stdout
         command <- embedLua $ getLine
-        case T.stripPrefix ":lua" command of
-            Just l -> I.evalLua l >>= embedLua . print
-            Nothing -> do 
-                res <- I.eval command
-                embedLua $ print res
+        runInteractiveCommands command [
+                ([":lua", ":l"],    \l -> I.evalLua l >>= embedLua . print)
+            ,   ([":type", ":t"],   \l -> I.getType l >>= embedLua . print)
+            ]
+            (I.eval command >>= embedLua . print)
         where
             embedLua :: Members '[Embed I.Lua] r => IO a -> Sem r a
             embedLua = embed . liftIO
+
+runInteractiveCommands :: Text -> [([Text], Text -> a)] -> a -> a
+runInteractiveCommands input cmds def = go cmds
+    where
+        go [] = def
+        go ((prefs, cmd) : cmds) = case asumMap (`T.stripPrefix` input) prefs of
+            Just l -> cmd l
+            Nothing -> go cmds
 
 printHeader :: IO ()
 printHeader = do
