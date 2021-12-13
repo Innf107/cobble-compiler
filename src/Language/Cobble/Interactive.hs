@@ -11,7 +11,7 @@ import Language.Cobble.Interactive.Effect qualified as E
 
 import Language.Cobble as C hiding (Lua)
 
-import Language.Cobble.Types
+import Language.Cobble.Types as C
 
 import Language.Cobble.Parser.Tokenizer qualified as T
 import Language.Cobble.Parser qualified as P
@@ -70,7 +70,7 @@ init = do
 runEval :: Members '[State InteractiveState, Fresh (Text, LexInfo) QualifiedName, Embed Lua, Dump [LuaStmnt]] r => Text -> Sem r InteractiveOutput
 runEval content = wrapCompilationError $ freshWithInternal do
     toks <- mapError LexError $ T.tokenize "<interactive>" content
-    ast <- fmap coercePass $ mapError ParseError $ fromEither $ P.parse (P.statements <* P.eof) "<interactive>" toks
+    ast <- fmap coercePass $ mapError ParseError $ fromEither $ P.parse exprOrStatements "<interactive>" toks
     
     lastModSigs <- gets _modSigs
     lastImports <- gets _imports
@@ -86,6 +86,14 @@ runEval content = wrapCompilationError $ freshWithInternal do
     dump luaStmnts
 
     runInLua luaStmnts
+    where
+        asPrintStmnt :: Expr SolveModules -> [Statement SolveModules]
+        asPrintStmnt e = [Def (Ext Nothing) InternalLexInfo (Decl IgnoreExt "it" (Ext [])
+                            (FCall IgnoreExt InternalLexInfo (C.Var IgnoreExt InternalLexInfo "print") (e :| []))) unitT]
+
+        exprAsStmnt = fmap asPrintStmnt P.expr <* P.eof
+        stmnts1 = (P.statement `P.sepBy1` (P.reservedOp ";")) <* P.eof
+        exprOrStatements = P.try exprAsStmnt <|> stmnts1
 
 runGetType :: Members '[State InteractiveState, Fresh (Text, LexInfo) QualifiedName, Embed Lua, Dump [LuaStmnt]] r 
            => Text 

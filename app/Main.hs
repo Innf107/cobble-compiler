@@ -76,9 +76,9 @@ runInteractive InteractiveCmdOpts{ddumpLua} = do
         embedLua $ hFlush stdout
         command <- embedLua $ getLine
         runInteractiveCommands command [
-                ([":lua ", ":l "],    \l -> I.evalLua l >>= embedLua . prettyResult)
+                ([":help", ":?"],     \_ -> embedLua printHelp)
             ,   ([":type ", ":t "],   \l -> I.getType l >>= embedLua . prettyResult)
-            ,   ([":help", ":?"],   \_ -> embedLua printHelp)
+            ,   ([":lua ", ":l "],    \l -> I.evalLua l >>= embedLua . prettyResult)
             ]
             (I.eval command >>= embedLua . print)
         where

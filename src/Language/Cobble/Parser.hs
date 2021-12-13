@@ -2,6 +2,9 @@ module Language.Cobble.Parser (
     module Language.Cobble.Parser
 ,   parse
 ,   eof
+,   try
+,   sepBy1
+,   reservedOp
 ) where
 
 import Language.Cobble.Prelude.Parser hiding (assign)
