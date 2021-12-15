@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints#-}
 module Language.Cobble.Types.AST where
 
 import Language.Cobble.Prelude
@@ -315,13 +316,11 @@ instance (HasKind (Type p)) => HasKind (Constraint p) where
     kind _ = pure kConstraint 
 
       
-class CoercePass t1 t2 p1 p2 | t1 -> p1, t2 -> p2 where
-    _coercePass :: t1 -> t2
+class CoercePass a b where
+    _coercePass :: a -> b
         
-{-# NOINLINE coercePass #-}
-coercePass :: (CoercePass t1 t2 p1 p2) => t1 -> t2
-coercePass = _coercePass
-{-# RULES "coercePass/coercePass" forall x. coercePass x = Unsafe.Coerce.unsafeCoerce x#-}
+coercePass :: (CoercePass t1 t2) => t1 -> t2
+coercePass = Unsafe.Coerce.unsafeCoerce
 
 newtype Ext (p :: Pass) t = Ext {getExt :: t} deriving (Show, Eq, Generic, Data, Functor)
 data IgnoreExt (p :: Pass) = IgnoreExt deriving (Show, Eq, Generic, Data)
@@ -333,169 +332,191 @@ data Ext3_1 (p :: Pass) a b c = Ext3_1 a b c deriving (Show, Eq, Generic, Data)
 absurd :: ExtVoid t -> a
 absurd x = case x of
 
-instance (Coercible t1 t2) => CoercePass (Ext p1 t1) (Ext p2 t2) p1 p2 where
-    _coercePass (Ext x) = Ext (coerce x)
+instance {-# INCOHERENT #-} (Coercible a b) => CoercePass a b where
+    _coercePass = coerce
 
-instance (CoercePass a a' p1 p2, Coercible b b') => CoercePass (Ext2_1 p1 a b) (Ext2_1 p2 a' b') p1 p2 where
+instance {-# INCOHERENT #-} (CoercePass a b) => CoercePass (Ext p1 a) (Ext p2 b) where
+    _coercePass (Ext x) = Ext (coercePass x)
+
+
+instance (CoercePass a a', Coercible b b') => CoercePass (Ext2_1 p1 a b) (Ext2_1 p2 a' b') where
     _coercePass (Ext2_1 x y) = Ext2_1 (coercePass x) (coerce y)
-
+{-}
 instance (CoercePass a a' p1 p2, CoercePass b b' p1 p2, Coercible b b') => CoercePass (Ext2_12 p1 a b) (Ext2_12 p2 a' b') p1 p2 where
     _coercePass (Ext2_12 x y) = Ext2_12 (coercePass x) (coercePass y)
-
-instance (CoercePass a a' p1 p2, Coercible b b', Coercible c c') => CoercePass (Ext3_1 p1 a b c) (Ext3_1 p2 a' b' c') p1 p2 where
+-}
+instance (CoercePass a a', Coercible b b', Coercible c c') => CoercePass (Ext3_1 p1 a b c) (Ext3_1 p2 a' b' c') where
     _coercePass (Ext3_1 x y z) = Ext3_1 (coercePass x) (coerce y) (coerce z)
-
+{-}
 instance CoercePass (IgnoreExt p1) (IgnoreExt p2) p1 p2 where
     _coercePass = coerce
 
 instance CoercePass (ExtVoid p1) (ExtVoid p2) p1 p2 where
     _coercePass = absurd
+-}
 
-instance (Coercible k1 k2, CoercePass v1 v2 p1 p2, Ord k2) => CoercePass (Map k1 v1) (Map k2 v2) p1 p2 where
-    _coercePass = M.mapKeys coerce . fmap coercePass
+instance (CoercePass k1 k2, CoercePass v1 v2, Ord k2) => CoercePass (Map k1 v1) (Map k2 v2) where
+    _coercePass = M.mapKeys coercePass . fmap coercePass
 
-instance CoercePass a b p1 p2 => CoercePass [a] [b] p1 p2 where
-    _coercePass = map coercePass
 
-instance
-    (   Name p1 ~ Name p2
-    ,   CoercePass (Statement p1) (Statement p2) p1 p2
-    ,   CoercePass (XModule p1) (XModule p2) p1 p2
+instance {-# INCOHERENT #-}
+    (   CoercePass (Name p1) (Name p2)
+    ,   CoercePass (Statement p1) (Statement p2)
+    ,   CoercePass (XModule p1) (XModule p2)
     )
-    => CoercePass (Module p1) (Module p2) p1 p2 where
-    _coercePass (Module x n sts) = Module (coercePass x) n (map coercePass sts)
+    => CoercePass (Module p1) (Module p2) where
+    _coercePass (Module x n sts) = Module (coercePass x) (coercePass n) (map coercePass sts)
 
-instance
-    (   Name p1 ~ Name p2
-    ,   CoercePass (Expr p1) (Expr p2) p1 p2
-    ,   CoercePass (Type p1) (Type p2) p1 p2
-    ,   CoercePass (TVar p1) (TVar p2) p1 p2
-    ,   CoercePass (Decl p1) (Decl p2) p1 p2
-    ,   CoercePass (XDef p1) (XDef p2) p1 p2
-    ,   CoercePass (XParam p1) (XParam p2) p1 p2
-    ,   CoercePass (XImport p1) (XImport p2) p1 p2
-    ,   CoercePass (XDefStruct p1) (XDefStruct p2) p1 p2
-    ,   CoercePass (XDefVariant p1) (XDefVariant p2) p1 p2
-    ,   CoercePass (XDefVariantClause p1) (XDefVariantClause p2) p1 p2
-    ,   CoercePass (XDefClass p1) (XDefClass p2) p1 p2
-    ,   CoercePass (XDefInstance p1) (XDefInstance p2) p1 p2
-    ,   CoercePass (XStatement p1) (XStatement p2) p1 p2
+instance {-#INCOHERENT#-}
+    (   CoercePass a b
+    ) => CoercePass [a] [b] where
+        _coercePass = map coercePass
+
+instance {-# INCOHERENT #-}
+    (   CoercePass a a'
+    ,   CoercePass b b'
+    ) => CoercePass (a, b) (a', b') where
+        _coercePass = bimap coercePass coercePass
+instance {-# INCOHERENT #-}
+    (   CoercePass a a'
+    ,   CoercePass b b'
+    ,   CoercePass c c'
+    ) => CoercePass (a, b, c) (a', b', c') where
+        _coercePass (a, b, c) = (coercePass a, coercePass b, coercePass c)
+
+instance {-# INCOHERENT #-}
+    (   CoercePass (Name p1) (Name p2)
+    ,   CoercePass (Expr p1) (Expr p2)
+    ,   CoercePass (Type p1) (Type p2)
+    ,   CoercePass (TVar p1) (TVar p2)
+    ,   CoercePass (Decl p1) (Decl p2)
+    ,   CoercePass (XDef p1) (XDef p2)
+    ,   CoercePass (XParam p1) (XParam p2)
+    ,   CoercePass (XImport p1) (XImport p2)
+    ,   CoercePass (XDefStruct p1) (XDefStruct p2)
+    ,   CoercePass (XDefVariant p1) (XDefVariant p2)
+    ,   CoercePass (XDefVariantClause p1) (XDefVariantClause p2)
+    ,   CoercePass (XDefClass p1) (XDefClass p2)
+    ,   CoercePass (XDefInstance p1) (XDefInstance p2)
+    ,   CoercePass (XStatement p1) (XStatement p2)
     )
-    => CoercePass (Statement p1) (Statement p2) p1 p2 where
+    => CoercePass (Statement p1) (Statement p2) where
     _coercePass = \case
         Def x l d t -> Def (coercePass x) l (coercePass d) (coercePass t)
-        Import x l n -> Import (coercePass x) l n
-        DefStruct x l n ps fs   -> DefStruct (coercePass x) l n (map coercePass ps) (map (second coercePass) fs)
-        DefVariant x l n ps vs  -> DefVariant (coercePass x) l n (coercePass ps) (map (\(n,ps,cx) -> (n, coercePass ps, coercePass cx)) vs)
-        DefClass x l n ps ms    -> DefClass (coercePass x) l n (coercePass ps) (map (second coercePass) ms)
-        DefInstance x l cn t ds -> DefInstance (coercePass x) l cn (coercePass t) (coercePass ds)
+        Import x l n -> Import (coercePass x) l (coercePass n)
+        DefStruct x l n ps fs   -> DefStruct (coercePass x) l (coercePass n) (map coercePass ps) (map (second coercePass) fs)
+        DefVariant x l n ps vs  -> DefVariant (coercePass x) l (coercePass n) (map coercePass ps) (map coercePass vs)
+        DefClass x l n ps ms    -> DefClass (coercePass x) l (coercePass n) (coercePass ps) (coercePass ms)
+        DefInstance x l cn t ds -> DefInstance (coercePass x) l (coercePass cn) (coercePass t) (coercePass ds)
         StatementX x l          -> StatementX (coercePass x) l
 
-instance
-    (   Name p1 ~ Name p2
-    ,   CoercePass (Type p1) (Type p2) p1 p2
-    ,   CoercePass (XFCall p1) (XFCall p2) p1 p2
-    ,   CoercePass (XIntLit p1) (XIntLit p2) p1 p2
-    ,   CoercePass (XIf p1) (XIf p2) p1 p2
-    ,   CoercePass (XLet p1) (XLet p2) p1 p2
-    ,   CoercePass (XParam p1) (XParam p2) p1 p2
-    ,   CoercePass (XDecl p1) (XDecl p2) p1 p2
-    ,   CoercePass (XAscription p1) (XAscription p2) p1 p2
-    ,   CoercePass (XVar p1) (XVar p2) p1 p2
-    ,   CoercePass (XVariantConstr p1) (XVariantConstr p2) p1 p2
-    ,   CoercePass (XCase p1) (XCase p2) p1 p2
-    ,   CoercePass (CaseBranch p1) (CaseBranch p2) p1 p2
-    ,   CoercePass (XStructConstruct p1) (XStructConstruct p2) p1 p2
-    ,   CoercePass (XStructAccess p1) (XStructAccess p2) p1 p2
-    ,   CoercePass (XExpr p1) (XExpr p2) p1 p2
+
+instance {-# INCOHERENT #-}
+    (   CoercePass (Name p1) (Name p2)
+    ,   CoercePass (Type p1) (Type p2)
+    ,   CoercePass (Decl p1) (Decl p2)
+    ,   CoercePass (XFCall p1) (XFCall p2)
+    ,   CoercePass (XIntLit p1) (XIntLit p2)
+    ,   CoercePass (XIf p1) (XIf p2)
+    ,   CoercePass (XLet p1) (XLet p2)
+    ,   CoercePass (XParam p1) (XParam p2)
+    ,   CoercePass (XDecl p1) (XDecl p2)
+    ,   CoercePass (XAscription p1) (XAscription p2)
+    ,   CoercePass (XVar p1) (XVar p2)
+    ,   CoercePass (XVariantConstr p1) (XVariantConstr p2)
+    ,   CoercePass (XCase p1) (XCase p2)
+    ,   CoercePass (CaseBranch p1) (CaseBranch p2)
+    ,   CoercePass (XStructConstruct p1) (XStructConstruct p2)
+    ,   CoercePass (XStructAccess p1) (XStructAccess p2)
+    ,   CoercePass (XExpr p1) (XExpr p2)
     )
-    => CoercePass (Expr p1) (Expr p2) p1 p2 where
+    => CoercePass (Expr p1) (Expr p2) where
     _coercePass = \case
         FCall x l f as           -> FCall (coercePass x) l (coercePass f) (fmap coercePass as)
         IntLit x l i             -> IntLit (coercePass x) l i
         UnitLit l                -> UnitLit l
         If x l c th el           -> If (coercePass x) l (coercePass c) (coercePass th) (coercePass el)
         Let x l d b              -> Let (coercePass x) l (coercePass d) (coercePass b)
-        Var x l v                -> Var (coercePass x) l v
+        Var x l v                -> Var (coercePass x) l (coercePass v)
         Ascription x l e t       -> Ascription (coercePass x) l (coercePass e) (coercePass t)
-        VariantConstr x l v      -> VariantConstr (coercePass x) l v
+        VariantConstr x l v      -> VariantConstr (coercePass x) l (coercePass v)
         Case x l e brs           -> Case (coercePass x) l (coercePass e) (map coercePass brs)
-        StructConstruct x l c fs -> StructConstruct (coercePass x) l c (map (second coercePass) fs)
+        StructConstruct x l c fs -> StructConstruct (coercePass x) l (coercePass c) (map (second coercePass) fs)
         StructAccess x l e f     -> StructAccess (coercePass x) l (coercePass e) f
         ExprX x l                -> ExprX (coercePass x) l
 
-instance 
-    (   Name p1 ~ Name p2
-    ,   CoercePass (XCaseBranch p1) (XCaseBranch p2) p1 p2
-    ,   CoercePass (Pattern p1) (Pattern p2) p1 p2
-    ,   CoercePass (Expr p1) (Expr p2) p1 p2
-    ) => CoercePass (CaseBranch p1) (CaseBranch p2) p1 p2 where
+instance {-# INCOHERENT #-}
+    (   CoercePass (Name p1) (Name p2)
+    ,   CoercePass (XCaseBranch p1) (XCaseBranch p2)
+    ,   CoercePass (Pattern p1) (Pattern p2)
+    ,   CoercePass (Expr p1) (Expr p2)
+    ) => CoercePass (CaseBranch p1) (CaseBranch p2) where
         _coercePass (CaseBranch x l p e) = CaseBranch (coercePass x) l (coercePass p) (coercePass e)
 
-instance 
-    (   Name p1 ~ Name p2
-    ,   CoercePass (XIntP p1) (XIntP p2) p1 p2
-    ,   CoercePass (XVarP p1) (XVarP p2) p1 p2
-    ,   CoercePass (XConstrP p1) (XConstrP p2) p1 p2
-    ) => CoercePass (Pattern p1) (Pattern p2) p1 p2 where
+
+instance {-# INCOHERENT #-}
+    (   CoercePass (Name p1) (Name p2)
+    ,   CoercePass (XIntP p1) (XIntP p2)
+    ,   CoercePass (XVarP p1) (XVarP p2)
+    ,   CoercePass (XConstrP p1) (XConstrP p2)
+    ) => CoercePass (Pattern p1) (Pattern p2) where
         _coercePass = \case
             IntP x n        -> IntP (coercePass x) n
-            VarP x v        -> VarP (coercePass x) v
-            ConstrP x c ps  -> ConstrP (coercePass x) c (map coercePass ps)
+            VarP x v        -> VarP (coercePass x) (coercePass v)
+            ConstrP x c ps  -> ConstrP (coercePass x) (coercePass c) (coercePass ps)
 
-instance
-    (   Name p1 ~ Name p2
-    ,   CoercePass (XDecl p1) (XDecl p2) p1 p2
-    ,   CoercePass (XParam p1) (XParam p2) p1 p2
-    ,   CoercePass (Expr p1) (Expr p2) p1 p2
+instance {-# INCOHERENT #-}
+    (   CoercePass (Name p1) (Name p2)
+    ,   CoercePass (XDecl p1) (XDecl p2)
+    ,   CoercePass (XParam p1) (XParam p2)
+    ,   CoercePass (Expr p1) (Expr p2)
     )
-    => CoercePass (Decl p1) (Decl p2) p1 p2 where
-    _coercePass (Decl x f ps e) = Decl (coercePass x) f (coercePass ps) (coercePass e)
+    => CoercePass (Decl p1) (Decl p2) where
+    _coercePass (Decl x f ps e) = Decl (coercePass x) (coercePass f) (coercePass ps) (coercePass e)
 
 
-instance
-    (   Name p1 ~ Name p2
-    ,   XKind p1 ~ XKind p2
-    ,   CoercePass (TVar p1) (TVar p2) p1 p2
-    ,   CoercePass (Constraint p1) (Constraint p2) p1 p2
+instance {-# INCOHERENT #-}
+    (   CoercePass (Name p1) (Name p2)
+    ,   CoercePass (XKind p1) (XKind p2)
+    ,   CoercePass (TVar p1) (TVar p2)
+    ,   CoercePass (Constraint p1) (Constraint p2)
     )
-    => CoercePass (Type p1) (Type p2) p1 p2 where
+    => CoercePass (Type p1) (Type p2) where
     _coercePass = \case
-        TCon n k -> TCon n k
+        TCon n k -> TCon (coercePass n) (coercePass k)
         TApp t1 t2 -> TApp (coercePass t1) (coercePass t2)
         TVar t -> TVar (coercePass t)
         TSkol t -> TSkol (coercePass t)
         TForall vs t -> TForall (map coercePass vs) (coercePass t)
         TConstraint n t -> TConstraint (coercePass n) (coercePass t)
 
-instance 
-    (   Name p1 ~ Name p2
-    ,   CoercePass (Type p1) (Type p2) p1 p2
+instance {-# INCOHERENT #-}
+    (   CoercePass (Name p1) (Name p2)
+    ,   CoercePass (Type p1) (Type p2)
     )
-    => CoercePass (Constraint p1) (Constraint p2) p1 p2 where
-    _coercePass (MkConstraint cname arg) = MkConstraint cname (coercePass arg)
+    => CoercePass (Constraint p1) (Constraint p2) where
+    _coercePass (MkConstraint cname arg) = MkConstraint (coercePass cname) (coercePass arg)
 
-instance
-    (   Name p1 ~ Name p2
-    ,   XKind p1 ~ XKind p2
-    ) => CoercePass (TVar p1) (TVar p2) p1 p2 where
-    _coercePass (MkTVar n k) = MkTVar n k
+instance {-# INCOHERENT #-}
+    (   CoercePass (Name p1) (Name p2)
+    ,   CoercePass (XKind p1) (XKind p2)
+    ) => CoercePass (TVar p1) (TVar p2) where
+    _coercePass (MkTVar n k) = MkTVar (coercePass n) (coercePass k)
 
-instance
-    (   Name p1 ~ Name p2
-    ,   CoercePass (Type p1) (Type p2) p1 p2
-    ,   CoercePass (TVar p1) (TVar p2) p1 p2
+instance {-# INCOHERENT #-}
+    (   CoercePass (Name p1) (Name p2)
+    ,   CoercePass (Type p1) (Type p2)
+    ,   CoercePass (TVar p1) (TVar p2)
     )
-    => CoercePass (StructDef p1) (StructDef p2) p1 p2 where
-    _coercePass (StructDef n ps fs) = StructDef n (coercePass ps) (map (second coercePass) fs)
+    => CoercePass (StructDef p1) (StructDef p2) where
+    _coercePass (StructDef n ps fs) = StructDef (coercePass n) (coercePass ps) (coercePass fs)
 
-
-instance 
-    (   Name p1 ~ Name p2
-    ,   CoercePass (Expr p1) (Expr p2) p1 p2
+instance {-# INCOHERENT #-}
+    (   CoercePass (Name p1) (Name p2)
+    ,   CoercePass (Expr p1) (Expr p2)
     )
-    => CoercePass (OperatorGroup p1 f) (OperatorGroup p2 f) p1 p2 where
-    _coercePass (OpNode l op r) = OpNode (coercePass l) op (coercePass r)
+    => CoercePass (OperatorGroup p1 f) (OperatorGroup p2 f) where
+    _coercePass (OpNode l op r) = OpNode (coercePass l) (coercePass op) (coercePass r)
     _coercePass (OpLeaf e) = OpLeaf (coercePass e)
 
 class HasLexInfo t where

@@ -188,7 +188,7 @@ compileAndAnnotateSig (m, deps) = do
     annotatedMod :: (S.Module 'QualifyNames) <- S.Module
         <$> Ext . fromList <$> traverse (\d -> (internalQName d ,) <$> getDep d) ("prims" : deps)
         <*> pure (S.moduleName m)
-        <*> pure (map (coercePass @(Statement SolveModules) @(Statement QualifyNames) @SolveModules @QualifyNames) (moduleStatements m))
+        <*> pure (map (coercePass @(Statement SolveModules) @(Statement QualifyNames)) (moduleStatements m))
     (lcdefs, sig) <- compileWithSig annotatedMod
     modify (insert (S.moduleName m) sig)
     pure lcdefs

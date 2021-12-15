@@ -237,7 +237,7 @@ check (Let IgnoreExt li (Decl IgnoreExt f (Ext ps) e) body) = do
 check (StructConstruct structDef li structName fields) = do
     let sTy = coercePass $ structDef ^. structType
     
-    psTys <- traverse (freshVar . coercePass) (structDef ^. structParams)
+    psTys <- traverse (freshVar . coercePass @(TVar Typecheck) @(TVar PostProcess)) (structDef ^. structParams)
     let polyTypes :: M.Map (TVar NextPass) (TVar NextPass) = fromList $ zipWith (\x y -> (x, coercePass y)) psTys (structDef ^. structParams) 
     -- Application is left associative
     let retTy = foldl' (\r tv -> TApp r (TVar tv)) sTy psTys
