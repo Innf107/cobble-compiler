@@ -44,6 +44,7 @@ postProcessExpr = \case
         Let IgnoreExt li (postProcessDecl decl) (postProcessExpr b)
     Var (Ext2_1 ty ws) li n -> Var (Ext2_1 (coercePass ty) ws) li n
     VariantConstr (Ext (ty, e, i)) li n -> VariantConstr (Ext (coercePass ty, e, i)) li n
+    Case (Ext t) li e cases -> Case (Ext (coercePass t)) li (postProcessExpr e) (map postProcessCaseBranch cases)
     StructConstruct (Ext (sd, ty)) li sname fexprs -> 
         StructConstruct (Ext (coercePass sd, coercePass ty)) li sname (map (second postProcessExpr) fexprs)
     where
@@ -54,3 +55,13 @@ postProcessExpr = \case
         getStructName (TSkol v) = error $ "postProcessExpr: Type checker inferred skolem variable for StructAccess expression: " <> show v
         getStructName (TForall _ t) = getStructName t 
         getStructName (TConstraint _ t) = getStructName t
+
+-- So. Much. Boilerplate.
+postProcessCaseBranch :: CaseBranch PostProcess -> CaseBranch NextPass
+postProcessCaseBranch (CaseBranch IgnoreExt li p e) = CaseBranch IgnoreExt li (postProcessPattern p) (postProcessExpr e)
+
+postProcessPattern :: Pattern PostProcess -> Pattern NextPass
+postProcessPattern (IntP (Ext t) n) = IntP (Ext (coercePass t)) n
+postProcessPattern (VarP (Ext t) x) = VarP (Ext (coercePass t)) x
+postProcessPattern (ConstrP (Ext t) constr ps) = ConstrP (Ext (coercePass t)) constr (map postProcessPattern ps)
+

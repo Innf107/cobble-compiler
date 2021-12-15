@@ -35,10 +35,16 @@ type instance XVariantConstr    Typecheck = Ext Typecheck (Int, Int)
 --                                                           ^    ^
 --                                                           |    constructor index
 --                                                           expected number of args
-
+type instance XCase             Typecheck = IgnoreExt Typecheck
 type instance XStructConstruct  Typecheck = StructDef Typecheck
 type instance XStructAccess     Typecheck = Map (Name Typecheck) (StructDef Typecheck)
 type instance XExpr             Typecheck = ExtVoid Typecheck
+
+type instance XCaseBranch Typecheck = IgnoreExt Typecheck
+
+type instance XIntP     Typecheck = IgnoreExt Typecheck
+type instance XVarP     Typecheck = IgnoreExt Typecheck
+type instance XConstrP  Typecheck = IgnoreExt Typecheck
 
 type instance Name Typecheck = QualifiedName
 

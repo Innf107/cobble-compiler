@@ -111,14 +111,15 @@ data Expr (p :: Pass) =
     | Var             (XVar p) LexInfo (Name p)
     | Ascription      (XAscription p) LexInfo (Expr p) (Type p)
     | VariantConstr   (XVariantConstr p) LexInfo (Name p)
+    | Case            (XCase p) LexInfo (Expr p) [CaseBranch p]
     | StructConstruct (XStructConstruct p) LexInfo (Name p) [(UnqualifiedName, Expr p)]
     | StructAccess    (XStructAccess p) LexInfo (Expr p) UnqualifiedName
     | ExprX           (XExpr p) LexInfo
 
 type instance InstanceRequirements (Expr p) = 
         [
-            XFCall p, XIntLit p, XIf p, XLet p, Decl p, XVar p, XAscription p, XVariantConstr p, Name p, Type p,
-            XStructConstruct p, XStructAccess p, XExpr p
+            XFCall p, XIntLit p, XIf p, XLet p, Decl p, XVar p, XAscription p, XVariantConstr p, XCase p, CaseBranch p, 
+            Name p, Type p, XStructConstruct p, XStructAccess p, XExpr p
         ]
 
 type family XFCall           (p :: Pass)
@@ -128,9 +129,30 @@ type family XLet             (p :: Pass)
 type family XVar             (p :: Pass)
 type family XAscription      (p :: Pass)
 type family XVariantConstr   (p :: Pass)
+type family XCase            (p :: Pass)
 type family XStructConstruct (p :: Pass)
 type family XStructAccess    (p :: Pass)
 type family XExpr            (p :: Pass)
+
+data CaseBranch (p :: Pass) = CaseBranch (XCaseBranch p) LexInfo (Pattern p) (Expr p)
+
+type instance InstanceRequirements (CaseBranch p) = [
+        XCaseBranch p, Pattern p, Expr p
+    ]
+
+type family XCaseBranch (p :: Pass)
+
+data Pattern (p :: Pass) = IntP (XIntP p) Int
+                         | VarP (XVarP p) (Name p)
+                         | ConstrP (XConstrP p) (Name p) [Pattern p]
+
+type instance InstanceRequirements (Pattern p) = [
+        Name p, XIntP p, XVarP p, XConstrP p
+    ]
+
+type family XIntP       (p :: Pass)
+type family XVarP       (p :: Pass)
+type family XConstrP    (p :: Pass)
 
 data Kind = KStar           
           | KConstraint 
@@ -381,6 +403,8 @@ instance
     ,   CoercePass (XAscription p1) (XAscription p2) p1 p2
     ,   CoercePass (XVar p1) (XVar p2) p1 p2
     ,   CoercePass (XVariantConstr p1) (XVariantConstr p2) p1 p2
+    ,   CoercePass (XCase p1) (XCase p2) p1 p2
+    ,   CoercePass (CaseBranch p1) (CaseBranch p2) p1 p2
     ,   CoercePass (XStructConstruct p1) (XStructConstruct p2) p1 p2
     ,   CoercePass (XStructAccess p1) (XStructAccess p2) p1 p2
     ,   CoercePass (XExpr p1) (XExpr p2) p1 p2
@@ -395,9 +419,29 @@ instance
         Var x l v                -> Var (coercePass x) l v
         Ascription x l e t       -> Ascription (coercePass x) l (coercePass e) (coercePass t)
         VariantConstr x l v      -> VariantConstr (coercePass x) l v
+        Case x l e brs           -> Case (coercePass x) l (coercePass e) (map coercePass brs)
         StructConstruct x l c fs -> StructConstruct (coercePass x) l c (map (second coercePass) fs)
         StructAccess x l e f     -> StructAccess (coercePass x) l (coercePass e) f
         ExprX x l                -> ExprX (coercePass x) l
+
+instance 
+    (   Name p1 ~ Name p2
+    ,   CoercePass (XCaseBranch p1) (XCaseBranch p2) p1 p2
+    ,   CoercePass (Pattern p1) (Pattern p2) p1 p2
+    ,   CoercePass (Expr p1) (Expr p2) p1 p2
+    ) => CoercePass (CaseBranch p1) (CaseBranch p2) p1 p2 where
+        _coercePass (CaseBranch x l p e) = CaseBranch (coercePass x) l (coercePass p) (coercePass e)
+
+instance 
+    (   Name p1 ~ Name p2
+    ,   CoercePass (XIntP p1) (XIntP p2) p1 p2
+    ,   CoercePass (XVarP p1) (XVarP p2) p1 p2
+    ,   CoercePass (XConstrP p1) (XConstrP p2) p1 p2
+    ) => CoercePass (Pattern p1) (Pattern p2) p1 p2 where
+        _coercePass = \case
+            IntP x n        -> IntP (coercePass x) n
+            VarP x v        -> VarP (coercePass x) v
+            ConstrP x c ps  -> ConstrP (coercePass x) c (map coercePass ps)
 
 instance
     (   Name p1 ~ Name p2
@@ -467,6 +511,7 @@ instance HasLexInfo (Expr p) where
         Var _ li _               -> li
         Ascription _ li _ _      -> li
         VariantConstr _ li _     -> li
+        Case _ li _ _            -> li
         StructConstruct _ li _ _ -> li
         StructAccess _ li _ _    -> li
         ExprX _ li               -> li

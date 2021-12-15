@@ -31,6 +31,7 @@ instance HasType (Expr 'PostProcess) 'PostProcess where
         FCall (Ext t) _ _ _                 -> t
         Var (Ext2_1 t _) _ _                -> t
         VariantConstr (Ext (t,_,_)) _ _     -> t
+        Case (Ext t) _ _ _                  -> t
         IntLit _ _ _                        -> intT
         If _ _ _ th _                       -> getType th
         UnitLit _                           -> unitT
@@ -44,6 +45,7 @@ instance HasType (Expr 'Codegen) 'Codegen where
         FCall (Ext t) _ _ _                 -> t
         Var (Ext2_1 t _) _ _                -> t
         VariantConstr (Ext (t,_,_)) _ _     -> t
+        Case (Ext t) _ _ _                  -> t
         IntLit _ _ _                        -> intT
         If _ _ _ th _                       -> getType th
         UnitLit _                           -> unitT

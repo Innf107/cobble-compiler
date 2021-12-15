@@ -187,6 +187,8 @@ check (Var IgnoreExt li vname)  = do
     pure $ Var (Ext2_1 ty wanteds) li vname
 -- See note [lookupType for VariantConstr]
 check (VariantConstr (Ext (e,i)) li cname) = VariantConstr . Ext . (,e,i) <$> (instantiate li =<< lookupType cname) <*> pure li <*> pure cname
+check (Case IgnoreExt li e brs) = do
+    undefined
 check (Ascription IgnoreExt li e ty) = do
     e' <- check e
     ty' <- skolemize li (coercePass ty)

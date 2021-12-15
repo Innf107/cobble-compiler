@@ -51,7 +51,6 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
         compileExpr (C.VariantConstr (Ext (_, expectedParams, i)) _ n) = do 
             params <- replicateM expectedParams (freshVar "v")
             pure $ foldr Lambda (Variant (n, i) (map L.Var params)) params
-        
         compileExpr (FCall _ _ (C.VariantConstr (Ext (_, expectedParams, i)) _ con) as)
             | expectedParams == length as = L.Variant (con, i) <$> traverse compileExpr (toList as)
             | expectedParams >  length as = do
@@ -60,6 +59,8 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
                 pure $ foldr Lambda (Variant (con, i) (as' <> (map L.Var remainingParams))) remainingParams 
             | expectedParams <  length as = error $ "LC Codegen: too many arguments in variant construction. Expected: " <> show expectedParams <> ". Recieved: " <> show (length as) <> "."
         
+        compileExpr (C.Case (Ext _ty) _li _expr cases) = error "compileExpr: Case codegen NYI"
+
         -- Primops are passed on and only compiled in TopLevelCPSToMCAsm.hs
         compileExpr (FCall (Ext _) _l (C.Var (Ext2_1 _ _) _ v) ps) 
             | Just p <- lookup v prims = PrimOp (view primOp p) <$> traverse compileExpr (toList ps) 

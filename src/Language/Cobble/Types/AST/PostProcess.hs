@@ -47,9 +47,17 @@ type instance XVariantConstr    PostProcess = Ext PostProcess (Type PostProcess,
 --                                                                               ^    ^
 --                                                                               |    constructor index
 --                                                                               expected number of args
+type instance XCase             PostProcess = Ext PostProcess (Type PostProcess)
 type instance XStructConstruct  PostProcess = Ext PostProcess (StructDef PostProcess, Type PostProcess)
 type instance XStructAccess     PostProcess = Ext PostProcess (Map QualifiedName (StructDef PostProcess), Type PostProcess, Type PostProcess)
 type instance XExpr             PostProcess = ExtVoid PostProcess
+
+type instance XCaseBranch PostProcess = IgnoreExt PostProcess
+
+type instance XIntP     PostProcess = Ext PostProcess (Type PostProcess)
+type instance XVarP     PostProcess = Ext PostProcess (Type PostProcess)
+type instance XConstrP  PostProcess = Ext PostProcess (Type PostProcess)
+
 
 type instance Name PostProcess = QualifiedName
 

@@ -50,9 +50,16 @@ type instance XVariantConstr    Codegen = Ext Codegen (Type Codegen, Int, Int)
 --                                                                    ^    ^
 --                                                                    |    constructor index
 --                                                                    expected number of args
+type instance XCase             Codegen = Ext Codegen (Type Codegen)
 type instance XStructConstruct  'Codegen = Ext Codegen (StructDef 'Codegen, Type 'Codegen)
 type instance XStructAccess     'Codegen = Ext Codegen (StructDef 'Codegen, Type 'Codegen)
 type instance XExpr             'Codegen = ExtVoid Codegen
+
+type instance XCaseBranch Codegen = IgnoreExt Codegen
+
+type instance XIntP     Codegen = Ext Codegen (Type Codegen)
+type instance XVarP     Codegen = Ext Codegen (Type Codegen)
+type instance XConstrP  Codegen = Ext Codegen (Type Codegen)
 
 type instance Name 'Codegen = QualifiedName
 

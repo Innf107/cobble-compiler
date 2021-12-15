@@ -26,9 +26,16 @@ type instance XLet              'QualifyNames = IgnoreExt QualifyNames
 type instance XVar              'QualifyNames = IgnoreExt QualifyNames
 type instance XAscription       'QualifyNames = IgnoreExt QualifyNames
 type instance XVariantConstr    'QualifyNames = IgnoreExt QualifyNames
+type instance XCase             'QualifyNames = IgnoreExt QualifyNames
 type instance XStructConstruct  'QualifyNames = IgnoreExt QualifyNames
 type instance XStructAccess     'QualifyNames = IgnoreExt QualifyNames
 type instance XExpr             'QualifyNames = OperatorGroup QualifyNames NoFixity
+
+type instance XCaseBranch QualifyNames = IgnoreExt QualifyNames
+
+type instance XIntP     QualifyNames = IgnoreExt QualifyNames
+type instance XVarP     QualifyNames = IgnoreExt QualifyNames
+type instance XConstrP  QualifyNames = IgnoreExt QualifyNames
 
 type instance Name 'QualifyNames = Text
 

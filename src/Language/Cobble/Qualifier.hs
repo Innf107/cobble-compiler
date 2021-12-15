@@ -179,6 +179,7 @@ qualifyExpr (Ascription IgnoreExt li expr ty) = runReader li $
 qualifyExpr (VariantConstr IgnoreExt li cname) = runReader li do
     (cname', ep, i) <- lookupVariantConstr cname
     pure $ VariantConstr (Ext (ep, i)) li cname'
+qualifyExpr (Case IgnoreExt li exp cases) = undefined
 qualifyExpr (StructConstruct IgnoreExt li sname fields) = runReader li $ lookupType sname >>= \case
     (sname', _, RecordType tvs structFields) -> 
         StructConstruct 
