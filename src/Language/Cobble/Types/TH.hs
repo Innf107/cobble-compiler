@@ -57,8 +57,7 @@ deriveCoercePass tyname = reify tyname >>= \case
         p2 <- VarT <$> newName "p2"
         let deps = nub $ concatMap findDependencies cons
         let cxt = map (makeCxt p1 p2) deps
-        let decs = []-- map (makeDec cxt) cons
-        makeInstance p1 p2 cxt decs
+        makeInstance p1 p2 cxt
             where 
                 coercePass = ConT (mkName "CoercePass")
                 
@@ -79,16 +78,13 @@ deriveCoercePass tyname = reify tyname >>= \case
                 makeCxt :: Type -> Type -> Type -> Type
                 makeCxt p1 p2 t = coercePass `AppT` (t `AppT` p1) `AppT` (t `AppT` p2)
 
-                makeDec :: [Type] -> Con -> Dec
-                makeDec cxt c = undefined
-
-                makeInstance :: Type -> Type -> Cxt -> [Dec] -> Q [Dec]
-                makeInstance p1 p2 cxt decs = pure $ [
+                makeInstance :: Type -> Type -> Cxt -> Q [Dec]
+                makeInstance p1 p2 cxt = pure $ [
                     InstanceD 
                         (Just Incoherent)
                         (cxt)
                         (coercePass `AppT` (ConT tyname `AppT` p1) `AppT` (ConT tyname `AppT` p2)) 
-                        decs
+                        []
                     ]
     _ -> fail $ "deriveCoercePass: Invalid Type: " <> show tyname
 
