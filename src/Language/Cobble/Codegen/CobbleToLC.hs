@@ -27,7 +27,7 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
         compileStatement (DefInstance _classMeths _li cname ty meths) = sequence [
                 LCDef (dictName cname ty) . Tuple <$> traverse (compileToLambdaWithout cname) meths
             ]
-        compileStatement (Def IgnoreExt _li decl@(Decl (Ext2_1 _ _) fname _ _) _) = sequence [
+        compileStatement (Def () _li decl@(Decl (_, _) fname _ _) _) = sequence [
                 LCDef fname <$> compileToLambda decl
             ]
 
@@ -43,7 +43,7 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
         -- ->
         -- x :: Num a -> a
         -- let y :: Int = x d_Num_Int
-        compileExpr (C.Var (Ext2_1 _ ws) _ n) = pure $ foldl' addConstraint (L.Var n) ws
+        compileExpr (C.Var (_, ws) _ n) = pure $ foldl' addConstraint (L.Var n) ws
             where
                 addConstraint ex (TWanted (MkConstraint cname t) _) = App ex (L.Var (dictName cname (coercePass t)))
 
@@ -62,12 +62,12 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
         compileExpr (C.Case _ty _li _expr cases) = error "compileExpr: Case codegen NYI"
 
         -- Primops are passed on and only compiled in TopLevelCPSToMCAsm.hs
-        compileExpr (FCall _ _l (C.Var (Ext2_1 _ _) _ v) ps) 
+        compileExpr (FCall _ _l (C.Var (_, _) _ v) ps) 
             | Just p <- lookup v prims = PrimOp (view primOp p) <$> traverse compileExpr (toList ps) 
         
         compileExpr (FCall _ _ funEx pars) = foldl' App <$> (compileExpr funEx) <*> (traverse compileExpr pars)
         
-        compileExpr (C.Let IgnoreExt _ decl@(Decl (Ext2_1 _ _) name _ _) body) =
+        compileExpr (C.Let () _ decl@(Decl (_, _) name _ _) body) =
             L.Let name <$> compileToLambda decl <*> compileExpr body
         
         compileExpr (StructConstruct _ _ _ fs) = Tuple <$> traverse (compileExpr . snd) fs
@@ -78,10 +78,10 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
         compileExpr (C.If _ _ c th el)  = L.If <$> compileExpr c <*> compileExpr th <*> compileExpr el
 
         compileToLambda :: Decl Codegen -> Sem r LCExpr
-        compileToLambda (Decl (Ext2_1 _ty gs) _ xs e) = foldr addGiven <$> (foldr Lambda <$> compileExpr e <*> pure (map fst xs)) <*> pure gs
+        compileToLambda (Decl (_ty, gs) _ xs e) = foldr addGiven <$> (foldr Lambda <$> compileExpr e <*> pure (map fst xs)) <*> pure gs
 
         compileToLambdaWithout :: QualifiedName -> Decl Codegen -> Sem r LCExpr
-        compileToLambdaWithout cname (Decl (Ext2_1 _ty gs) _ xs e) = foldr addGiven <$> (foldr Lambda <$> compileExpr e <*> pure (map fst xs)) <*> pure gs'
+        compileToLambdaWithout cname (Decl (_ty, gs) _ xs e) = foldr addGiven <$> (foldr Lambda <$> compileExpr e <*> pure (map fst xs)) <*> pure gs'
             where
                 gs' = filter (\(TGiven (MkConstraint c _) _) -> c /= cname) gs
 

@@ -166,7 +166,7 @@ spec = do
             it "can be chosen by expr" do
                 testParse expr "54321"
                     `shouldBe`
-                    Right (IntLit IgnoreExt (LexInfo (SourcePos 1 1) (SourcePos 1 6) "Test") 54321)
+                    Right (IntLit () (LexInfo (SourcePos 1 1) (SourcePos 1 6) "Test") 54321)
         {-describe "boolLit" do
             it "parses correct inputs" do
                 testParse boollit "True" `shouldBe` Right (BoolLit IgnoreExt (LexInfo 1 1 "Test") True)
@@ -176,9 +176,9 @@ spec = do
                 testParse expr "False" `shouldBe` Right (BoolLit IgnoreExt (LexInfo 1 1 "Test") False) -}
         describe "varOrConstr" do
             it "parses correct inputs" do
-                testParse varOrConstr "x" `shouldBe` Right (Var IgnoreExt (LexInfo (SourcePos 1 1) (SourcePos 1 2) "Test") "x")
+                testParse varOrConstr "x" `shouldBe` Right (Var () (LexInfo (SourcePos 1 1) (SourcePos 1 2) "Test") "x")
             it "can be chosen by expr" do
-                testParse expr "x" `shouldBe` Right (Var IgnoreExt (LexInfo (SourcePos 1 1) (SourcePos 1 2) "Test") "x")
+                testParse expr "x" `shouldBe` Right (Var () (LexInfo (SourcePos 1 1) (SourcePos 1 2) "Test") "x")
 
 data TestError = ParseE ParseError
                | LexicalE LexicalError

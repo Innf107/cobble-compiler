@@ -24,35 +24,35 @@ deriving instance Data TGiven
 
 type instance XModule PostProcess = Map (Name PostProcess) ModSig
 
-type instance XDecl             PostProcess = Ext2_1 PostProcess (Type PostProcess) [TGiven]
+type instance XDecl             PostProcess = (Type PostProcess, [TGiven])
 type instance XParam            PostProcess = [(Name PostProcess, Type PostProcess)]
-type instance XDef              PostProcess = IgnoreExt PostProcess
-type instance XImport           PostProcess = IgnoreExt PostProcess
+type instance XDef              PostProcess = ()
+type instance XImport           PostProcess = ()
 type instance XDefStruct        PostProcess = Kind
 type instance XDefVariant       PostProcess = Kind
-type instance XDefVariantClause PostProcess = Ext3_1 PostProcess (Type PostProcess) Int Int
+type instance XDefVariantClause PostProcess = (Type PostProcess, Int, Int)
 type instance XDefClass         PostProcess = Kind
 -- XDefInstance uses a list of pairs instead of a Map, because SemAnalysis shuffles declarations around
 -- to have the same order as class declaration.
 type instance XDefInstance      PostProcess = ([(QualifiedName, Type Codegen)], [TVar Codegen])
-type instance XStatement        PostProcess = ExtVoid PostProcess
+type instance XStatement        PostProcess = Void
 
 type instance XFCall            PostProcess = (Type PostProcess)
-type instance XIntLit           PostProcess = IgnoreExt PostProcess
-type instance XIf               PostProcess = IgnoreExt PostProcess
-type instance XLet              PostProcess = IgnoreExt PostProcess
-type instance XVar              PostProcess = Ext2_1 PostProcess (Type PostProcess) [TWanted]
-type instance XAscription       PostProcess = ExtVoid PostProcess
+type instance XIntLit           PostProcess = ()
+type instance XIf               PostProcess = ()
+type instance XLet              PostProcess = ()
+type instance XVar              PostProcess = (Type PostProcess, [TWanted])
+type instance XAscription       PostProcess = Void
 type instance XVariantConstr    PostProcess = (Type PostProcess, Int, Int)
---                                                                               ^    ^
---                                                                               |    constructor index
---                                                                               expected number of args
+--                                                                ^    ^
+--                                                                |    constructor index
+--                                                                expected number of args
 type instance XCase             PostProcess = Type PostProcess
 type instance XStructConstruct  PostProcess = (StructDef PostProcess, Type PostProcess)
 type instance XStructAccess     PostProcess = (Map QualifiedName (StructDef PostProcess), Type PostProcess, Type PostProcess)
-type instance XExpr             PostProcess = ExtVoid PostProcess
+type instance XExpr             PostProcess = Void
 
-type instance XCaseBranch PostProcess = IgnoreExt PostProcess
+type instance XCaseBranch PostProcess = ()
 
 type instance XIntP     PostProcess = Type PostProcess
 type instance XVarP     PostProcess = Type PostProcess

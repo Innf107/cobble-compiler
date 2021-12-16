@@ -80,7 +80,7 @@ unitLit :: Parser LexInfo
 unitLit = try (mergeLexInfo <$> paren "(" <*> paren ")")
 
 letE :: Parser (Expr NextPass)
-letE = "let binding" <??> (\ls n ps e b -> Let IgnoreExt (mergeLexInfo ls (getLexInfo e)) (Decl IgnoreExt n ps e) b)
+letE = "let binding" <??> (\ls n ps e b -> Let () (mergeLexInfo ls (getLexInfo e)) (Decl () n ps e) b)
     <$> reserved "let"
     <*> ident'
     <*> many ident'
@@ -90,7 +90,7 @@ letE = "let binding" <??> (\ls n ps e b -> Let IgnoreExt (mergeLexInfo ls (getLe
     <*> expr
 
 module_ :: Text -> Parser (Module NextPass)
-module_ mname = "module" <??> Module IgnoreExt mname <$> statements <* eof
+module_ mname = "module" <??> Module () mname <$> statements <* eof
 
 statement :: Parser (Statement NextPass)
 statement = "statement" <??> def <|> defStruct <|> defVariant <|> defClass <|> defInstance <|> import_
@@ -104,7 +104,7 @@ expr = merge
             <??>  
             reservedOp "::"
             *> typeP
-        merge e (Just (le, ty)) = Ascription IgnoreExt (mergeLexInfo (getLexInfo e) le) e ty
+        merge e (Just (le, ty)) = Ascription () (mergeLexInfo (getLexInfo e) le) e ty
         merge e Nothing = e
 
 exprWithoutAscription :: Parser (Expr NextPass)
@@ -134,15 +134,15 @@ exprWithoutOp = "expression" <??> do
         args <- many expr'
         case args of
             []      -> pure f
-            (a:as)  -> pure $ FCall IgnoreExt (getLexInfo f `mergeLexInfo` (getLexInfo (last (a :| as)))) f (a :| as)
+            (a:as)  -> pure $ FCall () (getLexInfo f `mergeLexInfo` (getLexInfo (last (a :| as)))) f (a :| as)
 
 expr' :: Parser (Expr NextPass)
-expr' = "expression (no fcall)" <??> (\e mf -> maybe e (\(le, fname) -> StructAccess IgnoreExt (getLexInfo e `mergeLexInfo` le) e fname) mf)
+expr' = "expression (no fcall)" <??> (\e mf -> maybe e (\(le, fname) -> StructAccess () (getLexInfo e `mergeLexInfo` le) e fname) mf)
     <$> expr''
     <*> optionMaybe (reservedOp' "." *> ident) 
 
 expr'' :: Parser (Expr NextPass)
-expr'' = "expression (no fcall / struct access)" <??> uncurry (IntLit IgnoreExt) <$> intLit <|> UnitLit <$> unitLit <|> letE <|> ifE <|> varOrConstr <|> withParen expr
+expr'' = "expression (no fcall / struct access)" <??> uncurry (IntLit ()) <$> intLit <|> UnitLit <$> unitLit <|> letE <|> ifE <|> varOrConstr <|> withParen expr
 
 
 def :: Parser (Statement NextPass)
@@ -160,7 +160,7 @@ def = "definition" <??> do
             defDecl ty
 
 decl :: Parser (Decl NextPass)
-decl = "declaration" <??> (\f xs e -> Decl IgnoreExt f xs e)
+decl = "declaration" <??> (\f xs e -> Decl () f xs e)
     <$> ident'
     <*> many ident'
     <* reservedOp' "="
@@ -170,7 +170,7 @@ import_ :: Parser (Statement NextPass)
 import_ = "import" <??> do
     liStart <- reserved "import"
     (liEnd, name) <- modName
-    pure (Import IgnoreExt (liStart `mergeLexInfo` liEnd) name)
+    pure (Import () (liStart `mergeLexInfo` liEnd) name)
 
 modName :: Parser (LexInfo, Name NextPass)
 modName = joinSegments <$> some validSegment
@@ -190,7 +190,7 @@ fixity = "fixity declaration" <??> (\(ls, f) (le, i) -> (ls `mergeLexInfo` le, f
     <*> intLit
 
 defStruct :: Parser (Statement NextPass)
-defStruct = "struct definition" <??> (\ls n ps fs le -> DefStruct IgnoreExt (ls `mergeLexInfo` le) n (map (\x -> MkTVar x ()) ps) fs)
+defStruct = "struct definition" <??> (\ls n ps fs le -> DefStruct () (ls `mergeLexInfo` le) n (map (\x -> MkTVar x ()) ps) fs)
     <$> reserved "struct"
     <*> ident'
     <*> many ident'
@@ -199,7 +199,7 @@ defStruct = "struct definition" <??> (\ls n ps fs le -> DefStruct IgnoreExt (ls 
     <*> paren "}"
    
 defVariant :: Parser (Statement NextPass)
-defVariant = "variant definition" <??> (\ls n ps cs -> DefVariant IgnoreExt (ls `mergeLexInfo` snd (unsafeLast cs)) n (map (`MkTVar`()) ps) (map (\((n,ts),_) -> (n, ts, IgnoreExt)) cs))
+defVariant = "variant definition" <??> (\ls n ps cs -> DefVariant () (ls `mergeLexInfo` snd (unsafeLast cs)) n (map (`MkTVar`()) ps) (map (\((n,ts),_) -> (n, ts, ())) cs))
     <$> reserved "variant"
     <*> ident'
     <*> many ident'
@@ -211,7 +211,7 @@ defVariant = "variant definition" <??> (\ls n ps cs -> DefVariant IgnoreExt (ls 
             <*> many namedType
 
 defClass :: Parser (Statement NextPass)
-defClass = "class definition" <??> (\ls n ps cs le -> DefClass IgnoreExt (ls `mergeLexInfo` le) n (map (\v -> MkTVar v ()) ps) cs)
+defClass = "class definition" <??> (\ls n ps cs le -> DefClass () (ls `mergeLexInfo` le) n (map (\v -> MkTVar v ()) ps) cs)
     <$> reserved "class"
     <*> ident'
     <*> many ident'
@@ -220,7 +220,7 @@ defClass = "class definition" <??> (\ls n ps cs le -> DefClass IgnoreExt (ls `me
     <*> paren "}"
 
 defInstance :: Parser (Statement NextPass)
-defInstance = "instance definition" <??> (\ls cn (_, t) ds le -> DefInstance IgnoreExt (ls `mergeLexInfo` le) cn t ds)
+defInstance = "instance definition" <??> (\ls cn (_, t) ds le -> DefInstance () (ls `mergeLexInfo` le) cn t ds)
     <$> reserved "instance"
     <*> ident'
     <*> typeP
@@ -229,7 +229,7 @@ defInstance = "instance definition" <??> (\ls cn (_, t) ds le -> DefInstance Ign
     <*> paren "}"
 
 ifE :: Parser (Expr NextPass)
-ifE = "if expression" <??> (\liStart te ee -> If IgnoreExt (liStart `mergeLexInfo` (getLexInfo ee)) te ee)
+ifE = "if expression" <??> (\liStart te ee -> If () (liStart `mergeLexInfo` (getLexInfo ee)) te ee)
     <$> reserved "if" <*> expr
     <*> (reserved "then" *> expr)
     <*> (reserved "else" *> expr)
@@ -243,7 +243,7 @@ varOrConstr = "variable or struct construction" <??> do
         True -> structConstructRest v
     where
         structConstructRest :: (LexInfo, Text) -> Parser (Expr NextPass)
-        structConstructRest (ls, n) = "struct construction" <??> (\fs le -> StructConstruct IgnoreExt (ls `mergeLexInfo` le) n fs)
+        structConstructRest (ls, n) = "struct construction" <??> (\fs le -> StructConstruct () (ls `mergeLexInfo` le) n fs)
             <$> fieldUpdate `sepBy` (reservedOp' ",")
             <*> paren  "}"
             where
@@ -251,8 +251,8 @@ varOrConstr = "variable or struct construction" <??> do
 
         makeVarOrVariantConstr :: (LexInfo, Text) -> Expr NextPass
         makeVarOrVariantConstr (li, name)
-            | isUpper (T.head name) = VariantConstr IgnoreExt li name
-            | otherwise             = Var IgnoreExt li name
+            | isUpper (T.head name) = VariantConstr () li name
+            | otherwise             = Var () li name
 
 statements :: Parser [Statement NextPass]
 statements = many (statement <* reservedOp ";")

@@ -246,7 +246,7 @@ extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
 
 makePartialSig :: S.Statement 'Codegen -> ModSig
 makePartialSig = \case
-    Def _ _ (Decl (Ext2_1 _ gs) n _ _) t        -> mempty {exportedVars = one (n, t)} -- TODO: what about gs?
+    Def _ _ (Decl (_, gs) n _ _) t        -> mempty {exportedVars = one (n, t)} -- TODO: what about gs?
     DefStruct k _ n ps fs     -> mempty {exportedTypes = one (n, (k, RecordType ps fs))}
     DefClass k _ n ps meths   -> mempty 
         {   exportedTypes = one (n, (k, TyClass ps meths))
@@ -256,9 +256,9 @@ makePartialSig = \case
     DefInstance _ _ cname ty _ -> mempty {exportedInstances = one (cname, [ty])}
     DefVariant k _ tyName ps cs    -> mempty
         {   exportedTypes = one (tyName, (k, VariantType ps (map (\(x,y,_) -> (x,y)) cs)))
-        ,   exportedVariantConstrs = fromList (map (\(cname, _, Ext3_1 ty ep i) -> (cname, (ty, ep, i))) cs)
+        ,   exportedVariantConstrs = fromList (map (\(cname, _, (ty, ep, i)) -> (cname, (ty, ep, i))) cs)
         }
-    Import IgnoreExt _ _            -> mempty
+    Import () _ _            -> mempty
 
 getModName :: FilePath -> Text
 getModName = toText . FP.dropExtension . L.last . segments

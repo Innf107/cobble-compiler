@@ -29,7 +29,7 @@ class HasType t p | t -> p where
 instance HasType (Expr 'PostProcess) 'PostProcess where
     getType = \case
         FCall t _ _ _                       -> t
-        Var (Ext2_1 t _) _ _                -> t
+        Var (t, _) _ _                      -> t
         VariantConstr (t,_,_) _ _           -> t
         Case t _ _ _                        -> t
         IntLit _ _ _                        -> intT
@@ -43,7 +43,7 @@ instance HasType (Expr 'PostProcess) 'PostProcess where
 instance HasType (Expr 'Codegen) 'Codegen where
     getType = \case
         FCall t _ _ _                       -> t
-        Var (Ext2_1 t _) _ _                -> t
+        Var (t, _) _ _                      -> t
         VariantConstr (t,_,_) _ _           -> t
         Case t _ _ _                        -> t
         IntLit _ _ _                        -> intT
@@ -54,7 +54,7 @@ instance HasType (Expr 'Codegen) 'Codegen where
         StructAccess (_, t) _ _ _           -> t
 
 instance HasType (Decl PostProcess) PostProcess where
-    getType (Decl (Ext2_1 t _) _ _ _) = t
+    getType (Decl (t, _) _ _ _) = t
 
 instance HasType (Type p) p where
     getType = id

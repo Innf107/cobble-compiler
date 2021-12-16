@@ -11,9 +11,9 @@ postProcess (Module deps n sts) = Module deps n (map postProcessStatement sts)
 
 -- more boilerplate :/
 postProcessStatement :: Statement PostProcess -> Statement NextPass
-postProcessStatement (Def IgnoreExt li decl ty) = 
-    Def IgnoreExt li (postProcessDecl decl) (coercePass ty)-- 
-postProcessStatement (Import IgnoreExt li n) = Import IgnoreExt li n
+postProcessStatement (Def () li decl ty) = 
+    Def () li (postProcessDecl decl) (coercePass ty)-- 
+postProcessStatement (Import () li n) = Import () li n
 postProcessStatement (DefStruct k li sname ps fields) = 
     DefStruct k li sname (coercePass ps) (map (second coercePass) fields)
 postProcessStatement (DefVariant k li vname ps constrs) = 
@@ -24,7 +24,7 @@ postProcessStatement (DefInstance (defs, classPs) li cname ty decls) =
     DefInstance (map (second coercePass) defs, coercePass classPs) li cname (coercePass ty) (map postProcessDecl decls)
 
 postProcessDecl :: Decl PostProcess -> Decl NextPass
-postProcessDecl (Decl (Ext2_1 ty' gs) f xs e) = Decl (Ext2_1 (coercePass ty') gs) f (map (second coercePass) xs) (postProcessExpr e)
+postProcessDecl (Decl (ty', gs) f xs e) = Decl (coercePass ty', gs) f (map (second coercePass) xs) (postProcessExpr e)
 
 postProcessExpr :: Expr PostProcess -> Expr NextPass
 postProcessExpr = \case 
@@ -37,12 +37,12 @@ postProcessExpr = \case
 
     -- just coercePass wrappers and recursion (would love to factor this out with uniplate...)
     FCall ty li f as -> FCall (coercePass ty) li (postProcessExpr f) (fmap postProcessExpr as) 
-    IntLit IgnoreExt li n -> IntLit IgnoreExt li n
+    IntLit () li n -> IntLit () li n
     UnitLit li -> UnitLit li
-    If IgnoreExt li cond th el -> If IgnoreExt li (postProcessExpr cond) (postProcessExpr th) (postProcessExpr el) 
-    Let IgnoreExt li decl b -> 
-        Let IgnoreExt li (postProcessDecl decl) (postProcessExpr b)
-    Var (Ext2_1 ty ws) li n -> Var (Ext2_1 (coercePass ty) ws) li n
+    If () li cond th el -> If () li (postProcessExpr cond) (postProcessExpr th) (postProcessExpr el) 
+    Let () li decl b -> 
+        Let () li (postProcessDecl decl) (postProcessExpr b)
+    Var (ty, ws) li n -> Var (coercePass ty, ws) li n
     VariantConstr (ty, e, i) li n -> VariantConstr (coercePass ty, e, i) li n
     Case t li e cases -> Case (coercePass t) li (postProcessExpr e) (map postProcessCaseBranch cases)
     StructConstruct (sd, ty) li sname fexprs -> 
@@ -58,7 +58,7 @@ postProcessExpr = \case
 
 -- So. Much. Boilerplate.
 postProcessCaseBranch :: CaseBranch PostProcess -> CaseBranch NextPass
-postProcessCaseBranch (CaseBranch IgnoreExt li p e) = CaseBranch IgnoreExt li (postProcessPattern p) (postProcessExpr e)
+postProcessCaseBranch (CaseBranch () li p e) = CaseBranch () li (postProcessPattern p) (postProcessExpr e)
 
 postProcessPattern :: Pattern PostProcess -> Pattern NextPass
 postProcessPattern (IntP t n) = IntP (coercePass t) n

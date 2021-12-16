@@ -16,6 +16,7 @@ module Language.Cobble.Prelude (
     , module Data.Foldable
     --, module Data.These
     , module Data.Either
+    , module Data.Void
     , (|:)
     , state 
     , whenAlt
@@ -112,6 +113,8 @@ import qualified Data.List as L (init, last, (\\))
 import qualified Data.Map as M (unionWith)
 
 import Data.Foldable (foldrM)
+
+import Data.Void
 
 (|:) :: a -> NonEmpty a -> NonEmpty a
 a |: (x :| xs) = a :| (x : xs)

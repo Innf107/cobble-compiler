@@ -25,7 +25,7 @@ spec = do
         runTypecheck [
                 "x :: Int;"
             ,   "x = let y = 5 in let z = y in y;"
-            ] `shouldSatisfy` \ast -> case [ty | Var (Ext2_1 ty _) _ (ReallyUnsafeQualifiedName "y" _ _) :: Expr PostProcess <- universeBi ast] of
+            ] `shouldSatisfy` \ast -> case [ty | Var (ty, _) _ (ReallyUnsafeQualifiedName "y" _ _) :: Expr PostProcess <- universeBi ast] of
                     [] -> False
                     xs -> all (== intT) xs
 
@@ -157,7 +157,7 @@ spec = do
             ,   ""
             ,   "x :: Bool;"
             ,   "x = eq 1 1;"
-            ] `shouldSatisfy` withAST' (show . first ppType) (\ast -> [(ty, cs) | Var (Ext2_1 ty cs) _ (QName "eq") :: Expr PostProcess <- universeBi ast]) \case
+            ] `shouldSatisfy` withAST' (show . first ppType) (\ast -> [(ty, cs) | Var (ty, cs) _ (QName "eq") :: Expr PostProcess <- universeBi ast]) \case
                 (IntT :-> IntT :-> BoolT, [TWanted (MkConstraint (QName "Eq") IntT) _]) -> True
                 _ -> False
     it "application of typeclass methods lose constraints" do
@@ -220,10 +220,10 @@ ppTypes :: [Type PostProcess] -> Text
 ppTypes = unlines . map ppType
 
 pattern VarType :: Type PostProcess -> Text -> Expr PostProcess
-pattern VarType ty name <- Var (Ext2_1 ty _) _ (QName name)
+pattern VarType ty name <- Var (ty, _) _ (QName name)
 
 pattern DeclType :: Type PostProcess -> Text -> Decl PostProcess
-pattern DeclType ty name <- Decl (Ext2_1 ty _) (QName name) _ _
+pattern DeclType ty name <- Decl (ty, _) (QName name) _ _
 
 pattern QName :: Text -> QualifiedName
 pattern QName name <- ReallyUnsafeQualifiedName name _ _
@@ -257,7 +257,7 @@ cobbleCode content = do
     toks <- either (\(e :: C.LexicalError) -> error $ "lex error: " <> show e) id <$> runError (C.tokenize "test.cb" content)
     let parsed = either (\e -> error $ "parse error: " <> show e) id $ C.parse (C.module_ "test.cb") "" toks
     
-    let moduleSolved :: Module QualifyNames = let (Module IgnoreExt pmname psts) = parsed 
+    let moduleSolved :: Module QualifyNames = let (Module () pmname psts) = parsed 
             in 
             Module (one (internalQName "prims", C.primModSig)) pmname (coercePass psts) 
 

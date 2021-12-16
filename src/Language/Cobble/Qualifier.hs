@@ -58,12 +58,12 @@ qualifyStmnt (Def mfixity li d@(Decl _ n _ _) ty) = runReader li do
         -- The type has to be qualified first, since all mentioned tyvars
         -- need to be in scope in the body (mostly for ascriptions).
         ty' <- qualifyType True ty
-        Def IgnoreExt li
+        Def () li
             <$> qualifyDeclWithName n' d
             <*> pure ty'
-qualifyStmnt (Import IgnoreExt li n) = pure (Import IgnoreExt li (internalQName n))
+qualifyStmnt (Import () li n) = pure (Import () li (internalQName n))
 
-qualifyStmnt (DefStruct IgnoreExt li n tvs fields) = runReader li do
+qualifyStmnt (DefStruct () li n tvs fields) = runReader li do
     n' <- freshVar (n, li)
     tvs' <- traverse (qualifyTVar KStar) tvs -- TODO: [Kind inference]: probably shouldn't be KStar
     let k = getTyConKind tvs'
@@ -77,11 +77,11 @@ qualifyStmnt (DefStruct IgnoreExt li n tvs fields) = runReader li do
     addType n n' k (RecordType (coercePass tvs') (map (second coercePass) fields'))
     pure (DefStruct k li n' tvs' fields')
 
-qualifyStmnt (DefVariant IgnoreExt li n tvs constrs) = runReader li $ do
+qualifyStmnt (DefVariant () li n tvs constrs) = runReader li $ do
     n' <- freshVar (n, li)
     tvs' <- traverse (qualifyTVar KStar) tvs -- TODO: [Kind inference]: probably shouldn't be KStar
     let k = getTyConKind tvs'
-    constrs' <- withFrame $ forM2 [0..] constrs \i (cn, tys, IgnoreExt) -> do
+    constrs' <- withFrame $ forM2 [0..] constrs \i (cn, tys, ()) -> do
         -- The type needs to be locally added as a dummy variant to allow recursive types.
         addType n n' k (VariantType (coercePass tvs') [])
         zipWithM_ addTVar tvs tvs'
@@ -93,7 +93,7 @@ qualifyStmnt (DefVariant IgnoreExt li n tvs constrs) = runReader li $ do
     zipWithM_ (\(cn, _, _) (cn', _, (ep, i)) -> addVariantConstr cn cn' ep i) constrs constrs'
     pure (DefVariant k li n' tvs' constrs')
 
-qualifyStmnt (DefClass IgnoreExt li n tvs meths) = runReader li $ do
+qualifyStmnt (DefClass () li n tvs meths) = runReader li $ do
     n' <- freshVar (n, li)
     tvs' <- traverse (qualifyTVar KStar) tvs -- TODO: [Kind inference]: probably shouldn't be KStar
     let k = foldr (\(MkTVar _ k) r -> k `KFun` r) KConstraint tvs'
@@ -110,7 +110,7 @@ qualifyStmnt (DefClass IgnoreExt li n tvs meths) = runReader li $ do
     zipWithM_ (\(methName,_) (methName',_) -> addVar methName methName') meths meths'
     pure (DefClass k li n' tvs' meths')
 
-qualifyStmnt (DefInstance IgnoreExt li cname ty meths) = runReader li $ lookupType cname >>= \case
+qualifyStmnt (DefInstance () li cname ty meths) = runReader li $ lookupType cname >>= \case
     (cname', _, TyClass tvs classMeths) -> withFrame do
         ty' <- qualifyType False ty 
         -- TODO: Should ty vars in classes be allowed? They are in Haskell, but I'm not sure if cobble is quite
@@ -127,12 +127,12 @@ qualifyDeclWithName :: Members '[StackState Scope, Fresh (Text, LexInfo) Qualifi
             => QualifiedName
             -> Decl 'QualifyNames 
             -> Sem r (Decl NextPass)
-qualifyDeclWithName n' (Decl IgnoreExt _ ps e) = withFrame do
+qualifyDeclWithName n' (Decl () _ ps e) = withFrame do
     li <- ask
     ps' <- traverse (freshVar . (,li)) ps
     zipWithM_ addVar ps ps'
     e' <- qualifyExpr e
-    pure (Decl IgnoreExt n' ps' e')
+    pure (Decl () n' ps' e')
 
 qualifyDecl :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r
             => Decl 'QualifyNames 
@@ -155,32 +155,32 @@ qualifyRecursiveDecl d@(Decl _ n _ _) = do
 qualifyExpr :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r
             => Expr QualifyNames
             -> Sem r (Expr NextPass)
-qualifyExpr (FCall IgnoreExt li f args) =
-    FCall IgnoreExt li
+qualifyExpr (FCall () li f args) =
+    FCall () li
     <$> qualifyExpr f
     <*> traverse qualifyExpr args
-qualifyExpr (IntLit IgnoreExt li n) = pure (IntLit IgnoreExt li n)
+qualifyExpr (IntLit () li n) = pure (IntLit () li n)
 qualifyExpr (UnitLit li) = pure (UnitLit li)
-qualifyExpr (If IgnoreExt li cond th el) = 
-    If IgnoreExt li
+qualifyExpr (If () li cond th el) = 
+    If () li
     <$> qualifyExpr cond
     <*> qualifyExpr th
     <*> qualifyExpr el
-qualifyExpr (Let IgnoreExt li decl b) = runReader li $
+qualifyExpr (Let () li decl b) = runReader li $
     withFrame $ 
-        Let IgnoreExt li
+        Let () li
         <$> qualifyRecursiveDecl decl
         <*> qualifyExpr b
-qualifyExpr (Var IgnoreExt li x) = runReader li $ Var IgnoreExt li <$> lookupVar x
-qualifyExpr (Ascription IgnoreExt li expr ty) = runReader li $
-    Ascription IgnoreExt li 
+qualifyExpr (Var () li x) = runReader li $ Var () li <$> lookupVar x
+qualifyExpr (Ascription () li expr ty) = runReader li $
+    Ascription () li 
     <$> qualifyExpr expr
     <*> qualifyType False ty
-qualifyExpr (VariantConstr IgnoreExt li cname) = runReader li do
+qualifyExpr (VariantConstr () li cname) = runReader li do
     (cname', ep, i) <- lookupVariantConstr cname
     pure $ VariantConstr (ep, i) li cname'
-qualifyExpr (Case IgnoreExt li exp cases) = undefined
-qualifyExpr (StructConstruct IgnoreExt li sname fields) = runReader li $ lookupType sname >>= \case
+qualifyExpr (Case () li exp cases) = undefined
+qualifyExpr (StructConstruct () li sname fields) = runReader li $ lookupType sname >>= \case
     (sname', _, RecordType tvs structFields) -> 
         StructConstruct 
             (StructDef sname' (coercePass tvs) (map (second coercePass) structFields))
@@ -188,7 +188,7 @@ qualifyExpr (StructConstruct IgnoreExt li sname fields) = runReader li $ lookupT
             sname' 
             <$> traverse (secondM qualifyExpr) fields
     (tname', k, v) -> throw (StructConstructNotAStruct li tname' k v)
-qualifyExpr (StructAccess IgnoreExt li structExpr fieldName) = runReader li do
+qualifyExpr (StructAccess () li structExpr fieldName) = runReader li do
     allStructs <- sgets (toList . view scopeTypes)
     let possibleStructs = fromList $ mapMaybe possibleStruct allStructs
     StructAccess possibleStructs li
@@ -215,7 +215,7 @@ qualifyExpr (ExprX opGroup li) = runReader li $ replaceOpGroup . reorderByFixity
 
         replaceOpGroup :: OperatorGroup NextPass WithFixity -> Expr NextPass
         replaceOpGroup (OpLeaf e) = e
-        replaceOpGroup (OpNode l (op, _fixity) r) = FCall IgnoreExt li (Var IgnoreExt li op) (fromList [
+        replaceOpGroup (OpNode l (op, _fixity) r) = FCall () li (Var () li op) (fromList [
                                                             replaceOpGroup l
                                                         ,   replaceOpGroup r
                                                         ])

@@ -87,7 +87,7 @@ runQualifier content = run $ do
     toks <- either (\(e :: C.LexicalError) -> error $ "lex error: " <> show e) id <$> runError (C.tokenize "test.cb" (unlines content))
     let parsed = either (\e -> error $ "parse error: " <> show e) id $ C.parse (C.module_ "test.cb") "" toks
     
-    let moduleSolved :: Module QualifyNames = let (Module IgnoreExt pmname psts) = parsed 
+    let moduleSolved :: Module QualifyNames = let (Module () pmname psts) = parsed 
             in 
             Module (one (internalQName "prims", C.primModSig)) pmname (coercePass psts) 
 

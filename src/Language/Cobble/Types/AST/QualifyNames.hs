@@ -8,34 +8,34 @@ import Language.Cobble.Types.AST
 type instance XModule 'QualifyNames = Map (Name 'Codegen) ModSig
 
 type instance XDef              QualifyNames = Maybe Fixity
-type instance XDecl             QualifyNames = IgnoreExt QualifyNames
+type instance XDecl             QualifyNames = ()
 type instance XParam            QualifyNames = [Name QualifyNames]
-type instance XImport           QualifyNames = IgnoreExt QualifyNames
-type instance XDefStruct        QualifyNames = IgnoreExt QualifyNames
-type instance XDefVariant       QualifyNames = IgnoreExt QualifyNames
-type instance XDefVariantClause QualifyNames = IgnoreExt QualifyNames
-type instance XDefClass         QualifyNames = IgnoreExt QualifyNames
-type instance XDefInstance      QualifyNames = IgnoreExt QualifyNames
-type instance XStatement        QualifyNames = ExtVoid QualifyNames
+type instance XImport           QualifyNames = ()
+type instance XDefStruct        QualifyNames = ()
+type instance XDefVariant       QualifyNames = ()
+type instance XDefVariantClause QualifyNames = ()
+type instance XDefClass         QualifyNames = ()
+type instance XDefInstance      QualifyNames = ()
+type instance XStatement        QualifyNames = Void
 
 
-type instance XFCall            'QualifyNames = IgnoreExt QualifyNames
-type instance XIntLit           'QualifyNames = IgnoreExt QualifyNames
-type instance XIf               'QualifyNames = IgnoreExt QualifyNames
-type instance XLet              'QualifyNames = IgnoreExt QualifyNames
-type instance XVar              'QualifyNames = IgnoreExt QualifyNames
-type instance XAscription       'QualifyNames = IgnoreExt QualifyNames
-type instance XVariantConstr    'QualifyNames = IgnoreExt QualifyNames
-type instance XCase             'QualifyNames = IgnoreExt QualifyNames
-type instance XStructConstruct  'QualifyNames = IgnoreExt QualifyNames
-type instance XStructAccess     'QualifyNames = IgnoreExt QualifyNames
+type instance XFCall            'QualifyNames = ()
+type instance XIntLit           'QualifyNames = ()
+type instance XIf               'QualifyNames = ()
+type instance XLet              'QualifyNames = ()
+type instance XVar              'QualifyNames = ()
+type instance XAscription       'QualifyNames = ()
+type instance XVariantConstr    'QualifyNames = ()
+type instance XCase             'QualifyNames = ()
+type instance XStructConstruct  'QualifyNames = ()
+type instance XStructAccess     'QualifyNames = ()
 type instance XExpr             'QualifyNames = OperatorGroup QualifyNames NoFixity
 
-type instance XCaseBranch QualifyNames = IgnoreExt QualifyNames
+type instance XCaseBranch QualifyNames = ()
 
-type instance XIntP     QualifyNames = IgnoreExt QualifyNames
-type instance XVarP     QualifyNames = IgnoreExt QualifyNames
-type instance XConstrP  QualifyNames = IgnoreExt QualifyNames
+type instance XIntP     QualifyNames = ()
+type instance XVarP     QualifyNames = ()
+type instance XConstrP  QualifyNames = ()
 
 type instance Name 'QualifyNames = Text
 
