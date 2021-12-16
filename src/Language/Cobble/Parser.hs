@@ -80,7 +80,7 @@ unitLit :: Parser LexInfo
 unitLit = try (mergeLexInfo <$> paren "(" <*> paren ")")
 
 letE :: Parser (Expr NextPass)
-letE = "let binding" <??> (\ls n ps e b -> Let IgnoreExt (mergeLexInfo ls (getLexInfo e)) (Decl IgnoreExt n (Ext ps) e) b)
+letE = "let binding" <??> (\ls n ps e b -> Let IgnoreExt (mergeLexInfo ls (getLexInfo e)) (Decl IgnoreExt n ps e) b)
     <$> reserved "let"
     <*> ident'
     <*> many ident'
@@ -155,12 +155,12 @@ def = "definition" <??> do
 
     when (name /= sigName) $ fail "Function definition does not immediately follow its type signature"
     
-    pure $ Def (Ext (snd <$> mfixity)) 
+    pure $ Def (snd <$> mfixity) 
             (maybe liStartSig fst mfixity `mergeLexInfo` getLexInfo e) 
             defDecl ty
 
 decl :: Parser (Decl NextPass)
-decl = "declaration" <??> (\f xs e -> Decl IgnoreExt f (Ext xs) e)
+decl = "declaration" <??> (\f xs e -> Decl IgnoreExt f xs e)
     <$> ident'
     <*> many ident'
     <* reservedOp' "="

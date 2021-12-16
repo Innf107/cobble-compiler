@@ -19,15 +19,15 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
         compileStatement Import {} = pure []
         compileStatement DefStruct {} = pure []
         compileStatement DefVariant {} = pure []
-        compileStatement (DefClass (Ext _) _li _cname _tvs meths) = pure $ zipWith defMethod [0..] meths
+        compileStatement (DefClass _ _li _cname _tvs meths) = pure $ zipWith defMethod [0..] meths
             where 
                 defMethod i (mname, _mty) = let dname = todo (internalQName "dict") 
                     in LCDef mname $ Lambda dname (Select i (L.Var dname))
         
-        compileStatement (DefInstance (Ext _classMeths) _li cname ty meths) = sequence [
+        compileStatement (DefInstance _classMeths _li cname ty meths) = sequence [
                 LCDef (dictName cname ty) . Tuple <$> traverse (compileToLambdaWithout cname) meths
             ]
-        compileStatement (Def IgnoreExt _li decl@(Decl (Ext2_1 _ _) fname (Ext _) _) _) = sequence [
+        compileStatement (Def IgnoreExt _li decl@(Decl (Ext2_1 _ _) fname _ _) _) = sequence [
                 LCDef fname <$> compileToLambda decl
             ]
 
@@ -47,11 +47,11 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
             where
                 addConstraint ex (TWanted (MkConstraint cname t) _) = App ex (L.Var (dictName cname (coercePass t)))
 
-        compileExpr (C.VariantConstr (Ext (_, 0, i)) _ n) = pure $ Variant (n, i) []
-        compileExpr (C.VariantConstr (Ext (_, expectedParams, i)) _ n) = do 
+        compileExpr (C.VariantConstr (_, 0, i) _ n) = pure $ Variant (n, i) []
+        compileExpr (C.VariantConstr (_, expectedParams, i) _ n) = do 
             params <- replicateM expectedParams (freshVar "v")
             pure $ foldr Lambda (Variant (n, i) (map L.Var params)) params
-        compileExpr (FCall _ _ (C.VariantConstr (Ext (_, expectedParams, i)) _ con) as)
+        compileExpr (FCall _ _ (C.VariantConstr (_, expectedParams, i) _ con) as)
             | expectedParams == length as = L.Variant (con, i) <$> traverse compileExpr (toList as)
             | expectedParams >  length as = do
                 remainingParams <- replicateM (expectedParams - length as) (freshVar "v")
@@ -59,29 +59,29 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
                 pure $ foldr Lambda (Variant (con, i) (as' <> (map L.Var remainingParams))) remainingParams 
             | expectedParams <  length as = error $ "LC Codegen: too many arguments in variant construction. Expected: " <> show expectedParams <> ". Recieved: " <> show (length as) <> "."
         
-        compileExpr (C.Case (Ext _ty) _li _expr cases) = error "compileExpr: Case codegen NYI"
+        compileExpr (C.Case _ty _li _expr cases) = error "compileExpr: Case codegen NYI"
 
         -- Primops are passed on and only compiled in TopLevelCPSToMCAsm.hs
-        compileExpr (FCall (Ext _) _l (C.Var (Ext2_1 _ _) _ v) ps) 
+        compileExpr (FCall _ _l (C.Var (Ext2_1 _ _) _ v) ps) 
             | Just p <- lookup v prims = PrimOp (view primOp p) <$> traverse compileExpr (toList ps) 
         
-        compileExpr (FCall (Ext _) _ funEx pars) = foldl' App <$> (compileExpr funEx) <*> (traverse compileExpr pars)
+        compileExpr (FCall _ _ funEx pars) = foldl' App <$> (compileExpr funEx) <*> (traverse compileExpr pars)
         
-        compileExpr (C.Let IgnoreExt _ decl@(Decl (Ext2_1 _ _) name (Ext _) _) body) =
+        compileExpr (C.Let IgnoreExt _ decl@(Decl (Ext2_1 _ _) name _ _) body) =
             L.Let name <$> compileToLambda decl <*> compileExpr body
         
-        compileExpr (StructConstruct (Ext _) _ _ fs) = Tuple <$> traverse (compileExpr . snd) fs
-        compileExpr (StructAccess (Ext (def, _)) _ structExp fieldName) = case findIndexOf (structFields . folded) (\(x,_) -> x == fieldName) def of
+        compileExpr (StructConstruct _ _ _ fs) = Tuple <$> traverse (compileExpr . snd) fs
+        compileExpr (StructAccess (def, _) _ structExp fieldName) = case findIndexOf (structFields . folded) (\(x,_) -> x == fieldName) def of
             Nothing -> error "LC Codegen Panic: structAccess: field not found too late"
             Just i -> Select i <$> compileExpr structExp
         
         compileExpr (C.If _ _ c th el)  = L.If <$> compileExpr c <*> compileExpr th <*> compileExpr el
 
         compileToLambda :: Decl Codegen -> Sem r LCExpr
-        compileToLambda (Decl (Ext2_1 _ty gs) _ (Ext xs) e) = foldr addGiven <$> (foldr Lambda <$> compileExpr e <*> pure (map fst xs)) <*> pure gs
+        compileToLambda (Decl (Ext2_1 _ty gs) _ xs e) = foldr addGiven <$> (foldr Lambda <$> compileExpr e <*> pure (map fst xs)) <*> pure gs
 
         compileToLambdaWithout :: QualifiedName -> Decl Codegen -> Sem r LCExpr
-        compileToLambdaWithout cname (Decl (Ext2_1 _ty gs) _ (Ext xs) e) = foldr addGiven <$> (foldr Lambda <$> compileExpr e <*> pure (map fst xs)) <*> pure gs'
+        compileToLambdaWithout cname (Decl (Ext2_1 _ty gs) _ xs e) = foldr addGiven <$> (foldr Lambda <$> compileExpr e <*> pure (map fst xs)) <*> pure gs'
             where
                 gs' = filter (\(TGiven (MkConstraint c _) _) -> c /= cname) gs
 

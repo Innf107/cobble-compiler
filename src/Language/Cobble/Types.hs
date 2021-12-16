@@ -28,30 +28,30 @@ class HasType t p | t -> p where
 
 instance HasType (Expr 'PostProcess) 'PostProcess where
     getType = \case
-        FCall (Ext t) _ _ _                 -> t
+        FCall t _ _ _                       -> t
         Var (Ext2_1 t _) _ _                -> t
-        VariantConstr (Ext (t,_,_)) _ _     -> t
-        Case (Ext t) _ _ _                  -> t
+        VariantConstr (t,_,_) _ _           -> t
+        Case t _ _ _                        -> t
         IntLit _ _ _                        -> intT
         If _ _ _ th _                       -> getType th
         UnitLit _                           -> unitT
         Let _ _ _ b                         -> getType b
-        StructConstruct (Ext (_, t)) _ _ _  -> t
-        StructAccess (Ext (_, _, t)) _ _ _  -> t
+        StructConstruct (_, t) _ _ _        -> t
+        StructAccess (_, _, t) _ _ _        -> t
 
 
 instance HasType (Expr 'Codegen) 'Codegen where
     getType = \case
-        FCall (Ext t) _ _ _                 -> t
+        FCall t _ _ _                       -> t
         Var (Ext2_1 t _) _ _                -> t
-        VariantConstr (Ext (t,_,_)) _ _     -> t
-        Case (Ext t) _ _ _                  -> t
+        VariantConstr (t,_,_) _ _           -> t
+        Case t _ _ _                        -> t
         IntLit _ _ _                        -> intT
         If _ _ _ th _                       -> getType th
         UnitLit _                           -> unitT
         Let _ _ _ b                         -> getType b
-        StructConstruct (Ext (_, t)) _ _ _  -> t
-        StructAccess (Ext (_, t)) _ _ _     -> t
+        StructConstruct (_, t) _ _ _        -> t
+        StructAccess (_, t) _ _ _           -> t
 
 instance HasType (Decl PostProcess) PostProcess where
     getType (Decl (Ext2_1 t _) _ _ _) = t

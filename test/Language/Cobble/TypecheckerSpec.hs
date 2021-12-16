@@ -100,7 +100,7 @@ spec = do
 
             ,   "const :: a -> b -> a;"
             ,   "const x y = f x;"
-            ] `shouldSatisfy` \ast -> case [ty | FCall (Ext ty) _ (VarType _ "f") _ <- universeBi ast] of
+            ] `shouldSatisfy` \ast -> case [ty | FCall ty _ (VarType _ "f") _ <- universeBi ast] of
                 [TSkol (MkTVar (QName "a") KStar)] -> True
                 ts -> errorWithoutStackTrace $ toString $ ppTypes ts
     it "(recursive) variant constructors have the correct type" do
@@ -172,7 +172,7 @@ spec = do
             ,   ""
             ,   "x :: Bool;"
             ,   "x = eq 1 1;"
-            ] `shouldSatisfy` withAST (\ast -> [ty | FCall (Ext ty) _ (VarType _ "eq") _ :: Expr PostProcess <- universeBi ast]) \case
+            ] `shouldSatisfy` withAST (\ast -> [ty | FCall ty _ (VarType _ "eq") _ :: Expr PostProcess <- universeBi ast]) \case
                 BoolT -> True
                 _ -> False
     it "ascriptions narrow the type" do
@@ -259,7 +259,7 @@ cobbleCode content = do
     
     let moduleSolved :: Module QualifyNames = let (Module IgnoreExt pmname psts) = parsed 
             in 
-            Module (Ext (one (internalQName "prims", C.primModSig))) pmname (coercePass psts) 
+            Module (one (internalQName "prims", C.primModSig)) pmname (coercePass psts) 
 
     let qualScope = C.modSigToScope C.primModSig
     qualified <- fmap (either (\e -> error $ "qualification error:" <> show e) id) $ runError @C.QualificationError $ C.evalStackStatePanic qualScope $ C.qualify moduleSolved

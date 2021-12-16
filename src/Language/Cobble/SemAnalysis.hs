@@ -28,7 +28,7 @@ runSemanticAnalysis (Module x n sts) = fmap (coercePass . Module x n)
 
 
 checkStructDef :: Members '[Error SemanticError] r => Statement SemAnalysis -> Sem r (Statement SemAnalysis)
-checkStructDef (DefStruct (Ext k) li name ps fields) = DefStruct (Ext k) li name ps
+checkStructDef (DefStruct k li name ps fields) = DefStruct k li name ps
     <$> detectDuplicateFields li fields
 checkStructDef x = pure x
 
@@ -47,16 +47,16 @@ implicitForall = \case
 
 implicitClassConstraints :: Statement SemAnalysis -> Statement SemAnalysis
 implicitClassConstraints = \case
-    (DefClass (Ext k) li cname ps meths) -> 
-        DefClass (Ext k) li cname ps
+    (DefClass k li cname ps meths) -> 
+        DefClass k li cname ps
         $ map (\(n, t) -> (n, addForall $ addConstraint t)) meths
           where
             addConstraint t = case ps of 
                 [p] -> TConstraint (MkConstraint cname (TVar p)) t
                 _   -> error $ "SemAnalysis.implicitClassConstraints: multi-param typeclasses NYI: " <> show ps
 
-    (DefInstance (Ext (defMeths, ps)) li cname ty meths) -> 
-        DefInstance (Ext (map (\(n, t) -> (n, coercePass $ addForall $ addConstraint (coercePass t))) defMeths, ps)) li cname ty meths
+    (DefInstance (defMeths, ps) li cname ty meths) -> 
+        DefInstance (map (\(n, t) -> (n, coercePass $ addForall $ addConstraint (coercePass t))) defMeths, ps) li cname ty meths
           where
             addConstraint t = case coercePass ps of 
                 [p] -> TConstraint (MkConstraint cname (TVar p)) t
@@ -114,13 +114,13 @@ reorderAndCheckFields li dfs fs = forM dfs \(n, _) -> do
 -- This is necessary for Codegen and expected by the typechecker
 reorderAndCheckInstances :: Members '[Error SemanticError] r => Statement SemAnalysis -> Sem r (Statement SemAnalysis)
 reorderAndCheckInstances = \case
-    DefInstance (Ext (defMeths, classPS)) li className ty decls -> do
+    DefInstance (defMeths, classPS) li className ty decls -> do
         reorderedDecls <- forM defMeths \(dmName, dmType) -> do
             case lookup dmName declMap of
                 Nothing -> throw $ MissingTyClassMethod li dmName dmType
                 Just decl -> pure decl
         case decls \\ reorderedDecls of
-            [] -> pure (DefInstance (Ext (map (second coercePass) defMeths, coercePass classPS)) li className ty reorderedDecls)
+            [] -> pure (DefInstance (map (second coercePass) defMeths, coercePass classPS) li className ty reorderedDecls)
             ds -> throw $ DuplicateTyClassMethods li ds
         where
             declMap :: Map QualifiedName (Decl SemAnalysis)

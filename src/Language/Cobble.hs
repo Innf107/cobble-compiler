@@ -186,7 +186,7 @@ compileAndAnnotateSig :: (ControllerC r, Members '[State (Map (S.Name 'QualifyNa
                       -> Sem r [LCDef]
 compileAndAnnotateSig (m, deps) = do
     annotatedMod :: (S.Module 'QualifyNames) <- S.Module
-        <$> Ext . fromList <$> traverse (\d -> (internalQName d ,) <$> getDep d) ("prims" : deps)
+        <$> fromList <$> traverse (\d -> (internalQName d ,) <$> getDep d) ("prims" : deps)
         <*> pure (S.moduleName m)
         <*> pure (map (coercePass @(Statement SolveModules) @(Statement QualifyNames)) (moduleStatements m))
     (lcdefs, sig) <- compileWithSig annotatedMod
@@ -208,13 +208,13 @@ compileWithSig m = do
         ,   _scopeTypes = mempty
         ,   _scopeFixities = mempty
         ,   _scopeTVars = mempty
-        } : map modSigToScope (toList $ getExt $ xModule m)
+        } : map modSigToScope (toList $ xModule m)
 
     let tcState = foldMap (\dsig -> TCState {
                     _varTypes= fmap coercePass $ exportedVars dsig
                 ,   _tcInstances = coercePass $ exportedInstances dsig
                 })
-                (getExt $ xModule m)
+                (xModule m)
     qMod  <- mapError QualificationError $ evalStackStatePanic (mconcat qualScopes) $ qualify m
 
     saMod <- mapError SemanticError $ runSemanticAnalysis qMod
@@ -247,14 +247,14 @@ extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
 makePartialSig :: S.Statement 'Codegen -> ModSig
 makePartialSig = \case
     Def _ _ (Decl (Ext2_1 _ gs) n _ _) t        -> mempty {exportedVars = one (n, t)} -- TODO: what about gs?
-    DefStruct (Ext k) _ n ps fs     -> mempty {exportedTypes = one (n, (k, RecordType ps fs))}
-    DefClass (Ext k) _ n ps meths   -> mempty 
+    DefStruct k _ n ps fs     -> mempty {exportedTypes = one (n, (k, RecordType ps fs))}
+    DefClass k _ n ps meths   -> mempty 
         {   exportedTypes = one (n, (k, TyClass ps meths))
         ,   exportedVars  = fromList $ 
                 map (second coercePass) meths
         }
-    DefInstance (Ext _) _ cname ty _ -> mempty {exportedInstances = one (cname, [ty])}
-    DefVariant (Ext k) _ tyName ps cs    -> mempty
+    DefInstance _ _ cname ty _ -> mempty {exportedInstances = one (cname, [ty])}
+    DefVariant k _ tyName ps cs    -> mempty
         {   exportedTypes = one (tyName, (k, VariantType ps (map (\(x,y,_) -> (x,y)) cs)))
         ,   exportedVariantConstrs = fromList (map (\(cname, _, Ext3_1 ty ep i) -> (cname, (ty, ep, i))) cs)
         }

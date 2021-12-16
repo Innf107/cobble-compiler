@@ -125,22 +125,22 @@ checkStmnt :: Members '[Writer [TConstraint], Writer [TWanted], Writer [TGiven],
            => Statement Typecheck 
            -> Sem r (Statement NextPass)
 checkStmnt (Import IgnoreExt li mod) = pure $ Import IgnoreExt li mod
-checkStmnt (DefStruct (Ext k) li sname ps fields) = pure $ DefStruct (Ext k) li sname (map coercePass ps) (map (second coercePass) fields) 
-checkStmnt (DefVariant (Ext k) li sname (coercePass -> ps) cs) = do
+checkStmnt (DefStruct k li sname ps fields) = pure $ DefStruct k li sname (map coercePass ps) (map (second coercePass) fields) 
+checkStmnt (DefVariant k li sname (coercePass -> ps) cs) = do
     let appliedType :: Type = foldl' TApp (TCon sname k) (map TVar ps)
-    cs' <- forM cs \(cname, coercePass -> fs, Ext (ep, ix)) -> do
+    cs' <- forM cs \(cname, coercePass -> fs, (ep, ix)) -> do
         let constrTy = TForall ps (foldr (:->) appliedType fs )
         insertType cname constrTy
         pure (cname, fs, Ext3_1 constrTy ep ix)
-    pure (DefVariant (Ext k) li sname (coercePass ps) cs')
-checkStmnt (DefClass (Ext k) li cname ps meths) = do
+    pure (DefVariant k li sname (coercePass ps) cs')
+checkStmnt (DefClass k li cname ps meths) = do
     -- Assumes that implicit foralls and constraints have been added
     -- in SemAnalysis
     forM_ meths \(mname, mtype) -> do
         insertType mname (coercePass mtype)
     
-    pure $ DefClass (Ext k) li cname (coercePass ps) (map (second coercePass) meths)
-checkStmnt (DefInstance (Ext (defs, classPs)) li cname (coercePass -> ty) decls) = do
+    pure $ DefClass k li cname (coercePass ps) (map (second coercePass) meths)
+checkStmnt (DefInstance (defs, classPs) li cname (coercePass -> ty) decls) = do
     insertInstance li cname ty
     decls' <- forM (zip defs decls) \((fname, coercePass -> declTy), d@(Decl IgnoreExt declFname _ _)) -> do
         -- sanity check
@@ -155,7 +155,7 @@ checkStmnt (DefInstance (Ext (defs, classPs)) li cname (coercePass -> ty) decls)
         decl' <- checkDecl d givens
         tellLI li [ty' :~ (getType decl')]
         pure decl'
-    pure (DefInstance (Ext (map (second coercePass) defs, coercePass classPs)) li cname (coercePass ty) decls')
+    pure (DefInstance (map (second coercePass) defs, coercePass classPs) li cname (coercePass ty) decls')
 
 checkStmnt (Def IgnoreExt li decl@(Decl IgnoreExt f _ _) (coercePass -> ty)) = do
     insertType f ty
@@ -168,13 +168,13 @@ checkDecl :: Members '[Writer [TConstraint], Writer [TWanted], Writer [TGiven], 
           => Decl Typecheck 
           -> [TGiven]
           -> Sem r (Decl NextPass)
-checkDecl (Decl IgnoreExt f (Ext ps) e) gs = do
+checkDecl (Decl IgnoreExt f ps e) gs = do
     psTys <- traverse (\_ -> freshTV KStar) ps
     zipWithM_ insertType ps psTys
     e' <- check e
     eTy <- getType' e'
     let resTy = foldr (:->) eTy psTys
-    pure (Decl (Ext2_1 resTy gs) f (Ext (zip ps psTys)) e')
+    pure (Decl (Ext2_1 resTy gs) f (zip ps psTys) e')
 
 check :: Members '[Writer [TConstraint], Writer [TWanted], Writer [TGiven], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass), State TCState] r 
       => Expr Typecheck 
@@ -186,7 +186,7 @@ check (Var IgnoreExt li vname)  = do
     -- traceM (show vname <> ": " <> show wanteds)
     pure $ Var (Ext2_1 ty wanteds) li vname
 -- See note [lookupType for VariantConstr]
-check (VariantConstr (Ext (e,i)) li cname) = VariantConstr . Ext . (,e,i) <$> (instantiate li =<< lookupType cname) <*> pure li <*> pure cname
+check (VariantConstr (e,i) li cname) = VariantConstr . (,e,i) <$> (instantiate li =<< lookupType cname) <*> pure li <*> pure cname
 check (Case IgnoreExt li e brs) = do
     undefined
 check (Ascription IgnoreExt li e ty) = do
@@ -204,7 +204,7 @@ check (FCall IgnoreExt li f as) = do
     asTys <- traverse getType' as'
 
     tellLI li [fTy :~ (foldr (:->) ret asTys)]
-    pure (FCall (Ext ret) li f' as')
+    pure (FCall ret li f' as')
 check (If IgnoreExt li cond th el) = do
     cond' <- check cond
     condTy <- getType' cond'
@@ -217,7 +217,7 @@ check (If IgnoreExt li cond th el) = do
 
     tellLI li [condTy :~ boolT, thTy :~ elTy]
     pure (If IgnoreExt li cond' th' el')
-check (Let IgnoreExt li (Decl IgnoreExt f (Ext ps) e) body) = do
+check (Let IgnoreExt li (Decl IgnoreExt f ps e) body) = do
     fTy <- freshTV KStar
     psTys <- traverse (\_ -> freshTV KStar) ps
 
@@ -233,7 +233,7 @@ check (Let IgnoreExt li (Decl IgnoreExt f (Ext ps) e) body) = do
     -- TODO: Let removes all constraints, which is intended, but we need to make sure
     -- that all constraints are properly instantiated 
     -- (which should probably be fine thanks to the lack of generalization).
-    pure (Let IgnoreExt li (Decl (Ext2_1 fTy []) f (Ext (zip ps psTys)) e') body')
+    pure (Let IgnoreExt li (Decl (Ext2_1 fTy []) f (zip ps psTys) e') body')
 check (StructConstruct structDef li structName fields) = do
     let sTy = coercePass $ structDef ^. structType
     
@@ -253,7 +253,7 @@ check (StructConstruct structDef li structName fields) = do
 
         pure (name, fieldExpr')
 
-    pure (StructConstruct (Ext (coercePass structDef, retTy)) li structName fields')
+    pure (StructConstruct (coercePass structDef, retTy) li structName fields')
 
 check (StructAccess possibleStructs li sexpr field) = do
     sexpr' <- check sexpr
@@ -265,12 +265,12 @@ check (StructAccess possibleStructs li sexpr field) = do
 
     tellLI li [OneOf sexprTy structTys]
     -- Codegen needs the correct StructDef, but we don't know that until the constraint solver is done
-    pure (StructAccess (Ext (coercePass possibleStructs, sexprTy, retTy)) li sexpr' field)
+    pure (StructAccess (coercePass possibleStructs, sexprTy, retTy) li sexpr' field)
 
 typecheck :: Members '[Error TypeError, Fresh Text QualifiedName, State TCState, Dump [TConstraint], Dump [TGiven], Dump [TWanted], Output Log] r 
           => Module Typecheck 
           -> Sem r (Module NextPass)
-typecheck (Module (Ext deps) mname sts) = do
+typecheck (Module deps mname sts) = do
     (constraints, (givens, (wanteds, sts'))) <- runWriterAssocR @[TConstraint] 
                                             $ runWriterAssocR @[TGiven] 
                                             $ runWriterAssocR @[TWanted]
@@ -284,7 +284,7 @@ typecheck (Module (Ext deps) mname sts) = do
     dump givens'
     dump wanteds'
     subst' <- solveGivensWanteds givens' wanteds' subst
-    pure $ Module (Ext deps) mname (applySubst subst' sts')
+    pure $ Module deps mname (applySubst subst' sts')
         where
             freshenTV :: forall r. Members '[Fresh Text QualifiedName] r => TVar NextPass -> Sem r (TVar NextPass)
             freshenTV (MkTVar x k) = MkTVar <$> freshVar (originalName x) <*> pure k 

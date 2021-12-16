@@ -323,7 +323,6 @@ class CoercePass a b
 coercePass :: (CoercePass t1 t2) => t1 -> t2
 coercePass = Unsafe.Coerce.unsafeCoerce
 
-newtype Ext (p :: Pass) t = Ext {getExt :: t} deriving (Show, Eq, Generic, Data, Functor)
 data IgnoreExt (p :: Pass) = IgnoreExt deriving (Show, Eq, Generic, Data)
 data ExtVoid (p :: Pass) deriving (Show, Eq, Generic, Data)
 data Ext2_1 (p :: Pass) a b = Ext2_1 a b deriving (Show, Eq, Generic, Data)
@@ -334,8 +333,6 @@ absurd :: ExtVoid t -> a
 absurd x = case x of
 
 instance {-# INCOHERENT #-} (Coercible a b) => CoercePass a b
-
-instance {-# INCOHERENT #-} (CoercePass a b) => CoercePass (Ext p1 a) (Ext p2 b)
 
 instance (CoercePass a a', Coercible b b') => CoercePass (Ext2_1 p1 a b) (Ext2_1 p2 a' b')
 

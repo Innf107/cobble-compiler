@@ -7,46 +7,46 @@ type NextPass = Codegen
 
 -- boilerplate :/
 postProcess :: Module PostProcess -> Module NextPass
-postProcess (Module (Ext deps) n sts) = Module (Ext deps) n (map postProcessStatement sts)
+postProcess (Module deps n sts) = Module deps n (map postProcessStatement sts)
 
 -- more boilerplate :/
 postProcessStatement :: Statement PostProcess -> Statement NextPass
 postProcessStatement (Def IgnoreExt li decl ty) = 
     Def IgnoreExt li (postProcessDecl decl) (coercePass ty)-- 
 postProcessStatement (Import IgnoreExt li n) = Import IgnoreExt li n
-postProcessStatement (DefStruct (Ext k) li sname ps fields) = 
-    DefStruct (Ext k) li sname (coercePass ps) (map (second coercePass) fields)
-postProcessStatement (DefVariant (Ext k) li vname ps constrs) = 
-    DefVariant (Ext k) li vname (coercePass ps) (map (\(n, ts, x) -> (n, coercePass ts, coercePass x)) constrs)
-postProcessStatement (DefClass (Ext k) li sname ps meths) =
-    DefClass (Ext k) li sname (coercePass ps) (map (second coercePass) meths)
-postProcessStatement (DefInstance (Ext (defs, classPs)) li cname ty decls) =
-    DefInstance (Ext (map (second coercePass) defs, coercePass classPs)) li cname (coercePass ty) (map postProcessDecl decls)
+postProcessStatement (DefStruct k li sname ps fields) = 
+    DefStruct k li sname (coercePass ps) (map (second coercePass) fields)
+postProcessStatement (DefVariant k li vname ps constrs) = 
+    DefVariant k li vname (coercePass ps) (map (\(n, ts, x) -> (n, coercePass ts, coercePass x)) constrs)
+postProcessStatement (DefClass k li sname ps meths) =
+    DefClass k li sname (coercePass ps) (map (second coercePass) meths)
+postProcessStatement (DefInstance (defs, classPs) li cname ty decls) =
+    DefInstance (map (second coercePass) defs, coercePass classPs) li cname (coercePass ty) (map postProcessDecl decls)
 
 postProcessDecl :: Decl PostProcess -> Decl NextPass
-postProcessDecl (Decl (Ext2_1 ty' gs) f (Ext xs) e) = Decl (Ext2_1 (coercePass ty') gs) f (Ext (map (second coercePass) xs)) (postProcessExpr e)
+postProcessDecl (Decl (Ext2_1 ty' gs) f xs e) = Decl (Ext2_1 (coercePass ty') gs) f (map (second coercePass) xs) (postProcessExpr e)
 
 postProcessExpr :: Expr PostProcess -> Expr NextPass
 postProcessExpr = \case 
     -- The interesting case
-    StructAccess (Ext (possibleStructs, structTy, ty)) li sexpr field -> 
+    StructAccess (possibleStructs, structTy, ty) li sexpr field -> 
         let sname = getStructName structTy
             sdef = fromMaybe (error $ "postProcessExpr: struct name was not in possibleStructs: " <> show sname) (lookup sname possibleStructs) 
         in
-        StructAccess(Ext (coercePass sdef, (coercePass ty))) li (postProcessExpr sexpr) field
+        StructAccess (coercePass sdef, (coercePass ty)) li (postProcessExpr sexpr) field
 
     -- just coercePass wrappers and recursion (would love to factor this out with uniplate...)
-    FCall (Ext ty) li f as -> FCall (Ext (coercePass ty)) li (postProcessExpr f) (fmap postProcessExpr as) 
+    FCall ty li f as -> FCall (coercePass ty) li (postProcessExpr f) (fmap postProcessExpr as) 
     IntLit IgnoreExt li n -> IntLit IgnoreExt li n
     UnitLit li -> UnitLit li
     If IgnoreExt li cond th el -> If IgnoreExt li (postProcessExpr cond) (postProcessExpr th) (postProcessExpr el) 
     Let IgnoreExt li decl b -> 
         Let IgnoreExt li (postProcessDecl decl) (postProcessExpr b)
     Var (Ext2_1 ty ws) li n -> Var (Ext2_1 (coercePass ty) ws) li n
-    VariantConstr (Ext (ty, e, i)) li n -> VariantConstr (Ext (coercePass ty, e, i)) li n
-    Case (Ext t) li e cases -> Case (Ext (coercePass t)) li (postProcessExpr e) (map postProcessCaseBranch cases)
-    StructConstruct (Ext (sd, ty)) li sname fexprs -> 
-        StructConstruct (Ext (coercePass sd, coercePass ty)) li sname (map (second postProcessExpr) fexprs)
+    VariantConstr (ty, e, i) li n -> VariantConstr (coercePass ty, e, i) li n
+    Case t li e cases -> Case (coercePass t) li (postProcessExpr e) (map postProcessCaseBranch cases)
+    StructConstruct (sd, ty) li sname fexprs -> 
+        StructConstruct (coercePass sd, coercePass ty) li sname (map (second postProcessExpr) fexprs)
     where
         getStructName :: Type PostProcess -> QualifiedName
         getStructName (TCon name _) = name
@@ -61,7 +61,7 @@ postProcessCaseBranch :: CaseBranch PostProcess -> CaseBranch NextPass
 postProcessCaseBranch (CaseBranch IgnoreExt li p e) = CaseBranch IgnoreExt li (postProcessPattern p) (postProcessExpr e)
 
 postProcessPattern :: Pattern PostProcess -> Pattern NextPass
-postProcessPattern (IntP (Ext t) n) = IntP (Ext (coercePass t)) n
-postProcessPattern (VarP (Ext t) x) = VarP (Ext (coercePass t)) x
-postProcessPattern (ConstrP (Ext t) constr ps) = ConstrP (Ext (coercePass t)) constr (map postProcessPattern ps)
+postProcessPattern (IntP t n) = IntP (coercePass t) n
+postProcessPattern (VarP t x) = VarP (coercePass t) x
+postProcessPattern (ConstrP t constr ps) = ConstrP (coercePass t) constr (map postProcessPattern ps)
 

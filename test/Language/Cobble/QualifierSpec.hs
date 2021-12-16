@@ -89,7 +89,7 @@ runQualifier content = run $ do
     
     let moduleSolved :: Module QualifyNames = let (Module IgnoreExt pmname psts) = parsed 
             in 
-            Module (Ext (one (internalQName "prims", C.primModSig))) pmname (coercePass psts) 
+            Module (one (internalQName "prims", C.primModSig)) pmname (coercePass psts) 
 
     let qualScope = C.modSigToScope C.primModSig
     C.runFreshQNamesState $ runError @C.QualificationError $ C.evalStackStatePanic qualScope $ C.qualify moduleSolved

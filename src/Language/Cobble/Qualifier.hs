@@ -45,12 +45,12 @@ makeLenses ''Scope
 qualify :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
         => Module QualifyNames 
         -> Sem r (Module NextPass)
-qualify (Module (Ext deps) name stmnts) = Module (Ext deps) (internalQName name) <$> traverse qualifyStmnt stmnts
+qualify (Module deps name stmnts) = Module deps (internalQName name) <$> traverse qualifyStmnt stmnts
 
 qualifyStmnt :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
              => Statement QualifyNames
              -> Sem r (Statement NextPass)
-qualifyStmnt (Def (Ext mfixity) li d@(Decl _ n _ _) ty) = runReader li do 
+qualifyStmnt (Def mfixity li d@(Decl _ n _ _) ty) = runReader li do 
     n' <- freshVar (n, li)
     addVar n n'
     addMFixity n mfixity
@@ -75,7 +75,7 @@ qualifyStmnt (DefStruct IgnoreExt li n tvs fields) = runReader li do
         forM fields \(fn, fty) -> withFrame do
             (fn,) <$> qualifyType False fty
     addType n n' k (RecordType (coercePass tvs') (map (second coercePass) fields'))
-    pure (DefStruct (Ext k) li n' tvs' fields')
+    pure (DefStruct k li n' tvs' fields')
 
 qualifyStmnt (DefVariant IgnoreExt li n tvs constrs) = runReader li $ do
     n' <- freshVar (n, li)
@@ -88,10 +88,10 @@ qualifyStmnt (DefVariant IgnoreExt li n tvs constrs) = runReader li $ do
 
         cn' <- freshVar (cn, li)
         tys' <- traverse (qualifyType False) tys
-        pure (cn', tys', Ext (length tys', i))
+        pure (cn', tys', (length tys', i))
     addType n n' k (VariantType (coercePass tvs') (map (\(cn, ts, _) -> (cn, coercePass ts)) constrs'))
-    zipWithM_ (\(cn, _, _) (cn', _, (Ext (ep, i))) -> addVariantConstr cn cn' ep i) constrs constrs'
-    pure (DefVariant (Ext k) li n' tvs' constrs')
+    zipWithM_ (\(cn, _, _) (cn', _, (ep, i)) -> addVariantConstr cn cn' ep i) constrs constrs'
+    pure (DefVariant k li n' tvs' constrs')
 
 qualifyStmnt (DefClass IgnoreExt li n tvs meths) = runReader li $ do
     n' <- freshVar (n, li)
@@ -108,7 +108,7 @@ qualifyStmnt (DefClass IgnoreExt li n tvs meths) = runReader li $ do
             pure (mn', mt')
     addType n n' k (TyClass (coercePass tvs') (map (second coercePass) meths'))
     zipWithM_ (\(methName,_) (methName',_) -> addVar methName methName') meths meths'
-    pure (DefClass (Ext k) li n' tvs' meths')
+    pure (DefClass k li n' tvs' meths')
 
 qualifyStmnt (DefInstance IgnoreExt li cname ty meths) = runReader li $ lookupType cname >>= \case
     (cname', _, TyClass tvs classMeths) -> withFrame do
@@ -118,7 +118,7 @@ qualifyStmnt (DefInstance IgnoreExt li cname ty meths) = runReader li $ lookupTy
         meths' <- forM meths \d@(Decl _ n _ _) -> do
             n' <- lookupVar n
             qualifyDeclWithName n' d
-        pure (DefInstance (Ext (classMeths, tvs)) li cname' ty' meths')
+        pure (DefInstance (classMeths, tvs) li cname' ty' meths')
     (cname', k, tv) -> throw $ InstanceForNonClass li cname' k tv
 
 -- | Same as qualifyDecl, but takes the already qualified name as an argument
@@ -127,12 +127,12 @@ qualifyDeclWithName :: Members '[StackState Scope, Fresh (Text, LexInfo) Qualifi
             => QualifiedName
             -> Decl 'QualifyNames 
             -> Sem r (Decl NextPass)
-qualifyDeclWithName n' (Decl IgnoreExt _ (Ext ps) e) = withFrame do
+qualifyDeclWithName n' (Decl IgnoreExt _ ps e) = withFrame do
     li <- ask
     ps' <- traverse (freshVar . (,li)) ps
     zipWithM_ addVar ps ps'
     e' <- qualifyExpr e
-    pure (Decl IgnoreExt n' (Ext ps') e')
+    pure (Decl IgnoreExt n' ps' e')
 
 qualifyDecl :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r
             => Decl 'QualifyNames 
@@ -178,7 +178,7 @@ qualifyExpr (Ascription IgnoreExt li expr ty) = runReader li $
     <*> qualifyType False ty
 qualifyExpr (VariantConstr IgnoreExt li cname) = runReader li do
     (cname', ep, i) <- lookupVariantConstr cname
-    pure $ VariantConstr (Ext (ep, i)) li cname'
+    pure $ VariantConstr (ep, i) li cname'
 qualifyExpr (Case IgnoreExt li exp cases) = undefined
 qualifyExpr (StructConstruct IgnoreExt li sname fields) = runReader li $ lookupType sname >>= \case
     (sname', _, RecordType tvs structFields) -> 
