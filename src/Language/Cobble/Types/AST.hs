@@ -146,14 +146,16 @@ type family XCaseBranch (p :: Pass)
 data Pattern (p :: Pass) = IntP (XIntP p) Int
                          | VarP (XVarP p) (Name p)
                          | ConstrP (XConstrP p) (Name p) [Pattern p]
+                         | PatternX (XPattern p)
 
 type instance InstanceRequirements (Pattern p) = [
-        Name p, XIntP p, XVarP p, XConstrP p
+        Name p, XIntP p, XVarP p, XConstrP p, XPattern p
     ]
 
 type family XIntP       (p :: Pass)
 type family XVarP       (p :: Pass)
 type family XConstrP    (p :: Pass)
+type family XPattern    (p :: Pass)
 
 data Kind = KStar           
           | KConstraint 

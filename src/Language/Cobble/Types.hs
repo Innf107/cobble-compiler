@@ -56,5 +56,10 @@ instance HasType (Expr 'Codegen) 'Codegen where
 instance HasType (Decl PostProcess) PostProcess where
     getType (Decl (t, _) _ _ _) = t
 
+instance HasType (Pattern PostProcess) PostProcess where
+    getType (IntP () n) = intT
+    getType (VarP ty _) = ty
+    getType (ConstrP ty _ _) = ty
+
 instance HasType (Type p) p where
     getType = id

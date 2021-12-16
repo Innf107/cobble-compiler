@@ -179,7 +179,10 @@ qualifyExpr (Ascription () li expr ty) = runReader li $
 qualifyExpr (VariantConstr () li cname) = runReader li do
     (cname', ep, i) <- lookupVariantConstr cname
     pure $ VariantConstr (ep, i) li cname'
-qualifyExpr (Case () li exp cases) = undefined
+qualifyExpr (Case () li exp cases) = runReader li $ 
+    Case () li
+    <$> qualifyExpr exp
+    <*> traverse qualifyCaseBranch cases
 qualifyExpr (StructConstruct () li sname fields) = runReader li $ lookupType sname >>= \case
     (sname', _, RecordType tvs structFields) -> 
         StructConstruct 
@@ -231,7 +234,27 @@ qualifyExpr (ExprX opGroup li) = runReader li $ replaceOpGroup . reorderByFixity
             | otherwise                        = OpNode l op (OpNode l' op' r')
         reorderByFixity _ = error "unreachable"
 
+qualifyCaseBranch :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r
+                  => CaseBranch QualifyNames
+                  -> Sem r (CaseBranch NextPass)
+qualifyCaseBranch (CaseBranch () li pat expr) = runReader li $
+    withFrame $ CaseBranch () li
+        <$> qualifyPattern pat
+        <*> qualifyExpr expr
 
+qualifyPattern :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r
+               => Pattern QualifyNames
+               -> Sem r (Pattern NextPass)
+qualifyPattern (IntP () n) = pure (IntP () n)
+qualifyPattern (VarP () x) = do
+    li <- ask
+    x' <- freshVar (x, li)
+    addVar x x'
+    pure (VarP () x')
+qualifyPattern (ConstrP () cname ps) =
+    ConstrP ()
+    <$> (view _1 <$> lookupVariantConstr cname)
+    <*> traverse qualifyPattern ps
 
 qualifyType :: forall r. Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r 
             => Bool

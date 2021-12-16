@@ -187,8 +187,15 @@ check (Var () li vname)  = do
     pure $ Var (ty, wanteds) li vname
 -- See note [lookupType for VariantConstr]
 check (VariantConstr (e,i) li cname) = VariantConstr . (,e,i) <$> (instantiate li =<< lookupType cname) <*> pure li <*> pure cname
-check (Case () li e brs) = do
-    undefined
+check (Case () li e cases) = do
+    e' <- check e
+    beta <- freshTV KStar
+    cases' <- forM cases \(CaseBranch () brLi brPat brExpr) -> runReader brLi do
+        brExpr' <- check brExpr
+        brPat' <- checkPattern brPat
+        tellLI brLi [getType brExpr' :~ getType e', getType brPat' :~ beta]
+        pure (CaseBranch () brLi brPat' brExpr')
+    pure (Case beta li e' cases')
 check (Ascription () li e ty) = do
     e' <- check e
     ty' <- skolemize li (coercePass ty)
@@ -266,6 +273,21 @@ check (StructAccess possibleStructs li sexpr field) = do
     tellLI li [OneOf sexprTy structTys]
     -- Codegen needs the correct StructDef, but we don't know that until the constraint solver is done
     pure (StructAccess (coercePass possibleStructs, sexprTy, retTy) li sexpr' field)
+
+checkPattern :: Members '[Writer [TConstraint], Writer [TWanted], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass), State TCState, Reader LexInfo] r
+             => Pattern Typecheck
+             -> Sem r (Pattern NextPass)
+checkPattern (IntP () n) = pure (IntP () n)
+checkPattern (VarP () n) = do 
+    alpha <- freshTV KStar
+    insertType n alpha
+    pure (VarP alpha n)
+checkPattern (ConstrP () n ps) = ask >>= \li -> do
+    ps' <- traverse checkPattern ps
+    alpha <- freshTV KStar
+    constrTy <- instantiate li =<< lookupType n
+    tellLI li [foldr (:->) alpha (map getType ps') :~ constrTy]
+    pure (ConstrP alpha n ps')
 
 typecheck :: Members '[Error TypeError, Fresh Text QualifiedName, State TCState, Dump [TConstraint], Dump [TGiven], Dump [TWanted], Output Log] r 
           => Module Typecheck 

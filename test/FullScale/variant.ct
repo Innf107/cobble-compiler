@@ -40,3 +40,38 @@ h = f (g 5 Nil);
 
 --! 1
 1
+
+--# pattern matching : score
+
+variant Identity a = MkIdentity a;
+
+getIdentity :: (Identity a) -> a;
+getIdentity i = case i of {
+        MkIdentity x -> x;
+    };
+
+--# more complex pattern matching : score
+
+variant List a = Nil | Cons a (List a);
+
+xs :: List Int;
+xs = Cons 1 (Cons 2 (Cons 3 Nil));
+
+map :: (a -> b) -> (List a) -> (List b);
+map f l = case l of {
+        Nil       -> Nil;
+        Cons x xs -> Cons (f x) (map f xs); 
+    };
+
+
+le5 :: Int -> Bool;
+le5 x = __le__ x 5;
+
+ys :: List Bool;
+ys = map le5 xs;
+
+allTrue :: List Bool -> Bool;
+allTrue l = case l of {
+        Nil -> __true__ ();
+        Cons x xs -> if x then allTrue xs else __false__ ();
+    };

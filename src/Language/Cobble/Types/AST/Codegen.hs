@@ -57,9 +57,10 @@ type instance XExpr             'Codegen = Void
 
 type instance XCaseBranch Codegen = ()
 
-type instance XIntP     Codegen = Type Codegen
+type instance XIntP     Codegen = ()
 type instance XVarP     Codegen = Type Codegen
 type instance XConstrP  Codegen = Type Codegen
+type instance XPattern  Codegen = Void
 
 type instance Name 'Codegen = QualifiedName
 
