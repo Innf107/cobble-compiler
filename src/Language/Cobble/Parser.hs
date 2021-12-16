@@ -142,7 +142,8 @@ expr' = "expression (no fcall)" <??> (\e mf -> maybe e (\(le, fname) -> StructAc
     <*> optionMaybe (reservedOp' "." *> ident) 
 
 expr'' :: Parser (Expr NextPass)
-expr'' = "expression (no fcall / struct access)" <??> uncurry (IntLit ()) <$> intLit <|> UnitLit <$> unitLit <|> letE <|> ifE <|> varOrConstr <|> withParen expr
+expr'' = "expression (no fcall / struct access)" <??> 
+    uncurry (IntLit ()) <$> intLit <|> UnitLit <$> unitLit <|> letE <|> ifE <|> caseE <|> varOrConstr <|> withParen expr
 
 
 def :: Parser (Statement NextPass)
@@ -234,6 +235,23 @@ ifE = "if expression" <??> (\liStart te ee -> If () (liStart `mergeLexInfo` (get
     <*> (reserved "then" *> expr)
     <*> (reserved "else" *> expr)
 
+caseE :: Parser (Expr NextPass)
+caseE = "case expression" <??> (\ls e cases le -> Case () (ls `mergeLexInfo` le) e cases)
+    <$> reserved "case"
+    <*> expr
+    <*  reserved "of"
+    <*  paren' "{"
+    <*> many caseBranch
+    <*> paren "}"
+
+caseBranch :: Parser (CaseBranch NextPass)
+caseBranch = "case branch" <??> (\(p, ls) e le -> CaseBranch () (mergeLexInfo ls le) p e)
+    <$> patternP
+    <*  reservedOp' "->"
+    <*> expr
+    <*> reservedOp ";"
+
+
 varOrConstr :: Parser (Expr NextPass)
 varOrConstr = "variable or struct construction" <??> do
     v <- ident
@@ -253,6 +271,21 @@ varOrConstr = "variable or struct construction" <??> do
         makeVarOrVariantConstr (li, name)
             | isUpper (T.head name) = VariantConstr () li name
             | otherwise             = Var () li name
+
+patternP :: Parser (Pattern NextPass, LexInfo)
+patternP = "pattern" <??> intP <|> varOrConstrP <|> withParen patternP
+
+intP :: Parser (Pattern NextPass, LexInfo)
+intP = "integer pattern" <??> (\(li, n) -> (IntP () n, li))
+    <$> intLit
+
+varOrConstrP :: Parser (Pattern NextPass, LexInfo)
+varOrConstrP = do
+    (ls, v) <- ident
+    rest <- many patternP
+    case rest of
+        [] -> pure $ (VarP () v, ls)
+        _ -> let (_, le) = unsafeLast rest in pure (ConstrP () v (map fst rest), mergeLexInfo ls le)
 
 statements :: Parser [Statement NextPass]
 statements = many (statement <* reservedOp ";")

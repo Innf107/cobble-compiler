@@ -50,6 +50,9 @@ getIdentity i = case i of {
         MkIdentity x -> x;
     };
 
+--! 5
+getIdentity (MkIdentity 5);
+
 --# more complex pattern matching : score
 
 variant List a = Nil | Cons a (List a);
@@ -75,3 +78,9 @@ allTrue l = case l of {
         Nil -> __true__ ();
         Cons x xs -> if x then allTrue xs else __false__ ();
     };
+
+boolToInt :: Bool -> Int;
+boolToInt x = if x then 1 else 0;
+
+--! 1
+boolToInt (allTrue ys)

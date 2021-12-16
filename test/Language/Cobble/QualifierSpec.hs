@@ -80,6 +80,22 @@ spec = do
                     ]) | a1 == a2 && a2 == a3 -> True
                 Right (Module _ _ sts) -> errorWithoutStackTrace (show sts)
                 Left e -> errorWithoutStackTrace (show e)
+    it "variables can be bound in case expressions" do
+        runQualifier [
+                "variant Identity a = MkIdentity a;"
+            ,   ""
+            ,   "getIdentity :: Identity a -> a;"
+            ,   "getIdentity i = case i of {"
+            ,   "    MkIdentity x -> x;"
+            ,   "};"
+            ] `shouldSatisfy` \case
+                Right (Module _ _ [
+                        _
+                    ,   Def _ _ (Decl _ _ _ (Case _ _ _ 
+                            [CaseBranch _ _ (ConstrP _ _ [VarP _ x1]) (Var _ _ x2)])) _
+                    ]) | x1 == x2 -> True
+                Right (Module _ _ sts) -> errorWithoutStackTrace (show sts)
+                Left e -> errorWithoutStackTrace (show e)
 
 
 runQualifier :: [Text] -> Either C.QualificationError (Module SemAnalysis)

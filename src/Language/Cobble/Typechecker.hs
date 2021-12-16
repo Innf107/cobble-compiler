@@ -191,8 +191,8 @@ check (Case () li e cases) = do
     e' <- check e
     beta <- freshTV KStar
     cases' <- forM cases \(CaseBranch () brLi brPat brExpr) -> runReader brLi do
-        brExpr' <- check brExpr
         brPat' <- checkPattern brPat
+        brExpr' <- check brExpr
         tellLI brLi [getType brExpr' :~ getType e', getType brPat' :~ beta]
         pure (CaseBranch () brLi brPat' brExpr')
     pure (Case beta li e' cases')
