@@ -193,7 +193,7 @@ check (Case () li e cases) = do
     cases' <- forM cases \(CaseBranch () brLi brPat brExpr) -> runReader brLi do
         brPat' <- checkPattern brPat
         brExpr' <- check brExpr
-        tellLI brLi [getType brExpr' :~ getType e', getType brPat' :~ beta]
+        tellLI brLi [getType brPat' :~ getType e', getType brExpr' :~ beta]
         pure (CaseBranch () brLi brPat' brExpr')
     pure (Case beta li e' cases')
 check (Ascription () li e ty) = do
@@ -285,6 +285,7 @@ checkPattern (VarP () n) = do
 checkPattern (ConstrP () n ps) = ask >>= \li -> do
     ps' <- traverse checkPattern ps
     alpha <- freshTV KStar
+    -- See note [lookupType for VariantConstr]
     constrTy <- instantiate li =<< lookupType n
     tellLI li [foldr (:->) alpha (map getType ps') :~ constrTy]
     pure (ConstrP alpha n ps')

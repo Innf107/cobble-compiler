@@ -308,11 +308,14 @@ typeP = "type" <??> constrained <|> unconstrained
                 <$> unconstrained
         unconstrained = do
             (ls, t1) <- namedType
-            functionType ls t1 
-                <|> typeApp ls t1
-                <|> pure (ls, t1)
-        
-            
+            restTys <- many namedType
+            let ls' = case restTys of
+                    [] -> ls
+                    _ -> ls `mergeLexInfo` fst (unsafeLast restTys) 
+            let t' = foldl' TApp t1 (map snd restTys)
+            functionType ls' t' 
+                <|> pure (ls', t')
+                    
 
 constraint :: Parser (LexInfo, Constraint NextPass)
 constraint = (\(ls, n) (le, t) -> (ls `mergeLexInfo` le, MkConstraint n t))
@@ -331,11 +334,6 @@ functionType li tyA = do
     reservedOp' "->"
     (le, tyB) <- typeP
     pure (li `mergeLexInfo` le, tyA -:> tyB)
-
-typeApp :: LexInfo -> Type NextPass -> Parser (LexInfo, Type NextPass)
-typeApp li tyA = do
-    (le, tyB) <- typeP
-    pure (li `mergeLexInfo` le, TApp tyA tyB)
 
 withParen :: Parser a -> Parser a
 withParen a = paren "(" *> a <* paren ")"
