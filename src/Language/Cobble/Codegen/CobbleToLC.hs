@@ -47,34 +47,23 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
             where
                 addConstraint ex (TWanted (MkConstraint cname t) _) = App ex (L.Var (dictName cname (coercePass t)))
 
-        compileExpr (C.VariantConstr (_, 0, i) _ n) = pure $ Variant (n, i) []
+        compileExpr (C.VariantConstr (_, 0, i) _ n) = pure $ L.Tuple [L.IntLit i]
         compileExpr (C.VariantConstr (_, expectedParams, i) _ n) = do 
             params <- replicateM expectedParams (freshVar "v")
-            pure $ foldr Lambda (Variant (n, i) (map L.Var params)) params
+            pure $ foldr Lambda (Tuple (L.IntLit i : (map L.Var params))) params
         compileExpr (FCall _ _ (C.VariantConstr (_, expectedParams, i) _ con) as)
-            | expectedParams == length as = L.Variant (con, i) <$> traverse compileExpr (toList as)
+            | expectedParams == length as = L.Tuple . (L.IntLit i:) <$> traverse compileExpr (toList as)
             | expectedParams >  length as = do
                 remainingParams <- replicateM (expectedParams - length as) (freshVar "v")
                 as' <- toList <$> traverse compileExpr as
-                pure $ foldr Lambda (Variant (con, i) (as' <> (map L.Var remainingParams))) remainingParams 
+                pure $ foldr Lambda (L.Tuple ([L.IntLit i] <> as' <> (map L.Var remainingParams))) remainingParams 
             | expectedParams <  length as = error $ "LC Codegen: too many arguments in variant construction. Expected: " <> show expectedParams <> ". Recieved: " <> show (length as) <> "."
         
         compileExpr (C.Case _ty li expr cases) = do
             expr' <- compileExpr expr
-            branches <- forM cases \(CaseBranch () _ p e) -> do 
-                branchName <- freshVar "br"
-                ignoredVar <- freshVar "ignored"
-                e' <- compileExpr e
-                pure (  p
-                    --  TODO: bind variables in branch
-                    ,   \x -> L.Let branchName (Lambda ignoredVar e') x
-                    ,   L.App (L.Var branchName) (L.Tuple [])
-                    )
-            let caseExpr = compileCases li expr' branches
+            branches <- traverse ((\(CaseBranch () _ p e) -> (p,) <$> compileExpr e)) cases
+            pure $ compileCases li expr' branches
             
-            let branchDefs = map (view _2) branches
-            
-            pure $ foldr ($) caseExpr branchDefs
 
 
         -- Primops are passed on and only compiled in TopLevelCPSToMCAsm.hs
@@ -103,27 +92,31 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
 
         addGiven (TGiven (MkConstraint cname t) _) ex = Lambda (dictName cname (coercePass t)) ex
 
-compileCases :: LexInfo -> LCExpr -> [(Pattern Codegen, a, LCExpr)] -> LCExpr
+compileCases :: LexInfo -> LCExpr -> [(Pattern Codegen, LCExpr)] -> LCExpr
 compileCases li e cases = foldr combineToIf (nonExhaustiveBranch li) cases
     where
-        combineToIf :: (Pattern Codegen, a, LCExpr) -> LCExpr -> LCExpr
-        combineToIf (p, _, br) rest = case caseToPredicate e p of
-            Nothing -> br
-            Just pred -> L.If pred br rest
+        combineToIf :: (Pattern Codegen, LCExpr) -> LCExpr -> LCExpr
+        combineToIf (p, br) rest = case caseToPredicate e p of
+            (Nothing, bindings) -> bindings br
+            (Just pred, bindings) -> L.If pred (bindings br) rest
 
 nonExhaustiveBranch :: LexInfo -> LCExpr
 nonExhaustiveBranch li = Fail $ "Non-exhaustive patterns in case at " <> show li
 
-caseToPredicate :: LCExpr -> Pattern Codegen -> Maybe LCExpr
-caseToPredicate e (IntP () n) = Just $ PrimOp EQ [e, L.IntLit n]
-caseToPredicate e (VarP _ _) = Nothing
-caseToPredicate e (ConstrP (_, i) constr ps) = Just $ 
-    PrimOp EQ [Select 0 e, L.IntLit i] 
-    `and'` 
-    foldr and' (PrimOp True_ []) (catMaybes $ zipWith (\j p -> caseToPredicate (Select j e) p) [1..] ps)
+-- Returns a compiled predicate (if applicable) and a transformation that binds
+-- matched variables
+caseToPredicate :: LCExpr -> Pattern Codegen -> (Maybe LCExpr, LCExpr -> LCExpr)
+caseToPredicate e (IntP () n) = (Just (PrimOp EQ [e, L.IntLit n]), id)
+caseToPredicate e (VarP _ x) = (Nothing, L.Let x e)
+caseToPredicate e (ConstrP (_, i) constr ps) = (Just pred, \e -> foldr ($) e subBindings)
+    where
+        (subPreds, subBindings) = unzip $ zipWith (\j p -> caseToPredicate (Select j e) p) [1..] ps 
+        pred = PrimOp EQ [Select 0 e, L.IntLit i] 
+                `and'` 
+                foldr and' (PrimOp True_ [Tuple []]) (catMaybes subPreds)
 
 and' :: LCExpr -> LCExpr -> LCExpr
-and' x y = L.If x y (PrimOp False_ [])
+and' x y = L.If x y (PrimOp False_ [Tuple []])
 
 dictName :: QualifiedName -> Type Codegen -> QualifiedName
 dictName (ReallyUnsafeQualifiedName original renamed li) ty = unsafeQualifiedName ("d_" <> original <> showTypeName ty) ("d_" <> renamed <> showTypeName ty) li

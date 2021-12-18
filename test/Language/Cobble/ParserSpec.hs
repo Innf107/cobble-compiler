@@ -179,6 +179,12 @@ spec = do
                 testParse varOrConstr "x" `shouldBe` Right (Var () (LexInfo (SourcePos 1 1) (SourcePos 1 2) "Test") "x")
             it "can be chosen by expr" do
                 testParse expr "x" `shouldBe` Right (Var () (LexInfo (SourcePos 1 1) (SourcePos 1 2) "Test") "x")
+        describe "patternP" do
+            it "nested patterns including variables" do
+                testParse patternP "Test x (Cons 1 y Nil)" 
+                    `shouldSatisfy` \case
+                        Right (ConstrP () "Test" [VarP () "x", ConstrP () "Cons" [IntP () 1, VarP () "y", ConstrP () "Nil" []]], _) -> True
+                        x -> error $ show x
 
 data TestError = ParseE ParseError
                | LexicalE LexicalError

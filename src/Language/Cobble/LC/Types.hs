@@ -19,7 +19,6 @@ data LCExpr = Var QualifiedName
             | LetRec QualifiedName QualifiedName LCExpr LCExpr
             | IntLit Int
             | Tuple [LCExpr]
-            | Variant (QualifiedName, Int) [LCExpr]
             | Select Int LCExpr
             | Switch Int [(Int, LCExpr)] LCExpr
             | If LCExpr LCExpr LCExpr

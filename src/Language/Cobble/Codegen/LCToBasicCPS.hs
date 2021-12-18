@@ -29,11 +29,6 @@ compileExpr = flip \kval -> let k = staticCont kval in \case
         foldrM (\(v, e) r -> compileExpr e (C.Admin v r))
             (C.Let t' (C.Tuple (map C.Var vars)) (k (C.Var t')))
             (zip vars es)
-    L.Variant (con, i) es -> freshVar "v" >>= \t' -> do
-        vars <- traverse freshVar $ map (("x" <>) . show) (indexes es)
-        foldrM (\(v, e) r -> compileExpr e (C.Admin v r))
-            (C.Let t' (C.Variant (con, i) (map C.Var vars)) (k (C.Var t')))
-            (zip vars es)
     L.Select n e        -> freshVar "t" >>= \t' -> freshVar "y" >>= \y' -> compileExpr e (C.Admin t' (C.Let y' (C.Select n (C.Var t')) (k (C.Var y'))))
     L.Switch _i _branches _def -> error "LCToBasicCPS: Switch codegen NYI"
     L.PrimOp p es       -> freshVar "p" >>= \p' -> do

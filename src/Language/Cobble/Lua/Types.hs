@@ -22,4 +22,5 @@ data LuaExpr = Function [Text] [LuaStmnt]   -- (function (x,y) stmnt1 stmnt2 end
              | DivInt LuaExpr LuaExpr       -- e1 // e2
              | Mod LuaExpr LuaExpr          -- e1 % e2
              | LE LuaExpr LuaExpr           -- e1 <= e2
+             | EQ LuaExpr LuaExpr           -- e1 == e2
              deriving (Show, Eq, Generic, Data)

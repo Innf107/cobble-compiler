@@ -1,6 +1,6 @@
 module Language.Cobble.Lua.PrettyPrint where
 
-import Language.Cobble.Prelude
+import Language.Cobble.Prelude hiding (EQ)
 import Language.Cobble.Lua.Types
 
 import Data.Text qualified as T
@@ -51,5 +51,5 @@ prettyLuaExpr = \case
     DivInt e1 e2 -> prettyLuaExpr e1 <> " // " <> prettyLuaExpr e2
     Mod e1 e2 -> prettyLuaExpr e1 <> " % " <> prettyLuaExpr e2
     LE e1 e2 -> prettyLuaExpr e1 <> " <= " <> prettyLuaExpr e2
-
+    EQ e1 e2 -> prettyLuaExpr e1 <> " == " <> prettyLuaExpr e2
 

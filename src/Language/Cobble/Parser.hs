@@ -275,7 +275,10 @@ varOrConstr = "variable or struct construction" <??> do
             | otherwise             = Var () li name
 
 patternP :: Parser (Pattern NextPass, LexInfo)
-patternP = "pattern" <??> intP <|> varOrConstrP <|> withParen patternP
+patternP = "pattern" <??> varOrConstrP <|> patternP'
+
+patternP' :: Parser (Pattern NextPass, LexInfo)
+patternP' = intP <|> withParen patternP
 
 intP :: Parser (Pattern NextPass, LexInfo)
 intP = "integer pattern" <??> (\(li, n) -> (IntP () n, li))
@@ -284,10 +287,19 @@ intP = "integer pattern" <??> (\(li, n) -> (IntP () n, li))
 varOrConstrP :: Parser (Pattern NextPass, LexInfo)
 varOrConstrP = do
     (ls, v) <- ident
-    rest <- many patternP
-    case rest of
-        [] -> pure $ (VarP () v, ls)
-        _ -> let (_, le) = unsafeLast rest in pure (ConstrP () v (map fst rest), mergeLexInfo ls le)
+    if isLower (T.head v)
+    then pure (VarP () v, ls)
+    else do
+        rest <- many (patternP' <|> varP)
+        let le = case rest of
+                [] -> ls
+                _ -> snd (unsafeLast rest) in pure (ConstrP () v (map fst rest), mergeLexInfo ls le)
+varP :: Parser (Pattern NextPass, LexInfo)
+varP = do
+    (ls, v) <- ident
+    if isLower (T.head v)
+    then pure (VarP () v, ls)
+    else pure (ConstrP () v [], ls)
 
 statements :: Parser [Statement NextPass]
 statements = many (statement <* reservedOp ";")
