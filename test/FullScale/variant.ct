@@ -53,7 +53,45 @@ getIdentity i = case i of {
 --! 5
 getIdentity (MkIdentity 5)
 
---# more complex pattern matching : score
+--# recursive pattern matching : score
+
+variant List a = Nil | Cons a (List a);
+
+sum :: List Int -> Int;
+sum l = case l of {
+    Nil -> 0;
+    Cons x xs -> __add__ x (sum xs);
+};
+
+--! 6
+sum (Cons 1 (Cons 2 (Cons 3 Nil)))
+
+
+--# slightly more complex pattern matching : score 
+variant List a = Nil | Cons a (List a);
+
+xs :: List Int;
+xs = Cons 1 (Cons 2 (Cons 3 Nil));
+
+map :: (a -> b) -> (List a) -> (List b);
+map f l = case l of {
+        Nil       -> Nil;
+        Cons x xs -> Cons (f x) (map f xs); 
+    };
+
+add5 :: Int -> Int;
+add5 x = __add__ x 5;
+
+sum :: List Int -> Int;
+sum l = case l of {
+    Nil -> 0;
+    Cons x xs -> __add__ x (sum xs);
+};
+
+--! 21
+sum (map add5 xs)
+
+--# repeated complex pattern matching : score
 
 variant List a = Nil | Cons a (List a);
 

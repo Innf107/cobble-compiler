@@ -8,6 +8,9 @@ import Language.Cobble.Codegen.Common
 
 import Data.Functor.Foldable hiding (Nil)
 
+import Data.Char
+import Data.Text qualified as T
+
 compile :: [Block] -> [CompiledModule]
 compile blocks  =   mallocMod 
                 :   icallMods 
@@ -91,13 +94,13 @@ compileInstruction = \case
         makeErrorMessage msg = "{\"color\":\"dark_red\", \"text\":\"ERROR: \"" <> msg <> "}"
 
 own :: QualifiedName -> NamespacedName 
-own = Own . show
+own = Own . renamed
 
 ownPath :: QualifiedName -> NamespacedName 
 ownPath = Own . renamed
 
 reg :: Register -> Selector
-reg (Reg r)        = Player ("$" <> show r) 
+reg (Reg r)        = Player ("$" <> renamed r) 
 reg (SpecialReg r) = Player ("%" <> r)
 
 self :: Selector
@@ -180,54 +183,4 @@ createICallTree fs = (,mapping) $ (icallMod:) $ binTree & para \case
                     Scoreboard $ Players $ Set (reg icallDoneReg) regs 0
                 ,   Function (Own $ "icall/node" <> show start)
                 ])
-
-
-{-
--- | builds a search tree from the supplied list of functions.
--- returns the compiled modules required for the tree, as well as mappings from functions to their addresses.
-createICallTree :: [QualifiedName] -> ([CompiledModule], Map QualifiedName Int)
-createICallTree fs = over _1 ((icallMod:) . fst) $ swap $ run $ runState mempty (go fs 1 (length fs))
-    where
-
-        icallMod :: CompiledModule
-        icallMod = ("icall/icall", [
-                Scoreboard $ Players $ Set (reg icallDoneReg) regs 0
-            ,   Function (ownPath $ "icall.nodes" <> show (length fs `div` 2))
-            ])
-
-        addMapping :: (Members '[State (Map QualifiedName Int)] r)
-                   => Int 
-                   -> QualifiedName  
-                   -> Sem r ()
-        addMapping i f = modify (insert f i)
-
-        go :: (Members '[State (Map QualifiedName Int)] r) 
-           => [QualifiedName] 
-           -> Int 
-           -> Int 
-           -> Sem r ([CompiledModule], [QualifiedName])
-        go (f:fs) left right | (left + right) `div` 2 /= right = do
-            let mid = (left + right) `div` 2
-            addMapping mid f
-            let mod = (("icall/nodes/" <> show mid), catMaybes [
-                        Just $ Execute
-                                $ EIf (IScore (reg icallReg) regs $ IMatches (REQ mid)) 
-                                $ ERun $ Scoreboard (Players (Set (reg icallDoneReg) regs 1)) 
-                    ,   Just $ Execute 
-                                $ EIf (IScore (reg icallReg) regs $ IMatches (REQ mid)) 
-                                $ ERun $ Function (ownPath $ ("icall/" <> f))
-                    ,   whenAlt ((left + mid) `div` 2 /= mid) $ Execute 
-                                $ EIf (IScore (reg icallDoneReg) regs $ IMatches (REQ 0)) 
-                                $ EIf (IScore (reg icallReg) regs $ IMatches (RLE mid)) 
-                                $ ERun $ Function (ownPath $ "icall.nodes" <> show ((left + mid) `div` 2))
-                    ,   whenAlt ((mid + right) `div` 2 /= mid) $ Execute 
-                                $ EIf (IScore (reg icallDoneReg) regs $ IMatches (REQ 0)) 
-                                $ EIf (IScore (reg icallReg) regs $ IMatches (RGE mid)) 
-                                $ ERun $ Function (ownPath $ "icall.nodes" <> show ((mid + right) `div` 2))
-                    ])
-            (leftMods, fs')   <- go fs  left mid
-            (rightMods, fs'') <- go fs' mid right
-            pure (mod : leftMods <> rightMods, fs'')
-        go fs _ _ = pure ([], fs)
--}
 

@@ -17,6 +17,7 @@ import Language.Cobble.Prelude
 import Language.Cobble.Types.LexInfo
 
 import Data.Data
+import Data.Char
 import Data.Generics.Uniplate.Data
 
 import qualified Data.Text as T
@@ -62,7 +63,9 @@ renameChar = \case
     ':' -> "-col"
     ';' -> "-semi"
     ',' -> "-comma"
-    x   -> one x
+    x   
+        | isUpper x -> "-" <> one (toLower x)
+        | otherwise -> one x
 
 -- TODO: Move to a different module
 data Log = Log LogLevel Text deriving (Show, Eq, Ord)
