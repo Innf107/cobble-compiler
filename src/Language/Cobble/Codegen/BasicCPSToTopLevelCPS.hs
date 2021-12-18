@@ -102,6 +102,7 @@ compileC = \case
                         (withLocals [thEnv] (T.App thF' [thEnv'])) 
                         (withLocals [elEnv] (T.App elF' [elEnv']))
             )
+    C.Fail message -> pure ([], T.Fail message)
     where
         withLocals :: [LocalBinding] -> TLC -> TLC
         withLocals = flip (foldr (\(x, e) r -> T.Let x e r))
@@ -190,6 +191,7 @@ freeVars' = \case
     C.App2 f e          -> freeVarsVal' f <> freeVarsVal' e
     C.App3 f k e        -> freeVarsVal' f <> freeVarsVal' k <> freeVarsVal' e
     C.If c th el        -> freeVarsVal' c <> freeVars' th <> freeVars' el 
+    C.Fail msg          -> mempty 
 
 freeVarsExpr' :: CPSExpr -> Set QualifiedName
 freeVarsExpr' = \case

@@ -251,10 +251,9 @@ qualifyPattern (VarP () x) = do
     x' <- freshVar (x, li)
     addVar x x'
     pure (VarP () x')
-qualifyPattern (ConstrP () cname ps) =
-    ConstrP ()
-    <$> (view _1 <$> lookupVariantConstr cname)
-    <*> traverse qualifyPattern ps
+qualifyPattern (ConstrP () cname ps) = do
+    (cname, _, i) <- lookupVariantConstr cname
+    ConstrP i cname <$> traverse qualifyPattern ps
 
 qualifyType :: forall r. Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r 
             => Bool

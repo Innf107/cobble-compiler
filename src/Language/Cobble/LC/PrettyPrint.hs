@@ -21,11 +21,13 @@ prettyPrintLCExpr = \case
     IntLit i                -> show i
     Tuple as                -> "[" <> T.intercalate ", " (map prettyPrintLCExpr $ toList as) <> "]"
     Variant (con,i) as      -> show con <> "@" <> show i <> "[" <> T.intercalate ", " (map prettyPrintLCExpr $ toList as) <> "]" 
+    Switch i cases def      -> "switch " <> show i <> " { " <> T.intercalate "; " (map (\(i, e) -> show i <> " -> " <> show e) cases) <> "; _ -> " <> prettyPrintLCExpr def <> "}"
     Select i t              -> prettyPrintLCExprParens t <> "._" <> show i
     If c th el              ->      "if " <> prettyPrintLCExpr c 
                                 <> " then " <> prettyPrintLCExpr th 
                                 <> " else " <> prettyPrintLCExpr el
     PrimOp p ps             -> "__" <> show p <> "__[" <> T.intercalate ", " (map prettyPrintLCExpr ps) <> "]"
+    Fail msg                -> "fail(\"" <> msg <> "\")" 
 
 prettyPrintLCExprParens :: LCExpr -> Text
 prettyPrintLCExprParens = \case

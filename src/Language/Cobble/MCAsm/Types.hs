@@ -63,5 +63,6 @@ data Instruction =
     | StoreLit Register Int Int
 
     | SetScoreboard Text Objective Register
+    | ErrorMessage Text -- Does *not* abort execution
     deriving (Show, Eq, Generic, Data)
 

@@ -83,9 +83,12 @@ compileInstruction = \case
             $ ERun (Scoreboard (Players (Set self regs x)))
         ]
     SetScoreboard player obj x  -> pure [Scoreboard (Players (Operation (Player player) obj SAssign (reg x) regs))]
+    ErrorMessage msg -> pure [TellRaw (AllPlayers []) (makeErrorMessage msg)]
     where 
         asExec :: Instruction -> (ExecuteArg -> ExecuteArg) -> Sem r [Command]
         asExec i e = map (Execute . e . ERun) <$> compileInstruction i 
+        makeErrorMessage :: Text -> Text
+        makeErrorMessage msg = "{\"color\":\"dark_red\", \"text\":\"ERROR: \"" <> msg <> "}"
 
 own :: QualifiedName -> NamespacedName 
 own = Own . show

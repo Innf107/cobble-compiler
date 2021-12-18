@@ -97,11 +97,15 @@ spec = do
                 Right (Module _ _ sts) -> errorWithoutStackTrace (show sts)
                 Left e -> errorWithoutStackTrace (show e)
 
+header :: [Text]
+header = [
+        "module test;"
+    ]
 
 runQualifier :: [Text] -> Either C.QualificationError (Module SemAnalysis)
 runQualifier content = run $ do
-    toks <- either (\(e :: C.LexicalError) -> error $ "lex error: " <> show e) id <$> runError (C.tokenize "test.cb" (unlines content))
-    let parsed = either (\e -> error $ "parse error: " <> show e) id $ C.parse (C.module_ "test.cb") "" toks
+    toks <- either (\(e :: C.LexicalError) -> error $ "lex error: " <> show e) id <$> runError (C.tokenize "test.cb" (unlines (header <> content)))
+    let parsed = either (\e -> error $ "parse error: " <> show e) id $ C.parse C.module_ "" toks
     
     let moduleSolved :: Module QualifyNames = let (Module () pmname psts) = parsed 
             in 

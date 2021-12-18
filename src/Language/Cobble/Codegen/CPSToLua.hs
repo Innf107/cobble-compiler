@@ -11,6 +11,7 @@ compile (LetRec f k x body rest) = DefFunction (show f) [show k, show x] (compil
 compile (App3 f k x) = [Return (L.Call (compileVal f) [compileVal k, compileVal x])]
 compile (App2 f x) = [Return (L.Call (compileVal f) [compileVal x])]
 compile (C.If c th el) = [L.If (compileVal c) (compile th) (compile el)]
+compile (C.Fail msg) = [Return (L.Call (L.Var "error") [L.StringLit msg])]
 
 compileExpr :: CPSExpr -> LuaExpr
 compileExpr (Val v) = compileVal v

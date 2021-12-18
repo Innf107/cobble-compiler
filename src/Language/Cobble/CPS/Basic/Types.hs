@@ -15,6 +15,7 @@ data CPS = Let      QualifiedName CPSExpr CPS
          | App3 CPSVal CPSVal CPSVal
          | App2 CPSVal CPSVal
          | If CPSVal CPS CPS
+         | Fail Text
          deriving (Eq, Generic, Data)
 instance S.Show CPS where show = toString . prettyPrintCPS
 
@@ -42,6 +43,7 @@ prettyPrintCPS = \case
     App2 f x            -> prettyPrintCPSVal f <> " " <> prettyPrintCPSVal x
     App3 f x y          -> prettyPrintCPSVal f <> " " <> prettyPrintCPSVal x <> " " <> prettyPrintCPSVal y
     If c th el          -> "if " <> prettyPrintCPSVal c <> " then " <> prettyPrintCPS th <> " else " <> prettyPrintCPS el 
+    Fail msg            -> "fail(\"" <> msg <> "\")"
 
 prettyPrintCPSExpr :: CPSExpr -> Text
 prettyPrintCPSExpr = \case

@@ -15,6 +15,7 @@ data TL = LetF QualifiedName QualifiedName [QualifiedName] TLC TL
 data TLC = Let QualifiedName TLExp TLC
          | App QualifiedName [QualifiedName]
          | If QualifiedName TLC TLC
+         | Fail Text
          deriving (Eq, Generic, Data)
 
 data TLExp = IntLit Int
@@ -38,6 +39,7 @@ instance Show TLC where
         Let x e b -> "let " <> show x <> " = " <> show e <> " in\n    " <> show b 
         App f xs -> show f <> " " <> intercalate " " (map show xs)
         If c th el -> "if " <> show c <> " then " <> show th <> " else " <> show el
+        Fail msg -> toString $ "fail(\"" <> msg <> "\")"
 
 instance Show TLExp where
     show = \case

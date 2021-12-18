@@ -64,7 +64,9 @@ compileTLC = \case
                 <$> (compileTLC el)
         ,   [MoveLit ifDoneReg 1]
         ] 
-    
+    T.Fail msg -> [A.ErrorMessage msg] -- TODO: The continuation should be aborted whenever this is called. 
+                                        -- Not sure if that is actually true right now 
+
 letPrimOp :: QualifiedName -> PrimOp -> [QualifiedName] -> [Instruction]
 letPrimOp x p = case p of
     P.True_  -> \case 

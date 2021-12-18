@@ -15,6 +15,7 @@ data LuaExpr = Function [Text] [LuaStmnt]   -- (function (x,y) stmnt1 stmnt2 end
              | TableIndex LuaExpr Int       -- (e)[n]
              | IntLit Int                   -- n
              | BoolLit Bool                 -- b 
+             | StringLit Text               -- "str"
              | Plus LuaExpr LuaExpr         -- e1 + e2
              | Minus LuaExpr LuaExpr        -- e1 - e2
              | Mul LuaExpr LuaExpr          -- e1 * e2

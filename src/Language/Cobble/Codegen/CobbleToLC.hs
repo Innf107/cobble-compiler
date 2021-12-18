@@ -1,6 +1,6 @@
 module Language.Cobble.Codegen.CobbleToLC where
 
-import Language.Cobble.Prelude
+import Language.Cobble.Prelude hiding (EQ)
 import Language.Cobble.Util
 import Language.Cobble.Types as C
 
@@ -59,7 +59,23 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
                 pure $ foldr Lambda (Variant (con, i) (as' <> (map L.Var remainingParams))) remainingParams 
             | expectedParams <  length as = error $ "LC Codegen: too many arguments in variant construction. Expected: " <> show expectedParams <> ". Recieved: " <> show (length as) <> "."
         
-        compileExpr (C.Case _ty _li _expr cases) = error "compileExpr: Case codegen NYI"
+        compileExpr (C.Case _ty li expr cases) = do
+            expr' <- compileExpr expr
+            branches <- forM cases \(CaseBranch () _ p e) -> do 
+                branchName <- freshVar "br"
+                ignoredVar <- freshVar "ignored"
+                e' <- compileExpr e
+                pure (  p
+                    --  TODO: bind variables in branch
+                    ,   \x -> L.Let branchName (Lambda ignoredVar e') x
+                    ,   L.App (L.Var branchName) (L.Tuple [])
+                    )
+            let caseExpr = compileCases li expr' branches
+            
+            let branchDefs = map (view _2) branches
+            
+            pure $ foldr ($) caseExpr branchDefs
+
 
         -- Primops are passed on and only compiled in TopLevelCPSToMCAsm.hs
         compileExpr (FCall _ _l (C.Var (_, _) _ v) ps) 
@@ -86,6 +102,28 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
                 gs' = filter (\(TGiven (MkConstraint c _) _) -> c /= cname) gs
 
         addGiven (TGiven (MkConstraint cname t) _) ex = Lambda (dictName cname (coercePass t)) ex
+
+compileCases :: LexInfo -> LCExpr -> [(Pattern Codegen, a, LCExpr)] -> LCExpr
+compileCases li e cases = foldr combineToIf (nonExhaustiveBranch li) cases
+    where
+        combineToIf :: (Pattern Codegen, a, LCExpr) -> LCExpr -> LCExpr
+        combineToIf (p, _, br) rest = case caseToPredicate e p of
+            Nothing -> br
+            Just pred -> L.If pred br rest
+
+nonExhaustiveBranch :: LexInfo -> LCExpr
+nonExhaustiveBranch li = Fail $ "Non-exhaustive patterns in case at " <> show li
+
+caseToPredicate :: LCExpr -> Pattern Codegen -> Maybe LCExpr
+caseToPredicate e (IntP () n) = Just $ PrimOp EQ [e, L.IntLit n]
+caseToPredicate e (VarP _ _) = Nothing
+caseToPredicate e (ConstrP (_, i) constr ps) = Just $ 
+    PrimOp EQ [Select 0 e, L.IntLit i] 
+    `and'` 
+    foldr and' (PrimOp True_ []) (catMaybes $ zipWith (\j p -> caseToPredicate (Select j e) p) [1..] ps)
+
+and' :: LCExpr -> LCExpr -> LCExpr
+and' x y = L.If x y (PrimOp False_ [])
 
 dictName :: QualifiedName -> Type Codegen -> QualifiedName
 dictName (ReallyUnsafeQualifiedName original renamed li) ty = unsafeQualifiedName ("d_" <> original <> showTypeName ty) ("d_" <> renamed <> showTypeName ty) li

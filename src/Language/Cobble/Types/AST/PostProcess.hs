@@ -56,7 +56,7 @@ type instance XCaseBranch PostProcess = ()
 
 type instance XIntP     PostProcess = ()
 type instance XVarP     PostProcess = Type PostProcess
-type instance XConstrP  PostProcess = Type PostProcess
+type instance XConstrP  PostProcess = (Type PostProcess, Int)
 type instance XPattern  PostProcess = Void
 
 

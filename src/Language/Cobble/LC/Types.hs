@@ -21,8 +21,10 @@ data LCExpr = Var QualifiedName
             | Tuple [LCExpr]
             | Variant (QualifiedName, Int) [LCExpr]
             | Select Int LCExpr
+            | Switch Int [(Int, LCExpr)] LCExpr
             | If LCExpr LCExpr LCExpr
             | PrimOp PrimOp [LCExpr]
+            | Fail Text
             deriving (Show, Eq, Generic, Data)
 
 

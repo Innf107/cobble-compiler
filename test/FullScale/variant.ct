@@ -51,7 +51,7 @@ getIdentity i = case i of {
     };
 
 --! 5
-getIdentity (MkIdentity 5);
+getIdentity (MkIdentity 5)
 
 --# more complex pattern matching : score
 

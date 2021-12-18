@@ -282,13 +282,13 @@ checkPattern (VarP () n) = do
     alpha <- freshTV KStar
     insertType n alpha
     pure (VarP alpha n)
-checkPattern (ConstrP () n ps) = ask >>= \li -> do
+checkPattern (ConstrP i n ps) = ask >>= \li -> do
     ps' <- traverse checkPattern ps
     alpha <- freshTV KStar
     -- See note [lookupType for VariantConstr]
     constrTy <- instantiate li =<< lookupType n
     tellLI li [foldr (:->) alpha (map getType ps') :~ constrTy]
-    pure (ConstrP alpha n ps')
+    pure (ConstrP (alpha, i) n ps')
 
 typecheck :: Members '[Error TypeError, Fresh Text QualifiedName, State TCState, Dump [TConstraint], Dump [TGiven], Dump [TWanted], Output Log] r 
           => Module Typecheck 

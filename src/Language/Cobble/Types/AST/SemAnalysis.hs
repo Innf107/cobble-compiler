@@ -46,7 +46,7 @@ type instance XCaseBranch SemAnalysis = ()
 
 type instance XIntP     SemAnalysis = ()
 type instance XVarP     SemAnalysis = ()
-type instance XConstrP  SemAnalysis = ()
+type instance XConstrP  SemAnalysis = Int
 type instance XPattern  SemAnalysis = Void
 
 type instance Name 'SemAnalysis = QualifiedName

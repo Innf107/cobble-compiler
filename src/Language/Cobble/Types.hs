@@ -59,7 +59,7 @@ instance HasType (Decl PostProcess) PostProcess where
 instance HasType (Pattern PostProcess) PostProcess where
     getType (IntP () n) = intT
     getType (VarP ty _) = ty
-    getType (ConstrP ty _ _) = ty
+    getType (ConstrP (ty, _) _ _) = ty
 
 instance HasType (Type p) p where
     getType = id

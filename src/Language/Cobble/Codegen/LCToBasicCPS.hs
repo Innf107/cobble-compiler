@@ -35,6 +35,7 @@ compileExpr = flip \kval -> let k = staticCont kval in \case
             (C.Let t' (C.Variant (con, i) (map C.Var vars)) (k (C.Var t')))
             (zip vars es)
     L.Select n e        -> freshVar "t" >>= \t' -> freshVar "y" >>= \y' -> compileExpr e (C.Admin t' (C.Let y' (C.Select n (C.Var t')) (k (C.Var y'))))
+    L.Switch _i _branches _def -> error "LCToBasicCPS: Switch codegen NYI"
     L.PrimOp p es       -> freshVar "p" >>= \p' -> do
         vars <- traverse freshVar $ map (("x" <>) . show @Text) (indexes es)
         foldrM (\(i, e) r -> compileExpr e (C.Admin (vars !! i) r))
@@ -44,6 +45,7 @@ compileExpr = flip \kval -> let k = staticCont kval in \case
     L.If c th el -> freshVar2 "c" "k" >>= \(c', k') -> C.Let k' (Val kval) <$> (compileExpr c =<< ((.) (C.Admin c') . C.If (C.Var c') 
                     <$> compileExpr th (C.Var k')
                     <*> compileExpr el (C.Var k')))
+    L.Fail msg -> pure $ C.Fail msg
 
 
 reduceAdmin :: CPS -> CPS

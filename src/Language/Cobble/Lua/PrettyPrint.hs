@@ -42,6 +42,7 @@ prettyLuaExpr = \case
     Table es -> "{" <> T.intercalate ", " (map prettyLuaExpr es) <> "}"
     TableIndex e n -> "(" <> prettyLuaExpr e <> ")[" <> show n <> "]"
     IntLit n -> show n
+    StringLit str -> show str
     BoolLit True -> "true"
     BoolLit False -> "false"
     Plus e1 e2 -> prettyLuaExpr e1 <> " + " <> prettyLuaExpr e2
