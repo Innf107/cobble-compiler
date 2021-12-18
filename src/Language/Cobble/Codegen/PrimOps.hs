@@ -1,7 +1,7 @@
 {-#LANGUAGE TemplateHaskell#-}
 module Language.Cobble.Codegen.PrimOps where
 
-import Language.Cobble.Prelude
+import Language.Cobble.Prelude hiding (EQ)
 import Language.Cobble.Util
 import Language.Cobble.Types
 
@@ -16,6 +16,7 @@ data PrimOp = True_
             | Div
             | Mod
             | LE
+            | EQ
             | SetTestScoreboardUnsafe
             deriving (Show, Eq, Generic, Data)
 
@@ -34,6 +35,7 @@ primOps = M.mapKeys (\k -> internalQName k) $ fromList [
     ,   ("__div__", PrimOpInfo Div (intT -:> intT -:> intT))
     ,   ("__mod__", PrimOpInfo Mod (intT -:> intT -:> intT))
     ,   ("__le__",  PrimOpInfo LE  (intT -:> intT -:> boolT))
+    ,   ("__eq__",  PrimOpInfo EQ  (intT -:> intT -:> boolT))
     ,   ("__setTestScoreboardUnsafe__", PrimOpInfo SetTestScoreboardUnsafe (intT -:> unitT))
     ]
 

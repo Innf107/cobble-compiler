@@ -255,7 +255,7 @@ runTypecheckWithState mod = run $ runState (TCState {_varTypes = M.map coercePas
 cobbleCode :: (Member (C.Fresh (Text, LexInfo) QualifiedName) r) => Text -> Sem r (Module Typecheck)
 cobbleCode content = do
     toks <- either (\(e :: C.LexicalError) -> error $ "lex error: " <> show e) id <$> runError (C.tokenize "test.cb" content)
-    let parsed = either (\e -> error $ "parse error: " <> show e) id $ C.parse (C.module_ "test.cb") "" toks
+    let parsed = either (\e -> error $ "parse error: " <> show e) id $ Module IgnoreExt "test" <$> C.parse C.statements "" toks
     
     let moduleSolved :: Module QualifyNames = let (Module () pmname psts) = parsed 
             in 

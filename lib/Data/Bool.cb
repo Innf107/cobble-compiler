@@ -1,0 +1,18 @@
+module Data.Bool;
+
+-- TODO: Booleans should really be implemented
+-- as a variant, but for now we have to stick to primops
+false :: Bool;
+false = __false__ ();
+
+true :: Bool;
+true = __true__ ();
+
+not :: Bool -> Bool;
+not x = if x then false else true;
+
+(||) :: Bool -> Bool -> Bool;
+(||) x y = if x then true else y;
+
+(&&) :: Bool -> Bool -> Bool;
+(&&) x y = if x then y else false;

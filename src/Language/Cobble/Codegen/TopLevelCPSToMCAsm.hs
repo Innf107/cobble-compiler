@@ -83,6 +83,11 @@ letPrimOp x p = case p of
                     ,   ExecLE (Reg y) (Reg z) (MoveLit (Reg x) 1)   
                     ]
         ys -> wrongNumberOfArgs 2 ys
+    P.EQ  -> \case
+        [y, z] ->   [   MoveLit (Reg x) 0
+                    ,   ExecEQ (Reg y) (Reg z) (MoveLit (Reg x) 1)   
+                    ]
+        ys -> wrongNumberOfArgs 2 ys
     P.SetTestScoreboardUnsafe -> \case
         [y] -> [SetScoreboard "test" "test" (Reg y)]
         ys -> wrongNumberOfArgs 1 ys

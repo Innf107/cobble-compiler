@@ -1,6 +1,8 @@
+module Prelude;
 
-variant IntList = Nil
-                | Cons Int IntList;
+import Data.Bool;
+import Data.Eq;
+import Data.Ord;
+import Data.Semigroup;
 
-test :: Int;
-test = 5;
+

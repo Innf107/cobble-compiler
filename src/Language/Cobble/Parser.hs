@@ -89,8 +89,10 @@ letE = "let binding" <??> (\ls n ps e b -> Let () (mergeLexInfo ls (getLexInfo e
     <*  reserved "in"
     <*> expr
 
-module_ :: Text -> Parser (Module NextPass)
-module_ mname = "module" <??> Module () mname <$> statements <* eof
+module_ :: Parser (Module NextPass)
+module_ = "module" <??> Module () <$> moduleDecl <*> statements <* eof
+    where
+        moduleDecl = reserved "module" *> (snd <$> modName) <* reservedOp ";"
 
 statement :: Parser (Statement NextPass)
 statement = "statement" <??> def <|> defStruct <|> defVariant <|> defClass <|> defInstance <|> import_
