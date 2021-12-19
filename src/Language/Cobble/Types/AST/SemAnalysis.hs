@@ -4,7 +4,7 @@ module Language.Cobble.Types.AST.SemAnalysis where
 
 import Language.Cobble.Prelude
 
-import Data.Data
+import Data.Data hiding (Fixity)
 import Data.Generics.Uniplate.Data
 
 import Language.Cobble.Types.AST
@@ -12,7 +12,7 @@ import Language.Cobble.Types.QualifiedName
 
 type instance XModule 'SemAnalysis = (Map (Name 'Codegen) ModSig)
   
-type instance XDef              SemAnalysis = ()
+type instance XDef              SemAnalysis = Maybe Fixity
 type instance XDecl             SemAnalysis = ()
 type instance XParam            SemAnalysis = [Name 'Codegen]
 type instance XImport           SemAnalysis = ()

@@ -157,12 +157,12 @@ checkStmnt (DefInstance (defs, classPs) li cname (coercePass -> ty) decls) = do
         pure decl'
     pure (DefInstance (map (second coercePass) defs, coercePass classPs) li cname (coercePass ty) decls')
 
-checkStmnt (Def () li decl@(Decl () f _ _) (coercePass -> ty)) = do
+checkStmnt (Def mfixity li decl@(Decl () f _ _) (coercePass -> ty)) = do
     insertType f ty
     (givens, ty') <- tapAssocR @[TGiven] $ skolemize li ty
     decl' <- checkDecl decl givens
     tellLI li [ty' :~ getType decl']
-    pure (Def () li decl' ty)
+    pure (Def mfixity li decl' ty)
 
 checkDecl :: Members '[Writer [TConstraint], Writer [TWanted], Writer [TGiven], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass), State TCState] r
           => Decl Typecheck 

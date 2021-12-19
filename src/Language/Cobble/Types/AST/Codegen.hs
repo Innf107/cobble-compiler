@@ -2,7 +2,7 @@
 {-# LANGUAGE TemplateHaskell, UndecidableInstances #-}
 module Language.Cobble.Types.AST.Codegen where
   
-import Data.Data
+import Data.Data hiding (Fixity)
 import Data.Generics.Uniplate.Data
   
 import Language.Cobble.Prelude
@@ -29,7 +29,7 @@ type instance XModule Codegen = Map (Name Codegen) ModSig
 type instance XDecl      Codegen = (Type Codegen, [TGiven])
 type instance XParam     Codegen = [(Name Codegen, Type Codegen)]
 
-type instance XDef              Codegen = ()
+type instance XDef              Codegen = Maybe Fixity
 type instance XImport           Codegen = ()
 type instance XDefStruct        Codegen = Kind
 type instance XDefVariant       Codegen = Kind

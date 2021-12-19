@@ -2,7 +2,7 @@
 {-# LANGUAGE TemplateHaskell, UndecidableInstances #-}
 module Language.Cobble.Types.AST.PostProcess where
   
-import Data.Data
+import Data.Data hiding (Fixity)
 import Data.Generics.Uniplate.Data
   
 import Language.Cobble.Prelude
@@ -26,7 +26,7 @@ type instance XModule PostProcess = Map (Name PostProcess) ModSig
 
 type instance XDecl             PostProcess = (Type PostProcess, [TGiven])
 type instance XParam            PostProcess = [(Name PostProcess, Type PostProcess)]
-type instance XDef              PostProcess = ()
+type instance XDef              PostProcess = Maybe Fixity
 type instance XImport           PostProcess = ()
 type instance XDefStruct        PostProcess = Kind
 type instance XDefVariant       PostProcess = Kind

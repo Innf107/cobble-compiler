@@ -4,5 +4,7 @@ import Data.Bool;
 import Data.Eq;
 import Data.Ord;
 import Data.Semigroup;
+import Data.List;
+import Data.Tuple;
 
 

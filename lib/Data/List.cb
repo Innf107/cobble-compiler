@@ -1,0 +1,58 @@
+module Data.List;
+
+import Control.Functor;
+
+import Data.Tuple;
+import Data.Ord;
+
+variant List a = Nil | Cons a (List a);
+
+infixr 5
+(:) :: a -> List a -> List a;
+(:) = Cons;
+
+-- Invalid, since tyclasses do not support higher kinded types yet
+-- instance Functor List {
+--     map f l = case l of {
+--         Nil -> Nil;
+--         Cons x xs -> f x : map f xs;
+--     };
+-- };
+
+infixr 5
+(++) :: List a -> List a -> List a;
+(++) l ys = case l of {
+    Nil -> ys;
+    Cons x xs -> Cons x (xs ++ ys);
+};
+
+filter :: (a -> Bool) -> List a -> List a;
+filter pred l = case l of {
+    Nil -> Nil;
+    Cons x xs -> if pred x then x : filter pred xs else filter pred xs;
+};
+
+partition_acc :: T2 (List a) (List a) -> (a -> Bool) -> List a -> T2 (List a) (List a);
+partition_acc acc pred l = case l of {
+    Nil -> acc;
+    Cons x xs -> case acc of {
+        T2 pass fail -> if pred x 
+                        then partition_acc (T2 (x : pass) fail) pred xs 
+                        else partition_acc (T2 pass (x : fail)) pred xs;
+    };
+};
+
+partition :: (a -> Bool) -> List a -> T2 (List a) (List a);
+partition = partition_acc (T2 Nil Nil);
+
+sortBy :: (a -> a -> Ordering) -> List a -> List a;
+sortBy comp l = case l of {
+    Nil -> Nil;
+    Cons x xs -> case partition (geBy comp x) xs of {
+        T2 smaller larger -> sortBy comp smaller ++ x : sortBy comp larger;    
+    };
+};
+
+sort :: Ord a => List a -> List a;
+sort = sortBy compare;
+

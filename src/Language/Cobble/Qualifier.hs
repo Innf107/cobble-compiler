@@ -58,7 +58,7 @@ qualifyStmnt (Def mfixity li d@(Decl _ n _ _) ty) = runReader li do
         -- The type has to be qualified first, since all mentioned tyvars
         -- need to be in scope in the body (mostly for ascriptions).
         ty' <- qualifyType True ty
-        Def () li
+        Def mfixity li
             <$> qualifyDeclWithName n' d
             <*> pure ty'
 qualifyStmnt (Import () li n) = pure (Import () li (internalQName n))

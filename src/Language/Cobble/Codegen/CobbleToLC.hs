@@ -27,7 +27,7 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
         compileStatement (DefInstance _classMeths _li cname ty meths) = sequence [
                 LCDef (dictName cname ty) . Tuple <$> traverse (compileToLambdaWithout cname) meths
             ]
-        compileStatement (Def () _li decl@(Decl (_, _) fname _ _) _) = sequence [
+        compileStatement (Def _ _li decl@(Decl (_, _) fname _ _) _) = sequence [
                 LCDef fname <$> compileToLambda decl
             ]
 

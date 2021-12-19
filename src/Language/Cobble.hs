@@ -202,13 +202,7 @@ compileWithSig :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName]
                => S.Module 'QualifyNames
                -> Sem r ([LCDef], ModSig)
 compileWithSig m = do
-    let qualScopes = Scope {
-            _scopeVars = mempty
-        ,   _scopeVariantConstrs = mempty
-        ,   _scopeTypes = mempty
-        ,   _scopeFixities = mempty
-        ,   _scopeTVars = mempty
-        } : map modSigToScope (toList $ xModule m)
+    let qualScopes = map modSigToScope (toList $ xModule m)
 
     let tcState = foldMap (\dsig -> TCState {
                     _varTypes= fmap coercePass $ exportedVars dsig <> (view _1 <$> exportedVariantConstrs dsig)
@@ -246,7 +240,7 @@ extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
 
 makePartialSig :: S.Statement 'Codegen -> ModSig
 makePartialSig = \case
-    Def _ _ (Decl (_, gs) n _ _) t        -> mempty {exportedVars = one (n, t)} -- TODO: what about gs?
+    Def mfixity _ (Decl (_, gs) n _ _) t -> mempty {exportedVars = one (n, t), exportedFixities = fromList $ (n,) <$> toList mfixity} -- TODO: what about gs?
     DefStruct k _ n ps fs     -> mempty {exportedTypes = one (n, (k, RecordType ps fs))}
     DefClass k _ n ps meths   -> mempty 
         {   exportedTypes = one (n, (k, TyClass ps meths))
@@ -259,9 +253,6 @@ makePartialSig = \case
         ,   exportedVariantConstrs = fromList (map (\(cname, _, (ty, ep, i)) -> (cname, (ty, ep, i))) cs)
         }
     Import () _ _            -> mempty
-
-getModName :: FilePath -> Text
-getModName = toText . FP.dropExtension . L.last . segments
 
 
 primModSig :: ModSig

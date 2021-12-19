@@ -1,0 +1,18 @@
+module Data.Tuple;
+
+variant T2 a b = T2 a b;
+variant T3 a b c = T3 a b c;
+variant T4 a b c d = T4 a b c d;
+variant T5 a b c d e = T5 a b c d e;
+
+-- TODO: move this to a 'class Tuple1 t a | t -> a' 
+fst :: T2 a b -> a;
+fst t = case t of {
+    T2 a b -> a;
+};
+
+snd :: T2 a b -> b;
+snd t = case t of {
+    T2 a b -> b;
+};
+

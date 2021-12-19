@@ -4,7 +4,7 @@ module Language.Cobble.Types.AST.Typecheck where
 
 import Language.Cobble.Prelude
 
-import Data.Data
+import Data.Data hiding (Fixity)
 import Data.Generics.Uniplate.Data
 
 import Language.Cobble.Types.AST
@@ -12,7 +12,7 @@ import Language.Cobble.Types.QualifiedName
 
 type instance XModule Typecheck = Map (Name Codegen) ModSig
   
-type instance XDef              Typecheck = ()
+type instance XDef              Typecheck = Maybe Fixity
 type instance XDecl             Typecheck = ()
 type instance XParam            Typecheck = [Name Typecheck]
 type instance XImport           Typecheck = ()

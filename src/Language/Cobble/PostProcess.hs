@@ -11,8 +11,8 @@ postProcess (Module deps n sts) = Module deps n (map postProcessStatement sts)
 
 -- more boilerplate :/
 postProcessStatement :: Statement PostProcess -> Statement NextPass
-postProcessStatement (Def () li decl ty) = 
-    Def () li (postProcessDecl decl) (coercePass ty)-- 
+postProcessStatement (Def mfixity li decl ty) = 
+    Def mfixity li (postProcessDecl decl) (coercePass ty)-- 
 postProcessStatement (Import () li n) = Import () li n
 postProcessStatement (DefStruct k li sname ps fields) = 
     DefStruct k li sname (coercePass ps) (map (second coercePass) fields)

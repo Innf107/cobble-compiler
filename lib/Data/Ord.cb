@@ -1,5 +1,7 @@
 module Data.Ord;
 
+import Data.Bool;
+
 variant Ordering = LT | EQ | GT;
 
 -- TODO: class Eq a => Ord a
@@ -7,4 +9,36 @@ class Ord a {
     compare :: a -> a -> Ordering;
 };
 
+infixl 4
+(<) :: Ord a => a -> a -> Bool;
+(<) x y = case compare x y of {
+    LT -> true;
+    _ -> false;
+};
 
+(>) :: Ord a => a -> a -> Bool;
+(>) x y = case compare x y of {
+    GT -> true;
+    _ -> false;
+};
+
+leBy :: (a -> a -> Ordering) -> a -> a -> Bool;
+leBy comp x y = case comp x y of {
+    LT -> true;
+    EQ -> true;
+    GT -> false;
+};
+
+geBy :: (a -> a -> Ordering) -> a -> a -> Bool;
+geBy comp x y = case comp x y of {
+    LT -> false;
+    EQ -> true;
+    GT -> true;
+};
+
+
+instance Ord Int {
+    compare x y = if __le__ x y then LT 
+                  else if __eq__ x y then EQ 
+                  else GT;
+};
