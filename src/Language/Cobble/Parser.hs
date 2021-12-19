@@ -284,10 +284,18 @@ intP :: Parser (Pattern NextPass, LexInfo)
 intP = "integer pattern" <??> (\(li, n) -> (IntP () n, li))
     <$> intLit
 
+{- note [(not . isUpper) vs isLower]
+We have to use (not . isUpper) instead of isLower to parse variant constructors,
+since "_" is neither an uppercase nor a lowercase character.
+"_x" should obviously be a valid variable name (and therefore an invalid variant constructor name),
+so we have to settle on (not . isUpper) instead of isLower.
+-}
+
 varOrConstrP :: Parser (Pattern NextPass, LexInfo)
 varOrConstrP = do
     (ls, v) <- ident
-    if isLower (T.head v)
+    -- See note [(not . isUpper) vs. isLower]
+    if not (isUpper (T.head v))
     then pure (VarP () v, ls)
     else do
         rest <- many (patternP' <|> varP)
@@ -297,9 +305,10 @@ varOrConstrP = do
 varP :: Parser (Pattern NextPass, LexInfo)
 varP = do
     (ls, v) <- ident
-    if isLower (T.head v)
-    then pure (VarP () v, ls)
-    else pure (ConstrP () v [], ls)
+    -- See note [(not . isUpper) vs. isLower]
+    if isUpper (T.head v)
+    then pure (ConstrP () v [], ls)
+    else pure (VarP () v, ls)
 
 statements :: Parser [Statement NextPass]
 statements = many (statement <* reservedOp ";")
