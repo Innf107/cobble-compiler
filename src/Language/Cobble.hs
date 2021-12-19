@@ -211,7 +211,7 @@ compileWithSig m = do
         } : map modSigToScope (toList $ xModule m)
 
     let tcState = foldMap (\dsig -> TCState {
-                    _varTypes= fmap coercePass $ exportedVars dsig
+                    _varTypes= fmap coercePass $ exportedVars dsig <> (view _1 <$> exportedVariantConstrs dsig)
                 ,   _tcInstances = coercePass $ exportedInstances dsig
                 })
                 (xModule m)

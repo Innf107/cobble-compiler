@@ -70,8 +70,8 @@ For every pass after the Qualifier, Names are unique.
 Thus, a @VariantConstr@ and a simple @Var@ can never share the same name and
 using the same Map for both is safe.
 -}
-lookupType :: Members '[State TCState, Fresh (TVar NextPass) (TVar NextPass)] r => QualifiedName -> Sem r Type
-lookupType v = gets (lookup v . view varTypes) <&> fromMaybe (error $ "lookupType: Typechecker cannot find variable: " <> show v)
+lookupType :: HasCallStack => Members '[State TCState, Fresh (TVar NextPass) (TVar NextPass), Reader LexInfo] r => QualifiedName -> Sem r Type
+lookupType v = ask >>= \li -> gets (lookup v . view varTypes) <&> fromMaybe (error $ "lookupType: Typechecker cannot find variable: " <> show v <> " @" <> show li)
 
 instantiate :: forall r. Members '[Fresh (TVar NextPass) (TVar NextPass), Writer [TWanted]] r => LexInfo -> Type -> Sem r Type
 instantiate li ty = fst <$> instantiateWithWanteds li ty
@@ -181,12 +181,12 @@ check :: Members '[Writer [TConstraint], Writer [TWanted], Writer [TGiven], Fres
       -> Sem r (Expr NextPass)
 check (IntLit () li n)   = pure (IntLit () li n)
 check (UnitLit li)              = pure (UnitLit li)
-check (Var () li vname)  = do
+check (Var () li vname)  = runReader li do
     (ty, wanteds) <- instantiateWithWanteds li =<< lookupType vname
     -- traceM (show vname <> ": " <> show wanteds)
     pure $ Var (ty, wanteds) li vname
 -- See note [lookupType for VariantConstr]
-check (VariantConstr (e,i) li cname) = VariantConstr . (,e,i) <$> (instantiate li =<< lookupType cname) <*> pure li <*> pure cname
+check (VariantConstr (e,i) li cname) = runReader li $ VariantConstr . (,e,i) <$> (instantiate li =<< lookupType cname) <*> pure li <*> pure cname
 check (Case () li e cases) = do
     e' <- check e
     beta <- freshTV KStar
@@ -447,7 +447,7 @@ ppType :: Type -> Text
 ppType (a :-> b)            = "(" <> ppType a <> " -> " <> ppType b <> ")"
 ppType (TVar (MkTVar v _))  = show v
 ppType (TSkol (MkTVar v _)) = "@" <> show v
-ppType (TCon v _)           = show v
+ppType (TCon v _)           = "C:" <> show v
 ppType (TApp a b)           = "(" <> ppType a <> " " <> ppType b <> ")"
 ppType (TForall ps t)       = "(∀" <> T.intercalate " " (map (\(MkTVar v _) -> show v) ps) <> ". " <> ppType t <> ")"
 ppType (TConstraint c t)    = ppConstraint c <> " => " <> ppType t
