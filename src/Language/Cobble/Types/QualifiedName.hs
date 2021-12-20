@@ -2,7 +2,9 @@
 module Language.Cobble.Types.QualifiedName (
     QualifiedName (..)
 ,   UnqualifiedName
-,   unsafeQualifiedName
+,   renderDebug
+,   renderMinecraft
+,   renderLua
 
 ,   internalQName
 
@@ -24,9 +26,9 @@ import qualified Data.Text as T
 
 import qualified GHC.Show as S
 
-data QualifiedName = ReallyUnsafeQualifiedName {
+data QualifiedName = UnsafeQualifiedName {
         originalName :: Text
-    ,   renamed :: Text
+    ,   qnameIndex :: Int
     ,   location :: LexInfo
     } deriving (Eq, Ord, Generic, Data)
 instance Hashable QualifiedName
@@ -34,16 +36,30 @@ instance Hashable QualifiedName
 type UnqualifiedName = Text
 
 internalQName :: Text -> QualifiedName
-internalQName n = unsafeQualifiedName n n InternalLexInfo
-
-unsafeQualifiedName :: Text -> Text -> LexInfo -> QualifiedName
-unsafeQualifiedName original renamed loc = ReallyUnsafeQualifiedName original (T.concatMap renameChar renamed) loc
+internalQName n = UnsafeQualifiedName n 0 InternalLexInfo
 
 instance S.Show QualifiedName where
-    show = toString . renamed
+    show = toString . renderDebug
 
-renameChar :: Char -> Text
-renameChar = \case
+renderDebug :: QualifiedName -> Text
+renderDebug (UnsafeQualifiedName name ix _) = name <> "_" <> show ix
+
+renderMinecraft :: QualifiedName -> Text
+renderMinecraft = renameUpper . renameStandardChars . renderDebug
+    where
+        renameUpper = T.concatMap \case
+            c | isUpper c -> "-" <> one (toLower c)
+              | otherwise -> one c
+
+renderLua :: QualifiedName -> Text
+renderLua = renameMinus . renameStandardChars . renderDebug
+    where
+        renameMinus = T.concatMap \case
+            '-' -> "__"
+            x -> one x
+
+renameStandardChars :: Text -> Text
+renameStandardChars = T.concatMap \case
     '+' -> "-plus"
     '-' -> "-minus"
     '*' -> "-star"
@@ -63,9 +79,7 @@ renameChar = \case
     ':' -> "-col"
     ';' -> "-semi"
     ',' -> "-comma"
-    x   
-        | isUpper x -> "-" <> one (toLower x)
-        | otherwise -> one x
+    x -> one x
 
 -- TODO: Move to a different module
 data Log = Log LogLevel Text deriving (Show, Eq, Ord)

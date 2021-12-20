@@ -192,7 +192,7 @@ t1 -:> t2 = TApp (TApp (TCon tyFunT (kFun kStar (kFun kStar kStar))) t1) t2
 infixr 5 -:>
 
 pattern (:->) :: (Name p ~ QualifiedName, Eq (Name p), XKind p ~ Kind) => Type p -> Type p -> Type p
-pattern (:->) t1 t2 = TApp (TApp (TCon (ReallyUnsafeQualifiedName "->" "-minus-gt" InternalLexInfo) (KFun KStar (KFun KStar KStar))) t1) t2
+pattern (:->) t1 t2 = TApp (TApp (TCon (UnsafeQualifiedName "->" 0 InternalLexInfo) (KFun KStar (KFun KStar KStar))) t1) t2
 infixr 1 :->
 
 pattern (:~>) :: (Name p ~ Text, Eq (Name p), XKind p ~ Kind) => Type p -> Type p -> Type p

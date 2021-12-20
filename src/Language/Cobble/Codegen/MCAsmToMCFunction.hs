@@ -14,7 +14,7 @@ import Data.Text qualified as T
 compile :: [Block] -> [CompiledModule]
 compile blocks  =   mallocMod 
                 :   icallMods 
-                <>  map (\(Block n is) -> (toString $ renamed n, concat $ run $ runReader icallMap $ (traverse compileInstruction is))) blocks 
+                <>  map (\(Block n is) -> (toString $ renderMinecraft n, concat $ run $ runReader icallMap $ (traverse compileInstruction is))) blocks 
     where
         (icallMods, icallMap) = createICallTree icalledFunctions
         icalledFunctions = map (\(Block f _) -> f) blocks
@@ -94,13 +94,13 @@ compileInstruction = \case
         makeErrorMessage msg = "{\"color\":\"dark_red\", \"text\":\"ERROR: \"" <> msg <> "}"
 
 own :: QualifiedName -> NamespacedName 
-own = Own . renamed
+own = Own . renderMinecraft
 
 ownPath :: QualifiedName -> NamespacedName 
-ownPath = Own . renamed
+ownPath = Own . renderMinecraft
 
 reg :: Register -> Selector
-reg (Reg r)        = Player ("$" <> renamed r) 
+reg (Reg r)        = Player ("$" <> renderMinecraft r) 
 reg (SpecialReg r) = Player ("%" <> r)
 
 self :: Selector

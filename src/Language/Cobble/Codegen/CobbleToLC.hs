@@ -119,15 +119,15 @@ and' :: LCExpr -> LCExpr -> LCExpr
 and' x y = L.If x y (PrimOp False_ [Tuple []])
 
 dictName :: QualifiedName -> Type Codegen -> QualifiedName
-dictName (ReallyUnsafeQualifiedName original renamed li) ty = unsafeQualifiedName ("d_" <> original <> showTypeName ty) ("d_" <> renamed <> showTypeName ty) li
+dictName (UnsafeQualifiedName original i li) ty = UnsafeQualifiedName ("d_" <> original <> showTypeName ty) i li
     
 showTypeName :: Type Codegen -> Text
-showTypeName (TCon n _) = renamed n
+showTypeName (TCon n _) = renderDebug n
 showTypeName (TApp t1 t2) = showTypeName t1 <> "_" <> showTypeName t2
-showTypeName (TVar (MkTVar n _)) = "v" <> renamed n
-showTypeName (TSkol (MkTVar n _)) = "s" <> renamed n
-showTypeName (TForall ps t) = "forall-" <> T.intercalate "-" (map (\(MkTVar n _) -> renamed n) ps)  <> "_" <> showTypeName t
-showTypeName (TConstraint (MkConstraint cname ct) t) = "constr-" <> renamed cname <> "-" <> showTypeName ct <> "_" <> showTypeName t
+showTypeName (TVar (MkTVar n _)) = "v" <> renderDebug n
+showTypeName (TSkol (MkTVar n _)) = "s" <> renderDebug n
+showTypeName (TForall ps t) = "forall-" <> T.intercalate "-" (map (\(MkTVar n _) -> renderDebug n) ps)  <> "_" <> showTypeName t
+showTypeName (TConstraint (MkConstraint cname ct) t) = "constr-" <> renderDebug cname <> "-" <> showTypeName ct <> "_" <> showTypeName t
 
 collapseDefs :: [LCDef] -> LCExpr
 collapseDefs = foldr makeLet (L.IntLit 0) 

@@ -107,7 +107,7 @@ compileC = \case
         withLocals :: [LocalBinding] -> TLC -> TLC
         withLocals = flip (foldr (\(x, e) r -> T.Let x e r))
         unwrapClosure :: QualifiedName -> Sem r ([LocalBinding], QualifiedName, QualifiedName)
-        unwrapClosure f = freshVar2 (renamed f) "env" <&> \(f', env') -> ([(f', T.Select 0 f), (env', T.Select 1 f)], f', env')
+        unwrapClosure f = freshVar2 (originalName f) "env" <&> \(f', env') -> ([(f', T.Select 0 f), (env', T.Select 1 f)], f', env')
 --                                  ^ TODO
 
 compileExpr :: (Members '[Fresh Text QualifiedName, Reader LetRecEnv] r) => CPSExpr -> Sem r ([TopLevelBinding], [LocalBinding], TLExp)
