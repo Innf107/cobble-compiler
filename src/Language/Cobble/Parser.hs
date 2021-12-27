@@ -80,9 +80,9 @@ unitLit :: Parser LexInfo
 unitLit = try (mergeLexInfo <$> paren "(" <*> paren ")")
 
 lambdaE :: Parser (Expr NextPass)
-lambdaE = "lambda expression" <??> (\ls x e -> Lambda () (mergeLexInfo ls (getLexInfo e)) x e)
+lambdaE = "lambda expression" <??> (\ls xs e -> foldr (Lambda () (mergeLexInfo ls (getLexInfo e))) e xs)
     <$> reservedOp "\\"
-    <*> ident'
+    <*> many1 ident'
     <*  reservedOp' "->"
     <*> expr
 
