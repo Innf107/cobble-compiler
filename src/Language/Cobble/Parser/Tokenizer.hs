@@ -30,7 +30,7 @@ isOpStart :: Char -> Bool
 isOpStart c = c /= '-' && isOpLetter c
 
 isOpLetter :: Char -> Bool
-isOpLetter = flip elem "+-*/~^!?.|<>$&=#:;,"
+isOpLetter = flip elem "+-*/~^!?.|<>$&=#:;,\\"
 
 isIntStart :: Char -> Bool
 isIntStart x = isDigit x
@@ -45,7 +45,7 @@ reserved :: [String]
 reserved = ["let", "in", "if", "then", "else", "module", "import", "struct", "variant", "case", "of", "class", "instance", "infixl", "infixr"]
 
 reservedOps :: [String]
-reservedOps = [".", "::", ";", ",", "=", "=>", "->", "|"]
+reservedOps = [".", "::", ";", ",", "=", "=>", "->", "|", "\\"]
 
 isParen :: Char -> Bool
 isParen = (`elem`"()[]{}")

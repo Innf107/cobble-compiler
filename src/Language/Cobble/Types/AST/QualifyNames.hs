@@ -29,6 +29,9 @@ type instance XVariantConstr    'QualifyNames = ()
 type instance XCase             'QualifyNames = ()
 type instance XStructConstruct  'QualifyNames = ()
 type instance XStructAccess     'QualifyNames = ()
+
+type instance XLambda           QualifyNames = ()
+
 type instance XExpr             'QualifyNames = OperatorGroup QualifyNames NoFixity
 
 type instance XCaseBranch QualifyNames = ()

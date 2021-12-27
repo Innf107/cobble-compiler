@@ -35,11 +35,12 @@ type instance XVariantConstr    'SemAnalysis = (Int, Int)
 --                                               ^    ^
 --                                               |    constructor index
 --                                               expected number of args
--- | @StructDef@ has its own @CoercePass@ instance, so we don't need @Ext@ here 
 type instance XCase             'SemAnalysis = ()
 type instance XStructConstruct  'SemAnalysis = StructDef SemAnalysis
--- | @Map@ also has its own @CoercePass@ instance, so we don't need @Ext@ here
 type instance XStructAccess     'SemAnalysis = Map (Name SemAnalysis) (StructDef SemAnalysis)
+
+type instance XLambda           SemAnalysis = ()
+
 type instance XExpr             'SemAnalysis = Void
 
 type instance XCaseBranch SemAnalysis = ()

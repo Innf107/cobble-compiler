@@ -38,6 +38,7 @@ instance HasType (Expr 'PostProcess) 'PostProcess where
         Let _ _ _ b                         -> getType b
         StructConstruct (_, t) _ _ _        -> t
         StructAccess (_, _, t) _ _ _        -> t
+        Lambda t _ _ _                      -> t
 
 
 instance HasType (Expr 'Codegen) 'Codegen where
@@ -52,6 +53,7 @@ instance HasType (Expr 'Codegen) 'Codegen where
         Let _ _ _ b                         -> getType b
         StructConstruct (_, t) _ _ _        -> t
         StructAccess (_, t) _ _ _           -> t
+        Lambda t _ _ _                      -> t
 
 instance HasType (Decl PostProcess) PostProcess where
     getType (Decl (t, _) _ _ _) = t

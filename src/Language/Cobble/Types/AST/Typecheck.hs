@@ -38,6 +38,9 @@ type instance XVariantConstr    Typecheck = (Int, Int)
 type instance XCase             Typecheck = ()
 type instance XStructConstruct  Typecheck = StructDef Typecheck
 type instance XStructAccess     Typecheck = Map (Name Typecheck) (StructDef Typecheck)
+
+type instance XLambda           Typecheck = ()
+
 type instance XExpr             Typecheck = Void
 
 type instance XCaseBranch Typecheck = ()

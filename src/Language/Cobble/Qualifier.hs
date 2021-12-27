@@ -202,6 +202,12 @@ qualifyExpr (StructAccess () li structExpr fieldName) = runReader li do
             possibleStruct (tyName, _, (RecordType tvs fields))
                 | fieldName `elem` (map fst fields) = Just (tyName, StructDef tyName (coercePass tvs) (map (second coercePass) fields))
             possibleStruct _ = Nothing
+qualifyExpr (Lambda () li x e) = runReader li $
+    withFrame $ do
+        x' <- freshVar (x, li)
+        addVar x x'
+        Lambda () li x' <$> qualifyExpr e
+
 qualifyExpr (ExprX opGroup li) = runReader li $ replaceOpGroup . reorderByFixity <$> qualifyWithFixity opGroup
     where
         qualifyWithFixity :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r

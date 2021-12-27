@@ -79,6 +79,13 @@ intLit = (token' \case
 unitLit :: Parser LexInfo
 unitLit = try (mergeLexInfo <$> paren "(" <*> paren ")")
 
+lambdaE :: Parser (Expr NextPass)
+lambdaE = "lambda expression" <??> (\ls x e -> Lambda () (mergeLexInfo ls (getLexInfo e)) x e)
+    <$> reservedOp "\\"
+    <*> ident'
+    <*  reservedOp' "->"
+    <*> expr
+
 letE :: Parser (Expr NextPass)
 letE = "let binding" <??> (\ls n ps e b -> Let () (mergeLexInfo ls (getLexInfo e)) (Decl () n ps e) b)
     <$> reserved "let"
@@ -145,7 +152,14 @@ expr' = "expression (no fcall)" <??> (\e mf -> maybe e (\(le, fname) -> StructAc
 
 expr'' :: Parser (Expr NextPass)
 expr'' = "expression (no fcall / struct access)" <??> 
-    uncurry (IntLit ()) <$> intLit <|> UnitLit <$> unitLit <|> letE <|> ifE <|> caseE <|> varOrConstr <|> withParen expr
+        uncurry (IntLit ()) <$> intLit 
+    <|> UnitLit <$> unitLit 
+    <|> lambdaE 
+    <|> letE 
+    <|> ifE 
+    <|> caseE 
+    <|> varOrConstr 
+    <|> withParen expr
 
 
 def :: Parser (Statement NextPass)

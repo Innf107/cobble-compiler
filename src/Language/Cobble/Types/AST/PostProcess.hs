@@ -48,8 +48,12 @@ type instance XVariantConstr    PostProcess = (Type PostProcess, Int, Int)
 --                                                                |    constructor index
 --                                                                expected number of args
 type instance XCase             PostProcess = Type PostProcess
+
 type instance XStructConstruct  PostProcess = (StructDef PostProcess, Type PostProcess)
 type instance XStructAccess     PostProcess = (Map QualifiedName (StructDef PostProcess), Type PostProcess, Type PostProcess)
+
+type instance XLambda           PostProcess = Type PostProcess
+
 type instance XExpr             PostProcess = Void
 
 type instance XCaseBranch PostProcess = ()

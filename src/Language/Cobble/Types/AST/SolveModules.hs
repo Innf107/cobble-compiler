@@ -29,6 +29,9 @@ type instance XVariantConstr    'SolveModules = ()
 type instance XCase             'SolveModules = ()
 type instance XStructConstruct  'SolveModules = ()
 type instance XStructAccess     'SolveModules = ()
+
+type instance XLambda           SolveModules = ()
+
 type instance XExpr             'SolveModules = OperatorGroup SolveModules NoFixity
 
 type instance XCaseBranch SolveModules = ()

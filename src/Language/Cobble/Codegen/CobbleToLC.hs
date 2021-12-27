@@ -22,7 +22,7 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
         compileStatement (DefClass _ _li _cname _tvs meths) = pure $ zipWith defMethod [0..] meths
             where 
                 defMethod i (mname, _mty) = let dname = todo (internalQName "dict") 
-                    in LCDef mname $ Lambda dname (Select i (L.Var dname))
+                    in LCDef mname $ L.Lambda dname (Select i (L.Var dname))
         
         compileStatement (DefInstance _classMeths _li cname ty meths) = sequence [
                 LCDef (dictName cname ty) . Tuple <$> traverse (compileToLambdaWithout cname) meths
@@ -50,13 +50,13 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
         compileExpr (C.VariantConstr (_, 0, i) _ n) = pure $ L.Tuple [L.IntLit i]
         compileExpr (C.VariantConstr (_, expectedParams, i) _ n) = do 
             params <- replicateM expectedParams (freshVar "v")
-            pure $ foldr Lambda (Tuple (L.IntLit i : (map L.Var params))) params
+            pure $ foldr L.Lambda (Tuple (L.IntLit i : (map L.Var params))) params
         compileExpr (FCall _ _ (C.VariantConstr (_, expectedParams, i) _ con) as)
             | expectedParams == length as = L.Tuple . (L.IntLit i:) <$> traverse compileExpr (toList as)
             | expectedParams >  length as = do
                 remainingParams <- replicateM (expectedParams - length as) (freshVar "v")
                 as' <- toList <$> traverse compileExpr as
-                pure $ foldr Lambda (L.Tuple ([L.IntLit i] <> as' <> (map L.Var remainingParams))) remainingParams 
+                pure $ foldr L.Lambda (L.Tuple ([L.IntLit i] <> as' <> (map L.Var remainingParams))) remainingParams 
             | expectedParams <  length as = error $ "LC Codegen: too many arguments in variant construction. Expected: " <> show expectedParams <> ". Recieved: " <> show (length as) <> "."
         
         compileExpr (C.Case _ty li expr cases) = do
@@ -81,16 +81,18 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
             Just i -> Select i <$> compileExpr structExp
         
         compileExpr (C.If _ _ c th el)  = L.If <$> compileExpr c <*> compileExpr th <*> compileExpr el
+        
+        compileExpr (C.Lambda _ _ x e) = L.Lambda x <$> compileExpr e
 
         compileToLambda :: Decl Codegen -> Sem r LCExpr
-        compileToLambda (Decl (_ty, gs) _ xs e) = foldr addGiven <$> (foldr Lambda <$> compileExpr e <*> pure (map fst xs)) <*> pure gs
+        compileToLambda (Decl (_ty, gs) _ xs e) = foldr addGiven <$> (foldr L.Lambda <$> compileExpr e <*> pure (map fst xs)) <*> pure gs
 
         compileToLambdaWithout :: QualifiedName -> Decl Codegen -> Sem r LCExpr
-        compileToLambdaWithout cname (Decl (_ty, gs) _ xs e) = foldr addGiven <$> (foldr Lambda <$> compileExpr e <*> pure (map fst xs)) <*> pure gs'
+        compileToLambdaWithout cname (Decl (_ty, gs) _ xs e) = foldr addGiven <$> (foldr L.Lambda <$> compileExpr e <*> pure (map fst xs)) <*> pure gs'
             where
                 gs' = filter (\(TGiven (MkConstraint c _) _) -> c /= cname) gs
 
-        addGiven (TGiven (MkConstraint cname t) _) ex = Lambda (dictName cname (coercePass t)) ex
+        addGiven (TGiven (MkConstraint cname t) _) ex = L.Lambda (dictName cname (coercePass t)) ex
 
 compileCases :: LexInfo -> LCExpr -> [(Pattern Codegen, LCExpr)] -> LCExpr
 compileCases li e cases = foldr combineToIf (nonExhaustiveBranch li) cases
@@ -132,7 +134,7 @@ showTypeName (TConstraint (MkConstraint cname ct) t) = "constr-" <> renderDebug 
 collapseDefs :: [LCDef] -> LCExpr
 collapseDefs = foldr makeLet (L.IntLit 0) 
     where
-        makeLet (LCDef n (Lambda x e)) r
+        makeLet (LCDef n (L.Lambda x e)) r
             | length [() | L.App (L.Var v) _ <- universeBi e, v == n] > 0 = L.LetRec n x e r
         makeLet (LCDef n e) r = L.Let n e r
 

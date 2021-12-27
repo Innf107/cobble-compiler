@@ -115,12 +115,13 @@ data Expr (p :: Pass) =
     | Case            (XCase p) LexInfo (Expr p) [CaseBranch p]
     | StructConstruct (XStructConstruct p) LexInfo (Name p) [(UnqualifiedName, Expr p)]
     | StructAccess    (XStructAccess p) LexInfo (Expr p) UnqualifiedName
+    | Lambda          (XLambda p) LexInfo (Name p) (Expr p)
     | ExprX           (XExpr p) LexInfo
 
 type instance InstanceRequirements (Expr p) = 
         [
             XFCall p, XIntLit p, XIf p, XLet p, Decl p, XVar p, XAscription p, XVariantConstr p, XCase p, CaseBranch p, 
-            Name p, Type p, XStructConstruct p, XStructAccess p, XExpr p
+            Name p, Type p, XStructConstruct p, XStructAccess p, XLambda p, XExpr p
         ]
 
 type family XFCall           (p :: Pass)
@@ -133,6 +134,7 @@ type family XVariantConstr   (p :: Pass)
 type family XCase            (p :: Pass)
 type family XStructConstruct (p :: Pass)
 type family XStructAccess    (p :: Pass)
+type family XLambda          (p :: Pass)
 type family XExpr            (p :: Pass)
 
 data CaseBranch (p :: Pass) = CaseBranch (XCaseBranch p) LexInfo (Pattern p) (Expr p)
@@ -365,5 +367,6 @@ instance HasLexInfo (Expr p) where
         Case _ li _ _            -> li
         StructConstruct _ li _ _ -> li
         StructAccess _ li _ _    -> li
+        Lambda _ li _ _          -> li
         ExprX _ li               -> li
         

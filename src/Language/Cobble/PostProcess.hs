@@ -47,6 +47,7 @@ postProcessExpr = \case
     Case t li e cases -> Case (coercePass t) li (postProcessExpr e) (map postProcessCaseBranch cases)
     StructConstruct (sd, ty) li sname fexprs -> 
         StructConstruct (coercePass sd, coercePass ty) li sname (map (second postProcessExpr) fexprs)
+    Lambda ty li x e -> Lambda (coercePass ty) li x (postProcessExpr e)
     where
         getStructName :: Type PostProcess -> QualifiedName
         getStructName (TCon name _) = name

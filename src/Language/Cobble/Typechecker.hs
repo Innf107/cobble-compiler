@@ -273,6 +273,16 @@ check (StructAccess possibleStructs li sexpr field) = do
     tellLI li [OneOf sexprTy structTys]
     -- Codegen needs the correct StructDef, but we don't know that until the constraint solver is done
     pure (StructAccess (coercePass possibleStructs, sexprTy, retTy) li sexpr' field)
+check (Lambda () li x e) = do
+    xType <- freshTV KStar
+    insertType x xType
+
+    e'  <- check e
+
+    pure $ Lambda (xType :-> getType e') li x e'
+
+
+
 
 checkPattern :: Members '[Writer [TConstraint], Writer [TWanted], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass), State TCState, Reader LexInfo] r
              => Pattern Typecheck
