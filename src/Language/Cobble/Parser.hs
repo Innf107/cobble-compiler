@@ -370,7 +370,7 @@ functionType :: LexInfo -> Type NextPass -> Parser (LexInfo, Type NextPass)
 functionType li tyA = do
     reservedOp' "->"
     (le, tyB) <- typeP
-    pure (li `mergeLexInfo` le, tyA -:> tyB)
+    pure (li `mergeLexInfo` le, tyA :-> tyB)
 
 withParen :: Parser a -> Parser a
 withParen a = paren "(" *> a <* paren ")"

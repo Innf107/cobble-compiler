@@ -30,6 +30,7 @@ instance HasType (Expr 'PostProcess) 'PostProcess where
     getType = \case
         FCall t _ _ _                       -> t
         Var (t, _) _ _                      -> t
+        Ascription t _ _ _                  -> t
         VariantConstr (t,_,_) _ _           -> t
         Case t _ _ _                        -> t
         IntLit _ _ _                        -> intT
@@ -45,6 +46,7 @@ instance HasType (Expr 'Codegen) 'Codegen where
     getType = \case
         FCall t _ _ _                       -> t
         Var (t, _) _ _                      -> t
+        Ascription t _ _ _                  -> t
         VariantConstr (t,_,_) _ _           -> t
         Case t _ _ _                        -> t
         IntLit _ _ _                        -> intT

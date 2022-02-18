@@ -39,10 +39,11 @@ postProcessExpr = \case
     FCall ty li f as -> FCall (coercePass ty) li (postProcessExpr f) (fmap postProcessExpr as) 
     IntLit () li n -> IntLit () li n
     UnitLit li -> UnitLit li
-    If () li cond th el -> If () li (postProcessExpr cond) (postProcessExpr th) (postProcessExpr el) 
+    If t li cond th el -> If (coercePass t) li (postProcessExpr cond) (postProcessExpr th) (postProcessExpr el) 
     Let () li decl b -> 
         Let () li (postProcessDecl decl) (postProcessExpr b)
     Var (ty, ws) li n -> Var (coercePass ty, ws) li n
+    Ascription t li e t2 -> Ascription (coercePass t) li (postProcessExpr e) (coercePass t2)
     VariantConstr (ty, e, i) li n -> VariantConstr (coercePass ty, e, i) li n
     Case t li e cases -> Case (coercePass t) li (postProcessExpr e) (map postProcessCaseBranch cases)
     StructConstruct (sd, ty) li sname fexprs -> 
@@ -52,6 +53,7 @@ postProcessExpr = \case
         getStructName :: Type PostProcess -> QualifiedName
         getStructName (TCon name _) = name
         getStructName (TApp t1 _) = getStructName t1
+        getStructName ty@(TFun a b) = error $ "postProcessExpr: Type checker inferred function type for StructAccess expression: " <> show ty
         getStructName (TVar v) = error $ "postProcessExpr: Type checker inferred type variable for StructAccess expression: " <> show v
         getStructName (TSkol v) = error $ "postProcessExpr: Type checker inferred skolem variable for StructAccess expression: " <> show v
         getStructName (TForall _ t) = getStructName t 

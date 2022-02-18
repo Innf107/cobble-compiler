@@ -204,20 +204,23 @@ compileWithSig :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName]
 compileWithSig m = do
     let qualScopes = map modSigToScope (toList $ xModule m)
 
-    let tcState = foldMap (\dsig -> TCState {
-                    _varTypes= fmap coercePass $ exportedVars dsig <> (view _1 <$> exportedVariantConstrs dsig)
-                ,   _tcInstances = coercePass $ exportedInstances dsig
+    let tcEnv = foldr (\dsig r -> TCEnv {
+                    _varTypes= fmap coercePass (exportedVars dsig <> (view _1 <$> exportedVariantConstrs dsig)) <> _varTypes r
+                ,   _tcInstances = coercePass (exportedInstances dsig) <> _tcInstances r
                 })
-                (xModule m)
+                (TCEnv mempty mempty)
+                (toList $ xModule m)
     qMod  <- mapError QualificationError $ evalStackStatePanic (mconcat qualScopes) $ qualify m
 
     saMod <- mapError SemanticError $ runSemanticAnalysis qMod
 
     freshWithInternal do
-        tcMod <- dumpWhenWithM (asks ddumpTC) ppGivens "dump-givens.tc" 
-            $ dumpWhenWithM (asks ddumpTC) ppWanteds "dump-wanteds.tc" 
-            $ dumpWhenWithM (asks ddumpTC) ppTC "dump-tc.tc" 
-            $ mapError TypeError $ evalState tcState $ typecheck saMod
+        tcMod <- -- dumpWhenWithM (asks ddumpTC) ppGivens "dump-givens.tc" 
+            -- $ dumpWhenWithM (asks ddumpTC) ppWanteds "dump-wanteds.tc" 
+            -- $ dumpWhenWithM (asks ddumpTC) ppTC "dump-tc.tc" 
+            -- $ mapError TypeError $ 
+            runFreshM (\(MkTVar n k) -> freshVar (originalName n) <&> \n' -> MkTVar n' k)
+            $ typecheck tcEnv saMod -- TODO: provide environment from other modules
 
         let ppMod = postProcess tcMod
 

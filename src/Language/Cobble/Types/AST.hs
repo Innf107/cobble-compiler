@@ -171,6 +171,7 @@ data Type (p :: Pass) = TCon (Name p) (XKind p)
                       | TVar (TVar p)
                       | TSkol (TVar p)
                       | TForall [TVar p] (Type p)
+                      | TFun (Type p) (Type p)
                       | TConstraint (Constraint p) (Type p)
 
 data TVar (p :: Pass) = MkTVar (Name p) (XKind p)
@@ -189,17 +190,9 @@ type instance InstanceRequirements (Type p) = [Name p, XKind p, TVar p]
 type instance InstanceRequirements (TVar p) = [Name p, XKind p]
 type instance InstanceRequirements (Constraint p) = [Name p, XKind p, Type p]
 
-(-:>) :: (TyLit (Name p), IsKind (XKind p)) => Type p -> Type p -> Type p
-t1 -:> t2 = TApp (TApp (TCon tyFunT (kFun kStar (kFun kStar kStar))) t1) t2
-infixr 5 -:>
-
-pattern (:->) :: (Name p ~ QualifiedName, Eq (Name p), XKind p ~ Kind) => Type p -> Type p -> Type p
-pattern (:->) t1 t2 = TApp (TApp (TCon (UnsafeQualifiedName "->" 0 InternalLexInfo) (KFun KStar (KFun KStar KStar))) t1) t2
+pattern (:->) :: Type p -> Type p -> Type p
+pattern (:->) t1 t2 = TFun t1 t2
 infixr 1 :->
-
-pattern (:~>) :: (Name p ~ Text, Eq (Name p), XKind p ~ Kind) => Type p -> Type p -> Type p
-pattern (:~>) t1 t2 = TApp (TApp (TCon "->" (KFun KStar (KFun KStar KStar))) t1) t2
-infixr 1 :~>
 
 type family XKind (p :: Pass)
 
@@ -313,6 +306,7 @@ instance ((XKind p) ~ Kind) => HasKind (Type p) where
             (KFun kp kr, ka)
                 | kp == ka -> pure kr
             (k1, k2) -> Left (k1, k2)
+        TFun t1 t2 -> pure KStar
         TForall _ t -> kind t
         TConstraint _ t -> kind t 
     

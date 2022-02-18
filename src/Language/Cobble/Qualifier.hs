@@ -270,6 +270,7 @@ qualifyType allowFreeVars = go
         go :: Type QualifyNames -> Sem r (Type NextPass)
         go (TCon tyName ()) = (\(tyName', k, _) -> TCon tyName' k) <$> lookupType tyName
         go (TApp f x) = TApp <$> go f <*> go x
+        go (TFun a b) = TFun <$> go a <*> go b
         go (TVar tv) = runError (lookupTVar tv) >>= \case
             Right tv' -> pure (TVar tv')
             Left err

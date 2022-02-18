@@ -39,10 +39,10 @@ type instance XStatement        PostProcess = Void
 
 type instance XFCall            PostProcess = (Type PostProcess)
 type instance XIntLit           PostProcess = ()
-type instance XIf               PostProcess = ()
+type instance XIf               PostProcess = Type PostProcess
 type instance XLet              PostProcess = ()
 type instance XVar              PostProcess = (Type PostProcess, [TWanted])
-type instance XAscription       PostProcess = Void
+type instance XAscription       PostProcess = Type PostProcess
 type instance XVariantConstr    PostProcess = (Type PostProcess, Int, Int)
 --                                                                ^    ^
 --                                                                |    constructor index

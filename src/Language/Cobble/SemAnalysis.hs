@@ -23,8 +23,7 @@ runSemanticAnalysis (Module x n sts) = fmap (coercePass . Module x n)
     $ transformBiM checkStructDef
     =<< transformBiM checkAndReorderStructConstruct 
     =<< transformBiM reorderAndCheckInstances 
-    (transformBi (skolemizeAscriptions)
-    $ transformBi (implicitForall . implicitClassConstraints) sts)
+    (transformBi (implicitForall . implicitClassConstraints) sts)
 
 
 checkStructDef :: Members '[Error SemanticError] r => Statement SemAnalysis -> Sem r (Statement SemAnalysis)
@@ -68,22 +67,6 @@ addForall :: Type SemAnalysis -> Type SemAnalysis
 addForall t = case ordNub [tv | TVar tv <- universeBi t] of
     []      -> t
     freeTVs -> TForall freeTVs t
-
-skolemizeAscriptions :: Expr SemAnalysis -> Expr SemAnalysis
-skolemizeAscriptions (Ascription x l e ascrTy) = Ascription x l e (skolemizeFreeTyvars mempty ascrTy)
-    where
-        skolemizeFreeTyvars :: Set (TVar SemAnalysis) -> Type SemAnalysis -> Type SemAnalysis
-        skolemizeFreeTyvars bound (TVar tv) 
-            | tv `member` bound = TVar tv
-            | otherwise = TSkol tv
-        skolemizeFreeTyvars bound (TForall ps ty) = skolemizeFreeTyvars (foldr S.insert bound ps) ty
-        skolemizeFreeTyvars _ t@TCon{} = t
-        skolemizeFreeTyvars _ t@TSkol{} = t
-        skolemizeFreeTyvars bound (TApp t1 t2) = TApp (skolemizeFreeTyvars bound t1) (skolemizeFreeTyvars bound t2)
-        skolemizeFreeTyvars bound (TConstraint (MkConstraint cname ct) ty) = 
-            TConstraint (MkConstraint cname (skolemizeFreeTyvars bound ct)) (skolemizeFreeTyvars bound ty)
-skolemizeAscriptions e = e
-
 
 detectDuplicateFields :: Members '[Error SemanticError] r => LexInfo -> [(UnqualifiedName, a)] -> Sem r [(UnqualifiedName, a)]
 detectDuplicateFields li xs = case ks \\ unstableNub ks of

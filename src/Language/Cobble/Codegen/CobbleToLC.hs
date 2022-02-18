@@ -47,6 +47,8 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
             where
                 addConstraint ex (TWanted (MkConstraint cname t) _) = App ex (L.Var (dictName cname (coercePass t)))
 
+        compileExpr (C.Ascription _ _ e _) = compileExpr e
+
         compileExpr (C.VariantConstr (_, 0, i) _ n) = pure $ L.Tuple [L.IntLit i]
         compileExpr (C.VariantConstr (_, expectedParams, i) _ n) = do 
             params <- replicateM expectedParams (freshVar "v")
@@ -126,6 +128,7 @@ dictName (UnsafeQualifiedName original i li) ty = UnsafeQualifiedName ("d_" <> o
 showTypeName :: Type Codegen -> Text
 showTypeName (TCon n _) = renderDebug n
 showTypeName (TApp t1 t2) = showTypeName t1 <> "_" <> showTypeName t2
+showTypeName (TFun t1 t2) = "fun_" <> showTypeName t1 <> "_" <> showTypeName t2
 showTypeName (TVar (MkTVar n _)) = "v" <> renderDebug n
 showTypeName (TSkol (MkTVar n _)) = "s" <> renderDebug n
 showTypeName (TForall ps t) = "forall-" <> T.intercalate "-" (map (\(MkTVar n _) -> renderDebug n) ps)  <> "_" <> showTypeName t

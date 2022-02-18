@@ -42,10 +42,10 @@ type instance XStatement        Codegen = Void
 
 type instance XFCall            Codegen = Type Codegen
 type instance XIntLit           Codegen = ()
-type instance XIf               Codegen = ()
+type instance XIf               Codegen = Type Codegen
 type instance XLet              Codegen = ()
 type instance XVar              Codegen = (Type Codegen, [TWanted])
-type instance XAscription       Codegen = Void
+type instance XAscription       Codegen = Type Codegen
 type instance XVariantConstr    Codegen = (Type Codegen, Int, Int)
 --                                                        ^    ^
 --                                                        |    constructor index
