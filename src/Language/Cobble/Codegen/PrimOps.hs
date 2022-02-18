@@ -22,7 +22,7 @@ data PrimOp = True_
 
 data PrimOpInfo = PrimOpInfo {
         _primOp :: PrimOp
-    ,   _primOpType :: Type Codegen
+    ,   _primOpType :: Type
     }
 
 primOps :: Map QualifiedName PrimOpInfo 

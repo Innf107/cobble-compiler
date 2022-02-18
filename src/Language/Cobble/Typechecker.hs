@@ -7,7 +7,7 @@ import Language.Cobble.Util.Convert
 import Language.Cobble.Util.Bitraversable
 import Language.Cobble.Util.Polysemy.Fresh
 import Language.Cobble.Util.Polysemy.Dump
-import Language.Cobble.Types hiding (Type)
+import Language.Cobble.Types
 import Language.Cobble.Types qualified as C 
 import Language.Cobble.Types.Lens
 import Language.Cobble.Core.Types qualified as Core
@@ -20,8 +20,6 @@ import Data.Traversable (for)
 import Data.List.NonEmpty qualified as NE
 
 type NextPass = PostProcess
-
-type Type = C.Type NextPass
 
 data TCEnv = TCEnv {
     _varTypes :: M.Map QualifiedName Type
@@ -52,7 +50,7 @@ subsume :: Members '[Writer [TConstraint], Reader LexInfo] r => Type -> Type -> 
 subsume t1 t2 = ask >>= \li -> tell [MkTConstraint (Unify t1 t2) li]
 
 
-newtype Substitution = Subst {unSubst :: Map (TVar NextPass) Type} 
+newtype Substitution = Subst {unSubst :: Map TVar Type} 
     deriving stock   (Show, Eq, Generic, Data)
 
 -- Not sure if this is really associative...
@@ -77,13 +75,13 @@ lookupType v TCEnv{_varTypes} = lookup v _varTypes & fromMaybe (error $ "lookupT
 insertType :: QualifiedName -> Type -> TCEnv -> TCEnv
 insertType x t env = env & varTypes %~ insert x t
 
-typecheck :: Members '[Fresh (TVar NextPass) (TVar NextPass), Fresh Text QualifiedName] r 
+typecheck :: Members '[Fresh TVar TVar, Fresh Text QualifiedName] r 
           => TCEnv 
           -> Module Typecheck 
           -> Sem r (Module NextPass)
 typecheck = undefined
 
-check :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass)] r 
+check :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh TVar TVar] r 
       => TCEnv
       -> Expr Typecheck 
       -> Type 
@@ -147,7 +145,7 @@ check env (Lambda () li x e) t = runReader li do
 
     pure (Lambda t li x e')
 
-infer :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass)] r 
+infer :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh TVar TVar] r 
       => TCEnv
       -> Expr Typecheck 
       -> Sem r (Expr NextPass)
@@ -218,7 +216,7 @@ infer env (Lambda () li x e) = do
 
     pure (Lambda (xTy :-> getType e') li x e')
 
-checkPoly :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh (TVar NextPass) (TVar NextPass)] r 
+checkPoly :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh TVar TVar] r 
           => TCEnv
           -> Expr Typecheck 
           -> Type 
@@ -232,7 +230,7 @@ checkPoly env expr ty = do
     (_tvs, ty') <- projection ty 
     check env expr ty'
 
-projection :: Members '[Fresh (TVar NextPass) (TVar NextPass)] r => Type -> Sem r ([TVar NextPass], Type)
+projection :: Members '[Fresh TVar TVar] r => Type -> Sem r ([TVar], Type)
 projection (TForall tvs ty) = do
     newTVs <- traverse freshVar tvs
     first (<>newTVs) <$> projection (replaceTVars (M.fromList (zipWith (\x y -> (x, TVar y)) tvs newTVs)) ty)
@@ -255,7 +253,7 @@ since even in Haskell, function signatures are strongly encouraged, it is ultima
 checkInst :: Members '[Writer [TConstraint], Reader LexInfo] r => Type -> Type -> Sem r ()
 checkInst = subsume
 
-inferInst :: Members '[Fresh (TVar NextPass) (TVar NextPass)] r => Type -> Sem r Type
+inferInst :: Members '[Fresh TVar TVar] r => Type -> Sem r Type
 inferInst (TForall tvs ty) = do
     tvMap <- M.fromList <$> traverse (\tv -> (tv,) . TVar <$> freshVar tv) tvs
     pure $ replaceTVars tvMap ty
@@ -288,7 +286,7 @@ lambdasToDecl li f = go []
 freshTV :: Members '[Fresh Text QualifiedName] r => Kind -> Sem r Type
 freshTV k = freshVar "u" <&> \u -> TVar (MkTVar u k) 
 
-replaceTVars :: Map (TVar NextPass) Type -> Type -> Type
+replaceTVars :: Map TVar Type -> Type -> Type
 replaceTVars tvs ty@(TVar tv) = case lookup tv tvs of
                 Just ty' -> ty'
                 Nothing -> ty
@@ -352,7 +350,7 @@ ppType (TApp a b)           = "(" <> ppType a <> " " <> ppType b <> ")"
 ppType (TForall ps t)       = "(∀" <> T.intercalate " " (map (\(MkTVar v _) -> show v) ps) <> ". " <> ppType t <> ")"
 ppType (TConstraint c t)    = ppConstraint c <> " => " <> ppType t
 
-ppConstraint :: Constraint NextPass -> Text
+ppConstraint :: Constraint -> Text
 ppConstraint (MkConstraint n t) = show n <> " " <> ppType t
 
 

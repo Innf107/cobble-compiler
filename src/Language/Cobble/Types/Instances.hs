@@ -9,4 +9,3 @@ import Language.Cobble.Types.TH
 
 deriveInstanceReqs
 
-derivePass ''Ord ''TVar

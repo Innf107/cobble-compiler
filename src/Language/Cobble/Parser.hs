@@ -207,7 +207,7 @@ fixity = "fixity declaration" <??> (\(ls, f) (le, i) -> (ls `mergeLexInfo` le, f
     <*> intLit
 
 defStruct :: Parser (Statement NextPass)
-defStruct = "struct definition" <??> (\ls n ps fs le -> DefStruct () (ls `mergeLexInfo` le) n (map (\x -> MkTVar x ()) ps) fs)
+defStruct = "struct definition" <??> (\ls n ps fs le -> DefStruct () (ls `mergeLexInfo` le) n ps fs)
     <$> reserved "struct"
     <*> ident'
     <*> many ident'
@@ -216,7 +216,7 @@ defStruct = "struct definition" <??> (\ls n ps fs le -> DefStruct () (ls `mergeL
     <*> paren "}"
    
 defVariant :: Parser (Statement NextPass)
-defVariant = "variant definition" <??> (\ls n ps cs -> DefVariant () (ls `mergeLexInfo` snd (unsafeLast cs)) n (map (`MkTVar`()) ps) (map (\((n,ts),_) -> (n, ts, ())) cs))
+defVariant = "variant definition" <??> (\ls n ps cs -> DefVariant () (ls `mergeLexInfo` snd (unsafeLast cs)) n ps (map (\((n,ts),_) -> (n, ts, ())) cs))
     <$> reserved "variant"
     <*> ident'
     <*> many ident'
@@ -228,7 +228,7 @@ defVariant = "variant definition" <??> (\ls n ps cs -> DefVariant () (ls `mergeL
             <*> many namedType
 
 defClass :: Parser (Statement NextPass)
-defClass = "class definition" <??> (\ls n ps cs le -> DefClass () (ls `mergeLexInfo` le) n (map (\v -> MkTVar v ()) ps) cs)
+defClass = "class definition" <??> (\ls n ps cs le -> DefClass () (ls `mergeLexInfo` le) n ps cs)
     <$> reserved "class"
     <*> ident'
     <*> many ident'
@@ -327,21 +327,21 @@ varP = do
 statements :: Parser [Statement NextPass]
 statements = many (statement <* reservedOp ";")
 
-signature :: Parser (LexInfo, Text, Type NextPass)
+signature :: Parser (LexInfo, Text, UType)
 signature = "signature" <??> (\(ls, n) (le, t) -> (ls `mergeLexInfo` le, n, t))
     <$> ident 
     <*  reservedOp' "::"
     <*> typeP
 
-signature' :: Parser (Text, Type NextPass)
+signature' :: Parser (Text, UType)
 signature' = (\(_, y, z) -> (y, z)) <$> signature
 
-typeP :: Parser (LexInfo, Type NextPass)
+typeP :: Parser (LexInfo, UType)
 typeP = "type" <??> constrained <|> unconstrained
     where
         constrained = do
             (ls, c) <- try $ constraint <* reservedOp' "=>"
-            (\(le, t) -> (ls `mergeLexInfo` le, TConstraint c t))
+            (\(le, t) -> (ls `mergeLexInfo` le, UTConstraint c t))
                 <$> unconstrained
         unconstrained = do
             (ls, t1) <- namedType
@@ -349,28 +349,28 @@ typeP = "type" <??> constrained <|> unconstrained
             let ls' = case restTys of
                     [] -> ls
                     _ -> ls `mergeLexInfo` fst (unsafeLast restTys) 
-            let t' = foldl' TApp t1 (map snd restTys)
+            let t' = foldl' UTApp t1 (map snd restTys)
             functionType ls' t' 
                 <|> pure (ls', t')
                     
 
-constraint :: Parser (LexInfo, Constraint NextPass)
-constraint = (\(ls, n) (le, t) -> (ls `mergeLexInfo` le, MkConstraint n t))
+constraint :: Parser (LexInfo, UConstraint)
+constraint = (\(ls, n) (le, t) -> (ls `mergeLexInfo` le, MkUConstraint n t))
     <$> ident
     <*> typeP
 
-namedType :: Parser (LexInfo, Type NextPass)
+namedType :: Parser (LexInfo, UType)
 namedType = withParen typeP <|> do
     (li, i) <- ident
     pure $ if isLower (T.head $ T.takeWhileEnd (/='.') i)
-        then (li, TVar (MkTVar i ()))
-        else (li, TCon i ())
+        then (li, UTVar i)
+        else (li, UTCon i)
 
-functionType :: LexInfo -> Type NextPass -> Parser (LexInfo, Type NextPass)
+functionType :: LexInfo -> UType -> Parser (LexInfo, UType)
 functionType li tyA = do
     reservedOp' "->"
     (le, tyB) <- typeP
-    pure (li `mergeLexInfo` le, tyA :-> tyB)
+    pure (li `mergeLexInfo` le, tyA `UTFun` tyB)
 
 withParen :: Parser a -> Parser a
 withParen a = paren "(" *> a <* paren ")"

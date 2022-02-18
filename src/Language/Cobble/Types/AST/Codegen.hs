@@ -26,46 +26,49 @@ deriving instance Data TypeVariant
 
 type instance XModule Codegen = Map (Name Codegen) ModSig
 
-type instance XDecl      Codegen = (Type Codegen, [TGiven])
-type instance XParam     Codegen = [(Name Codegen, Type Codegen)]
+type instance XDecl      Codegen = (Type, [TGiven])
+type instance XParam     Codegen = [(Name Codegen, Type)]
 
 type instance XDef              Codegen = Maybe Fixity
 type instance XImport           Codegen = ()
 type instance XDefStruct        Codegen = Kind
 type instance XDefVariant       Codegen = Kind
-type instance XDefVariantClause Codegen = (Type Codegen, Int, Int)
+type instance XDefVariantClause Codegen = (Type, Int, Int)
 type instance XDefClass         Codegen = Kind
 -- XDefInstance uses a list of pairs instead of a Map, because SemAnalysis shuffles declarations around
 -- to have the same order as class declaration.
-type instance XDefInstance      Codegen = ([(QualifiedName, Type Codegen)], [TVar Codegen])
+type instance XDefInstance      Codegen = ([(QualifiedName, Type)], [TVar])
 type instance XStatement        Codegen = Void
 
-type instance XFCall            Codegen = Type Codegen
+type instance XFCall            Codegen = Type
 type instance XIntLit           Codegen = ()
-type instance XIf               Codegen = Type Codegen
+type instance XIf               Codegen = Type
 type instance XLet              Codegen = ()
-type instance XVar              Codegen = (Type Codegen, [TWanted])
-type instance XAscription       Codegen = Type Codegen
-type instance XVariantConstr    Codegen = (Type Codegen, Int, Int)
+type instance XVar              Codegen = (Type, [TWanted])
+type instance XAscription       Codegen = Type
+type instance XVariantConstr    Codegen = (Type, Int, Int)
 --                                                        ^    ^
 --                                                        |    constructor index
 --                                                        expected number of args
-type instance XCase             Codegen = Type Codegen
+type instance XCase             Codegen = Type
 
-type instance XStructConstruct  'Codegen = (StructDef 'Codegen, Type 'Codegen)
-type instance XStructAccess     'Codegen = (StructDef 'Codegen, Type 'Codegen)
+type instance XStructConstruct  'Codegen = (StructDef, Type)
+type instance XStructAccess     'Codegen = (StructDef, Type)
 
-type instance XLambda            Codegen = Type Codegen
+type instance XLambda            Codegen = Type
 
 type instance XExpr              Codegen = Void
 
 type instance XCaseBranch Codegen = ()
 
 type instance XIntP     Codegen = ()
-type instance XVarP     Codegen = Type Codegen
-type instance XConstrP  Codegen = (Type Codegen, Int)
+type instance XVarP     Codegen = Type
+type instance XConstrP  Codegen = (Type, Int)
 type instance XPattern  Codegen = Void
 
 type instance Name 'Codegen = QualifiedName
 
 type instance XKind 'Codegen = Kind
+
+type instance XType Codegen = Type
+type instance XTVar Codegen = TVar

@@ -14,7 +14,7 @@ data QualificationError = VarNotFound LexInfo Text
                         | FixityNotFound LexInfo Text
                         | VariantConstrNotFound LexInfo Text
                         | TypeNotFound LexInfo Text
-                        | TVarNotFound LexInfo (TVar QualifyNames)
+                        | TVarNotFound LexInfo UnqualifiedName
                         | InstanceForNonClass LexInfo QualifiedName Kind TypeVariant
                         | NonClassInConstraint LexInfo QualifiedName Kind TypeVariant
                         | StructConstructNotAStruct LexInfo QualifiedName Kind TypeVariant
@@ -198,7 +198,7 @@ qualifyExpr (StructAccess () li structExpr fieldName) = runReader li do
         <$> qualifyExpr structExpr
         <*> pure fieldName
         where
-            possibleStruct :: (QualifiedName, Kind, TypeVariant) -> Maybe (QualifiedName, StructDef NextPass)
+            possibleStruct :: (QualifiedName, Kind, TypeVariant) -> Maybe (QualifiedName, StructDef)
             possibleStruct (tyName, _, (RecordType tvs fields))
                 | fieldName `elem` (map fst fields) = Just (tyName, StructDef tyName (coercePass tvs) (map (second coercePass) fields))
             possibleStruct _ = Nothing
@@ -263,15 +263,15 @@ qualifyPattern (ConstrP () cname ps) = do
 
 qualifyType :: forall r. Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r 
             => Bool
-            -> Type QualifyNames
-            -> Sem r (Type NextPass)
+            -> UType
+            -> Sem r Type
 qualifyType allowFreeVars = go
     where
-        go :: Type QualifyNames -> Sem r (Type NextPass)
-        go (TCon tyName ()) = (\(tyName', k, _) -> TCon tyName' k) <$> lookupType tyName
-        go (TApp f x) = TApp <$> go f <*> go x
-        go (TFun a b) = TFun <$> go a <*> go b
-        go (TVar tv) = runError (lookupTVar tv) >>= \case
+        go :: UType -> Sem r Type
+        go (UTCon tyName) = (\(tyName', k, _) -> TCon tyName' k) <$> lookupType tyName
+        go (UTApp f x) = TApp <$> go f <*> go x
+        go (UTFun a b) = TFun <$> go a <*> go b
+        go (UTVar tv) = runError (lookupTVar tv) >>= \case
             Right tv' -> pure (TVar tv')
             Left err
                 | allowFreeVars -> do
@@ -279,24 +279,23 @@ qualifyType allowFreeVars = go
                     addTVar tv tv'
                     pure (TVar tv')
                 | otherwise -> throw err
-        go (TSkol tv) = error $ "Source level skolems should not exist: " <> show (TSkol tv)
-        go (TForall ps ty) = withFrame do
+        go (UTForall ps ty) = withFrame do
             ps' <- traverse (qualifyTVar KStar) ps -- TODO: [Kind inference]: should not just be KStar
             zipWithM_ addTVar ps ps'
             TForall ps' <$> go ty
-        go (TConstraint constr ty) = TConstraint <$> goConstraint constr <*> go ty
+        go (UTConstraint constr ty) = TConstraint <$> goConstraint constr <*> go ty
 
-        goConstraint :: Constraint QualifyNames -> Sem r (Constraint NextPass)
-        goConstraint (MkConstraint className ty) = lookupType className >>= \case
+        goConstraint :: UConstraint -> Sem r Constraint
+        goConstraint (MkUConstraint className ty) = lookupType className >>= \case
             (className', _, TyClass _ _) -> MkConstraint className' <$> go ty
             (className', k, tv) -> ask >>= \li -> throw $ NonClassInConstraint li className' k tv
 
 
 qualifyTVar :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r 
             => Kind
-            -> TVar QualifyNames
-            -> Sem r (TVar NextPass)
-qualifyTVar k (MkTVar n ()) = ask >>= \li -> MkTVar <$> freshVar (n, li) <*> pure k
+            -> UnqualifiedName
+            -> Sem r TVar
+qualifyTVar k n = ask >>= \li -> MkTVar <$> freshVar (n, li) <*> pure k
 
 addVar :: Members '[StackState Scope] r => Text -> QualifiedName -> Sem r ()
 addVar n n' = smodify (scopeVars %~ insert n n')
@@ -314,8 +313,8 @@ addVariantConstr n n' ep i = smodify (scopeVariantConstrs %~ insert n (n', ep, i
 addType :: Members '[StackState Scope] r => Text -> QualifiedName -> Kind -> TypeVariant -> Sem r ()
 addType n n' k tv = smodify (scopeTypes %~ insert n (n', k, tv))
 
-addTVar :: Members '[StackState Scope] r => TVar QualifyNames -> TVar NextPass -> Sem r ()
-addTVar (MkTVar n ()) (MkTVar n' k) = smodify (scopeTVars %~ insert n (n', k))
+addTVar :: Members '[StackState Scope] r => UnqualifiedName -> TVar -> Sem r ()
+addTVar n (MkTVar n' k) = smodify (scopeTVars %~ insert n (n', k))
 
 lookupVar :: Members '[StackState Scope, Error QualificationError, Reader LexInfo] r => Text -> Sem r QualifiedName
 lookupVar n = sgets (lookup n . _scopeVars) >>= \case
@@ -337,12 +336,12 @@ lookupType n = sgets (lookup n . _scopeTypes) >>= \case
     Just t -> pure t
     Nothing -> ask >>= \li -> throw $ TypeNotFound li n 
 
-lookupTVar :: Members '[StackState Scope, Error QualificationError, Reader LexInfo] r => TVar QualifyNames -> Sem r (TVar NextPass)
-lookupTVar (MkTVar n ()) = sgets (lookup n . _scopeTVars) >>= \case
+lookupTVar :: Members '[StackState Scope, Error QualificationError, Reader LexInfo] r => UnqualifiedName -> Sem r TVar
+lookupTVar n = sgets (lookup n . _scopeTVars) >>= \case
     Just (n', k) -> pure (MkTVar n' k)
-    Nothing -> ask >>= \li -> throw $ TVarNotFound li (MkTVar n ())
+    Nothing -> ask >>= \li -> throw $ TVarNotFound li n
 
-getTyConKind :: [TVar NextPass] -> Kind
+getTyConKind :: [TVar] -> Kind
 getTyConKind = foldr (\(MkTVar _ k) r -> k `KFun` r) KStar 
 
 

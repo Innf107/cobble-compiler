@@ -23,10 +23,10 @@ import Language.Cobble.Prelude
 type NameSpace = Text
 
 
-class HasType t p | t -> p where
-    getType :: t -> Type p
+class HasType t where
+    getType :: t -> Type
 
-instance HasType (Expr 'PostProcess) 'PostProcess where
+instance HasType (Expr PostProcess) where
     getType = \case
         FCall t _ _ _                       -> t
         Var (t, _) _ _                      -> t
@@ -42,7 +42,7 @@ instance HasType (Expr 'PostProcess) 'PostProcess where
         Lambda t _ _ _                      -> t
 
 
-instance HasType (Expr 'Codegen) 'Codegen where
+instance HasType (Expr 'Codegen) where
     getType = \case
         FCall t _ _ _                       -> t
         Var (t, _) _ _                      -> t
@@ -57,13 +57,13 @@ instance HasType (Expr 'Codegen) 'Codegen where
         StructAccess (_, t) _ _ _           -> t
         Lambda t _ _ _                      -> t
 
-instance HasType (Decl PostProcess) PostProcess where
+instance HasType (Decl PostProcess) where
     getType (Decl (t, _) _ _ _) = t
 
-instance HasType (Pattern PostProcess) PostProcess where
+instance HasType (Pattern PostProcess) where
     getType (IntP () n) = intT
     getType (VarP ty _) = ty
     getType (ConstrP (ty, _) _ _) = ty
 
-instance HasType (Type p) p where
+instance HasType Type where
     getType = id

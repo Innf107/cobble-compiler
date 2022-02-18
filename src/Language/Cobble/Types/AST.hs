@@ -39,17 +39,17 @@ type family XModule (p :: Pass)
 -- everything that it exports
 -- (Variables, Functions, Types, etc.)
 data ModSig = ModSig {
-    exportedVars            :: Map QualifiedName (Type 'Codegen)
-,   exportedVariantConstrs  :: Map QualifiedName (Type 'Codegen, Int, Int)
+    exportedVars            :: Map QualifiedName Type
+,   exportedVariantConstrs  :: Map QualifiedName (Type, Int, Int)
 ,   exportedTypes           :: Map QualifiedName (Kind, TypeVariant)
 ,   exportedFixities        :: Map QualifiedName Fixity
-,   exportedInstances       :: Map QualifiedName [Type Codegen]
+,   exportedInstances       :: Map QualifiedName [Type]
 } deriving (Generic, Typeable) -- Instances for @Eq@ and @Data@ are defined in Language.Cobble.Types.AST.Codegen
 
-data TypeVariant = RecordType [TVar Codegen] [(UnqualifiedName, Type 'Codegen)]
-                 | VariantType [TVar Codegen] [(QualifiedName, [Type Codegen])]
+data TypeVariant = RecordType [XTVar Codegen] [(UnqualifiedName, Type)]
+                 | VariantType [XTVar Codegen] [(QualifiedName, [Type])]
                  | BuiltInType
-                 | TyClass [TVar Codegen] [(QualifiedName, Type Codegen)]
+                 | TyClass [TVar] [(QualifiedName, Type)]
                  deriving (Generic, Typeable)
 
 type Dependencies = Map QualifiedName ModSig
@@ -75,16 +75,16 @@ data Pass = SolveModules
 
 
 data Statement (p :: Pass) =
-      Def           (XDef p)            LexInfo (Decl p) (Type p)
+      Def           (XDef p)            LexInfo (Decl p) (XType p)
     | Import        (XImport p)         LexInfo (Name p) -- TODO: qualified? exposing?
-    | DefStruct     (XDefStruct p)      LexInfo (Name p) [(TVar p)] [(UnqualifiedName, Type p)]
-    | DefClass      (XDefClass p)       LexInfo (Name p) [(TVar p)] [(Name p, Type p)]
-    | DefInstance   (XDefInstance p)    LexInfo (Name p) (Type p) [Decl p]
-    | DefVariant    (XDefVariant p)     LexInfo (Name p) [(TVar p)] [(Name p, [Type p], XDefVariantClause p)]
+    | DefStruct     (XDefStruct p)      LexInfo (Name p) [(XTVar p)] [(UnqualifiedName, XType p)]
+    | DefClass      (XDefClass p)       LexInfo (Name p) [(XTVar p)] [(Name p, XType p)]
+    | DefInstance   (XDefInstance p)    LexInfo (Name p) (XType p) [Decl p]
+    | DefVariant    (XDefVariant p)     LexInfo (Name p) [(XTVar p)] [(Name p, [XType p], XDefVariantClause p)]
     | StatementX    (XStatement p)      LexInfo
 
 type instance InstanceRequirements (Statement p) = 
-    [XDef p, XImport p, XDefStruct p, XDefClass p, XDefInstance p, XDefVariant p, XDefVariantClause p, XStatement p, Name p, Type p, TVar p, Decl p]
+    [XDef p, XImport p, XDefStruct p, XDefClass p, XDefInstance p, XDefVariant p, XDefVariantClause p, XStatement p, Name p, XType p, XTVar p, Decl p]
 
 type family XDef                (p :: Pass)
 type family XParam              (p :: Pass)
@@ -110,7 +110,7 @@ data Expr (p :: Pass) =
     | If              (XIf p) LexInfo (Expr p) (Expr p) (Expr p)
     | Let             (XLet p) LexInfo (Decl p) (Expr p)
     | Var             (XVar p) LexInfo (Name p)
-    | Ascription      (XAscription p) LexInfo (Expr p) (Type p)
+    | Ascription      (XAscription p) LexInfo (Expr p) (XType p)
     | VariantConstr   (XVariantConstr p) LexInfo (Name p)
     | Case            (XCase p) LexInfo (Expr p) [CaseBranch p]
     | StructConstruct (XStructConstruct p) LexInfo (Name p) [(UnqualifiedName, Expr p)]
@@ -121,7 +121,7 @@ data Expr (p :: Pass) =
 type instance InstanceRequirements (Expr p) = 
         [
             XFCall p, XIntLit p, XIf p, XLet p, Decl p, XVar p, XAscription p, XVariantConstr p, XCase p, CaseBranch p, 
-            Name p, Type p, XStructConstruct p, XStructAccess p, XLambda p, XExpr p
+            Name p, XType p, XStructConstruct p, XStructAccess p, XLambda p, XExpr p
         ]
 
 type family XFCall           (p :: Pass)
@@ -159,38 +159,52 @@ type family XVarP       (p :: Pass)
 type family XConstrP    (p :: Pass)
 type family XPattern    (p :: Pass)
 
-data Kind = KStar           
-          | KConstraint 
-          | KFun Kind Kind 
-          deriving (Eq, Ord, Generic, Data, Typeable)
+data Type = TCon QualifiedName Kind
+          | TApp Type Type
+          | TVar TVar
+          | TSkol TVar
+          | TForall [TVar] Type
+          | TFun Type Type
+          | TConstraint Constraint Type
+          deriving (Show, Eq, Generic, Data)
 
-infixr 5 `KFun`
+data UType = UTCon UnqualifiedName
+           | UTApp UType UType
+           | UTVar UnqualifiedName
+           | UTForall [UnqualifiedName] UType
+           | UTFun UType UType
+           | UTConstraint UConstraint UType
+           deriving (Show, Eq, Generic, Data)
 
-data Type (p :: Pass) = TCon (Name p) (XKind p)
-                      | TApp (Type p) (Type p)
-                      | TVar (TVar p)
-                      | TSkol (TVar p)
-                      | TForall [TVar p] (Type p)
-                      | TFun (Type p) (Type p)
-                      | TConstraint (Constraint p) (Type p)
+type family XType (p :: Pass) :: HSType
 
-data TVar (p :: Pass) = MkTVar (Name p) (XKind p)
+data TVar = MkTVar QualifiedName Kind
+          deriving (Show, Eq, Ord, Generic, Data)
+
+type family XTVar (p :: Pass) :: HSType
 
 -- TODO: Ideally, @Constraint@ should be unnecessary and @TConstraint@
 -- should use @Type@ instead. For now there would be no advantage to
 -- this, so Constraint is implemented like this.
 -- TODO: Also, MultiParam Typeclasses!
 -- TODO: This should also really be a List of (Name, Type p), since you might have multiple constraints
-data Constraint p = MkConstraint (Name p) (Type p)
+data Constraint = MkConstraint QualifiedName Type
+                deriving (Show, Eq, Generic, Data)
 
-data TGiven  = TGiven  (Constraint PostProcess) LexInfo
-data TWanted = TWanted (Constraint PostProcess) LexInfo
+data UConstraint = MkUConstraint UnqualifiedName UType 
+                 deriving (Show, Eq, Generic, Data)
 
-type instance InstanceRequirements (Type p) = [Name p, XKind p, TVar p]
-type instance InstanceRequirements (TVar p) = [Name p, XKind p]
-type instance InstanceRequirements (Constraint p) = [Name p, XKind p, Type p]
+data Kind = KStar
+          | KConstraint 
+          | KFun Kind Kind 
+          deriving (Eq, Ord, Generic, Data, Typeable)
 
-pattern (:->) :: Type p -> Type p -> Type p
+infixr 5 `KFun`
+
+data TGiven  = TGiven  Constraint LexInfo
+data TWanted = TWanted Constraint LexInfo
+
+pattern (:->) :: Type -> Type -> Type
 pattern (:->) t1 t2 = TFun t1 t2
 infixr 1 :->
 
@@ -203,19 +217,17 @@ type family XKind (p :: Pass)
 mergeLexInfo :: LexInfo -> LexInfo -> LexInfo
 mergeLexInfo (LexInfo {startPos, file}) (LexInfo {endPos}) = LexInfo {startPos, endPos, file}
 
-data StructDef p = StructDef {
-        _structName :: Name p
-    ,   _structParams :: [TVar p]
-    ,   _structFields :: [(UnqualifiedName, Type p)]
-    }
+data StructDef = StructDef {
+        _structName :: QualifiedName
+    ,   _structParams :: [TVar]
+    ,   _structFields :: [(UnqualifiedName, Type)]
+    } deriving (Show, Eq, Generic, Data)
 
-structKind :: (IsKind (XKind p), Profunctor pf, Contravariant f) => Optic' pf f (StructDef p) (XKind p)
+structKind :: (Profunctor pf, Contravariant f) => Optic' pf f StructDef Kind
 structKind = to \sd -> foldr (\(MkTVar _ k) r -> k `kFun` r) kStar (_structParams sd)
 
-structType :: (IsKind (XKind p), Profunctor pf, Contravariant f) => Optic' pf f (StructDef p) (Type p)
+structType :: (Profunctor pf, Contravariant f) => Optic' pf f StructDef Type
 structType = to \sd -> TCon (_structName sd) (view structKind sd) 
-
-type instance InstanceRequirements (StructDef p) = [Name p, TVar p, Type p]
 
 -- | Represents a (initially left-associative) group of operators whose fixity has not been resolved yet.
 data OperatorGroup (p :: Pass) (f :: FixityStatus) 
@@ -268,7 +280,7 @@ instance TyLit Text where
     tyUnitT = "Unit"
     tyFunT  = "->"
 
-intT, boolT, unitT :: (IsKind (XKind p), TyLit (Name p)) => Type p
+intT, boolT, unitT :: Type
 intT  = TCon tyIntT (fromKind KStar)
 boolT = TCon tyBoolT (fromKind KStar)
 unitT = TCon tyUnitT (fromKind KStar)
@@ -294,10 +306,10 @@ instance IsKind Kind where
 class HasKind t where
     kind :: t -> Either (Kind, Kind) Kind
 
-instance (XKind p ~ Kind) => HasKind (TVar p) where
+instance HasKind TVar where
     kind (MkTVar _ k) = Right k
 
-instance ((XKind p) ~ Kind) => HasKind (Type p) where
+instance HasKind Type where
     kind = \case
         TVar v -> kind v
         TSkol v -> kind v
@@ -310,7 +322,7 @@ instance ((XKind p) ~ Kind) => HasKind (Type p) where
         TForall _ t -> kind t
         TConstraint _ t -> kind t 
     
-instance (HasKind (Type p)) => HasKind (Constraint p) where
+instance HasKind Constraint where
     kind _ = pure kConstraint 
 
 -- | A class used to coerce types between compatible passes (i.e. passes where the types are equivalent).
@@ -337,10 +349,6 @@ deriveCoercePass ''Expr
 deriveCoercePass ''CaseBranch
 deriveCoercePass ''Pattern
 deriveCoercePass ''Decl
-deriveCoercePass ''Type
-deriveCoercePass ''Constraint
-deriveCoercePass ''TVar
-deriveCoercePass ''StructDef
 
 -- TODO: Cannot be generated with TH right now, since it depends on f
 instance {-# INCOHERENT #-} (CoercePass (Name p1) (Name p2), CoercePass (Expr p1) (Expr p2)) => CoercePass (OperatorGroup p1 f) (OperatorGroup p2 f) where

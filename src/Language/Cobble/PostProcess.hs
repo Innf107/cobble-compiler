@@ -50,7 +50,7 @@ postProcessExpr = \case
         StructConstruct (coercePass sd, coercePass ty) li sname (map (second postProcessExpr) fexprs)
     Lambda ty li x e -> Lambda (coercePass ty) li x (postProcessExpr e)
     where
-        getStructName :: Type PostProcess -> QualifiedName
+        getStructName :: Type -> QualifiedName
         getStructName (TCon name _) = name
         getStructName (TApp t1 _) = getStructName t1
         getStructName ty@(TFun a b) = error $ "postProcessExpr: Type checker inferred function type for StructAccess expression: " <> show ty

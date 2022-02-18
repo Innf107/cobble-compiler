@@ -22,7 +22,7 @@ type instance XDefVariantClause SemAnalysis = (Int, Int)
 type instance XDefClass         SemAnalysis = Kind
 -- XDefInstance uses a list of pairs instead of a Map, because SemAnalysis shuffles declarations around
 -- to have the same order as class declaration.
-type instance XDefInstance      SemAnalysis = ([(QualifiedName, Type Codegen)], [TVar Codegen])
+type instance XDefInstance      SemAnalysis = ([(QualifiedName, Type)], [TVar])
 type instance XStatement        SemAnalysis = Void
 
 type instance XFCall            'SemAnalysis = ()
@@ -36,8 +36,8 @@ type instance XVariantConstr    'SemAnalysis = (Int, Int)
 --                                               |    constructor index
 --                                               expected number of args
 type instance XCase             'SemAnalysis = ()
-type instance XStructConstruct  'SemAnalysis = StructDef SemAnalysis
-type instance XStructAccess     'SemAnalysis = Map (Name SemAnalysis) (StructDef SemAnalysis)
+type instance XStructConstruct  'SemAnalysis = StructDef
+type instance XStructAccess     'SemAnalysis = Map (Name SemAnalysis) StructDef
 
 type instance XLambda           SemAnalysis = ()
 
@@ -53,3 +53,6 @@ type instance XPattern  SemAnalysis = Void
 type instance Name 'SemAnalysis = QualifiedName
 
 type instance XKind 'SemAnalysis = Kind
+
+type instance XType SemAnalysis = Type
+type instance XTVar SemAnalysis = TVar

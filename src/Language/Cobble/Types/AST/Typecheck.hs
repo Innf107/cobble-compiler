@@ -22,7 +22,7 @@ type instance XDefVariantClause Typecheck = (Int, Int)
 type instance XDefClass         Typecheck = Kind
 -- XDefInstance uses a list of pairs instead of a Map, because SemAnalysis shuffles declarations around
 -- to have the same order as class declaration.
-type instance XDefInstance      Typecheck = ([(QualifiedName, Type Codegen)], [TVar Codegen])
+type instance XDefInstance      Typecheck = ([(QualifiedName, Type)], [TVar])
 type instance XStatement        Typecheck = Void
 
 type instance XFCall            Typecheck = ()
@@ -36,8 +36,8 @@ type instance XVariantConstr    Typecheck = (Int, Int)
 --                                                           |    constructor index
 --                                                           expected number of args
 type instance XCase             Typecheck = ()
-type instance XStructConstruct  Typecheck = StructDef Typecheck
-type instance XStructAccess     Typecheck = Map (Name Typecheck) (StructDef Typecheck)
+type instance XStructConstruct  Typecheck = StructDef
+type instance XStructAccess     Typecheck = Map (Name Typecheck) StructDef
 
 type instance XLambda           Typecheck = ()
 
@@ -53,3 +53,7 @@ type instance XPattern  Typecheck = Void
 type instance Name Typecheck = QualifiedName
 
 type instance XKind Typecheck = Kind
+
+type instance XType Typecheck = Type
+type instance XTVar Typecheck = TVar
+

@@ -122,10 +122,10 @@ caseToPredicate e (ConstrP (_, i) constr ps) = (Just pred, \e -> foldr ($) e sub
 and' :: LCExpr -> LCExpr -> LCExpr
 and' x y = L.If x y (PrimOp False_ [Tuple []])
 
-dictName :: QualifiedName -> Type Codegen -> QualifiedName
+dictName :: QualifiedName -> Type -> QualifiedName
 dictName (UnsafeQualifiedName original i li) ty = UnsafeQualifiedName ("d_" <> original <> showTypeName ty) i li
     
-showTypeName :: Type Codegen -> Text
+showTypeName :: Type -> Text
 showTypeName (TCon n _) = renderDebug n
 showTypeName (TApp t1 t2) = showTypeName t1 <> "_" <> showTypeName t2
 showTypeName (TFun t1 t2) = "fun_" <> showTypeName t1 <> "_" <> showTypeName t2

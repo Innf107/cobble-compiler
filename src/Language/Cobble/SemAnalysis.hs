@@ -14,9 +14,9 @@ type NextPass = Typecheck
 data SemanticError = MissingField LexInfo UnqualifiedName
                    | NonExistantOrDuplicateFields LexInfo [UnqualifiedName]
                    | DuplicateStructDefFields LexInfo [UnqualifiedName]
-                   | MissingTyClassMethod LexInfo QualifiedName (Type Codegen)
+                   | MissingTyClassMethod LexInfo QualifiedName Type
                    | DuplicateTyClassMethods LexInfo [Decl SemAnalysis]
-                   deriving (Show, Eq)
+                   deriving (Show, Eq, Generic, Data)
 
 runSemanticAnalysis :: Members '[Error SemanticError] r => Module SemAnalysis -> Sem r (Module NextPass)
 runSemanticAnalysis (Module x n sts) = fmap (coercePass . Module x n)
@@ -63,7 +63,7 @@ implicitClassConstraints = \case
     
     x -> x
 
-addForall :: Type SemAnalysis -> Type SemAnalysis
+addForall :: Type -> Type
 addForall t = case ordNub [tv | TVar tv <- universeBi t] of
     []      -> t
     freeTVs -> TForall freeTVs t
