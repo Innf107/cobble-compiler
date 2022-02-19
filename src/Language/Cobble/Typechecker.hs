@@ -97,23 +97,22 @@ typecheckStatements :: Members '[Fresh TVar TVar, Fresh Text QualifiedName, Outp
                     -> [Statement Typecheck]
                     -> Sem r [Statement NextPass]
 typecheckStatements env (Def fixity li (Decl () f xs e) expectedTy : sts) = runReader li do
-    --(xsTys, eTy) <- splitType expectedTy (length xs)
+    (xs', eTy) <- decomposeParams expectedTy xs
 
-    --let xs' = zip xs xsTys
+    let env' = insertType f expectedTy env
 
-    --let env' = insertType f expectedTy env
+    e' <- check (foldr (uncurry insertType) env' xs') e eTy
 
-    --e' <- check (foldr (uncurry insertType) env' xs') e eTy
-
-    -- (Def fixity li (Decl (expectedTy, []) f xs' e') expectedTy :) <$> typecheckStatements env' sts
-    case xs of
-        [] -> do
-            e' <- check (insertType f expectedTy env) e expectedTy
-            (Def fixity li (Decl (expectedTy, []) f [] e') expectedTy :) <$> typecheckStatements (insertType f expectedTy env) sts
-        _ -> error $ "typecheckStatements: function definitions NYI. Please use a lambda for now  @" <> show li
+    (Def fixity li (Decl (expectedTy, []) f xs' e') expectedTy :) <$> typecheckStatements env' sts
+    where
+        decomposeParams ty [] = pure ([], ty)
+        decomposeParams ty (x:xs) = do
+            (argTy, resTy) <- decomposeFun ty 
+            (restArgTys, restResTy) <- decomposeParams resTy xs
+            pure ((x,argTy) : restArgTys, restResTy)
 
 typecheckStatements env (Import () li name : sts) = (Import () li name :) <$> typecheckStatements env sts 
-typecheckStatements env (DefClass k li cname tvs methSigs : sts) = (DefClass k li cname tvs methSigs :) <$> typecheckStatements env sts
+typecheckStatements env (DefClass k li cname tvs methSigs : sts) = undefined -- (DefClass k li cname tvs methSigs :) <$> typecheckStatements env sts
 typecheckStatements env (DefInstance x li cname ty meths : sts) = undefined
 typecheckStatements env (DefVariant k li tyName tvs constrs : sts) = undefined -- (DefVariant k li tyName tvs constrs :) <$> typecheckStatement env sts 
 typecheckStatements _ [] = pure []
@@ -227,16 +226,12 @@ infer env (If () li c th el) = runReader li do
     -- We arbitrarily choose getType th' as the final type, since the types of
     -- th' and el' are equivalent.
     pure $ If (getType th') li c' th' el'
-infer env (Let () li decl@(Decl () x xs e1) e2) = do
-    let dlambda = foldr (Lambda () li) e1 xs
+infer env (Let () li decl@(Decl () f xs e1) e2) = do
+    xs' <- traverse (\x -> (x,) <$> freshTV KStar) xs
 
-    -- See note [Generalization]
-    dlambda' <- infer env dlambda
-    let decl' = lambdasToDecl li x dlambda' (length xs)
-    
-    e2' <- infer (insertType x (getType decl') env) e2
-    
-    pure $ Let () li decl' e2' 
+    e1' <- infer (foldr (uncurry insertType) env xs') e1
+
+    Let () li (Decl (getType e1', []) f xs' e1') <$> infer (insertType f (getType e1') env) e2
     
 infer env (Var () li x) = do
     let xTy = lookupType x env
