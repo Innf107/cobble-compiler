@@ -37,8 +37,6 @@ import Language.Cobble.Prelude.Parser (ParseError, parse)
 
 import Language.Cobble.Typechecker as TC
 
-import Language.Cobble.PostProcess as PP
-
 import Language.Cobble.MCAsm.Types
 import Language.Cobble.MCAsm.Types qualified as A
 
@@ -222,11 +220,9 @@ compileWithSig m = do
             $ runFreshM (\(MkTVar n k) -> freshVar (originalName n) <&> \n' -> MkTVar n' k)
             $ typecheck tcEnv saMod -- TODO: provide environment from other modules
 
-        let ppMod = postProcess tcMod
+        lc <- C2LC.compile primOps tcMod
 
-        lc <- C2LC.compile primOps ppMod
-
-        pure (lc, extractSig ppMod)
+        pure (lc, extractSig tcMod)
 
 
 modSigToScope :: ModSig -> Scope
@@ -244,7 +240,6 @@ extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
 makePartialSig :: S.Statement 'Codegen -> ModSig
 makePartialSig = \case
     Def mfixity _ (Decl (_, gs) n _ _) t -> mempty {exportedVars = one (n, t), exportedFixities = fromList $ (n,) <$> toList mfixity} -- TODO: what about gs?
-    DefStruct k _ n ps fs     -> mempty {exportedTypes = one (n, (k, RecordType ps fs))}
     DefClass k _ n ps meths   -> mempty 
         {   exportedTypes = one (n, (k, TyClass ps meths))
         ,   exportedVars  = fromList $ 

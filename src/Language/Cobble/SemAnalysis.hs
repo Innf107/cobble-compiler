@@ -20,21 +20,9 @@ data SemanticError = MissingField LexInfo UnqualifiedName
 
 runSemanticAnalysis :: Members '[Error SemanticError] r => Module SemAnalysis -> Sem r (Module NextPass)
 runSemanticAnalysis (Module x n sts) = fmap (coercePass . Module x n)
-    $ transformBiM checkStructDef
-    =<< transformBiM checkAndReorderStructConstruct 
-    =<< transformBiM reorderAndCheckInstances 
+    $ transformBiM reorderAndCheckInstances 
     (transformBi (implicitForall . implicitClassConstraints) sts)
 
-
-checkStructDef :: Members '[Error SemanticError] r => Statement SemAnalysis -> Sem r (Statement SemAnalysis)
-checkStructDef (DefStruct k li name ps fields) = DefStruct k li name ps
-    <$> detectDuplicateFields li fields
-checkStructDef x = pure x
-
-checkAndReorderStructConstruct :: Members '[Error SemanticError] r => Expr SemAnalysis -> Sem r (Expr SemAnalysis)
-checkAndReorderStructConstruct (StructConstruct def li n fs) = StructConstruct def li n
-    <$> reorderAndCheckFields li (view structFields def) fs
-checkAndReorderStructConstruct x = pure x
 
 -- inserts an implicit forall on every type signature. 
 -- This function *cannot* just @transformBi@ over @Type@s, since

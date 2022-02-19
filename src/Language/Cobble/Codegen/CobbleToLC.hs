@@ -17,7 +17,6 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
     where
         compileStatement :: Statement Codegen -> Sem r [LCDef]
         compileStatement Import {} = pure []
-        compileStatement DefStruct {} = pure []
         compileStatement DefVariant {} = pure []
         compileStatement (DefClass _ _li _cname _tvs meths) = pure $ zipWith defMethod [0..] meths
             where 
@@ -45,7 +44,7 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
         -- let y :: Int = x d_Num_Int
         compileExpr (C.Var (_, ws) _ n) = pure $ foldl' addConstraint (L.Var n) ws
             where
-                addConstraint ex (TWanted (MkConstraint cname t) _) = App ex (L.Var (dictName cname (coercePass t)))
+                addConstraint ex (TWanted (MkConstraint cname t) _) = L.App ex (L.Var (dictName cname (coercePass t)))
 
         compileExpr (C.Ascription _ _ e _) = compileExpr e
 
@@ -53,13 +52,14 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
         compileExpr (C.VariantConstr (_, expectedParams, i) _ n) = do 
             params <- replicateM expectedParams (freshVar "v")
             pure $ foldr L.Lambda (Tuple (L.IntLit i : (map L.Var params))) params
-        compileExpr (FCall _ _ (C.VariantConstr (_, expectedParams, i) _ con) as)
-            | expectedParams == length as = L.Tuple . (L.IntLit i:) <$> traverse compileExpr (toList as)
-            | expectedParams >  length as = do
-                remainingParams <- replicateM (expectedParams - length as) (freshVar "v")
-                as' <- toList <$> traverse compileExpr as
-                pure $ foldr L.Lambda (L.Tuple ([L.IntLit i] <> as' <> (map L.Var remainingParams))) remainingParams 
-            | expectedParams <  length as = error $ "LC Codegen: too many arguments in variant construction. Expected: " <> show expectedParams <> ". Recieved: " <> show (length as) <> "."
+        compileExpr (C.App _ _ _ _) = error "app codegen NYI"
+        -- compileExpr (FCall _ _ (C.VariantConstr (_, expectedParams, i) _ con) as)
+        --     | expectedParams == length as = L.Tuple . (L.IntLit i:) <$> traverse compileExpr (toList as)
+        --     | expectedParams >  length as = do
+        --         remainingParams <- replicateM (expectedParams - length as) (freshVar "v")
+        --         as' <- toList <$> traverse compileExpr as
+        --         pure $ foldr L.Lambda (L.Tuple ([L.IntLit i] <> as' <> (map L.Var remainingParams))) remainingParams 
+        --     | expectedParams <  length as = error $ "LC Codegen: too many arguments in variant construction. Expected: " <> show expectedParams <> ". Recieved: " <> show (length as) <> "."
         
         compileExpr (C.Case _ty li expr cases) = do
             expr' <- compileExpr expr
@@ -69,19 +69,14 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
 
 
         -- Primops are passed on and only compiled in TopLevelCPSToMCAsm.hs
-        compileExpr (FCall _ _l (C.Var (_, _) _ v) ps) 
-            | Just p <- lookup v prims = PrimOp (view primOp p) <$> traverse compileExpr (toList ps) 
-        
-        compileExpr (FCall _ _ funEx pars) = foldl' App <$> (compileExpr funEx) <*> (traverse compileExpr pars)
+        -- compileExpr (FCall _ _l (C.Var (_, _) _ v) ps) 
+        --     | Just p <- lookup v prims = PrimOp (view primOp p) <$> traverse compileExpr (toList ps) 
+        -- 
+        -- compileExpr (FCall _ _ funEx pars) = foldl' App <$> (compileExpr funEx) <*> (traverse compileExpr pars)
         
         compileExpr (C.Let () _ decl@(Decl (_, _) name _ _) body) =
             L.Let name <$> compileToLambda decl <*> compileExpr body
-        
-        compileExpr (StructConstruct _ _ _ fs) = Tuple <$> traverse (compileExpr . snd) fs
-        compileExpr (StructAccess (def, _) _ structExp fieldName) = case findIndexOf (structFields . folded) (\(x,_) -> x == fieldName) def of
-            Nothing -> error "LC Codegen Panic: structAccess: field not found too late"
-            Just i -> Select i <$> compileExpr structExp
-        
+                
         compileExpr (C.If _ _ c th el)  = L.If <$> compileExpr c <*> compileExpr th <*> compileExpr el
         
         compileExpr (C.Lambda _ _ x e) = L.Lambda x <$> compileExpr e

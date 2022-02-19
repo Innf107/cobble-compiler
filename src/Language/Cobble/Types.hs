@@ -12,7 +12,6 @@ import Language.Cobble.Types.AST.SolveModules as Export
 import Language.Cobble.Types.AST.QualifyNames as Export
 import Language.Cobble.Types.AST.SemAnalysis as Export
 import Language.Cobble.Types.AST.Typecheck as Export
-import Language.Cobble.Types.AST.PostProcess as Export
 import Language.Cobble.Types.AST.Codegen as Export
 import Language.Cobble.Types.Instances as Export
 import Language.Cobble.Types.QualifiedName as Export
@@ -26,25 +25,10 @@ type NameSpace = Text
 class HasType t where
     getType :: t -> Type
 
-instance HasType (Expr PostProcess) where
-    getType = \case
-        FCall t _ _ _                       -> t
-        Var (t, _) _ _                      -> t
-        Ascription t _ _ _                  -> t
-        VariantConstr (t,_,_) _ _           -> t
-        Case t _ _ _                        -> t
-        IntLit _ _ _                        -> intT
-        If _ _ _ th _                       -> getType th
-        UnitLit _                           -> unitT
-        Let _ _ _ b                         -> getType b
-        StructConstruct (_, t) _ _ _        -> t
-        StructAccess (_, _, t) _ _ _        -> t
-        Lambda t _ _ _                      -> t
-
 
 instance HasType (Expr 'Codegen) where
     getType = \case
-        FCall t _ _ _                       -> t
+        App t _ _ _                         -> t
         Var (t, _) _ _                      -> t
         Ascription t _ _ _                  -> t
         VariantConstr (t,_,_) _ _           -> t
@@ -53,14 +37,12 @@ instance HasType (Expr 'Codegen) where
         If _ _ _ th _                       -> getType th
         UnitLit _                           -> unitT
         Let _ _ _ b                         -> getType b
-        StructConstruct (_, t) _ _ _        -> t
-        StructAccess (_, t) _ _ _           -> t
         Lambda t _ _ _                      -> t
 
-instance HasType (Decl PostProcess) where
+instance HasType (Decl Codegen) where
     getType (Decl (t, _) _ _ _) = t
 
-instance HasType (Pattern PostProcess) where
+instance HasType (Pattern Codegen) where
     getType (IntP () n) = intT
     getType (VarP ty _) = ty
     getType (ConstrP (ty, _) _ _) = ty

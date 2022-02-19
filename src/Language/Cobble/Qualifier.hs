@@ -63,20 +63,6 @@ qualifyStmnt (Def mfixity li d@(Decl _ n _ _) ty) = runReader li do
             <*> pure ty'
 qualifyStmnt (Import () li n) = pure (Import () li (internalQName n))
 
-qualifyStmnt (DefStruct () li n tvs fields) = runReader li do
-    n' <- freshVar (n, li)
-    tvs' <- traverse (qualifyTVar KStar) tvs -- TODO: [Kind inference]: probably shouldn't be KStar
-    let k = getTyConKind tvs'
-    fields' <- withFrame do
-        -- The type needs to be locally added as a dummy record to allow recursive types.
-        addType n n' k (RecordType (coercePass tvs') [])
-        zipWithM_ addTVar tvs tvs'
-
-        forM fields \(fn, fty) -> withFrame do
-            (fn,) <$> qualifyType False fty
-    addType n n' k (RecordType (coercePass tvs') (map (second coercePass) fields'))
-    pure (DefStruct k li n' tvs' fields')
-
 qualifyStmnt (DefVariant () li n tvs constrs) = runReader li $ do
     n' <- freshVar (n, li)
     tvs' <- traverse (qualifyTVar KStar) tvs -- TODO: [Kind inference]: probably shouldn't be KStar
@@ -155,10 +141,10 @@ qualifyRecursiveDecl d@(Decl _ n _ _) = do
 qualifyExpr :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r
             => Expr QualifyNames
             -> Sem r (Expr NextPass)
-qualifyExpr (FCall () li f args) =
-    FCall () li
+qualifyExpr (App () li f e) =
+    App () li
     <$> qualifyExpr f
-    <*> traverse qualifyExpr args
+    <*> qualifyExpr e
 qualifyExpr (IntLit () li n) = pure (IntLit () li n)
 qualifyExpr (UnitLit li) = pure (UnitLit li)
 qualifyExpr (If () li cond th el) = 
@@ -183,25 +169,6 @@ qualifyExpr (Case () li exp cases) = runReader li $
     Case () li
     <$> qualifyExpr exp
     <*> traverse qualifyCaseBranch cases
-qualifyExpr (StructConstruct () li sname fields) = runReader li $ lookupType sname >>= \case
-    (sname', _, RecordType tvs structFields) -> 
-        StructConstruct 
-            (StructDef sname' (coercePass tvs) (map (second coercePass) structFields))
-            li 
-            sname' 
-            <$> traverse (secondM qualifyExpr) fields
-    (tname', k, v) -> throw (StructConstructNotAStruct li tname' k v)
-qualifyExpr (StructAccess () li structExpr fieldName) = runReader li do
-    allStructs <- sgets (toList . view scopeTypes)
-    let possibleStructs = fromList $ mapMaybe possibleStruct allStructs
-    StructAccess possibleStructs li
-        <$> qualifyExpr structExpr
-        <*> pure fieldName
-        where
-            possibleStruct :: (QualifiedName, Kind, TypeVariant) -> Maybe (QualifiedName, StructDef)
-            possibleStruct (tyName, _, (RecordType tvs fields))
-                | fieldName `elem` (map fst fields) = Just (tyName, StructDef tyName (coercePass tvs) (map (second coercePass) fields))
-            possibleStruct _ = Nothing
 qualifyExpr (Lambda () li x e) = runReader li $
     withFrame $ do
         x' <- freshVar (x, li)
@@ -224,10 +191,7 @@ qualifyExpr (ExprX opGroup li) = runReader li $ replaceOpGroup . reorderByFixity
 
         replaceOpGroup :: OperatorGroup NextPass WithFixity -> Expr NextPass
         replaceOpGroup (OpLeaf e) = e
-        replaceOpGroup (OpNode l (op, _fixity) r) = FCall () li (Var () li op) (fromList [
-                                                            replaceOpGroup l
-                                                        ,   replaceOpGroup r
-                                                        ])
+        replaceOpGroup (OpNode l (op, _fixity) r) = App () li (App () li (Var () li op) (replaceOpGroup l)) (replaceOpGroup r)
         -- See note [Fixity Algorithm]
         reorderByFixity :: OperatorGroup NextPass WithFixity -> OperatorGroup NextPass WithFixity
         reorderByFixity (OpLeaf e) = OpLeaf e

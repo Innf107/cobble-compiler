@@ -102,7 +102,7 @@ module_ = "module" <??> Module () <$> moduleDecl <*> statements <* eof
         moduleDecl = reserved "module" *> (snd <$> modName) <* reservedOp ";"
 
 statement :: Parser (Statement NextPass)
-statement = "statement" <??> def <|> defStruct <|> defVariant <|> defClass <|> defInstance <|> import_
+statement = "statement" <??> def <|> defVariant <|> defClass <|> defInstance <|> import_
 
 expr :: Parser (Expr NextPass)
 expr = merge 
@@ -143,15 +143,12 @@ exprWithoutOp = "expression" <??> do
         args <- many expr'
         case args of
             []      -> pure f
-            (a:as)  -> pure $ FCall () (getLexInfo f `mergeLexInfo` (getLexInfo (last (a :| as)))) f (a :| as)
+            (a:as)  -> let li = (getLexInfo f `mergeLexInfo` (getLexInfo (last (a :| as)))) in
+                pure $ foldl' (App () li) f (a :| as)
+
 
 expr' :: Parser (Expr NextPass)
-expr' = "expression (no fcall)" <??> (\e mf -> maybe e (\(le, fname) -> StructAccess () (getLexInfo e `mergeLexInfo` le) e fname) mf)
-    <$> expr''
-    <*> optionMaybe (reservedOp' "." *> ident) 
-
-expr'' :: Parser (Expr NextPass)
-expr'' = "expression (no fcall / struct access)" <??> 
+expr' = "expression (no fcall)" <??> 
         uncurry (IntLit ()) <$> intLit 
     <|> UnitLit <$> unitLit 
     <|> lambdaE 
@@ -205,15 +202,6 @@ fixity = "fixity declaration" <??> (\(ls, f) (le, i) -> (ls `mergeLexInfo` le, f
         <|> ((,RightFix) <$> reserved "infixr")
         )
     <*> intLit
-
-defStruct :: Parser (Statement NextPass)
-defStruct = "struct definition" <??> (\ls n ps fs le -> DefStruct () (ls `mergeLexInfo` le) n ps fs)
-    <$> reserved "struct"
-    <*> ident'
-    <*> many ident'
-    <* paren' "{" 
-    <*> signature' `sepBy` (reservedOp' ",")
-    <*> paren "}"
    
 defVariant :: Parser (Statement NextPass)
 defVariant = "variant definition" <??> (\ls n ps cs -> DefVariant () (ls `mergeLexInfo` snd (unsafeLast cs)) n ps (map (\((n,ts),_) -> (n, ts, ())) cs))
@@ -270,23 +258,10 @@ caseBranch = "case branch" <??> (\(p, ls) e le -> CaseBranch () (mergeLexInfo ls
 
 varOrConstr :: Parser (Expr NextPass)
 varOrConstr = "variable or struct construction" <??> do
-    v <- ident
-    m <- option False (paren' "{" >> pure True)
-    case m of
-        False -> pure $ makeVarOrVariantConstr v 
-        True -> structConstructRest v
-    where
-        structConstructRest :: (LexInfo, Text) -> Parser (Expr NextPass)
-        structConstructRest (ls, n) = "struct construction" <??> (\fs le -> StructConstruct () (ls `mergeLexInfo` le) n fs)
-            <$> fieldUpdate `sepBy` (reservedOp' ",")
-            <*> paren  "}"
-            where
-                fieldUpdate = (,) <$> ident' <* reservedOp' "=" <*> expr
-
-        makeVarOrVariantConstr :: (LexInfo, Text) -> Expr NextPass
-        makeVarOrVariantConstr (li, name)
-            | isUpper (T.head name) = VariantConstr () li name
-            | otherwise             = Var () li name
+    (li, name) <- ident
+    if isUpper (T.head name)
+    then pure (VariantConstr () li name)
+    else pure (Var () li name)
 
 patternP :: Parser (Pattern NextPass, LexInfo)
 patternP = "pattern" <??> varOrConstrP <|> patternP'

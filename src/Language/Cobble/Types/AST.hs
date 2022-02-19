@@ -71,14 +71,12 @@ data Pass = SolveModules
           | QualifyNames
           | SemAnalysis
           | Typecheck
-          | PostProcess
           | Codegen
 
 
 data Statement (p :: Pass) =
       Def           (XDef p)            LexInfo (Decl p) (XType p)
     | Import        (XImport p)         LexInfo (Name p) -- TODO: qualified? exposing?
-    | DefStruct     (XDefStruct p)      LexInfo (Name p) [(XTVar p)] [(UnqualifiedName, XType p)]
     | DefClass      (XDefClass p)       LexInfo (Name p) [(XTVar p)] [(Name p, XType p)]
     | DefInstance   (XDefInstance p)    LexInfo (Name p) (XType p) [Decl p]
     | DefVariant    (XDefVariant p)     LexInfo (Name p) [(XTVar p)] [(Name p, [XType p], XDefVariantClause p)]
@@ -105,7 +103,7 @@ type instance InstanceRequirements (Decl p) = [XDecl p, Name p, XParam p, Expr p
 type family XDecl (p :: Pass)
 
 data Expr (p :: Pass) =
-      FCall           (XFCall p) LexInfo (Expr p) (NonEmpty (Expr p))
+      App             (XFCall p) LexInfo (Expr p) (Expr p)
     | IntLit          (XIntLit p) LexInfo Int
     | UnitLit         LexInfo
     | If              (XIf p) LexInfo (Expr p) (Expr p) (Expr p)
@@ -114,8 +112,6 @@ data Expr (p :: Pass) =
     | Ascription      (XAscription p) LexInfo (Expr p) (XType p)
     | VariantConstr   (XVariantConstr p) LexInfo (Name p)
     | Case            (XCase p) LexInfo (Expr p) [CaseBranch p]
-    | StructConstruct (XStructConstruct p) LexInfo (Name p) [(UnqualifiedName, Expr p)]
-    | StructAccess    (XStructAccess p) LexInfo (Expr p) UnqualifiedName
     | Lambda          (XLambda p) LexInfo (Name p) (Expr p)
     | ExprX           (XExpr p) LexInfo
 
@@ -215,8 +211,8 @@ data Kind = KStar
 
 infixr 5 `KFun`
 
-data TGiven  = TGiven  Constraint LexInfo
-data TWanted = TWanted Constraint LexInfo
+data TGiven  = TGiven  Constraint LexInfo deriving (Show, Eq, Generic, Data, Typeable)
+data TWanted = TWanted Constraint LexInfo deriving (Show, Eq, Generic, Data, Typeable)
 
 pattern (:->) :: Type -> Type -> Type
 pattern (:->) t1 t2 = TFun t1 t2
@@ -372,7 +368,7 @@ class HasLexInfo t where
 
 instance HasLexInfo (Expr p) where
     getLexInfo = \case
-        FCall _ li _ _           -> li
+        App _ li _ _             -> li
         IntLit _ li _            -> li
         UnitLit li               -> li
         If _ li _ _ _            -> li
@@ -381,8 +377,6 @@ instance HasLexInfo (Expr p) where
         Ascription _ li _ _      -> li
         VariantConstr _ li _     -> li
         Case _ li _ _            -> li
-        StructConstruct _ li _ _ -> li
-        StructAccess _ li _ _    -> li
         Lambda _ li _ _          -> li
         ExprX _ li               -> li
         

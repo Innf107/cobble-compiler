@@ -11,9 +11,6 @@ import Language.Cobble.Types.AST
 import Language.Cobble.Types.Instances
 import Language.Cobble.Types.QualifiedName
 
--- Ugh...
-import Language.Cobble.Types.AST.PostProcess
-
 -- Defined here because the instances need
 -- @Type 'Codegen@ to be defined
 deriving instance Show ModSig

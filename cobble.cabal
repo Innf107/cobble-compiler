@@ -48,7 +48,6 @@ library
       Language.Cobble.Packager
       Language.Cobble.Parser
       Language.Cobble.Parser.Tokenizer
-      Language.Cobble.PostProcess
       Language.Cobble.Prelude
       Language.Cobble.Prelude.Parser
       Language.Cobble.Qualifier
@@ -57,7 +56,6 @@ library
       Language.Cobble.Types
       Language.Cobble.Types.AST
       Language.Cobble.Types.AST.Codegen
-      Language.Cobble.Types.AST.PostProcess
       Language.Cobble.Types.AST.QualifyNames
       Language.Cobble.Types.AST.SemAnalysis
       Language.Cobble.Types.AST.SolveModules

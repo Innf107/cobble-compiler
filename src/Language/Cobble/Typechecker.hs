@@ -21,7 +21,7 @@ import qualified Data.Set as Set
 
 import Data.List.NonEmpty qualified as NE
 
-type NextPass = PostProcess
+type NextPass = Codegen
 
 data TCEnv = TCEnv {
     _varTypes :: M.Map QualifiedName Type
@@ -113,7 +113,6 @@ typecheckStatements env (Def fixity li (Decl () f xs e) expectedTy : sts) = runR
         _ -> error $ "typecheckStatements: function definitions NYI. Please use a lambda for now  @" <> show li
 
 typecheckStatements env (Import () li name : sts) = (Import () li name :) <$> typecheckStatements env sts 
-typecheckStatements env (e@DefStruct{} : sts) = error $ "structs not implemented: " <> show e
 typecheckStatements env (DefClass k li cname tvs methSigs : sts) = (DefClass k li cname tvs methSigs :) <$> typecheckStatements env sts
 typecheckStatements env (DefInstance x li cname ty meths : sts) = undefined
 typecheckStatements env (DefVariant k li tyName tvs constrs : sts) = undefined -- (DefVariant k li tyName tvs constrs :) <$> typecheckStatement env sts 
@@ -125,7 +124,7 @@ check :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar
       -> Type 
       -> Sem r (Expr NextPass)
 check env e t@TForall{} = check env e =<< skolemize t -- TODO: We need to 'correct' the extension field to have type t instead of [skolemize t]
-check env (FCall () li f (x :| [])) t = runReader li do
+check env (App () li f x) t = runReader li do
     f' <- infer env f
     (fDomTy, fCodomTy) <- decomposeFun (getType f') 
     traceM $ toString $ "[check env (FCall ...)] getType f' = " <> ppType (getType f') <> " | t = " <> ppType t <> " | fDomTy = " <> ppType fDomTy <> " | fCodomTy = " <> ppType fCodomTy
@@ -138,8 +137,7 @@ check env (FCall () li f (x :| [])) t = runReader li do
 
     checkInst fCodomTy t
 
-    pure (FCall t li f' (x' :| []))
-check env (FCall () li f xs) t = error $ "Multi-argument applications NYI. Please use parentheses for now  @" <> show li 
+    pure (App t li f' x')
 
 check env (IntLit () li n) t = runReader li $ do
     t !~ intT 
@@ -174,8 +172,6 @@ check env (VariantConstr (i, j) li c) t = runReader li do
     checkInst (lookupType c env) t
     pure (VariantConstr (t, i, j) li c)
 check env (Case () li e branches) t = undefined
-check env (StructConstruct _ _ _ _) t = error "Structs are not implemented"
-check env (StructAccess _ _ _ _) t = error "Structs are not implemented"
 check env (Lambda () li x e) t = runReader li do    
     (expectedArgTy, expectedResTy) <- decomposeFun t
     traceM $ toString $ "[check env (Lambda ...)] t = " <> ppType t <> " | expectedArgTy = " <> ppType expectedArgTy <> " | expectedResTy = " <> ppType expectedResTy
@@ -199,7 +195,7 @@ infer :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar
 --     t <- instantiate fResTy
 --     pure (FCall t li f' xs')
 
-infer env (FCall () li f (x :| [])) = runReader li do
+infer env (App () li f x) = runReader li do
     f' <- infer env f
     (fDomTy, fCodomTy) <- decomposeFun (getType f') 
     traceM $ toString $ "[infer env (FCall ...)] getType f' = " <> ppType (getType f') <> " | fDomTy = " <> ppType fDomTy <> " | fCodomTy = " <> ppType fCodomTy
@@ -208,9 +204,7 @@ infer env (FCall () li f (x :| [])) = runReader li do
 
     t <- instantiate fCodomTy
 
-    pure (FCall t li f' (x' :| []))
-
-infer env (FCall () li f xs) = error $ "Multi-argument applications NYI. Please use parentheses for now  @" <> show li 
+    pure (App t li f' x')
 
 infer env (IntLit () li n) = pure (IntLit () li n)
 infer env (UnitLit li) = pure (UnitLit li)
@@ -259,8 +253,6 @@ infer env (VariantConstr (i, j) li c) = do
     pure (VariantConstr (cTy, i, j) li c)
 
 infer env (Case () li e branches) = undefined
-infer env (StructConstruct _ _ _ _) = error "Structs are not implemented"
-infer env (StructAccess _ _ _ _) = error "Structs are not implemented"
 infer env (Lambda () li x e) = do
     xTy <- freshTV KStar
 
