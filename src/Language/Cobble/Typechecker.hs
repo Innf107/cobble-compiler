@@ -17,6 +17,8 @@ import qualified Data.Text as T
 import qualified Data.Map as M
 import Data.Traversable (for)
 
+import qualified Data.Set as Set
+
 import Data.List.NonEmpty qualified as NE
 
 type NextPass = PostProcess
@@ -30,7 +32,11 @@ data TCEnv = TCEnv {
 makeLenses ''TCEnv
 
 
-data TypeError deriving (Show, Eq, Generic, Data)
+data TypeError = DifferentTCon LexInfo QualifiedName QualifiedName
+               | CannotUnify LexInfo Type Type
+               | SkolBinding LexInfo TVar Type
+               | Occurs LexInfo TVar Type
+               deriving (Show, Eq, Generic, Data)
 
 
 data TConstraint = MkTConstraint {
@@ -42,12 +48,12 @@ data TConstraintComp = Unify Type Type      -- σ ~ ρ
                      | Subsume Type Type    -- σ ≤ ρ
                      deriving (Show, Eq, Generic, Data)
 
-(!~) :: Members '[Writer [TConstraint], Reader LexInfo] r => Type -> Type -> Sem r ()
-t1 !~ t2 = ask >>= \li -> tell [MkTConstraint (Unify t1 t2) li]
+(!~) :: Members '[Output TConstraint, Reader LexInfo] r => Type -> Type -> Sem r ()
+t1 !~ t2 = ask >>= \li -> output (MkTConstraint (Unify t1 t2) li)
 infix 1 !~
 
-subsume :: Members '[Writer [TConstraint], Reader LexInfo] r => Type -> Type -> Sem r ()
-subsume t1 t2 = ask >>= \li -> tell [MkTConstraint (Unify t1 t2) li]
+subsume :: Members '[Output TConstraint, Reader LexInfo] r => Type -> Type -> Sem r ()
+subsume t1 t2 = ask >>= \li -> output (MkTConstraint (Subsume t1 t2) li)
 
 
 newtype Substitution = Subst {unSubst :: Map TVar Type} 
@@ -75,13 +81,38 @@ lookupType v TCEnv{_varTypes} = lookup v _varTypes & fromMaybe (error $ "lookupT
 insertType :: QualifiedName -> Type -> TCEnv -> TCEnv
 insertType x t env = env & varTypes %~ insert x t
 
-typecheck :: Members '[Fresh TVar TVar, Fresh Text QualifiedName] r 
+typecheck :: Members '[Fresh TVar TVar, Fresh Text QualifiedName, Error TypeError] r 
           => TCEnv 
           -> Module Typecheck 
           -> Sem r (Module NextPass)
-typecheck = undefined
+typecheck env (Module ext mname sts) = do
+    (constrs, sts') <- runOutputList $ typecheckStatements env sts
+    subst <- solveConstraints constrs
+    pure $ Module ext mname (applySubst subst sts')
 
-check :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh TVar TVar] r 
+typecheckStatements :: Members '[Fresh TVar TVar, Fresh Text QualifiedName, Output TConstraint] r
+                    => TCEnv
+                    -> [Statement Typecheck]
+                    -> Sem r [Statement NextPass]
+typecheckStatements env (Def fixity li (Decl () f xs e) expectedTy : sts) = runReader li do
+    (xsTys, eTy) <- splitType expectedTy (length xs)
+
+    let xs' = zip xs xsTys
+
+    let env' = insertType f expectedTy env
+
+    e' <- check (foldr (uncurry insertType) env' xs') e eTy
+
+    (Def fixity li (Decl (expectedTy, []) f xs' e') expectedTy :) <$> typecheckStatements (insertType f expectedTy env) sts
+
+typecheckStatements env (Import () li name : sts) = (Import () li name :) <$> typecheckStatements env sts 
+typecheckStatements env (e@DefStruct{} : sts) = error $ "structs not implemented: " <> show e
+typecheckStatements env (DefClass k li cname tvs methSigs : sts) = (DefClass k li cname tvs methSigs :) <$> typecheckStatements env sts
+typecheckStatements env (DefInstance x li cname ty meths : sts) = undefined
+typecheckStatements env (DefVariant k li tyName tvs constrs : sts) = undefined -- (DefVariant k li tyName tvs constrs :) <$> typecheckStatement env sts 
+typecheckStatements _ [] = pure []
+
+check :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r 
       => TCEnv
       -> Expr Typecheck 
       -> Type 
@@ -111,11 +142,15 @@ check env (If () li c th el) t = do
 check env (Let () li decl@(Decl () x xs e1) e2) t = do
     let dlambda = foldr (Lambda () li) e1 xs
 
+
+    --TODO
     -- See note [Generalization]
     dlambda' <- infer env dlambda
     let decl' = lambdasToDecl li x dlambda' (length xs)
     
-    e2' <- check (insertType x (getType decl') env) e2 t
+
+    let env' = insertType x (getType decl') env
+    e2' <- check env' e2 t
     
     pure $ Let () li decl' e2' 
 
@@ -145,7 +180,7 @@ check env (Lambda () li x e) t = runReader li do
 
     pure (Lambda t li x e')
 
-infer :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh TVar TVar] r 
+infer :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r 
       => TCEnv
       -> Expr Typecheck 
       -> Sem r (Expr NextPass)
@@ -157,7 +192,7 @@ infer env (FCall () li f xs) = runReader li do
     xs' <- for (NE.zip (fromList fParamTys) xs) \(paramTy, arg) -> do
         checkPoly env arg paramTy
     
-    t <- inferInst fResTy
+    t <- instantiate fResTy
     pure (FCall t li f' xs')
 
 infer env (IntLit () li n) = pure (IntLit () li n)
@@ -194,16 +229,16 @@ infer env (Let () li decl@(Decl () x xs e1) e2) = do
     
 infer env (Var () li x) = do
     let xTy = lookupType x env
-    ty <- inferInst xTy
+    ty <- instantiate xTy
     pure (Var (ty, []) li x)
 
 infer env (Ascription () li e (coercePass -> t)) = do
     e' <- checkPoly env e t
-    t2 <- inferInst t
+    t2 <- instantiate t
     pure (Ascription t2 li e' t)
 
 infer env (VariantConstr (i, j) li c) = do
-    cTy <- inferInst $ lookupType c env
+    cTy <- instantiate $ lookupType c env
     pure (VariantConstr (cTy, i, j) li c)
 
 infer env (Case () li e branches) = undefined
@@ -216,7 +251,7 @@ infer env (Lambda () li x e) = do
 
     pure (Lambda (xTy :-> getType e') li x e')
 
-checkPoly :: Members '[Writer [TConstraint], Fresh Text QualifiedName, Fresh TVar TVar] r 
+checkPoly :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r 
           => TCEnv
           -> Expr Typecheck 
           -> Type 
@@ -227,7 +262,11 @@ checkPoly env expr ty = do
     -- Since the constraint solver did not run yet, ty might just be a
     -- unification variable. 
     -- Do we instead return a type variable and some form of projection constraint?
-    (_tvs, ty') <- projection ty 
+    
+    -- (_tvs, ty') <- projection ty 
+
+    -- TODO: Does this work? This doesn't actually instantiate the entire projection, but just the first forall right?
+    ty' <- instantiate ty
     check env expr ty'
 
 projection :: Members '[Fresh TVar TVar] r => Type -> Sem r ([TVar], Type)
@@ -250,25 +289,26 @@ since even in Haskell, function signatures are strongly encouraged, it is ultima
 -}
 
 
-checkInst :: Members '[Writer [TConstraint], Reader LexInfo] r => Type -> Type -> Sem r ()
+checkInst :: Members '[Output TConstraint, Reader LexInfo] r => Type -> Type -> Sem r ()
 checkInst = subsume
 
-inferInst :: Members '[Fresh TVar TVar] r => Type -> Sem r Type
-inferInst (TForall tvs ty) = do
+instantiate :: Members '[Fresh TVar TVar] r => Type -> Sem r Type
+instantiate (TForall tvs ty) = do
     tvMap <- M.fromList <$> traverse (\tv -> (tv,) . TVar <$> freshVar tv) tvs
     pure $ replaceTVars tvMap ty
-inferInst ty = pure ty
+instantiate ty = pure ty
 
 
--- splitType t n = ([a1,...,an], an+1) with t <= a1 -> ... -> an+1
-splitType :: Members '[Fresh Text QualifiedName, Reader LexInfo, Writer [TConstraint]] r 
+
+-- splitType t n = ([a1,...,an], an+1) with t <= (a1 -> ... -> an+1)
+splitType :: Members '[Fresh Text QualifiedName, Reader LexInfo, Output TConstraint] r 
           => Type 
           -> Int 
           -> Sem r ([Type], Type)
 splitType t n = do
     argTys <- replicateM n (freshTV KStar)
     resTy <- freshTV KStar
-    subsume t (foldr (:->) resTy argTys)
+    subsume (foldr (:->) resTy argTys) t
     pure (argTys, resTy)
 
 lambdasToDecl :: LexInfo -> QualifiedName -> Expr NextPass -> Int -> Decl NextPass
@@ -293,31 +333,96 @@ replaceTVars tvs ty@(TVar tv) = case lookup tv tvs of
 replaceTVars tvs ty@TCon{} = ty
 replaceTVars tvs ty@TSkol{} = ty
 replaceTVars tvs ty@(TApp t1 t2) = TApp (replaceTVars tvs t1) (replaceTVars tvs t2)
-replaceTVars tvs ty@(TFun a b) = TApp (replaceTVars tvs a) (replaceTVars tvs b)
+replaceTVars tvs ty@(TFun a b)   = TFun (replaceTVars tvs a) (replaceTVars tvs b)
 replaceTVars tvs (TForall forallTVs ty) =
                 let remainingTVs = foldr (M.delete) tvs forallTVs in
-                replaceTVars remainingTVs ty
+                TForall forallTVs $ replaceTVars remainingTVs ty
 replaceTVars tvs (TConstraint (MkConstraint constrName constrTy) ty) =
                 TConstraint (MkConstraint constrName (replaceTVars tvs constrTy)) (replaceTVars tvs ty)
 
 
-solveConstraints :: Members '[Error TypeError] r
+solveConstraints :: Members '[Error TypeError,  Fresh TVar TVar] r
                  => [TConstraint] 
                  -> Sem r Substitution
 solveConstraints [] = pure mempty
-solveConstraints ((MkTConstraint (Unify t1 t2) li):constrs) = do
+solveConstraints ((MkTConstraint (Unify t1 t2) li):constrs) = runReader li do
     -- This is a bit inefficient (quadratic?).
     -- Let's make sure the constraint solver actually works, before we try to deal with that.
-    subst <- unify t1 t2 li
+    subst <- unify t1 t2
     (subst <>) <$> solveConstraints (applySubst subst constrs)
-solveConstraints ((MkTConstraint (Subsume t1 t2) li):constrs) = undefined
 
-unify :: Members '[Error TypeError] r
+solveConstraints ((MkTConstraint (Subsume t1 t2) li):constrs) = runReader li do
+    subst <- subsumption t1 t2
+    (subst <>) <$> solveConstraints (applySubst subst constrs)
+
+unify :: Members '[Error TypeError, Reader LexInfo] r
       => Type
       -> Type
-      -> LexInfo
       -> Sem r Substitution
-unify t1 t2 li = undefined
+unify t1@(TCon c1 _) t2@(TCon c2 _)
+    | c1 == c2 = pure mempty
+    | otherwise = ask >>= \li -> throw $ DifferentTCon li c1 c2
+unify (TVar tv) t2 = bind tv t2
+unify t1 (TVar tv) = bind tv t1
+unify (TApp a1 b1) (TApp a2 b2) = do
+    subst <- unify a1 a2
+    (subst <>) <$> unify (applySubst subst b1) (applySubst subst b2)
+unify (TFun a1 b1) (TFun a2 b2) = do
+    subst <- unify a1 a2
+    (subst <>) <$> unify (applySubst subst b1) (applySubst subst b2)
+unify (TSkol tv1) (TSkol tv2)
+    | tv1 == tv2 = pure mempty
+
+
+unify (TSkol sv) t2 = ask >>= \li -> throw $ SkolBinding li sv t2
+unify t1 (TSkol sv) = ask >>= \li -> throw $ SkolBinding li sv t1
+unify t1 t2         = ask >>= \li -> throw $ CannotUnify li t1 t2 
+
+bind :: Members '[Reader LexInfo, Error TypeError] r => TVar -> Type -> Sem r Substitution
+bind tv ty
+    | occurs tv ty = ask >>= \li -> throw (Occurs li tv ty)
+    | TVar tv == ty = pure mempty
+    | otherwise = pure $ Subst (one (tv, ty))
+
+occurs :: TVar -> Type -> Bool
+occurs tv ty = tv `Set.member` freeTVs ty
+
+subsumption :: Members '[Error TypeError, Reader LexInfo, Fresh TVar TVar] r
+      => Type
+      -> Type
+      -> Sem r Substitution
+subsumption t1 t2@TForall{} = do
+    t2' <- skolemize t2
+    subsumption t1 t2'
+subsumption t1@TForall{} t2 = do
+    t1' <- instantiate t1
+    subsumption t1' t2
+subsumption t1 t2 = unify t1 t2
+
+skolemize :: forall r. Members '[Fresh TVar TVar] r
+          => Type 
+          -> Sem r Type
+skolemize = go mempty
+    where
+        go :: Map TVar Type -> Type -> Sem r Type
+        go foundSkolems (TForall tvs ty) = do
+            skolemMap <- M.fromList <$> traverse (\tv -> (tv,) . TSkol <$> freshVar tv) tvs
+            go (foundSkolems <> skolemMap) ty
+        go foundSkolems (TFun t1 t2)     = TFun (replaceTVars foundSkolems t1) <$> go foundSkolems t2
+        go foundSkolems ty               = pure $ replaceTVars foundSkolems ty 
+
+freeTVs :: Type -> Set TVar
+freeTVs = go mempty
+    where
+        go bound (TCon _ _)         = mempty
+        go bound (TApp a b)         = freeTVs a <> freeTVs b
+        go bound (TVar tv) 
+            | tv `Set.member` bound = mempty
+            | otherwise             = one tv
+        go bound (TSkol _)          = mempty
+        go bound (TForall tvs ty)   = go (bound <> Set.fromList tvs) ty
+        go bound (TFun a b)         = go bound a <> go bound b 
+        go bound (TConstraint (MkConstraint _ t1) t2) = go bound t1 <> go bound t2
 
 
 applySubst :: Data from => Substitution -> from -> from
