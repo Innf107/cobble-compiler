@@ -201,6 +201,18 @@ spec = do
                     Left (SkolBinding _ _ _) -> True
                     Right (Module _ _ sts) -> errorWithoutStackTrace (show sts)
                     Left e -> errorWithoutStackTrace $ show e
+
+        it "higher-rank parameters" do
+            runTypecheck [
+                    "f :: a -> a;"
+                ,   "f x = x;"
+                ,   ""
+                ,   "g :: (forall a. a -> a) -> Int -> Int;"
+                ,   "g h x = let y = h x in y;"
+                ,   ""
+                ,   "main :: Unit;"
+                ,   "main = __setTestScoreboardUnsafe__ (g f 5);"
+                ] `shouldSatisfy` isRight
     describe "skolemize" do
         it "doesn't modify inner foralls" do
             let t1 = (TForall [MkTVar (internalQName "a") KStar] (TVar (MkTVar (internalQName "a") KStar)))

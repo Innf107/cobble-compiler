@@ -217,8 +217,8 @@ compileWithSig m = do
     freshWithInternal do
         tcMod <- -- dumpWhenWithM (asks ddumpTC) ppGivens "dump-givens.tc" 
             -- $ dumpWhenWithM (asks ddumpTC) ppWanteds "dump-wanteds.tc" 
-            -- $ dumpWhenWithM (asks ddumpTC) ppTC "dump-tc.tc" 
-            mapError TypeError 
+            dumpWhenWithM (asks ddumpTC) ppTC "dump-tc.tc" 
+            $ mapError TypeError 
             $ runFreshM (\(MkTVar n k) -> freshVar (originalName n) <&> \n' -> MkTVar n' k)
             $ typecheck tcEnv saMod -- TODO: provide environment from other modules
 

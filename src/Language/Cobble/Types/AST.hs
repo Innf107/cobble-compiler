@@ -18,6 +18,7 @@ import GHC.Show qualified as S
 import qualified Unsafe.Coerce 
 
 import qualified Data.Map as M
+import qualified Data.Set as Set
 
 type family Name (p :: Pass)
 
@@ -177,6 +178,19 @@ data UType = UTCon UnqualifiedName
            deriving (Show, Eq, Generic, Data)
 
 type family XType (p :: Pass) :: HSType
+
+freeTVs :: Type -> Set TVar
+freeTVs = go mempty
+    where
+        go bound (TCon _ _)         = mempty
+        go bound (TApp a b)         = freeTVs a <> freeTVs b
+        go bound (TVar tv) 
+            | tv `Set.member` bound = mempty
+            | otherwise             = one tv
+        go bound (TSkol _)          = mempty
+        go bound (TForall tvs ty)   = go (bound <> Set.fromList tvs) ty
+        go bound (TFun a b)         = go bound a <> go bound b 
+        go bound (TConstraint (MkConstraint _ t1) t2) = go bound t1 <> go bound t2
 
 data TVar = MkTVar QualifiedName Kind
           deriving (Show, Eq, Ord, Generic, Data)

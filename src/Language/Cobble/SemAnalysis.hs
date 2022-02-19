@@ -64,7 +64,11 @@ implicitClassConstraints = \case
     x -> x
 
 addForall :: Type -> Type
-addForall t = case ordNub [tv | TVar tv <- universeBi t] of
+addForall t@TForall{} = t
+-- TODO
+-- freeTVs does *not* preserve order. This should not be an issue for now, but might be
+-- a bit awkward, if features like type applications, where the order of foralls matters, are ever added.
+addForall t = case toList (freeTVs t) of
     []      -> t
     freeTVs -> TForall freeTVs t
 

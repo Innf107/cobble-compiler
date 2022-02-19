@@ -337,8 +337,13 @@ signature' :: Parser (Text, UType)
 signature' = (\(_, y, z) -> (y, z)) <$> signature
 
 typeP :: Parser (LexInfo, UType)
-typeP = "type" <??> constrained <|> unconstrained
+typeP = "type" <??> forallTyP <|> constrained <|> unconstrained
     where
+        forallTyP = (\ls tvs (le, ty) -> (mergeLexInfo ls le, UTForall tvs ty))
+            <$> reserved "forall"
+            <*> many ident'
+            <*  reservedOp' "."
+            <*> typeP
         constrained = do
             (ls, c) <- try $ constraint <* reservedOp' "=>"
             (\(le, t) -> (ls `mergeLexInfo` le, UTConstraint c t))
