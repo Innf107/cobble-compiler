@@ -114,7 +114,14 @@ typecheckStatements env (Def fixity li (Decl () f xs e) expectedTy : sts) = runR
 typecheckStatements env (Import () li name : sts) = (Import () li name :) <$> typecheckStatements env sts 
 typecheckStatements env (DefClass k li cname tvs methSigs : sts) = undefined -- (DefClass k li cname tvs methSigs :) <$> typecheckStatements env sts
 typecheckStatements env (DefInstance x li cname ty meths : sts) = undefined
-typecheckStatements env (DefVariant k li tyName tvs constrs : sts) = undefined -- (DefVariant k li tyName tvs constrs :) <$> typecheckStatement env sts 
+typecheckStatements env (DefVariant k li tyName tvs constrs : sts) =
+    (DefVariant k li tyName tvs constrs' :) <$> typecheckStatements env' sts
+        where
+            resTy = foldl' (\x y -> TApp x (TVar y)) (TCon tyName k) tvs
+            constrTy ps = TForall tvs (foldr (:->) resTy ps)
+            constrs' = map (\(n, ps, (i, j)) -> (n, ps, (constrTy ps, i, j))) constrs
+            env' = foldr (\(n,_,(t,_,_)) -> insertType n t) env constrs'
+
 typecheckStatements _ [] = pure []
 
 check :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r 
@@ -170,7 +177,13 @@ check env (Ascription () li e (coercePass -> t1)) t2 = runReader li do
 check env (VariantConstr (i, j) li c) t = runReader li do
     checkInst (lookupType c env) t
     pure (VariantConstr (t, i, j) li c)
-check env (Case () li e branches) t = undefined
+check env (Case () li e branches) t = do
+    e' <- infer env e
+    branches' <- forM branches \(CaseBranch () li p brExpr) -> do
+        (p', extendEnv) <- checkPattern p (getType e')
+        brExpr' <- check (extendEnv env) brExpr t
+        pure (CaseBranch () li p' brExpr')
+    pure $ Case t li e' branches'
 check env (Lambda () li x e) t = runReader li do    
     (expectedArgTy, expectedResTy) <- decomposeFun t
     traceM $ toString $ "[check env (Lambda ...)] t = " <> ppType t <> " | expectedArgTy = " <> ppType expectedArgTy <> " | expectedResTy = " <> ppType expectedResTy
@@ -178,6 +191,16 @@ check env (Lambda () li x e) t = runReader li do
     e' <- checkPoly (insertType x expectedArgTy env) e expectedResTy
 
     pure (Lambda t li x e')
+
+checkPattern :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r 
+             => Pattern Typecheck
+             -> Type
+             -> Sem r (Pattern NextPass, TCEnv -> TCEnv)
+checkPattern (IntP () n) t = pure (IntP () n, id)
+checkPattern (VarP () x) t = pure (VarP t x, insertType x t)
+checkPattern (ConstrP i cname ps) t = do
+    
+    undefined
 
 infer :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r 
       => TCEnv
@@ -247,7 +270,30 @@ infer env (VariantConstr (i, j) li c) = do
     cTy <- instantiate $ lookupType c env
     pure (VariantConstr (cTy, i, j) li c)
 
-infer env (Case () li e branches) = undefined
+infer env (Case () li e branches) = runReader li do
+    e' <- infer env e
+    branches' <- forM branches \(CaseBranch () li p brExpr) -> do
+        (p', extendEnv) <- checkPattern p (getType e')
+        brExpr' <- infer (extendEnv env) brExpr
+        pure (CaseBranch () li p' brExpr')
+    
+
+    -- We have to make sure all branches have the same return type.
+    -- See 'infer env (If ...)' for a more detailed explanation
+    t <- checkEquiv (map (\(CaseBranch _ _ _ expr) -> getType expr) branches')
+    pure (Case t li e' branches')
+    where
+        checkEquiv :: forall r. Members '[Reader LexInfo, Output TConstraint, Fresh Text QualifiedName] r 
+                   => [Type] 
+                   -> Sem r Type
+        checkEquiv []         = freshTV KStar -- the case expression is empty
+        checkEquiv [t]        = pure t
+        checkEquiv (t1:t2:ts) = do
+            subsume t1 t2
+            subsume t2 t1
+            checkEquiv (t2:ts)
+
+
 infer env (Lambda () li x e) = do
     xTy <- freshTV KStar
 
