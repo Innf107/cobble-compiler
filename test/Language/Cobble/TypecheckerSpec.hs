@@ -26,7 +26,7 @@ spec = do
             runTypecheck [
                     "x :: Int;"
                 ,   "x = let y = 5 in let z = y in y;"
-                ] `shouldSatisfy` \ast -> case [ty | Var (ty, _) _ (QName "y") :: Expr PostProcess <- universeBi ast] of
+                ] `shouldSatisfy` \ast -> case [ty | Var (ty, _) _ (QName "y") :: Expr Codegen <- universeBi ast] of
                         [] -> False
                         xs -> all (== intT) xs
 
@@ -64,7 +64,7 @@ spec = do
 
                 ,   "z :: Unit;"
                 ,   "z = f ();"
-                ] `shouldSatisfy` \ast -> case [ty | Def _ _ (Decl _ (QName "f") _ _) ty :: Statement PostProcess <- universeBi ast] of
+                ] `shouldSatisfy` \ast -> case [ty | Def _ _ (Decl _ (QName "f") _ _) ty :: Statement Codegen <- universeBi ast] of
                     [TForall [MkTVar (QName "a") KStar] (TVar (MkTVar (QName "a") KStar) :-> TVar (MkTVar (QName "a") KStar))] -> True
                     tys -> errorWithoutStackTrace $ show ast -- toString $ ppTypes tys
         -- Not sure if this *really* works... seemed a bit too easy
@@ -102,7 +102,7 @@ spec = do
 
                 ,   "const :: a -> b -> a;"
                 ,   "const x y = f x;"
-                ] `shouldSatisfy` \ast -> case [ty | FCall ty _ (VarType _ "f") _ <- universeBi ast] of
+                ] `shouldSatisfy` \ast -> case [ty | App ty _ (VarType _ "f") _ <- universeBi ast] of
                     [TSkol (MkTVar (QName "a") KStar)] -> True
                     ts -> errorWithoutStackTrace $ toString $ ppTypes ts
         it "(recursive) variant constructors have the correct type" do
@@ -161,7 +161,7 @@ spec = do
                 ,   ""
                 ,   "x :: Bool;"
                 ,   "x = eq 1 1;"
-                ] `shouldSatisfy` withAST' (show . first ppType) (\ast -> [(ty, cs) | Var (ty, cs) _ (QName "eq") :: Expr PostProcess <- universeBi ast]) \case
+                ] `shouldSatisfy` withAST' (show . first ppType) (\ast -> [(ty, cs) | Var (ty, cs) _ (QName "eq") :: Expr Codegen <- universeBi ast]) \case
                     (IntT :-> IntT :-> BoolT, [TWanted (MkConstraint (QName "Eq") IntT) _]) -> True
                     _ -> False
         it "application of typeclass methods lose constraints" do
@@ -176,7 +176,7 @@ spec = do
                 ,   ""
                 ,   "x :: Bool;"
                 ,   "x = eq 1 1;"
-                ] `shouldSatisfy` withAST (\ast -> [ty | FCall ty _ (VarType _ "eq") _ :: Expr PostProcess <- universeBi ast]) \case
+                ] `shouldSatisfy` withAST (\ast -> [ty | App ty _ (VarType _ "eq") _ :: Expr Codegen <- universeBi ast]) \case
                     BoolT -> True
                     _ -> False
         it "ascriptions narrow the type" do
@@ -231,14 +231,14 @@ runTCFresh :: Sem '[C.Fresh TVar TVar, C.Fresh Text QualifiedName, C.Fresh (Text
 runTCFresh = run . C.runFreshQNamesState . C.freshWithInternal . C.runFreshM (\(MkTVar n k) -> C.freshVar (originalName n) <&> \n' -> MkTVar n' k)
 
 
-withAST :: (Module PostProcess -> [Type]) -> (Type -> Bool) -> Either TypeError (Module PostProcess) -> Bool
+withAST :: (Module Codegen -> [Type]) -> (Type -> Bool) -> Either TypeError (Module Codegen) -> Bool
 withAST _ valid (Left err)      = errorWithoutStackTrace (show err) 
 withAST match valid (Right ast) = case match ast of
     [t] | valid t  -> True
     [] -> errorWithoutStackTrace $ "Not found"
     ts -> errorWithoutStackTrace $ toString $ ppTypes ts
 
-withAST' :: (a -> Text) -> (Module PostProcess -> [a]) -> (a -> Bool) -> Either TypeError (Module PostProcess) -> Bool
+withAST' :: (a -> Text) -> (Module Codegen -> [a]) -> (a -> Bool) -> Either TypeError (Module Codegen) -> Bool
 withAST' _ _ valid (Left err)      = errorWithoutStackTrace (show err)
 withAST' pretty match valid (Right ast) = case match ast of
     [t] | valid t  -> True
@@ -248,10 +248,10 @@ withAST' pretty match valid (Right ast) = case match ast of
 ppTypes :: [Type] -> Text
 ppTypes = unlines . map ppType
 
-pattern VarType :: Type -> Text -> Expr PostProcess
+pattern VarType :: Type -> Text -> Expr Codegen
 pattern VarType ty name <- Var (ty, _) _ (QName name)
 
-pattern DeclType :: Type -> Text -> Decl PostProcess
+pattern DeclType :: Type -> Text -> Decl Codegen
 pattern DeclType ty name <- Decl (ty, _) (QName name) _ _
 
 pattern QName :: Text -> QualifiedName
@@ -267,12 +267,13 @@ pattern BoolT <- ((==boolT) -> True)
         where
             BoolT = boolT
 
-runTypecheck :: [Text] -> Either TypeError (Module PostProcess)
+runTypecheck :: [Text] -> Either TypeError (Module Codegen)
 runTypecheck mod = run 
                  $ runError 
                  $ C.runFreshQNamesState
                  $ C.freshWithInternal 
                  $ C.runFreshM (\(MkTVar n k) -> C.freshVar (originalName n) <&> \n' -> MkTVar n' k)
+                 $ C.dontDump @[TConstraint]
                  $ cobbleCode (unlines mod) >>= typecheck (TCEnv{_varTypes = M.map coercePass (exportedVars C.primModSig), _tcInstances = mempty})
 
 cobbleCode :: (Member (C.Fresh (Text, LexInfo) QualifiedName) r) => Text -> Sem r (Module Typecheck)

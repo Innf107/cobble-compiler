@@ -24,7 +24,7 @@ runCobble = \case
     Compile co -> runCompile co
 
 runCompile :: CompileCmdOpts -> IO ()
-runCompile CompileCmdOpts{compFiles, debug, packageName, description, target, logLevel, ddumpTC, ddumpLC, ddumpCPS, ddumpReduced, ddumpTL, ddumpAsm} = do
+runCompile CompileCmdOpts{compFiles, debug, packageName, description, target, traceLevel, ddumpTC, ddumpLC, ddumpCPS, ddumpReduced, ddumpTL, ddumpAsm} = do
     let opts = CompileOpts {
             name=packageName
         ,   debug
@@ -39,29 +39,28 @@ runCompile CompileCmdOpts{compFiles, debug, packageName, description, target, lo
         }
     case target of
         MC117 -> do
-            (logs, edatapackBS) <- runControllerC opts (timeToIO $ compileToDataPack compFiles)
-            traverse_ (printLog logLevel) logs
+            edatapackBS <- runTracePretty traceLevel $ runControllerC opts (timeToIO $ compileToDataPack compFiles)
             case edatapackBS of
                 Left e -> failWithCompError e
                 Right datapackBS -> writeFileLBS (toString packageName <> ".zip") datapackBS
         Lua -> do
-            (logs, eluaFile) <- runControllerC opts (compileToLuaFile compFiles)
-            traverse_ (printLog logLevel) logs
+            eluaFile <- runTracePretty traceLevel $ runControllerC opts (compileToLuaFile compFiles)
             case eluaFile of
                 Left e -> failWithCompError e
                 Right luaFile -> writeFileText (toString packageName <> ".lua") luaFile
 
-printLog :: LogLevel -> Log -> IO ()
-printLog maxLevel (Log lvl o) = when (lvl <= maxLevel)
-    $ putTextLn (logPrefix lvl <> o <> "\ESC[0m")
+runTracePretty :: TraceLevel -> (Trace => a) -> a
+runTracePretty lvl = runTraceStdoutWith lvl pretty 
     where
+        pretty lvl msg = logPrefix lvl <> msg <> "\ESC[0m"
         logPrefix = \case
-            LogWarning -> "\ESC[38;2;255;128;0m\STX[WARNING] "
-            LogInfo    -> "\ESC[38;2;0;225;225m\STX[INFO] "
-            LogVerbose -> "\ESC[38;2;0;128;128m\STX[VERBOSE] "
-            LogDebug -> "\ESC[38;2;0;225;0m\STX[DEBUG] "
-            LogDebugVerbose -> "\ESC[38;2;0;128;0m\STX[DEBUG VERBOSE] "
-            LogDebugVeryVerbose -> "\ESC[38;2;0;100;0m\STX[DEBUG VERY VERBOSE] "
+            Warning -> "\ESC[38;2;255;128;0m\STX[WARNING]\ESC[38;2;255;176;0m\STX "
+            Info    -> "\ESC[38;2;0;225;225m\STX[INFO]\ESC[38;2;136;225;225m\STX "
+            Verbose -> "\ESC[38;2;0;175;175m\STX[VERBOSE]\ESC[38;2;70;200;200m\STX "
+            Debug -> "\ESC[38;2;0;225;0m\STX[DEBUG]\ESC[38;2;140;255;140m\STX "
+            DebugVerbose -> "\ESC[38;2;0;128;0m\STX[DEBUG VERBOSE]\ESC[38;2;80;200;80m\STX "
+            DebugVeryVerbose -> "\ESC[38;2;0;100;0m\STX[DEBUG VERY VERBOSE]\ESC[38;2;40;145;40m\STX "
+        
 
 -- TODO
 failWithCompError :: CompilationError -> IO a
@@ -73,7 +72,7 @@ data CompileCmdOpts = CompileCmdOpts {
       compFiles :: [FilePath]
     , packageName :: Text
     , debug :: Bool
-    , logLevel :: LogLevel
+    , traceLevel :: TraceLevel
     , description :: Text
     , target :: Target
     , ddumpTC :: Bool
@@ -89,7 +88,7 @@ compileOpts = CompileCmdOpts
     <$> some (argument str (metavar "SOURCEFILES"))
     <*> strOption (long "package-name" <> short 'p' <> metavar "NAME" <> help "The name of the package/datapack")
     <*> switch (long "debug" <> help "Debug mode keeps additional information at runtime")
-    <*> option auto (long "log-level" <> metavar "LEVEL" <> value LogInfo <> help "Controls how much information is logged (LogWarning | LogInfo | LogVerbose | LogDebug | LogDebugVerbose)")
+    <*> option auto (long "log-level" <> metavar "LEVEL" <> value Info <> help "Controls how much information is logged (LogWarning | LogInfo | LogVerbose | LogDebug | LogDebugVerbose)")
     <*> strOption (long "description" <> short 'd' <> metavar "DESCRIPTION" <> help "The datapack description for the datapack's pack.mcmeta")
     <*> option auto (long "target" <> metavar "TARGET" <> value MC117 <> help "Possible targets: mc-1.17, lua")
     <*> switch (long "ddump-tc" <> help "Write the typechecker constraints to a file")

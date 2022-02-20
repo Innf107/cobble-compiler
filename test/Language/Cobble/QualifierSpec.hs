@@ -14,6 +14,8 @@ import Language.Cobble.Util.Polysemy.Dump qualified as C
 import Language.Cobble.Util.Polysemy.StackState qualified as C
 import Language.Cobble qualified as C
 
+import Language.Cobble.TestUtil
+
 import Test.Hspec as S
 import GHC.Base (errorWithoutStackTrace)
 
@@ -67,10 +69,10 @@ spec = do
                 Left e -> errorWithoutStackTrace (show e)
     it "ascriptions can mention in scope tyvars" do
         runQualifier [
-                "struct Test a {};"
+                "variant Test a = MkTest;"
             ,   ""
             ,   "f :: a -> b -> Test a;"
-            ,   "f x y = let z = Test {} :: Test a in z;"
+            ,   "f x y = let z = MkTest :: Test a in z;"
             ] `shouldSatisfy` \case
                 Right (Module _ _ [
                         _
@@ -96,6 +98,22 @@ spec = do
                     ]) | x1 == x2 -> True
                 Right (Module _ _ sts) -> errorWithoutStackTrace (show sts)
                 Left e -> errorWithoutStackTrace (show e)
+    it "type variables keep their original names" do
+        runQualifier [
+                    "variant Test a = MkTest;"
+                ,   ""
+                ,   "f :: a -> b -> Test a;"
+                ,   "f a b = let y = MkTest :: Test b in y;"
+            ] `shouldSatisfy` \case
+                Right (Module _ _ [
+                        _
+                    ,   Def _ _ _ (a1@(TVar (MkTVar (QName "a") _))
+                                    :-> (TVar (MkTVar (QName "b") _))
+                                    :-> (TApp _ (a2@(TVar (MkTVar (QName "a") _)))))
+                    ]) | a1 == a2 -> True
+                Right (Module _ _ sts) -> errorWithoutStackTrace (show sts)
+                Left e -> errorWithoutStackTrace (show e)
+
 
 header :: [Text]
 header = [

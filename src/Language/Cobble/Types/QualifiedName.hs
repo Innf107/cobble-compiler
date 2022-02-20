@@ -7,11 +7,6 @@ module Language.Cobble.Types.QualifiedName (
 ,   renderLua
 
 ,   internalQName
-
--- TODO
-,   Log (..)
-,   LogLevel (..)
-,   log
 ) where
 
 import Language.Cobble.Prelude
@@ -80,18 +75,4 @@ renameStandardChars = T.concatMap \case
     ';' -> "-semi"
     ',' -> "-comma"
     x -> one x
-
--- TODO: Move to a different module
-data Log = Log LogLevel Text deriving (Show, Eq, Ord)
-
-data LogLevel = LogWarning     
-              | LogInfo        
-              | LogVerbose     
-              | LogDebug        
-              | LogDebugVerbose
-              | LogDebugVeryVerbose
-              deriving (Show, Eq, Ord, Enum, Read)
-
-log :: (Member (Output Log) r) => LogLevel -> Text -> Sem r ()
-log l t = output (Log l t)
 

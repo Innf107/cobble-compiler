@@ -12,6 +12,7 @@ module Language.Cobble.Prelude (
     , module System.FilePath
     , module Data.Generics.Uniplate.Data
     , module Language.Cobble.Util.ListLike
+    , module Language.Cobble.Util.Trace
     , module Data.Data
     , module Data.Foldable
     --, module Data.These
@@ -58,9 +59,11 @@ import Relude hiding (
     , (??)
     , zip
     , zipWith
+    , trace, traceM, traceId, traceShow, traceShowId, traceShowM, traceShowWith
     )
 import Language.Cobble.Util.ListLike
-    
+import Language.Cobble.Util.Trace
+
 import Relude.Extra hiding (
       last1
     , head1

@@ -1,7 +1,7 @@
 {-#LANGUAGE NoOverloadedStrings#-}
 module Language.Cobble.McFunction.PrettyPrint where
 
-import Language.Cobble.Prelude hiding (List, Tell, Get)
+import Language.Cobble.Prelude hiding (List, Tell, Get, Debug)
 
 import Relude (absurd)
 import qualified Data.Text as T

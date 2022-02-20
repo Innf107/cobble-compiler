@@ -6,3 +6,7 @@ import Language.Cobble.Types.QualifiedName
 
 instance IsString QualifiedName where
     fromString = internalQName . toText
+
+pattern QName :: Text -> QualifiedName
+pattern QName name <- UnsafeQualifiedName name _ _
+

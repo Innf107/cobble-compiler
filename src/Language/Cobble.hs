@@ -5,19 +5,20 @@ module Language.Cobble (
     , compileContentsToDataPack
     , compileToLuaFile
     , runControllerC
-    , LogLevel(..)
-    , Log(..)
     , CompilationError(..)
     , CompileOpts(..)
     , Target(..)
     , ControllerC
 
+    , module Language.Cobble.Util.Trace
 
     , primModSig
     , modSigToScope
     ) where
 
 import Language.Cobble.Prelude hiding ((<.>), readFile, writeFile, combine)
+
+import Language.Cobble.Util.Trace
 
 import Language.Cobble.Types as S
 import Language.Cobble.Parser.Tokenizer as S
@@ -80,13 +81,13 @@ data CompilationError = LexError LexicalError
                       deriving (Show, Eq)
 
 
-type ControllerC r = Members '[Reader CompileOpts, Error CompilationError, FileSystem FilePath Text, Output Log] r
+type ControllerC r = Members '[Reader CompileOpts, Error CompilationError, FileSystem FilePath Text] r
 
 runControllerC :: CompileOpts 
-               -> Sem '[Error CompilationError, Reader CompileOpts, FileSystem FilePath Text, Output Log, Fresh (Text, LexInfo) QualifiedName, Embed IO] a
-               -> IO ([Log], Either CompilationError a)
-runControllerC opts r = runM (runFreshQNamesState $ outputToIOMonoidAssocR pure $ fileSystemIO $ runReader opts $ runError r)
-        `Ex.catch` (\(Ex.SomeException e) -> pure ([], Left (Panic (show e))))
+               -> Sem '[Error CompilationError, Reader CompileOpts, FileSystem FilePath Text, Fresh (Text, LexInfo) QualifiedName, Embed IO] a
+               -> IO (Either CompilationError a)
+runControllerC opts r = runM (runFreshQNamesState $ fileSystemIO $ runReader opts $ runError r)
+        `Ex.catch` (\(Ex.SomeException e) -> pure (Left (Panic (show e))))
 
 data CompileOpts = CompileOpts {
       name::Text
@@ -144,25 +145,25 @@ instance Compiled [LuaStmnt] where
 
         pure (CPS2Lua.compile reduced)
 
-compileToLuaFile :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r) => [FilePath] -> Sem r Text
+compileToLuaFile :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r) => [FilePath] -> Sem r Text
 compileToLuaFile files = prettyLua <$> compileAll files
 
-compileToDataPack :: (ControllerC r, Members '[Time, Fresh (Text, LexInfo) QualifiedName] r) => [FilePath] -> Sem r LByteString
+compileToDataPack :: (Trace, ControllerC r, Members '[Time, Fresh (Text, LexInfo) QualifiedName] r) => [FilePath] -> Sem r LByteString
 compileToDataPack files = do
     cmods <- compileAll files
     opts <- askDataPackOpts
     makeDataPack opts cmods
 
-compileContentsToDataPack :: (ControllerC r, Members '[Time, Fresh (Text, LexInfo) QualifiedName] r) => [(FilePath, Text)] -> Sem r LByteString
+compileContentsToDataPack :: (Trace, ControllerC r, Members '[Time, Fresh (Text, LexInfo) QualifiedName] r) => [(FilePath, Text)] -> Sem r LByteString
 compileContentsToDataPack files = do
     cmods <- compileContents files
     opts <- askDataPackOpts
     makeDataPack opts cmods
 
-compileAll :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m) => [FilePath] -> Sem r m
+compileAll :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m) => [FilePath] -> Sem r m
 compileAll files = compileContents =<< traverse (\x -> (x,) <$> readFile x) files
 
-compileContents :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m) 
+compileContents :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m) 
                 => [(FilePath, Text)] 
                 -> Sem r m
 compileContents contents = do
@@ -179,7 +180,7 @@ compileContents contents = do
 
     freshWithInternal $ compileFromLC lc
 
-compileAndAnnotateSig :: (ControllerC r, Members '[State (Map (S.Name 'QualifyNames) ModSig), Fresh (Text, LexInfo) QualifiedName] r)
+compileAndAnnotateSig :: (Trace, ControllerC r, Members '[State (Map (S.Name 'QualifyNames) ModSig), Fresh (Text, LexInfo) QualifiedName] r)
                       => (S.Module 'SolveModules, [S.Name 'SolveModules])
                       -> Sem r [LCDef]
 compileAndAnnotateSig (m, deps) = do
@@ -196,7 +197,7 @@ getDep :: (ControllerC r, Member (State (Map (S.Name 'QualifyNames) ModSig)) r)
        -> Sem r ModSig
 getDep n = maybe (error $ "Module dependency '" <> show n <> "' not found") pure =<< gets (lookup n)
 --              TODO^: Should this really be a panic? 
-compileWithSig :: (ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r)
+compileWithSig :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r)
                => S.Module 'QualifyNames
                -> Sem r ([LCDef], ModSig)
 compileWithSig m = do

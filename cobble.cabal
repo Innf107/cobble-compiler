@@ -76,6 +76,7 @@ library
       Language.Cobble.Util.Polysemy.Fresh
       Language.Cobble.Util.Polysemy.StackState
       Language.Cobble.Util.Polysemy.Time
+      Language.Cobble.Util.Trace
       Language.Cobble.Util.TypeUtils
       Lib
   other-modules:

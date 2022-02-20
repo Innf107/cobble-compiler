@@ -82,7 +82,7 @@ lookupType v TCEnv{_varTypes} = lookup v _varTypes & fromMaybe (error $ "lookupT
 insertType :: QualifiedName -> Type -> TCEnv -> TCEnv
 insertType x t env = env & varTypes %~ insert x t
 
-typecheck :: Members '[Fresh TVar TVar, Fresh Text QualifiedName, Error TypeError, Dump [TConstraint]] r 
+typecheck :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Error TypeError, Dump [TConstraint]] r)
           => TCEnv 
           -> Module Typecheck 
           -> Sem r (Module NextPass)
@@ -92,24 +92,20 @@ typecheck env (Module ext mname sts) = do
     subst <- solveConstraints constrs
     pure $ Module ext mname (applySubst subst sts')
 
-typecheckStatements :: Members '[Fresh TVar TVar, Fresh Text QualifiedName, Output TConstraint] r
+typecheckStatements :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Output TConstraint] r)
                     => TCEnv
                     -> [Statement Typecheck]
                     -> Sem r [Statement NextPass]
 typecheckStatements env (Def fixity li (Decl () f xs e) expectedTy : sts) = runReader li do
-    (xs', eTy) <- decomposeParams expectedTy xs
+    expectedTy' <- skolemize expectedTy
+    (xs', eTy) <- decomposeParams expectedTy' xs
+    traceM DebugVerbose $ "[typecheckStatements env (Def ...)] xs' = " <> show xs' <> " | eTy = " <> show eTy
 
     let env' = insertType f expectedTy env
 
     e' <- check (foldr (uncurry insertType) env' xs') e eTy
 
     (Def fixity li (Decl (expectedTy, []) f xs' e') expectedTy :) <$> typecheckStatements env' sts
-    where
-        decomposeParams ty [] = pure ([], ty)
-        decomposeParams ty (x:xs) = do
-            (argTy, resTy) <- decomposeFun ty 
-            (restArgTys, restResTy) <- decomposeParams resTy xs
-            pure ((x,argTy) : restArgTys, restResTy)
 
 typecheckStatements env (Import () li name : sts) = (Import () li name :) <$> typecheckStatements env sts 
 typecheckStatements env (DefClass k li cname tvs methSigs : sts) = undefined -- (DefClass k li cname tvs methSigs :) <$> typecheckStatements env sts
@@ -124,16 +120,17 @@ typecheckStatements env (DefVariant k li tyName tvs constrs : sts) =
 
 typecheckStatements _ [] = pure []
 
-check :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r 
+check :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r)
       => TCEnv
       -> Expr Typecheck 
       -> Type 
       -> Sem r (Expr NextPass)
+check env e t | trace DebugVerbose ("[check]: Γ ⊢ " <> show e <> " : " <> ppType t) False = error "unreachable"
 check env e t@TForall{} = check env e =<< skolemize t -- TODO: We need to 'correct' the extension field to have type t instead of [skolemize t]
 check env (App () li f x) t = runReader li do
     f' <- infer env f
     (fDomTy, fCodomTy) <- decomposeFun (getType f') 
-    traceM $ toString $ "[check env (FCall ...)] getType f' = " <> ppType (getType f') <> " | t = " <> ppType t <> " | fDomTy = " <> ppType fDomTy <> " | fCodomTy = " <> ppType fCodomTy
+    traceM DebugVerbose $ "[check env (FCall ...)] getType f' = " <> ppType (getType f') <> " | t = " <> ppType t <> " | fDomTy = " <> ppType fDomTy <> " | fCodomTy = " <> ppType fCodomTy
     -- (fParamTys, fResTy) <- splitType (getType f') (length xs)
 
     -- xs' <- for (NE.zip (fromList fParamTys) xs) \(paramTy, arg) -> do
@@ -186,7 +183,7 @@ check env (Case () li e branches) t = do
     pure $ Case t li e' branches'
 check env (Lambda () li x e) t = runReader li do    
     (expectedArgTy, expectedResTy) <- decomposeFun t
-    traceM $ toString $ "[check env (Lambda ...)] t = " <> ppType t <> " | expectedArgTy = " <> ppType expectedArgTy <> " | expectedResTy = " <> ppType expectedResTy
+    traceM DebugVerbose $ "[check env (Lambda ...)] t = " <> ppType t <> " | expectedArgTy = " <> ppType expectedArgTy <> " | expectedResTy = " <> ppType expectedResTy
 
     e' <- checkPoly (insertType x expectedArgTy env) e expectedResTy
 
@@ -202,7 +199,7 @@ checkPattern (ConstrP i cname ps) t = do
     
     undefined
 
-infer :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r 
+infer :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r )
       => TCEnv
       -> Expr Typecheck 
       -> Sem r (Expr NextPass)
@@ -220,7 +217,7 @@ infer :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar
 infer env (App () li f x) = runReader li do
     f' <- infer env f
     (fDomTy, fCodomTy) <- decomposeFun (getType f') 
-    traceM $ toString $ "[infer env (FCall ...)] getType f' = " <> ppType (getType f') <> " | fDomTy = " <> ppType fDomTy <> " | fCodomTy = " <> ppType fCodomTy
+    traceM DebugVerbose $ "[infer env (FCall ...)] getType f' = " <> ppType (getType f') <> " | fDomTy = " <> ppType fDomTy <> " | fCodomTy = " <> ppType fCodomTy
     
     x' <- checkPoly env x fDomTy
 
@@ -301,22 +298,15 @@ infer env (Lambda () li x e) = do
 
     pure (Lambda (xTy :-> getType e') li x e')
 
-checkPoly :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r 
+checkPoly :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r)
           => TCEnv
           -> Expr Typecheck 
           -> Type 
           -> Sem r (Expr NextPass)
 checkPoly env expr ty = do
-    -- TODO
-    -- We cannot actually compute the projection of ty, can we?
-    -- Since the constraint solver did not run yet, ty might just be a
-    -- unification variable. 
-    -- Do we instead return a type variable and some form of projection constraint?
-    
     -- (_tvs, ty') <- projection ty 
-
-    -- TODO: Does this work? This doesn't actually instantiate the entire projection, but just the first forall right?
     ty' <- instantiate ty
+
     check env expr ty'
 
 projection :: Members '[Fresh TVar TVar] r => Type -> Sem r ([TVar], Type)
@@ -362,16 +352,16 @@ decomposeFun t = do
     subsume t (argTy :-> resTy)
     pure (argTy, resTy)
 
--- splitType t n = ([a1,...,an], an+1) with t <= (a1 -> ... -> an+1)
-splitType :: Members '[Fresh Text QualifiedName, Reader LexInfo, Output TConstraint] r 
-          => Type 
-          -> Int 
-          -> Sem r ([Type], Type)
-splitType t n = do
-    argTys <- replicateM n (freshTV KStar)
-    resTy <- freshTV KStar
-    subsume (foldr (:->) resTy argTys) t
-    pure (argTys, resTy)
+decomposeParams :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Output TConstraint] r
+                => Type
+                -> [a]
+                -> Sem r ([(a, Type)], Type)
+decomposeParams ty [] = pure ([], ty)
+decomposeParams ty (x:xs) = do
+    (argTy, resTy) <- decomposeFun ty 
+    (restArgTys, restResTy) <- decomposeParams resTy xs
+    pure ((x,argTy) : restArgTys, restResTy)
+
 
 lambdasToDecl :: LexInfo -> QualifiedName -> Expr NextPass -> Int -> Decl NextPass
 lambdasToDecl li f = go []
