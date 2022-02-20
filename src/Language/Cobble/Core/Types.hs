@@ -8,6 +8,10 @@ data Expr = Var QualifiedName
           | TyApp Expr Type
           | Abs QualifiedName Type Expr
           | TyAbs QualifiedName Kind Expr
+
+          | IntLit Int
+          | Let QualifiedName Type Expr Expr
+          | If Expr Expr Expr
           deriving (Show, Eq, Generic, Data)
 
 data Type = TVar QualifiedName Kind

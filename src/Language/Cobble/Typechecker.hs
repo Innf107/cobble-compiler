@@ -21,6 +21,8 @@ import qualified Data.Set as Set
 
 import Data.List.NonEmpty qualified as NE
 
+import Language.Cobble.Core.Types qualified as F
+
 type NextPass = Codegen
 
 data TCEnv = TCEnv {
