@@ -60,8 +60,8 @@ runTraceStdout maxLevel = runTrace impl
             | level <= maxLevel = T.trace (toString msg) x
             | otherwise         = x
 
-runTraceStdoutWith :: TraceLevel -> (TraceLevel -> Text -> Text) -> (Trace => b) -> b
-runTraceStdoutWith maxLevel pretty = runTrace impl
+runTraceStderrWith :: TraceLevel -> (TraceLevel -> Text -> Text) -> (Trace => b) -> b
+runTraceStderrWith maxLevel pretty = runTrace impl
     where
         impl :: TraceLevel -> Text -> a -> a
         impl level msg x

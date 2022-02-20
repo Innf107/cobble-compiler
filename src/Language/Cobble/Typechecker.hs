@@ -176,8 +176,8 @@ check env (VariantConstr (i, j) li c) t = runReader li do
     pure (VariantConstr (t, i, j) li c)
 check env (Case () li e branches) t = do
     e' <- infer env e
-    branches' <- forM branches \(CaseBranch () li p brExpr) -> do
-        (p', extendEnv) <- checkPattern p (getType e')
+    branches' <- forM branches \(CaseBranch () li p brExpr) -> runReader li do
+        (p', extendEnv) <- checkPattern env p (getType e')
         brExpr' <- check (extendEnv env) brExpr t
         pure (CaseBranch () li p' brExpr')
     pure $ Case t li e' branches'
@@ -189,15 +189,22 @@ check env (Lambda () li x e) t = runReader li do
 
     pure (Lambda t li x e')
 
-checkPattern :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r 
-             => Pattern Typecheck
+checkPattern :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo] r 
+             => TCEnv
+             -> Pattern Typecheck
              -> Type
              -> Sem r (Pattern NextPass, TCEnv -> TCEnv)
-checkPattern (IntP () n) t = pure (IntP () n, id)
-checkPattern (VarP () x) t = pure (VarP t x, insertType x t)
-checkPattern (ConstrP i cname ps) t = do
-    
-    undefined
+checkPattern env (IntP () n) t = pure (IntP () n, id)
+checkPattern env (VarP () x) t = pure (VarP t x, insertType x t)
+checkPattern env (ConstrP i cname ps) t = do
+    constrTy <- instantiate (lookupType cname env)
+    (typedPats, resTy) <- decomposeParams constrTy ps
+
+    resTy !~ t 
+
+    (ps', exts) <- unzip <$> forM typedPats \(p, pTy) -> checkPattern env p pTy
+
+    pure (ConstrP (t,i) cname ps', foldr (.) id exts)
 
 infer :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r )
       => TCEnv
@@ -270,7 +277,7 @@ infer env (VariantConstr (i, j) li c) = do
 infer env (Case () li e branches) = runReader li do
     e' <- infer env e
     branches' <- forM branches \(CaseBranch () li p brExpr) -> do
-        (p', extendEnv) <- checkPattern p (getType e')
+        (p', extendEnv) <- checkPattern env p (getType e')
         brExpr' <- infer (extendEnv env) brExpr
         pure (CaseBranch () li p' brExpr')
     

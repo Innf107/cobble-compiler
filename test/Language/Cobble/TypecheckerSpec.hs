@@ -224,8 +224,8 @@ spec = do
 
 
 
-runUnify :: Sem '[Reader LexInfo, Output Log, Error TypeError] a -> Either TypeError a
-runUnify = run . runError . ignoreOutput . runReader InternalLexInfo
+runUnify :: (Sem '[Reader LexInfo, Error TypeError] a) -> Either TypeError a
+runUnify = run . runError . runReader InternalLexInfo
     
 runTCFresh :: Sem '[C.Fresh TVar TVar, C.Fresh Text QualifiedName, C.Fresh (Text, LexInfo) QualifiedName] a -> a
 runTCFresh = run . C.runFreshQNamesState . C.freshWithInternal . C.runFreshM (\(MkTVar n k) -> C.freshVar (originalName n) <&> \n' -> MkTVar n' k)
@@ -274,7 +274,7 @@ runTypecheck mod = run
                  $ C.freshWithInternal 
                  $ C.runFreshM (\(MkTVar n k) -> C.freshVar (originalName n) <&> \n' -> MkTVar n' k)
                  $ C.dontDump @[TConstraint]
-                 $ cobbleCode (unlines mod) >>= typecheck (TCEnv{_varTypes = M.map coercePass (exportedVars C.primModSig), _tcInstances = mempty})
+                 $ cobbleCode (unlines mod) >>= ignoreTrace (typecheck (TCEnv{_varTypes = M.map coercePass (exportedVars C.primModSig), _tcInstances = mempty}))
 
 cobbleCode :: (Member (C.Fresh (Text, LexInfo) QualifiedName) r) => Text -> Sem r (Module Typecheck)
 cobbleCode content = do

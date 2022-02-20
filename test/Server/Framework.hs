@@ -70,23 +70,20 @@ testWithServer categories = do
         (Header t) -> liftIO $ headerLn t
         (Error e)  -> liftIO $ failLn e
         (TestError desc program errorDesc errorPred) -> liftIO $ do
-            (logs, edatapack) <- compileForTest program
+            edatapack <- compileForTest program
             case edatapack of
                 Right _ -> do
-                    writeLogs ("Expected: " <> errorDesc) logs
                     failTest desc errorDesc "successful compilation"
                 Left e
                     | errorPred e -> successLn (desc <> ": passed")
                     | otherwise -> do
-                        writeLogs ("Expected: " <> errorDesc <> "\nReceived: " <> show e) logs
                         failTest desc errorDesc (show e)
 
 
         (Test desc program tests) -> do
-            (logs, edatapack) <- liftIO $ compileForTest program
+            edatapack <- liftIO $ compileForTest program
             case edatapack of
                 Left err -> liftIO do
-                    writeLogs (show err) logs
                     failLn (desc <> ": COMPILATION FAILURE! " <> show err)
                 Right dp -> do
                     liftIO $ writeFileLBS ("test/Server/world/datapacks/" <> "test.zip") dp >> logLn "Successfully compiled"
@@ -103,15 +100,10 @@ testWithServer categories = do
                                 else failTest (desc <> "[" <> show i <> "]") (showExpectation expectation) (show ress) >> pure (All False)
                     when success $ liftIO $ successLn (desc <> ": passed")
 
-writeLogs :: Text -> [Log] -> IO ()
-writeLogs desc logs = do
-    timeText <- toText . DTime.formatTime DTime.defaultTimeLocale "\n[%d/%m/%Y %H:%M:%S]\n" <$> DTime.getCurrentTime
-    appendFileText "tests.log" (timeText <> desc <> "\nLOGS:" <> mconcat (map show logs))
-
 failTest :: Description -> Text -> Text -> IO ()
 failTest desc expected received = failLn (desc <> ": FAILED!!!\n    Expected: " <> expected <> "\n    Received: " <> received)
 
-compileForTest :: [TModule] -> IO ([Log], Either CompilationError LByteString)
+compileForTest :: [TModule] -> IO (Either CompilationError LByteString)
 compileForTest program = do
             let opts = CompileOpts {
                 name="test"
@@ -126,7 +118,7 @@ compileForTest program = do
             ,   description="testing"
             }
             liftIO $ logLn "Compiling Cobble code"
-            liftIO $ runControllerC opts $ timeToIO $ compileContentsToDataPack (map (\(TModule x y) -> (x, "module " <> toText x <> ";\n" <> y)) program)
+            liftIO $ runControllerC opts $ timeToIO $ ignoreTrace $ compileContentsToDataPack (map (\(TModule x y) -> (x, "module " <> toText x <> ";\n" <> y)) program)
 
 matchesExpectation :: [Text] -> Expectation -> Bool
 matchesExpectation res = \case

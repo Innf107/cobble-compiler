@@ -50,7 +50,7 @@ runCompile CompileCmdOpts{compFiles, debug, packageName, description, target, tr
                 Right luaFile -> writeFileText (toString packageName <> ".lua") luaFile
 
 runTracePretty :: TraceLevel -> (Trace => a) -> a
-runTracePretty lvl = runTraceStdoutWith lvl pretty 
+runTracePretty lvl = runTraceStderrWith lvl pretty 
     where
         pretty lvl msg = logPrefix lvl <> msg <> "\ESC[0m"
         logPrefix = \case
