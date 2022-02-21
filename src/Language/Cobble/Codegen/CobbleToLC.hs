@@ -31,6 +31,7 @@ compile prims (Module _deps _modname statements) = concat <$> traverse compileSt
             ]
 
         compileExpr :: Expr Codegen -> Sem r LCExpr
+        compileExpr _ = undefined
         compileExpr (C.IntLit _li _ i) = pure $ L.IntLit i
         compileExpr (UnitLit _li)      = pure $ Tuple []
         -- If a variable's type needs a constraint, we have to compile that to a function call accepting a parameter

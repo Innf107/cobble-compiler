@@ -54,7 +54,7 @@ type instance XStructAccess     'Codegen = (StructDef, Type)
 
 type instance XLambda            Codegen = Type
 
-type instance XExpr              Codegen = Void
+type instance XExpr              Codegen = CodegenExt
 
 type instance XCaseBranch Codegen = ()
 

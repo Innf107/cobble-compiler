@@ -2,23 +2,25 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Language.Cobble.Types.TH where
 
-import Relude hiding (Type)-- Not importing Language.Cobble.Prelude to avoid unnecessary name conflicts
+import Relude hiding (Type, last)-- Not importing Language.Cobble.Prelude to avoid unnecessary name conflicts
 import Relude.Extra
 
-import Data.List (nub)
+import Data.List (nub, last)
 
 import Language.Haskell.TH
 
 import Language.Cobble.Util.TypeUtils
 import Data.Data (Data)
 
-derivePass :: Name -> Name -> Q [Dec]
-derivePass className typeName = do
+derivePass :: Bool -> Name -> Name -> Q [Dec]
+derivePass withArg className typeName = do
     let class_ = conT className
     let type_ = conT typeName
     let allC  = conT ''AllC
     let instanceReq = conT $ mkName "InstanceRequirements"
-    [d|deriving instance ($allC $class_ ($instanceReq ($type_ p))) => $class_ ($type_ p)|]
+    if withArg
+    then [d|deriving instance ($allC $class_ ($instanceReq ($type_ p))) => $class_ ($type_ p)|]
+    else [d|deriving instance ($allC $class_ ($instanceReq ($type_)))   => $class_ ($type_)|]
 
 derivePassWithConstraint :: Name -> Name -> Name -> Q [Dec]
 derivePassWithConstraint constraint className typeName = do
@@ -29,15 +31,19 @@ derivePassWithConstraint constraint className typeName = do
     [d|deriving instance ($(conT constraint) p, $allC $class_ ($instanceReq ($type_ p))) => $class_ ($type_ p)|]
 
 
-derivePassTypeable :: Name -> Name -> Q [Dec]
-derivePassTypeable = derivePassWithConstraint ''Typeable
+derivePassTypeable :: Bool -> Name -> Name -> Q [Dec]
+derivePassTypeable withArg = if withArg 
+                             then derivePassWithConstraint ''Typeable
+                             else derivePass withArg
 
-deriveDefault :: Name -> Q [Dec]
-deriveDefault ty = concat <$> sequence [
-        derivePass ''Show ty
-    ,   derivePass ''Eq ty
-    ,   derivePassTypeable ''Data ty
-    ,   [d|deriving instance Generic ($(conT ty) p)|]
+deriveDefault :: Bool -> Name -> Q [Dec]
+deriveDefault withArg ty = concat <$> sequence [
+        derivePass withArg ''Show ty
+    ,   derivePass withArg ''Eq ty
+    ,   derivePassTypeable withArg ''Data ty
+    ,   if withArg 
+        then [d|deriving instance Generic ($(conT ty) p)|]
+        else [d|deriving instance Generic $(conT ty)|]
     ]
 
 deriveInstanceReqs :: Q [Dec]
@@ -46,7 +52,8 @@ deriveInstanceReqs = do
     (FamilyI _ instances) <- reify instanceReqs
     concat <$> forM instances \(TySynInstD (TySynEqn _ t _))-> do
         case t of
-            AppT _ (AppT (ConT cname) (VarT _)) -> deriveDefault cname
+            AppT _ (AppT (ConT cname) (VarT _)) -> deriveDefault True cname
+            AppT _ (ConT cname) -> deriveDefault False cname
             _ -> pure []
 
 
@@ -103,3 +110,15 @@ typeContains x needle = go x
         go (AppT t1 t2) = go t1 || go t2
         go (ParensT t) = go t
         go t = error $ "typeContains: invalid type: " <> show t
+
+
+makeCompleteX :: Name -> [Name] -> Q [Dec]
+makeCompleteX tyName pats = reify tyName >>= \case
+    (TyConI (DataD [] _ _ _ (mapMaybe conName -> conNames) _)) -> pure <$> pragCompleteD (conNames <> pats) Nothing
+    ty -> fail $ "makeCompleteX: non-standard data type: " <> show ty
+    where
+        conName = \case
+            NormalC name _
+                | last (nameBase name) == 'X' -> Nothing
+                | otherwise                   -> Just name
+            c -> error $ "makeCompleteX: non-standard constructor: " <> show c

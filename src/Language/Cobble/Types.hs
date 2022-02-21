@@ -38,6 +38,7 @@ instance HasType (Expr 'Codegen) where
         UnitLit _                           -> unitT
         Let _ _ _ b                         -> getType b
         Lambda t _ _ _                      -> t
+        ExprWrapper _ _ e                   -> getType e
 
 instance HasType (Decl Codegen) where
     getType (Decl (t, _) _ _ _) = t

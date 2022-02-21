@@ -147,6 +147,20 @@ data Pattern (p :: Pass) = IntP (XIntP p) Int
                          | ConstrP (XConstrP p) (Name p) [Pattern p]
                          | PatternX (XPattern p)
 
+data CodegenExt = XExprWrapper ExprWrapper (Expr Codegen)
+
+pattern ExprWrapper li w e = ExprX (XExprWrapper w e) li
+
+data ExprWrapper = WrapVar QualifiedName
+                 | WrapTyApp [Type]
+                 | WrapTyAbs TVar
+                 | IdWrap
+                 deriving (Show, Eq, Generic, Data)
+
+type instance InstanceRequirements (CodegenExt) = '[
+        Expr Codegen
+    ]
+
 type instance InstanceRequirements (Pattern p) = [
         Name p, XIntP p, XVarP p, XConstrP p, XPattern p
     ]
@@ -359,6 +373,8 @@ deriveCoercePass ''Expr
 deriveCoercePass ''CaseBranch
 deriveCoercePass ''Pattern
 deriveCoercePass ''Decl
+
+makeCompleteX ''Expr ['ExprWrapper]
 
 -- TODO: Cannot be generated with TH right now, since it depends on f
 instance {-# INCOHERENT #-} (CoercePass (Name p1) (Name p2), CoercePass (Expr p1) (Expr p2)) => CoercePass (OperatorGroup p1 f) (OperatorGroup p2 f) where

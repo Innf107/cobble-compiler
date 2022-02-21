@@ -23,6 +23,7 @@ lowerExpr (C.Let _ li (C.Decl (ty, _) f xs e1) e2) = F.Let f
                                 <*> lowerExpr e2
 lowerExpr (C.Var _ _ x) = pure $ F.Var x
 lowerExpr (C.Ascription _ _ e ty) = undefined
+lowerExpr _ = undefined
 
 lowerType :: C.Type -> Sem r F.Type
 lowerType = undefined
