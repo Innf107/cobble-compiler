@@ -48,18 +48,19 @@ data TConstraint = MkTConstraint {
 } deriving (Show, Eq, Generic, Data)
 
 data TConstraintComp = Unify Type Type      -- σ ~ ρ
-                     | Subsume Type Type    -- σ ≤ ρ
+                     | Subsume QualifiedName Type Type    -- σ ≤ ρ with wrapper variable 'w'
                      deriving (Show, Eq, Generic, Data)
 
 (!~) :: Members '[Output TConstraint, Reader LexInfo] r => Type -> Type -> Sem r ()
 t1 !~ t2 = ask >>= \li -> output (MkTConstraint (Unify t1 t2) li)
 infix 1 !~
 
-subsume :: Members '[Output TConstraint, Reader LexInfo] r => Type -> Type -> Sem r (Expr NextPass -> Expr NextPass)
+subsume :: Members '[Output TConstraint, Reader LexInfo, Fresh Text QualifiedName] r => Type -> Type -> Sem r (Expr NextPass -> Expr NextPass)
 subsume t1 t2 = do
     li <- ask 
-    output (MkTConstraint (Subsume t1 t2) li)
-    undefined
+    wrapperVar <- freshVar "w" 
+    output (MkTConstraint (Subsume wrapperVar t1 t2) li)
+    pure (ExprWrapper li (WrapVar wrapperVar))
 
 
 newtype Substitution = Subst {unSubst :: Map TVar Type} 
@@ -190,7 +191,7 @@ check env (Lambda () li x e) t = runReader li do
 
     e' <- checkPoly (insertType x expectedArgTy env) e expectedResTy
 
-    pure $ w (Lambda t li x e')
+    pure $ w (Lambda (t, expectedArgTy) li x e')
 
 checkPattern :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo] r 
              => TCEnv
@@ -307,7 +308,7 @@ infer env (Lambda () li x e) = do
 
     e' <- infer (insertType x xTy env) e
 
-    pure (Lambda (xTy :-> getType e') li x e')
+    pure (Lambda (xTy :-> getType e', xTy) li x e')
 
 checkPoly :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r)
           => TCEnv
@@ -340,17 +341,22 @@ since even in Haskell, function signatures are strongly encouraged, it is ultima
 -}
 
 
-checkInst :: Members '[Output TConstraint, Reader LexInfo] r => Type -> Type -> Sem r (Expr NextPass -> Expr NextPass)
+checkInst :: Members '[Output TConstraint, Reader LexInfo, Fresh Text QualifiedName] r 
+          => Type 
+          -> Type 
+          -> Sem r (Expr NextPass -> Expr NextPass)
 checkInst = subsume
 
-instantiate :: Members '[Fresh TVar TVar] r => Type -> Sem r (Type, Expr NextPass -> Expr NextPass)
+instantiate :: Members '[Fresh Text QualifiedName, Fresh TVar TVar] r => Type -> Sem r (Type, Expr NextPass -> Expr NextPass)
 instantiate (TForall tvs ty) = do
-    tvMap <- M.fromList <$> traverse (\tv -> (tv,) . TVar <$> freshVar tv) tvs
-    _ <- pure $ replaceTVars tvMap ty
-    undefined
+    -- The substitution is not immediately converted to a Map, since the order
+    -- of tyvars is important
+    tvSubst <- traverse (\tv -> (tv,) . TVar <$> freshVar tv) tvs
+    
+    pure (replaceTVars (M.fromList tvSubst) ty, foldr (\(_,x) r -> r . ExprWrapper InternalLexInfo (WrapTyApp x)) id tvSubst)
+    
 instantiate ty = do
-    _ <- pure ty
-    undefined
+    pure (ty, id)
 
 
 decomposeFun :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Output TConstraint] r 
@@ -381,12 +387,9 @@ lambdasToDecl :: LexInfo -> QualifiedName -> Expr NextPass -> Int -> Decl NextPa
 lambdasToDecl li f = go []
     where
         go :: [(QualifiedName, Type)] -> Expr NextPass -> Int -> Decl NextPass
-        go args e 0                 = Decl (getType e, []) f (reverse args) e
-        go args (Lambda t _ x e) n  = go ((x, argTy t):args) e (n - 1)
-        go args e n                 = error $ "Typechecker.lambdasToDecl: suppplied lambda did not have enough parameters.\n  Remaining parameters: " <> show n <> "\n  Expression: " <> show e
-        
-        argTy (t1 :-> t2) = t1
-        argTy t           = error $ "Typechecker.lambdasToDecl: Lambda type is not a function type: " <> show t
+        go args e 0                      = Decl (getType e, []) f (reverse args) e
+        go args (Lambda (_, t) _ x e) n  = go ((x,t):args) e (n - 1)
+        go args e n                      = error $ "Typechecker.lambdasToDecl: suppplied lambda did not have enough parameters.\n  Remaining parameters: " <> show n <> "\n  Expression: " <> show e
 
 
 freshTV :: Members '[Fresh Text QualifiedName] r => Kind -> Sem r Type
@@ -407,7 +410,7 @@ replaceTVars tvs (TConstraint (MkConstraint constrName constrTy) ty) =
                 TConstraint (MkConstraint constrName (replaceTVars tvs constrTy)) (replaceTVars tvs ty)
 
 
-solveConstraints :: Members '[Error TypeError,  Fresh TVar TVar] r
+solveConstraints :: Members '[Error TypeError, Fresh Text QualifiedName, Fresh TVar TVar] r
                  => [TConstraint] 
                  -> Sem r Substitution
 solveConstraints [] = pure mempty
@@ -417,8 +420,9 @@ solveConstraints ((MkTConstraint (Unify t1 t2) li):constrs) = runReader li do
     subst <- unify t1 t2
     (subst <>) <$> solveConstraints (applySubst subst constrs)
 
-solveConstraints ((MkTConstraint (Subsume t1 t2) li):constrs) = runReader li do
+solveConstraints ((MkTConstraint (Subsume w t1 t2) li):constrs) = runReader li do
     subst <- subsumption t1 t2
+    -- undefined -- TODO: do something with 'w'
     (subst <>) <$> solveConstraints (applySubst subst constrs)
 
 unify :: Members '[Error TypeError, Reader LexInfo] r
@@ -454,7 +458,7 @@ bind tv ty
 occurs :: TVar -> Type -> Bool
 occurs tv ty = tv `Set.member` freeTVs ty
 
-subsumption :: Members '[Error TypeError, Reader LexInfo, Fresh TVar TVar] r
+subsumption :: Members '[Error TypeError, Reader LexInfo, Fresh Text QualifiedName, Fresh TVar TVar] r
       => Type
       -> Type
       -> Sem r Substitution
@@ -501,7 +505,7 @@ ppGivens = unlines . map (\(TGiven c li) -> ppConstraint c <> " @" <> show li)
 
 ppTConstraint :: TConstraintComp -> Text
 ppTConstraint (Unify t1 t2)     = ppType t1 <> " ~ " <> ppType t2
-ppTConstraint (Subsume t1 t2)   = ppType t1 <> " ≤ " <> ppType t2
+ppTConstraint (Subsume w t1 t2)   = ppType t1 <> " ≤ " <> ppType t2 <> " | " <> show w
 
 ppType :: Type -> Text
 ppType (TFun a b)           = "(" <> ppType a <> " -> " <> ppType b <> ")"

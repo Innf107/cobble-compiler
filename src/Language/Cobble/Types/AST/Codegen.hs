@@ -52,7 +52,10 @@ type instance XCase             Codegen = Type
 type instance XStructConstruct  'Codegen = (StructDef, Type)
 type instance XStructAccess     'Codegen = (StructDef, Type)
 
-type instance XLambda            Codegen = Type
+type instance XLambda            Codegen = (Type, Type)
+                                        -- ^      ^      
+                                        -- |      parameter type
+                                        -- full type
 
 type instance XExpr              Codegen = CodegenExt
 
