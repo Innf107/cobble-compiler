@@ -5,6 +5,7 @@ module Language.Cobble.Types.QualifiedName (
 ,   renderDebug
 ,   renderMinecraft
 ,   renderLua
+,   renderRacket
 
 ,   internalQName
 ) where
@@ -52,6 +53,19 @@ renderLua = renameMinus . renameStandardChars . renderDebug
         renameMinus = T.concatMap \case
             '-' -> "__"
             x -> one x
+
+renderRacket :: QualifiedName -> Text
+renderRacket = renameRacketChars . renderDebug
+    where
+        renameRacketChars = T.concatMap \case
+            '.' -> "?dot?"
+            '|' -> "?pipe?"
+            '#' -> "?hash?"
+            ';' -> "?semi?"
+            ',' -> "?comma?"
+            x   -> one x
+
+
 
 renameStandardChars :: Text -> Text
 renameStandardChars = T.concatMap \case

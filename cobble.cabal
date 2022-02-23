@@ -53,6 +53,7 @@ library
       Language.Cobble.Prelude
       Language.Cobble.Prelude.Parser
       Language.Cobble.Qualifier
+      Language.Cobble.Racket.Types
       Language.Cobble.SemAnalysis
       Language.Cobble.Typechecker
       Language.Cobble.Types
@@ -151,6 +152,7 @@ library
     , parsec
     , polysemy
     , polysemy-plugin
+    , prettyprinter
     , random
     , recursion-schemes
     , relude
@@ -235,6 +237,7 @@ executable cobble
     , parsec
     , polysemy
     , polysemy-plugin
+    , prettyprinter
     , random
     , recursion-schemes
     , relude
@@ -339,6 +342,7 @@ test-suite cobble-test
     , parsec
     , polysemy
     , polysemy-plugin
+    , prettyprinter
     , process
     , random
     , recursion-schemes

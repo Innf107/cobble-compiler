@@ -18,10 +18,10 @@ module Language.Cobble.Prelude (
     --, module Data.These
     , module Data.Either
     , module Data.Void
+    , module Prettyprinter
     , (|:)
     , state 
     , whenAlt
-    , ($$)
     , mapFromLeft
     , munion
     , censorM
@@ -119,6 +119,8 @@ import Data.Foldable (foldrM)
 
 import Data.Void
 
+import Prettyprinter (Pretty(..))
+
 (|:) :: a -> NonEmpty a -> NonEmpty a
 a |: (x :| xs) = a :| (x : xs)
 
@@ -128,11 +130,6 @@ state f = get >>= \(f -> (r, s')) -> put s' *> pure r
     
 whenAlt :: (Alternative f) => Bool -> a -> f a
 whenAlt b x = if b then pure x else empty
-
-($$) :: (a -> b) -> a -> b
-($$) = ($)
-
-infixr 5 $$
 
 mapFromLeft :: (a -> b) -> Either a b -> b
 mapFromLeft = (`either`id)

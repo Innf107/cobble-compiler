@@ -40,6 +40,7 @@ dependencies:
 - mcrcon
 - recursion-schemes
 - data-default
+- prettyprinter
 
 library:
   source-dirs: src
