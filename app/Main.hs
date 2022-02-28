@@ -3,7 +3,6 @@ module Main where
 import Language.Cobble.Prelude hiding (argument)
 import Language.Cobble
 import Language.Cobble.Types
-import Language.Cobble.Packager
 
 import Options.Applicative
 import Language.Cobble.Util.Polysemy.Time
@@ -38,16 +37,11 @@ runCompile CompileCmdOpts{compFiles, debug, packageName, description, target, tr
         ,   ddumpAsm 
         }
     case target of
-        MC117 -> do
-            edatapackBS <- runTracePretty traceLevel $ runControllerC opts (timeToIO $ compileToDataPack compFiles)
-            case edatapackBS of
+        Racket -> do
+            eRacketFile <- runTracePretty traceLevel $ runControllerC opts (compileToRacketFile compFiles)
+            case eRacketFile of
                 Left e -> failWithCompError e
-                Right datapackBS -> writeFileLBS (toString packageName <> ".zip") datapackBS
-        Lua -> do
-            eluaFile <- runTracePretty traceLevel $ runControllerC opts (compileToLuaFile compFiles)
-            case eluaFile of
-                Left e -> failWithCompError e
-                Right luaFile -> writeFileText (toString packageName <> ".lua") luaFile
+                Right luaFile -> writeFileText (toString packageName <> ".rkt") luaFile
 
 runTracePretty :: TraceLevel -> (Trace => a) -> a
 runTracePretty lvl = runTraceStderrWith lvl pretty 
@@ -90,7 +84,7 @@ compileOpts = CompileCmdOpts
     <*> switch (long "debug" <> help "Debug mode keeps additional information at runtime")
     <*> option auto (long "log-level" <> metavar "LEVEL" <> value Info <> help "Controls how much information is logged (LogWarning | LogInfo | LogVerbose | LogDebug | LogDebugVerbose)")
     <*> strOption (long "description" <> short 'd' <> metavar "DESCRIPTION" <> help "The datapack description for the datapack's pack.mcmeta")
-    <*> option auto (long "target" <> metavar "TARGET" <> value MC117 <> help "Possible targets: mc-1.17, lua")
+    <*> option auto (long "target" <> metavar "TARGET" <> value Racket <> help "Possible targets: racket")
     <*> switch (long "ddump-tc" <> help "Write the typechecker constraints to a file")
     <*> switch (long "ddump-lc" <> help "Write the intermediate lambda calculus to a file")
     <*> switch (long "ddump-cps" <> help "Write the intermediate CPS to a file")

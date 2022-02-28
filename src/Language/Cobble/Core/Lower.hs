@@ -5,8 +5,28 @@ import Language.Cobble.Prelude
 import qualified Language.Cobble.Types as C
 
 import qualified Language.Cobble.Core.Types as F
+import Language.Cobble.Util.Bitraversable (secondM)
 
 type CExpr = C.Expr C.Codegen
+type CStatement = C.Statement C.Codegen
+type CModule = C.Module C.Codegen
+
+lower :: CModule -> Sem r [F.Decl]
+lower (C.Module _deps mname sts) = lowerStmnts sts
+
+lowerStmnts :: [CStatement] -> Sem r [F.Decl]
+lowerStmnts [] = pure []
+lowerStmnts (C.Def _ _ (C.Decl _ x xs e) ty : sts) = (:)
+    <$> do
+            xs' <- traverse (secondM lowerType) xs
+            e' <- lowerExpr e
+            ty' <- lowerType ty
+            pure $ F.Def x ty' (foldr (uncurry F.Abs) e' xs')
+    <*> lowerStmnts sts
+lowerStmnts (C.Import{} : sts) = lowerStmnts sts
+lowerStmnts (C.DefClass{} : sts) = undefined
+lowerStmnts (C.DefInstance{} : sts) = undefined
+lowerStmnts (C.DefVariant{} : sts) = undefined
 
 lowerExpr :: CExpr -> Sem r F.Expr
 lowerExpr (C.App ty _ e1 e2) = F.App

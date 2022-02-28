@@ -1,9 +1,7 @@
 module Language.Cobble (
       compileAll
     , compileContents
-    , compileToDataPack
-    , compileContentsToDataPack
-    , compileToLuaFile
+    , compileToRacketFile
     , runControllerC
     , CompilationError(..)
     , CompileOpts(..)
@@ -25,47 +23,26 @@ import Language.Cobble.Parser.Tokenizer as S
 import Language.Cobble.Parser as S
 import Language.Cobble.Qualifier as S
 import Language.Cobble.SemAnalysis as S
-import Language.Cobble.Packager
 import Language.Cobble.ModuleSolver
 import Language.Cobble.Util.Polysemy.Time
 import Language.Cobble.Util.Polysemy.FileSystem
 import Language.Cobble.Util.Polysemy.Fresh
 import Language.Cobble.Util.Polysemy.Dump
 import Language.Cobble.Util.Polysemy.StackState
-import Language.Cobble.Util
 
 import Language.Cobble.Prelude.Parser (ParseError, parse)
 
 import Language.Cobble.Typechecker as TC
 
-import Language.Cobble.MCAsm.Types
-import Language.Cobble.MCAsm.Types qualified as A
-
-import Language.Cobble.McFunction.Types
-
-import Language.Cobble.Lua.Types as Lua
-import Language.Cobble.Lua.PrettyPrint as Lua
-
 import Language.Cobble.Codegen.PrimOps
 
-import Language.Cobble.Codegen.CobbleToLC as C2LC
-import Language.Cobble.Codegen.LCToBasicCPS as LC2CPS
-import Language.Cobble.Codegen.BasicCPSToTopLevelCPS as CPS2TL
-import Language.Cobble.Codegen.TopLevelCPSToMCAsm as TL2ASM
-import Language.Cobble.Codegen.MCAsmToMCFunction as ASM2MC
+import Language.Cobble.Core.Lower as Lower
+import Language.Cobble.Codegen.CoreToRacket as CoreToRacket
 
-import Language.Cobble.Codegen.CPSToLua as CPS2Lua
-
-import Language.Cobble.LC.Types as LC
-import Language.Cobble.LC.PrettyPrint as LC
-
-import Language.Cobble.CPS.Basic.Types
-import Language.Cobble.CPS.TopLevel.Types
+import Language.Cobble.Racket.Types as Racket
+import Language.Cobble.Core.Types qualified as Core
 
 import Data.Map qualified as M
-import Data.List qualified as L
-import Data.Text qualified as T
-import System.FilePath qualified as FP
 
 import qualified Control.Exception as Ex
 
@@ -82,6 +59,7 @@ data CompilationError = LexError LexicalError
 
 
 type ControllerC r = Members '[Reader CompileOpts, Error CompilationError, FileSystem FilePath Text] r
+
 
 runControllerC :: CompileOpts 
                -> Sem '[Error CompilationError, Reader CompileOpts, FileSystem FilePath Text, Fresh (Text, LexInfo) QualifiedName, Embed IO] a
@@ -102,63 +80,20 @@ data CompileOpts = CompileOpts {
     , ddumpTL::Bool
     }
 
-data Target = MC117
-            | Lua
+data Target = Racket
             deriving (Show, Eq)
 instance R.Read Target where
-    readsPrec _ "mc-1.17" = [(MC117, "")]
-    readsPrec _ "lua" = [(Lua, "")] 
+    readsPrec _ "racket" = [(Racket, "")]
     readsPrec _ _ = []
 
-askDataPackOpts :: (Member (Reader CompileOpts) r) => Sem r DataPackOptions
-askDataPackOpts = ask <&> \(CompileOpts{name, description}) -> DataPackOptions {
-        name
-    ,   description
-    }
-
 class Compiled m where
-    compileFromLC :: forall r. (ControllerC r, Members '[Fresh Text QualifiedName] r) => LCExpr -> Sem r m
+    compileFromCore :: forall r. (ControllerC r, Members '[Fresh Text QualifiedName] r) => [Core.Decl] -> Sem r m
 
-instance Compiled [CompiledModule] where
-    compileFromLC lc = do
-        cps     <- LC2CPS.compile lc
-        whenM (asks ddumpCPS) $ dumpCPS cps
+instance Compiled [RacketExpr] where
+    compileFromCore = CoreToRacket.compile
 
-        let reduced = LC2CPS.reduceAdmin cps
-        whenM (asks ddumpReduced) $ dumpReduced reduced
-
-        tl      <- CPS2TL.compile reduced
-        whenM (asks ddumpTL) $ dumpTL tl
-        
-        let asm = TL2ASM.compile tl 
-        whenM (asks ddumpAsm) $ dumpAsm asm
-        
-        pure $ ASM2MC.compile asm
-
-instance Compiled [LuaStmnt] where
-    compileFromLC lc = do
-        cps <- LC2CPS.compile lc
-        whenM (asks ddumpCPS) $ dumpCPS cps
-        
-        let reduced = LC2CPS.reduceAdmin cps
-        whenM (asks ddumpReduced) $ dumpReduced reduced
-
-        pure (CPS2Lua.compile reduced)
-
-compileToLuaFile :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r) => [FilePath] -> Sem r Text
-compileToLuaFile files = prettyLua <$> compileAll files
-
-compileToDataPack :: (Trace, ControllerC r, Members '[Time, Fresh (Text, LexInfo) QualifiedName] r) => [FilePath] -> Sem r LByteString
-compileToDataPack files = do
-    cmods <- compileAll files
-    opts <- askDataPackOpts
-    makeDataPack opts cmods
-
-compileContentsToDataPack :: (Trace, ControllerC r, Members '[Time, Fresh (Text, LexInfo) QualifiedName] r) => [(FilePath, Text)] -> Sem r LByteString
-compileContentsToDataPack files = do
-    cmods <- compileContents files
-    opts <- askDataPackOpts
-    makeDataPack opts cmods
+compileToRacketFile :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r) => [FilePath] -> Sem r Text
+compileToRacketFile files = show . pretty @[RacketExpr] <$> compileAll files
 
 compileAll :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m) => [FilePath] -> Sem r m
 compileAll files = compileContents =<< traverse (\x -> (x,) <$> readFile x) files
@@ -172,17 +107,15 @@ compileContents contents = do
 
     orderedMods :: [(S.Module 'SolveModules, [Text])] <- mapError ModuleError $ findCompilationOrder asts
 
-    lcDefs <- fmap join $ evalState (one ("prims", primModSig)) $ traverse compileAndAnnotateSig orderedMods
+    core <- fmap join $ evalState (one ("prims", primModSig)) $ traverse compileAndAnnotateSig orderedMods
     
-    let lc = C2LC.collapseDefs lcDefs
+    -- TODO whenM (asks ddumpLC) $ dumpLC core
 
-    whenM (asks ddumpLC) $ dumpLC lc
-
-    freshWithInternal $ compileFromLC lc
+    freshWithInternal $ compileFromCore core
 
 compileAndAnnotateSig :: (Trace, ControllerC r, Members '[State (Map (S.Name 'QualifyNames) ModSig), Fresh (Text, LexInfo) QualifiedName] r)
                       => (S.Module 'SolveModules, [S.Name 'SolveModules])
-                      -> Sem r [LCDef]
+                      -> Sem r [Core.Decl]
 compileAndAnnotateSig (m, deps) = do
     annotatedMod :: (S.Module 'QualifyNames) <- S.Module
         <$> fromList <$> traverse (\d -> (internalQName d ,) <$> getDep d) ("prims" : deps)
@@ -199,7 +132,7 @@ getDep n = maybe (error $ "Module dependency '" <> show n <> "' not found") pure
 --              TODO^: Should this really be a panic? 
 compileWithSig :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r)
                => S.Module 'QualifyNames
-               -> Sem r ([LCDef], ModSig)
+               -> Sem r ([Core.Decl], ModSig)
 compileWithSig m = do
     let qualScopes = map modSigToScope (toList $ xModule m)
 
@@ -221,9 +154,9 @@ compileWithSig m = do
             $ runFreshM (\(MkTVar n k) -> freshVar (originalName n) <&> \n' -> MkTVar n' k)
             $ typecheck tcEnv saMod -- TODO: provide environment from other modules
 
-        lc <- C2LC.compile primOps tcMod
+        core <- lower tcMod
 
-        pure (lc, extractSig tcMod)
+        pure (core, extractSig tcMod)
 
 
 modSigToScope :: ModSig -> Scope
@@ -269,22 +202,4 @@ primModSig = ModSig {
     ,   exportedFixities = mempty
     ,   exportedInstances = mempty
     }
-
-dumpLC :: (Members '[FileSystem FilePath Text] r) => LCExpr -> Sem r ()
-dumpLC = writeFile "dump-lc.lc" . prettyPrintLCExpr
-
-dumpCPS :: (Members '[FileSystem FilePath Text] r) => CPS -> Sem r ()
-dumpCPS = writeFile "dump-cps.lc" . show
-
-dumpReduced :: (Members '[FileSystem FilePath Text] r) => CPS -> Sem r ()
-dumpReduced = writeFile "dump-reduced-cps.lc" . show
-
-dumpTL :: (Members '[FileSystem FilePath Text] r) => TL -> Sem r ()
-dumpTL = writeFile "dump-tl.lc" . show 
-
-dumpAsm :: (Members '[FileSystem FilePath Text] r) => [Block] -> Sem r ()
-dumpAsm = writeFile "dump-asm.mcasm" . renderAsm
-    where
-        renderAsm :: [Block] -> Text
-        renderAsm = T.intercalate "\n\n" . map (\(Block f is) -> "[" <> show f <> "]:\n" <> foldMap (\i -> "    " <> show i <> "\n") is)
 

@@ -26,28 +26,13 @@ source-repository head
 library
   exposed-modules:
       Language.Cobble
-      Language.Cobble.Codegen.BasicCPSToTopLevelCPS
-      Language.Cobble.Codegen.CobbleToLC
       Language.Cobble.Codegen.Common
-      Language.Cobble.Codegen.CPSToLua
-      Language.Cobble.Codegen.LCToBasicCPS
-      Language.Cobble.Codegen.MCAsmToMCFunction
+      Language.Cobble.Codegen.CoreToRacket
       Language.Cobble.Codegen.PrimOps
-      Language.Cobble.Codegen.TopLevelCPSToMCAsm
       Language.Cobble.Core.Lint
       Language.Cobble.Core.Lower
       Language.Cobble.Core.Types
-      Language.Cobble.CPS.Basic.Types
-      Language.Cobble.CPS.TopLevel.Types
-      Language.Cobble.LC.PrettyPrint
-      Language.Cobble.LC.Types
-      Language.Cobble.Lua.PrettyPrint
-      Language.Cobble.Lua.Types
-      Language.Cobble.MCAsm.Types
-      Language.Cobble.McFunction.PrettyPrint
-      Language.Cobble.McFunction.Types
       Language.Cobble.ModuleSolver
-      Language.Cobble.Packager
       Language.Cobble.Parser
       Language.Cobble.Parser.Tokenizer
       Language.Cobble.Prelude

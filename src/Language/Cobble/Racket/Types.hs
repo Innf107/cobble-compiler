@@ -17,6 +17,7 @@ data RacketExpr =
 
   | RSymbol QualifiedName
   | RIntLit Int
+  | RNil
   | RHash [(RacketExpr, RacketExpr)]
   | RList [RacketExpr]
 
@@ -42,6 +43,7 @@ instance Pretty RacketExpr where
     pretty (RBegin es) = parens ("begin" <> nest 4 (line <> pretty es))
     pretty (RSymbol x) = "'" <> prettyQ x
     pretty (RIntLit x) = pretty x
+    pretty RNil = "'()"
     pretty (RHash args) = prettyApp "hash" (concatMap (\(x, e) -> [pretty x, pretty e]) args)
     pretty (RList args) = prettyApp "list" (map pretty args)
     pretty (RAdd x y)   = prettyApp "+" [pretty x, pretty y]
@@ -62,3 +64,9 @@ prettyApp f xs = parens (f <+> align (sep xs))
 
 list :: [Doc ann] -> Doc ann
 list = parens . hsep
+
+prettyRacketWithRuntime :: [RacketExpr] -> Doc ann
+prettyRacketWithRuntime body = header <> line <> line <> pretty body <> line <> line <> footer
+    where
+        header = "#lang racket"
+        footer = "(main)"
