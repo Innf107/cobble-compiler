@@ -48,27 +48,35 @@ data TConstraint = MkTConstraint {
 } deriving (Show, Eq, Generic, Data)
 
 data TConstraintComp = Unify Type Type      -- σ ~ ρ
-                     | Subsume QualifiedName Type Type    -- σ ≤ ρ with wrapper variable 'w'
                      deriving (Show, Eq, Generic, Data)
 
-(!~) :: Members '[Output TConstraint, Reader LexInfo] r => Type -> Type -> Sem r ()
+(!~) :: Members '[Output TConstraint, Reader LexInfo] r 
+     => Type 
+     -> Type 
+     -> Sem r ()
 t1 !~ t2 = ask >>= \li -> output (MkTConstraint (Unify t1 t2) li)
 infix 1 !~
 
-subsume :: Members '[Output TConstraint, Reader LexInfo, Fresh Text QualifiedName] r => Type -> Type -> Sem r (Expr NextPass -> Expr NextPass)
+subsume :: Members '[Output TConstraint, Reader LexInfo, Fresh Text QualifiedName, Fresh TVar TVar] r 
+        => Type 
+        -> Type 
+        -> Sem r (Expr NextPass -> Expr NextPass)
 subsume t1 t2 = do
-    li <- ask 
-    wrapperVar <- freshVar "w" 
-    output (MkTConstraint (Subsume wrapperVar t1 t2) li)
-    pure (ExprWrapper li (WrapVar wrapperVar))
+    (t1', w) <- instantiate t1
+    t2' <- skolemize t2
+    t1' !~ t2'
+    pure w
 
 
-newtype Substitution = Subst {unSubst :: Map TVar Type} 
+
+data Substitution = Subst {
+        substVarTys :: Map TVar Type
+    } 
     deriving stock   (Show, Eq, Generic, Data)
 
 -- Not sure if this is really associative...
 instance Semigroup Substitution where
-    Subst s1 <> Subst s2 = Subst $ M.filterWithKey notIdentical $ fmap (applySubst (Subst s2)) s1 <> s2
+    Subst s1 <> Subst s2 = Subst (M.filterWithKey notIdentical $ fmap (applySubst (Subst s2)) s1 <> s2)
         where
             notIdentical tv (TVar tv') | tv == tv' = False
             notIdentical _ _ = True
@@ -132,7 +140,8 @@ check :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh T
       -> Type 
       -> Sem r (Expr NextPass)
 check env e t | trace DebugVerbose ("[check]: Γ ⊢ " <> show e <> " : " <> ppType t) False = error "unreachable"
-check env e t@TForall{} = check env e =<< skolemize t -- TODO: We need to 'correct' the extension field to have type t instead of [skolemize t]
+-- We need to 'correct' the extension field to have type t instead of [skolemize t]
+check env e t@TForall{} = fmap (correct t) $ check env e =<< skolemize t 
 check env (App () li f x) t = runReader li do
     f' <- infer env f
     (fDomTy, fCodomTy, w) <- decomposeFun (getType f')
@@ -204,7 +213,7 @@ checkPattern env (ConstrP i cname ps) t = do
     (constrTy, w) <- instantiate (lookupType cname env)
     (typedPats, resTy, w') <- decomposeParams constrTy ps
     -- TODO: I don't know...
-    resTy !~ t 
+    resTy !~ t
 
     (ps', exts) <- unzip <$> forM typedPats \(p, pTy) -> checkPattern env p pTy
 
@@ -292,7 +301,7 @@ infer env (Case () li e branches) = runReader li do
     t <- checkEquiv (map (\(CaseBranch _ _ _ expr) -> getType expr) branches')
     pure (Case t li e' branches')
     where
-        checkEquiv :: forall r. Members '[Reader LexInfo, Output TConstraint, Fresh Text QualifiedName] r 
+        checkEquiv :: forall r. Members '[Reader LexInfo, Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r 
                    => [Type] 
                    -> Sem r Type
         checkEquiv []         = freshTV KStar -- the case expression is empty
@@ -328,6 +337,9 @@ projection (TForall tvs ty) = do
 projection (TFun dom codom) = second (TFun dom) <$> projection codom
 projection ty = pure ([], ty)
 
+correct :: Type -> Expr NextPass -> Expr NextPass
+correct = setType
+
 {- note: [Generalization]
 We don't perform *any* (implicit) generalization at the moment.
 Top level functions have to include type signatures anyway and generalization for
@@ -341,7 +353,7 @@ since even in Haskell, function signatures are strongly encouraged, it is ultima
 -}
 
 
-checkInst :: Members '[Output TConstraint, Reader LexInfo, Fresh Text QualifiedName] r 
+checkInst :: Members '[Output TConstraint, Reader LexInfo, Fresh Text QualifiedName, Fresh TVar TVar] r 
           => Type 
           -> Type 
           -> Sem r (Expr NextPass -> Expr NextPass)
@@ -420,11 +432,6 @@ solveConstraints ((MkTConstraint (Unify t1 t2) li):constrs) = runReader li do
     subst <- unify t1 t2
     (subst <>) <$> solveConstraints (applySubst subst constrs)
 
-solveConstraints ((MkTConstraint (Subsume w t1 t2) li):constrs) = runReader li do
-    subst <- subsumption t1 t2
-    -- undefined -- TODO: do something with 'w'
-    (subst <>) <$> solveConstraints (applySubst subst constrs)
-
 unify :: Members '[Error TypeError, Reader LexInfo] r
       => Type
       -> Type
@@ -458,38 +465,16 @@ bind tv ty
 occurs :: TVar -> Type -> Bool
 occurs tv ty = tv `Set.member` freeTVs ty
 
-subsumption :: Members '[Error TypeError, Reader LexInfo, Fresh Text QualifiedName, Fresh TVar TVar] r
-      => Type
-      -> Type
-      -> Sem r Substitution
--- subsumption t1 t2@TForall{} = do
---    t2' <- skolemize t2
---    subsumption t1 t2'
---subsumption t1@TForall{} t2 = do
---    t1' <- instantiate t1
---    subsumption t1' t2
-subsumption t1 t2 = do
-    (t1', _) <- instantiate t1
-    t2' <- skolemize t2
-    unify t1' t2'
-
-skolemize :: forall r. Members '[Fresh TVar TVar] r
-          => Type 
-          -> Sem r Type
-skolemize = go mempty
-    where
-        go :: Map TVar Type -> Type -> Sem r Type
-        go foundSkolems (TForall tvs ty) = do
-            skolemMap <- M.fromList <$> traverse (\tv -> (tv,) . TSkol <$> freshVar tv) tvs
-            go (foundSkolems <> skolemMap) ty
-        go foundSkolems (TFun t1 t2)     = TFun (replaceTVars foundSkolems t1) <$> go foundSkolems t2
-        go foundSkolems ty               = pure $ replaceTVars foundSkolems ty 
-
+skolemize :: Members '[Fresh TVar TVar] r => Type -> Sem r Type
+skolemize (TForall tvs ty) = do
+    skolemMap <- M.fromList <$> traverse (\tv -> (tv,) . TSkol <$> freshVar tv) tvs
+    pure $ replaceTVars skolemMap ty
+skolemize ty = pure ty
 
 applySubst :: Data from => Substitution -> from -> from
-applySubst s = transformBi \case
-    TVar a' | Just t' <- lookup a' (unSubst s) -> t'
-    x -> x
+applySubst s@Subst{substVarTys} = transformBi \case
+            TVar a' | Just t' <- lookup a' substVarTys -> t'
+            x -> x
 
 
 
@@ -505,7 +490,6 @@ ppGivens = unlines . map (\(TGiven c li) -> ppConstraint c <> " @" <> show li)
 
 ppTConstraint :: TConstraintComp -> Text
 ppTConstraint (Unify t1 t2)     = ppType t1 <> " ~ " <> ppType t2
-ppTConstraint (Subsume w t1 t2)   = ppType t1 <> " ≤ " <> ppType t2 <> " | " <> show w
 
 ppType :: Type -> Text
 ppType (TFun a b)           = "(" <> ppType a <> " -> " <> ppType b <> ")"

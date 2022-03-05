@@ -1,0 +1,1 @@
+(define f_0 (lambda (g_3) (lambda (x_4) (g_3 x_4))))

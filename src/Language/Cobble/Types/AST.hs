@@ -152,8 +152,7 @@ data CodegenExt = XExprWrapper ExprWrapper (Expr Codegen)
 pattern ExprWrapper :: (XExpr p ~ CodegenExt) => LexInfo -> ExprWrapper -> Expr 'Codegen -> Expr p
 pattern ExprWrapper li w e = ExprX (XExprWrapper w e) li
 
-data ExprWrapper = WrapVar QualifiedName
-                 | WrapTyApp Type
+data ExprWrapper = WrapTyApp Type
                  | WrapTyAbs TVar
                  | IdWrap
                  deriving (Show, Eq, Generic, Data)

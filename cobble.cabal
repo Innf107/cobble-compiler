@@ -123,7 +123,7 @@ library
       NumDecimals
       RoleAnnotations
       QuantifiedConstraints
-  ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wno-unused-matches -Wno-name-shadowing -Wredundant-constraints -Werror=incomplete-patterns -Werror=incomplete-record-updates -Werror=missing-fields -Werror=unused-do-bind -freverse-errors
+  ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wno-unused-matches -Wno-name-shadowing -Wredundant-constraints -Werror=incomplete-patterns -Werror=incomplete-record-updates -Werror=missing-fields -Werror=missing-methods -Werror=unused-do-bind -freverse-errors
   build-depends:
       base >=4.7 && <5
     , bytestring

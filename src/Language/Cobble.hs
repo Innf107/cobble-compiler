@@ -37,6 +37,7 @@ import Language.Cobble.Typechecker as TC
 import Language.Cobble.Codegen.PrimOps
 
 import Language.Cobble.Core.Lower as Lower
+import Language.Cobble.Core.Lint
 import Language.Cobble.Codegen.CoreToRacket as CoreToRacket
 
 import Language.Cobble.Racket.Types as Racket
@@ -73,11 +74,7 @@ data CompileOpts = CompileOpts {
     , description::Text
     , target::Target
     , ddumpTC::Bool
-    , ddumpAsm::Bool
-    , ddumpLC::Bool
-    , ddumpCPS::Bool
-    , ddumpReduced::Bool
-    , ddumpTL::Bool
+    , ddumpCore::Bool
     }
 
 data Target = Racket
@@ -109,7 +106,11 @@ compileContents contents = do
 
     core <- fmap join $ evalState (one ("prims", primModSig)) $ traverse compileAndAnnotateSig orderedMods
     
-    -- TODO whenM (asks ddumpLC) $ dumpLC core
+    lintError <- runError $ lint (LintEnv mempty) core
+
+    case lintError of
+        Left e   -> traceM Warning $ "[CORE LINT ERROR]: " <> show e
+        Right () -> pure () 
 
     freshWithInternal $ compileFromCore core
 
@@ -121,9 +122,9 @@ compileAndAnnotateSig (m, deps) = do
         <$> fromList <$> traverse (\d -> (internalQName d ,) <$> getDep d) ("prims" : deps)
         <*> pure (S.moduleName m)
         <*> pure (map (coercePass @(Statement SolveModules) @(Statement QualifyNames)) (moduleStatements m))
-    (lcdefs, sig) <- compileWithSig annotatedMod
+    (core, sig) <- compileWithSig annotatedMod
     modify (insert (S.moduleName m) sig)
-    pure lcdefs
+    pure core
 
 getDep :: (ControllerC r, Member (State (Map (S.Name 'QualifyNames) ModSig)) r)
        => S.Name 'SolveModules

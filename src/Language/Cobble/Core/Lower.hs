@@ -48,7 +48,6 @@ lowerExpr (C.Ascription _ _ e ty) = lowerExpr e -- Ascriptions are subsumed (hah
 lowerExpr C.VariantConstr{} = undefined
 lowerExpr C.Case{} = undefined
 lowerExpr (C.Lambda (ty, argTy) _ x e) = F.Abs x <$> lowerType argTy <*> lowerExpr e
-lowerExpr (C.ExprWrapper _ (C.WrapVar wvar) _) = error $ "Core.Lower.lowerExpr: Non-substituted wrapping with variable: " <> show wvar
 lowerExpr (C.ExprWrapper _ (C.WrapTyApp ty) e) = F.TyApp
                                                 <$> lowerExpr e
                                                 <*> lowerType ty
@@ -59,7 +58,7 @@ lowerType :: C.Type -> Sem r F.Type
 lowerType (C.TVar (C.MkTVar tvName tvKind)) = F.TVar tvName <$> lowerKind tvKind
 lowerType (C.TCon tcName tcKind) = F.TCon tcName <$> lowerKind tcKind
 lowerType (C.TApp t1 t2) = F.TApp <$> lowerType t1 <*> lowerType t2
-lowerType (C.TSkol tv) = error "lowerType: detected skolem type constant. Does this mean it escaped?"
+lowerType (C.TSkol (C.MkTVar tvName tvKind)) = F.TVar tvName <$> lowerKind tvKind -- ??? error $ "lowerType: detected skolem type constant. Does this mean it escaped?\n  Skolem: " <> show tv
 lowerType (C.TForall tvs ty) = do
     ty' <- lowerType ty
     foldrM (\(C.MkTVar tvName tvKind) r -> lowerKind tvKind <&> \k' -> F.TForall tvName k' r) ty' tvs

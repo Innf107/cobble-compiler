@@ -23,18 +23,14 @@ runCobble = \case
     Compile co -> runCompile co
 
 runCompile :: CompileCmdOpts -> IO ()
-runCompile CompileCmdOpts{compFiles, debug, packageName, description, target, traceLevel, ddumpTC, ddumpLC, ddumpCPS, ddumpReduced, ddumpTL, ddumpAsm} = do
+runCompile CompileCmdOpts{compFiles, debug, packageName, description, target, traceLevel, ddumpTC, ddumpCore} = do
     let opts = CompileOpts {
             name=packageName
         ,   debug
         ,   description
         ,   target
         ,   ddumpTC
-        ,   ddumpLC
-        ,   ddumpCPS
-        ,   ddumpReduced
-        ,   ddumpTL    
-        ,   ddumpAsm 
+        ,   ddumpCore
         }
     case target of
         Racket -> do
@@ -70,11 +66,7 @@ data CompileCmdOpts = CompileCmdOpts {
     , description :: Text
     , target :: Target
     , ddumpTC :: Bool
-    , ddumpLC :: Bool
-    , ddumpCPS :: Bool
-    , ddumpReduced :: Bool
-    , ddumpTL :: Bool
-    , ddumpAsm :: Bool
+    , ddumpCore :: Bool
     } deriving (Show, Eq)
 
 compileOpts :: Parser CompileCmdOpts
@@ -86,8 +78,4 @@ compileOpts = CompileCmdOpts
     <*> strOption (long "description" <> short 'd' <> metavar "DESCRIPTION" <> help "The datapack description for the datapack's pack.mcmeta")
     <*> option auto (long "target" <> metavar "TARGET" <> value Racket <> help "Possible targets: racket")
     <*> switch (long "ddump-tc" <> help "Write the typechecker constraints to a file")
-    <*> switch (long "ddump-lc" <> help "Write the intermediate lambda calculus to a file")
-    <*> switch (long "ddump-cps" <> help "Write the intermediate CPS to a file")
-    <*> switch (long "ddump-reduced" <> help "Write the reduced intermediate CPS to a file")
-    <*> switch (long "ddump-tl" <> help "Write the intermediate TopLevel CPS to a file")
-    <*> switch (long "ddump-asm" <> help "Write the intermediate ASM to a file")
+    <*> switch (long "ddump-core" <> help "Write the intermediate language Core to a file")
