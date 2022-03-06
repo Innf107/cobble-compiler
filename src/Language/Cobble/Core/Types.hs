@@ -5,7 +5,11 @@ import Language.Cobble.Types.QualifiedName
 
 import Prettyprinter
 
-data Decl = Def QualifiedName Type Expr deriving (Show, Eq, Generic, Data)
+import GHC.Show qualified as S
+
+data Decl = Def QualifiedName Type Expr
+          | DefVariant QualifiedName [(QualifiedName, Kind)] [(QualifiedName, [Type])] 
+          deriving (Eq, Generic, Data)
 
 data Expr = Var QualifiedName
           | App Expr Expr
@@ -17,18 +21,20 @@ data Expr = Var QualifiedName
           | UnitLit -- Unit should ideally just be a regular variant constructor, but hard-wiring libraries into the compiler is not really possible yet.
           | Let QualifiedName Type Expr Expr
           | If Expr Expr Expr
-          deriving (Show, Eq, Generic, Data)
+          -- Unlike in Cobble, Core's VariantConstrs have to be *fully saturated* with value and type arguments.
+          | VariantConstr QualifiedName Int (Seq Type) (Seq Expr)
+          deriving (Eq, Generic, Data)
 
 data Type = TVar QualifiedName Kind
           | TCon QualifiedName Kind
           | TFun Type Type
           | TApp Type Type
           | TForall QualifiedName Kind Type
-          deriving (Show, Eq, Generic, Data)
+          deriving (Eq, Generic, Data)
 
 data Kind = KType
           | KFun Kind Kind
-          deriving (Show, Eq, Generic, Data)
+          deriving (Eq, Generic, Data)
 
 ppQName :: QualifiedName -> Doc ann
 ppQName = pretty . renderDebug
@@ -38,6 +44,8 @@ instance {-# OVERLAPPING #-} Pretty [Decl] where
 
 instance Pretty Decl where
     pretty (Def x ty e) = ppQName x <+> ":" <+> pretty ty <> line <> ppQName x <+> "=" <+> align (pretty e)
+    pretty (DefVariant x args clauses) = "variant" <+> ppQName x <+> align (sep (map (\(x, k) -> "(" <> ppQName x <+> ":" <+> pretty k <> ")") args) <+> "="
+                                    <+> (line <> vsep (map (\(c, args) -> "|" <+> ppQName c <+> sep (map pretty args)) clauses)))
 instance Pretty Expr where
     pretty (Var x) = ppQName x
     pretty (App e1 e2) = "(" <> pretty e1 <+> pretty e2 <> ")"
@@ -48,6 +56,14 @@ instance Pretty Expr where
     pretty UnitLit = "()"
     pretty (Let x ty e1 e2) = "(let" <+> ppQName x <+> ":" <+> pretty ty <+> "=" <+> pretty e1 <+> "in" <+> pretty e2 <+> ")"
     pretty (If c th el) = "(if" <+> pretty c <+> "then" <+> pretty th <+> "else" <+> pretty el <> ")"
+    pretty (VariantConstr x _ tys es) = ppQName x <> tyApps <> valApps
+        where
+            tyApps = case tys of
+                Empty -> ""
+                (ty :<| tys) -> "[" <> foldr (\ty r -> pretty ty <> "," <+> r) (pretty ty) tys <> "]"
+            valApps = case es of
+                Empty -> ""
+                (e :<| es) -> "{" <> foldr (\e r -> pretty e <> "," <+> r) (pretty e) es <> "}"
 instance Pretty Type where
     pretty (TVar x k) = ppQName x
     pretty (TCon x k) = "(" <> ppQName x <+> ":" <+> pretty k <> ")"
@@ -59,3 +75,11 @@ instance Pretty Kind where
     pretty (KFun KType t2) = "*" <+> "->" <+> pretty t2
     pretty (KFun t1 t2) = "(" <> pretty t1 <> ")" <+> "->" <+> pretty t2
 
+instance S.Show Decl where
+    show = show . pretty
+instance S.Show Expr where
+    show = show . pretty
+instance S.Show Type where
+    show = show . pretty
+instance S.Show Kind where
+    show = show . pretty

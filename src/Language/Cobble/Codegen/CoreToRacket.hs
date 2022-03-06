@@ -9,7 +9,7 @@ compile [] = pure []
 compile (Def x _ty e : ds) = (:) 
     <$> (RDefine x <$> compileExpr e) 
     <*> compile ds
-
+compile (DefVariant x args clauses : ds) = compile ds
 
 compileExpr :: Expr -> Sem r RacketExpr
 compileExpr (Var x) = pure $ RVar x
@@ -32,3 +32,5 @@ compileExpr (If c th el) = RIf
     <$> compileExpr c
     <*> compileExpr th
     <*> compileExpr el
+compileExpr (VariantConstr x i _tyArgs valArgs) = RList . (RIntLit i :) . toList <$> traverse compileExpr valArgs
+

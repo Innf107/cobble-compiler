@@ -12,6 +12,10 @@ data CoreLintError = VarNotFound QualifiedName LintEnv
                    | IfBranchTypeMismatch Expr Expr Type Type
                    | AppOfNonFunction Expr Expr Type Type
                    | TyAppOfNonForall Expr Type Type
+                   | VariantArgMismatch QualifiedName Expr Type Type
+                   | VariantMissingValArgs QualifiedName Type Type (Seq Type) (Seq Expr)
+                   | VariantMissingTyArgs QualifiedName QualifiedName Kind Type (Seq Expr)
+                   | VariantExcessiveArgs QualifiedName Type (Seq Type) (Seq Expr)
                    deriving (Show, Eq)
 
 data LintEnv = LintEnv {
@@ -35,9 +39,16 @@ lint :: Members '[Error CoreLintError] r
      -> Sem r ()
 lint _ [] = pure ()
 lint env (Def x ty e : ds) = do
-    eTy <- lintExpr env e 
+    let env' = insertType x ty env
+    eTy <- lintExpr env' e 
     when (eTy /= ty) $ throw (DeclTypeMismatch x ty eTy)
-    lint (insertType x ty env) ds
+    lint env' ds
+lint env (DefVariant x args clauses : ds) = do
+    let resTy = foldl' (TApp) (TCon x KType) (map (uncurry TVar) args)
+    let constrTys = clauses <&> \(constr, constrArgs) ->
+            (constr, (foldr (uncurry TForall) (foldr TFun resTy constrArgs) args))
+    let env' = foldr (uncurry insertType) env constrTys
+    lint env' ds
 
 lintExpr :: Members '[Error CoreLintError] r
          => LintEnv
@@ -71,11 +82,27 @@ lintExpr env (Let x ty e1 e2) = do
     lintExpr (insertType x ty env) e2
 lintExpr env (If c th el) = do
     cTy <- lintExpr env c
-    typeMatch cTy intTy (IfCondTypeMismatch c)
+    typeMatch cTy boolTy (IfCondTypeMismatch c)
     thTy <- lintExpr env th
     elTy <- lintExpr env el
     typeMatch thTy elTy (IfBranchTypeMismatch th el)
     pure thTy
+lintExpr env (VariantConstr x i tyArgs valArgs) = do
+    xTy <- lookupType x env
+    go xTy tyArgs valArgs
+    where
+        go (TFun t1 t2) tyArgs (arg :<| valArgs) = do
+            argTy <- lintExpr env arg
+            typeMatch t1 argTy (VariantArgMismatch x arg)
+            go t2 tyArgs valArgs
+        go (TFun t1 t2) tyArgs Empty = throw $ VariantMissingValArgs x t1 t2 tyArgs valArgs  
+
+        go (TForall a _k ty) (tyArg :<| tyArgs) valArgs = do
+            let ty' = replaceTVar a tyArg ty
+            go ty' tyArgs valArgs
+        go (TForall a k ty) Empty valArgs = throw $ VariantMissingTyArgs x a k ty valArgs
+        go ty Empty Empty = pure ty
+        go ty tyArgs valArgs = throw $ VariantExcessiveArgs x ty tyArgs valArgs
 
 intTy :: Type
 intTy = TCon (internalQName "Int") KType

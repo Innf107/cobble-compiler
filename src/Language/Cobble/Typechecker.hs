@@ -190,8 +190,9 @@ check env (Ascription () li e (coercePass -> t1)) t2 = runReader li do
     pure $ w e'
 
 check env (VariantConstr (i, j) li c) t = runReader li do
-    w <- checkInst (lookupType c env) t
-    pure $ w (VariantConstr (t, i, j) li c)
+    let cTy = lookupType c env
+    w <- checkInst cTy t
+    pure $ w (VariantConstr (t, cTy, j) li c)
 
 check env (Case () li e branches) t = do
     e' <- infer env e
@@ -281,8 +282,9 @@ infer env (Ascription () li e (coercePass -> t)) = runReader li do
     pure (w e')
 
 infer env (VariantConstr (i, j) li c) = runReader li do
-    (cTy, w) <- instantiate $ lookupType c env
-    pure (w $ VariantConstr (cTy, i, j) li c)
+    let cTy = lookupType c env
+    (cTy', w) <- instantiate cTy
+    pure (w $ VariantConstr (cTy', cTy, j) li c)
 
 infer env (Case () li e branches) = runReader li do
     e' <- infer env e

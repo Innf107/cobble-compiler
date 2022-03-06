@@ -43,10 +43,7 @@ type instance XIf               Codegen = Type
 type instance XLet              Codegen = ()
 type instance XVar              Codegen = (Type, [TWanted])
 type instance XAscription       Codegen = Void
-type instance XVariantConstr    Codegen = (Type, Int, Int)
---                                                        ^    ^
---                                                        |    constructor index
---                                                        expected number of args
+type instance XVariantConstr    Codegen = (Type, Type, Int)
 type instance XCase             Codegen = Type
 
 type instance XStructConstruct  'Codegen = (StructDef, Type)

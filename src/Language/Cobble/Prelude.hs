@@ -15,7 +15,7 @@ module Language.Cobble.Prelude (
     , module Language.Cobble.Util.Trace
     , module Data.Data
     , module Data.Foldable
-    --, module Data.These
+    , module Data.Sequence
     , module Data.Either
     , module Data.Void
     , module Prettyprinter
@@ -60,6 +60,8 @@ import Relude hiding (
     , zip
     , zipWith
     , trace, traceM, traceId, traceShow, traceShowId, traceShowM, traceShowWith
+    , unfoldr
+    , tails, inits, sortOn, sort, intersperse, zip3, splitAt, scanr, scanr1, scanl, scanl1
     )
 import Language.Cobble.Util.ListLike
 import Language.Cobble.Util.Trace
@@ -75,6 +77,7 @@ import Relude.Extra hiding (
     , (^.)
     , (.~)
     , (%~)
+    , (!?)
     , lens
     , Lens'
     )
@@ -104,6 +107,7 @@ import Control.Lens hiding (
     ,   transform
     ,   (<.>)
     ,   op
+    ,   (|>), (<|), (:>), (:<), Empty
     )
 
 import Data.Data hiding (Fixity)
@@ -118,6 +122,12 @@ import qualified Data.Map as M (unionWith)
 import Data.Foldable (foldrM)
 
 import Data.Void
+
+import Data.Sequence hiding (
+        empty, fromList, lookup, insertAt, index
+    -- These should really be exported
+    ,   zipWith, replicateM, take, reverse, replicate, drop, length, sortBy, zip, filter, unzip, null
+    )
 
 import Prettyprinter (Pretty(..))
 

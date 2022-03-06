@@ -1,7 +1,7 @@
 {-# LANGUAGE NoOverloadedStrings, OverloadedLists #-}
 module Language.Cobble.Parser.Tokenizer where
 
-import Language.Cobble.Prelude hiding (op)
+import Language.Cobble.Prelude hiding (op, (|>))
 
 import Language.Cobble.Types
 
@@ -9,6 +9,9 @@ import Data.Char
 import Data.DList as D
 
 import Text.Read (read)
+
+(|>) :: DList a -> a -> DList a
+(|>) = D.snoc
 
 -- | A Token consists of its lexical information
 -- as well as the actual token data.

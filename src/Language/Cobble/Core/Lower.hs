@@ -1,20 +1,24 @@
+{-# LANGUAGE OverloadedLists #-}
 module Language.Cobble.Core.Lower where
 
 import Language.Cobble.Prelude
 
-import qualified Language.Cobble.Types as C
+import Language.Cobble.Types (QualifiedName)
+import Language.Cobble.Types qualified as C
 
-import qualified Language.Cobble.Core.Types as F
+import Language.Cobble.Core.Types qualified as F
 import Language.Cobble.Util.Bitraversable (secondM)
+
+import Language.Cobble.Util.Polysemy.Fresh
 
 type CExpr = C.Expr C.Codegen
 type CStatement = C.Statement C.Codegen
 type CModule = C.Module C.Codegen
 
-lower :: CModule -> Sem r [F.Decl]
+lower :: Members '[Fresh Text QualifiedName] r => CModule -> Sem r [F.Decl]
 lower (C.Module _deps mname sts) = lowerStmnts sts
 
-lowerStmnts :: [CStatement] -> Sem r [F.Decl]
+lowerStmnts :: Members '[Fresh Text QualifiedName] r => [CStatement] -> Sem r [F.Decl]
 lowerStmnts [] = pure []
 lowerStmnts (C.Def _ _ (C.Decl _ x xs e) ty : sts) = (:)
     <$> do
@@ -26,9 +30,14 @@ lowerStmnts (C.Def _ _ (C.Decl _ x xs e) ty : sts) = (:)
 lowerStmnts (C.Import{} : sts) = lowerStmnts sts
 lowerStmnts (C.DefClass{} : sts) = undefined
 lowerStmnts (C.DefInstance{} : sts) = undefined
-lowerStmnts (C.DefVariant{} : sts) = undefined
+lowerStmnts (C.DefVariant _ _ x args clauses : sts) = do
+    def <- F.DefVariant x 
+            <$> traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) args
+            <*> traverse (\(x, tys, _) -> (x,) <$> traverse lowerType tys) clauses
+    (def:) <$> lowerStmnts sts
 
-lowerExpr :: CExpr -> Sem r F.Expr
+lowerExpr :: Members '[Fresh Text QualifiedName] r => CExpr -> Sem r F.Expr
+lowerExpr (C.VariantConstr (_ty, constrTy, ix) _ x) = lowerType constrTy >>= \ty -> lowerVariantConstr ty ix x [] []
 lowerExpr (C.App ty _ e1 e2) = F.App
                                <$> lowerExpr e1
                                <*> lowerExpr e2
@@ -38,18 +47,28 @@ lowerExpr (C.If ty _ c th el) = F.If
                                 <$> lowerExpr c
                                 <*> lowerExpr th
                                 <*> lowerExpr el
-lowerExpr C.Let{} = undefined
--- lowerExpr (C.Let _ li (C.Decl (ty, _) f xs e1) e2) = F.Let f 
---                                 <$> lowerType ty
---                                 <*> lowerExpr (foldr (\(x, t) r -> C.Lambda t li x r) e1 xs) 
---                                 <*> lowerExpr e2
+lowerExpr (C.Let () _ (C.Decl (ty, _) f xs e1) e2) = do
+    e1' <- lowerExpr e1
+    F.Let f
+        <$> lowerType ty
+        <*> (foldrM (\(x, t) r -> F.Abs x <$> lowerType t <*> pure r) e1' xs)
+        <*> lowerExpr e2
 lowerExpr (C.Var _ _ x) = pure $ F.Var x
 lowerExpr (C.Ascription _ _ e ty) = lowerExpr e -- Ascriptions are subsumed (hah) by type applications.
-lowerExpr C.VariantConstr{} = undefined
 lowerExpr C.Case{} = undefined
 lowerExpr (C.Lambda (ty, argTy) _ x e) = F.Abs x <$> lowerType argTy <*> lowerExpr e
 lowerExpr (C.TyApp _ ty e) = F.TyApp <$> lowerExpr e <*> lowerType ty
 lowerExpr (C.TyAbs _ (C.MkTVar tvName tvKind) e) = F.TyAbs tvName <$> lowerKind tvKind <*> lowerExpr e
+
+lowerVariantConstr :: Members '[Fresh Text QualifiedName] r => F.Type -> Int -> QualifiedName -> Seq F.Type -> Seq F.Expr -> Sem r F.Expr
+lowerVariantConstr (F.TForall a k ty) i constrName tyArgs valArgs = do
+    a' <- freshVar (C.originalName a)
+    F.TyAbs a' k <$> lowerVariantConstr ty i constrName (F.TVar a' k <| tyArgs) valArgs
+lowerVariantConstr (F.TFun t1 t2) i constrName tyArgs valArgs = do
+    x <- freshVar "x"
+    F.Abs x t1 <$> lowerVariantConstr t2 i constrName tyArgs (F.Var x <| valArgs)
+lowerVariantConstr ty i constrName tyArgs valArgs = do
+    pure $ F.VariantConstr constrName i tyArgs valArgs
 
 lowerType :: C.Type -> Sem r F.Type
 lowerType (C.TVar (C.MkTVar tvName tvKind)) = F.TVar tvName <$> lowerKind tvKind

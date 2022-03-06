@@ -90,7 +90,7 @@ instance Compiled [RacketExpr] where
     compileFromCore = CoreToRacket.compile
 
 compileToRacketFile :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r) => [FilePath] -> Sem r Text
-compileToRacketFile files = show . pretty @[RacketExpr] <$> compileAll files
+compileToRacketFile files = show . prettyRacketWithRuntime <$> compileAll files
 
 compileAll :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m) => [FilePath] -> Sem r m
 compileAll files = compileContents =<< traverse (\x -> (x,) <$> readFile x) files
