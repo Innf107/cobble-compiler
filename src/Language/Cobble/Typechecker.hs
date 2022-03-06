@@ -36,7 +36,7 @@ makeLenses ''TCEnv
 
 data TypeError = DifferentTCon LexInfo QualifiedName QualifiedName
                | CannotUnify LexInfo Type Type
-               | SkolBinding LexInfo TVar Type
+               | SkolBinding LexInfo Type Type
                | Occurs LexInfo TVar Type
                | Impredicative LexInfo TVar Type
                deriving (Show, Eq, Generic, Data)
@@ -117,7 +117,12 @@ typecheckStatements env (Def fixity li (Decl () f xs e) expectedTy : sts) = runR
 
     let env' = insertType f expectedTy env
 
-    e' <- check (foldr (uncurry insertType) env' xs') e eTy
+    -- Ugh, I really don't want to have to duplicate the logic for lambdas here
+    let tvs = case expectedTy of
+            TForall tvs _ -> tvs
+            _ -> []
+
+    e' <- flip (foldr (TyAbs li)) tvs <$> checkPoly (foldr (uncurry insertType) env' xs') e eTy
 
     (Def fixity li (Decl (expectedTy, []) f xs' (w e')) expectedTy :) <$> typecheckStatements env' sts
 
@@ -140,8 +145,10 @@ check :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh T
       -> Type 
       -> Sem r (Expr NextPass)
 check env e t | trace DebugVerbose ("[check]: Γ ⊢ " <> show e <> " : " <> ppType t) False = error "unreachable"
--- We need to 'correct' the extension field to have type t instead of [skolemize t]
-check env e t@TForall{} = fmap (correct t) $ check env e =<< skolemize t 
+-- We need to 'correct' the extension field to resubstitute the skolems that were introduced by skolemize
+check env e t@TForall{} = do
+    t' <- skolemize t
+    correct t <$> check env e t'
 check env (App () li f x) t = runReader li do
     f' <- infer env f
     (fDomTy, fCodomTy, w) <- decomposeFun (getType f')
@@ -180,7 +187,7 @@ check env (Var () li x) t = runReader li do
 check env (Ascription () li e (coercePass -> t1)) t2 = runReader li do
     e' <- checkPoly env e t1
     w <- checkInst t1 t2
-    pure $ w (Ascription (coercePass t2) li e' (coercePass t1))
+    pure $ w e'
 
 check env (VariantConstr (i, j) li c) t = runReader li do
     w <- checkInst (lookupType c env) t
@@ -223,17 +230,6 @@ infer :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh T
       => TCEnv
       -> Expr Typecheck 
       -> Sem r (Expr NextPass)
--- infer env (FCall () li f xs) = runReader li do
---     f' <- infer env f
--- 
---     (fParamTys, fResTy) <- splitType (getType f') (length xs)
--- 
---     xs' <- for (NE.zip (fromList fParamTys) xs) \(paramTy, arg) -> do
---         checkPoly env arg paramTy
---     
---     t <- instantiate fResTy
---     pure (FCall t li f' xs')
-
 infer env (App () li f x) = runReader li do
     f' <- infer env f
     (fDomTy, fCodomTy, wF) <- decomposeFun (getType f') 
@@ -274,17 +270,17 @@ infer env (Let () li decl@(Decl () f xs e1) e2) = do
 
     Let () li (Decl (getType e1', []) f xs' e1') <$> infer (insertType f (getType e1') env) e2
     
-infer env (Var () li x) = do
+infer env (Var () li x) = runReader li do
     let xTy = lookupType x env
     (ty, w) <- instantiate xTy
     pure $ w (Var (ty, []) li x)
 
-infer env (Ascription () li e (coercePass -> t)) = do
+infer env (Ascription () li e (coercePass -> t)) = runReader li do
     e' <- checkPoly env e t
     (t2, w) <- instantiate t
-    pure (w (Ascription t2 li e' t))
+    pure (w e')
 
-infer env (VariantConstr (i, j) li c) = do
+infer env (VariantConstr (i, j) li c) = runReader li do
     (cTy, w) <- instantiate $ lookupType c env
     pure (w $ VariantConstr (cTy, i, j) li c)
 
@@ -319,26 +315,27 @@ infer env (Lambda () li x e) = do
 
     pure (Lambda (xTy :-> getType e', xTy) li x e')
 
-checkPoly :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r)
+checkPoly :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo] r)
           => TCEnv
           -> Expr Typecheck 
           -> Type 
           -> Sem r (Expr NextPass)
-checkPoly env expr ty = do
-    -- (_tvs, ty') <- projection ty 
-    (ty', w) <- instantiate ty
-
-    w <$> check env expr ty'
-
-projection :: Members '[Fresh TVar TVar] r => Type -> Sem r ([TVar], Type)
-projection (TForall tvs ty) = do
-    newTVs <- traverse freshVar tvs
-    first (<>newTVs) <$> projection (replaceTVars (M.fromList (zipWith (\x y -> (x, TVar y)) tvs newTVs)) ty)
-projection (TFun dom codom) = second (TFun dom) <$> projection codom
-projection ty = pure ([], ty)
+checkPoly _ _ ty | trace DebugVerbose ("checkPoly " <> ppType ty) False = error "unreachable"
+checkPoly env expr (TForall tvs ty) = ask >>= \li -> do
+    flip (foldr (TyAbs li)) tvs <$> checkPoly env expr ty
+checkPoly env expr ty = check env expr ty
 
 correct :: Type -> Expr NextPass -> Expr NextPass
-correct = setType
+correct = setType 
+-- correct :: Map TVar Type -> Expr NextPass -> Expr NextPass
+-- correct skolemMap = transformBi \case
+--     t@TSkol{}
+--         | Just tv' <- lookup t transmutedSkolemMap -> TVar tv'
+--         | otherwise -> t
+--         where
+--             transmutedSkolemMap :: Map Type TVar
+--             transmutedSkolemMap = M.fromList $ map swap $ M.toList skolemMap
+--     t -> t
 
 {- note: [Generalization]
 We don't perform *any* (implicit) generalization at the moment.
@@ -359,13 +356,13 @@ checkInst :: Members '[Output TConstraint, Reader LexInfo, Fresh Text QualifiedN
           -> Sem r (Expr NextPass -> Expr NextPass)
 checkInst = subsume
 
-instantiate :: Members '[Fresh Text QualifiedName, Fresh TVar TVar] r => Type -> Sem r (Type, Expr NextPass -> Expr NextPass)
-instantiate (TForall tvs ty) = do
+instantiate :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo] r => Type -> Sem r (Type, Expr NextPass -> Expr NextPass)
+instantiate (TForall tvs ty) = ask >>= \li -> do
     -- The substitution is not immediately converted to a Map, since the order
     -- of tyvars is important
     tvSubst <- traverse (\tv -> (tv,) . TVar <$> freshVar tv) tvs
     
-    pure (replaceTVars (M.fromList tvSubst) ty, foldr (\(_,x) r -> r . ExprWrapper InternalLexInfo (WrapTyApp x)) id tvSubst)
+    pure (replaceTVars (M.fromList tvSubst) ty, foldr (\(_,x) r -> r . TyApp li x) id tvSubst)
     
 instantiate ty = do
     pure (ty, id)
@@ -447,12 +444,12 @@ unify (TApp a1 b1) (TApp a2 b2) = do
 unify (TFun a1 b1) (TFun a2 b2) = do
     subst <- unify a1 a2
     (subst <>) <$> unify (applySubst subst b1) (applySubst subst b2)
-unify (TSkol tv1) (TSkol tv2)
-    | tv1 == tv2 = pure mempty
+unify t1@TSkol{} t2@TSkol{}
+    | t1 == t2 = pure mempty
 
 
-unify (TSkol sv) t2 = ask >>= \li -> throw $ SkolBinding li sv t2
-unify t1 (TSkol sv) = ask >>= \li -> throw $ SkolBinding li sv t1
+unify s@TSkol{} t2  = ask >>= \li -> throw $ SkolBinding li s t2
+unify t1 s@TSkol{}  = ask >>= \li -> throw $ SkolBinding li t1 s
 unify t1 t2         = ask >>= \li -> throw $ CannotUnify li t1 t2 
 
 bind :: Members '[Reader LexInfo, Error TypeError] r => TVar -> Type -> Sem r Substitution
@@ -465,9 +462,10 @@ bind tv ty
 occurs :: TVar -> Type -> Bool
 occurs tv ty = tv `Set.member` freeTVs ty
 
-skolemize :: Members '[Fresh TVar TVar] r => Type -> Sem r Type
+
+skolemize :: Members '[Fresh Text QualifiedName] r => Type -> Sem r Type
 skolemize (TForall tvs ty) = do
-    skolemMap <- M.fromList <$> traverse (\tv -> (tv,) . TSkol <$> freshVar tv) tvs
+    skolemMap <- M.fromList <$> traverse (\tv@(MkTVar n _) -> (tv,) . flip TSkol tv <$> freshVar (originalName n)) tvs
     pure $ replaceTVars skolemMap ty
 skolemize ty = pure ty
 
@@ -491,16 +489,5 @@ ppGivens = unlines . map (\(TGiven c li) -> ppConstraint c <> " @" <> show li)
 ppTConstraint :: TConstraintComp -> Text
 ppTConstraint (Unify t1 t2)     = ppType t1 <> " ~ " <> ppType t2
 
-ppType :: Type -> Text
-ppType (TFun a b)           = "(" <> ppType a <> " -> " <> ppType b <> ")"
-ppType (TVar (MkTVar v _))  = show v
-ppType (TSkol (MkTVar v _)) = "@" <> show v
-ppType (TCon v _)           = show v
-ppType (TApp a b)           = "(" <> ppType a <> " " <> ppType b <> ")"
-ppType (TForall ps t)       = "(∀" <> T.intercalate " " (map (\(MkTVar v _) -> show v) ps) <> ". " <> ppType t <> ")"
-ppType (TConstraint c t)    = ppConstraint c <> " => " <> ppType t
-
-ppConstraint :: Constraint -> Text
-ppConstraint (MkConstraint n t) = show n <> " " <> ppType t
 
 

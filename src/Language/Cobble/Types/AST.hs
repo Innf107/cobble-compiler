@@ -15,6 +15,8 @@ import Data.Generics.Uniplate.Data
 
 import GHC.Show qualified as S
 
+import Data.Text qualified as T
+
 import qualified Unsafe.Coerce 
 
 import qualified Data.Map as M
@@ -147,22 +149,22 @@ data Pattern (p :: Pass) = IntP (XIntP p) Int
                          | ConstrP (XConstrP p) (Name p) [Pattern p]
                          | PatternX (XPattern p)
 
-data CodegenExt = XExprWrapper ExprWrapper (Expr Codegen)
+type instance InstanceRequirements (Pattern p) = [
+        Name p, XIntP p, XVarP p, XConstrP p, XPattern p
+    ]
 
-pattern ExprWrapper :: (XExpr p ~ CodegenExt) => LexInfo -> ExprWrapper -> Expr 'Codegen -> Expr p
-pattern ExprWrapper li w e = ExprX (XExprWrapper w e) li
+data CodegenExt = TyApp_ Type (Expr Codegen)
+                | TyAbs_ TVar (Expr Codegen)
 
-data ExprWrapper = WrapTyApp Type
-                 | WrapTyAbs TVar
-                 | IdWrap
-                 deriving (Show, Eq, Generic, Data)
+pattern TyApp :: (XExpr p ~ CodegenExt) => LexInfo -> Type -> Expr Codegen -> Expr p
+pattern TyApp li ty e = ExprX (TyApp_ ty e) li
+
+pattern TyAbs :: (XExpr p ~ CodegenExt) => LexInfo -> TVar -> Expr Codegen -> Expr p
+pattern TyAbs li tv e = ExprX (TyAbs_ tv e) li
+-- makeCompleteX ''Expr ['TyApp, 'TyAbs] is defined at the bottom of this file.
 
 type instance InstanceRequirements (CodegenExt) = '[
         Expr Codegen
-    ]
-
-type instance InstanceRequirements (Pattern p) = [
-        Name p, XIntP p, XVarP p, XConstrP p, XPattern p
     ]
 
 type family XIntP       (p :: Pass)
@@ -173,11 +175,28 @@ type family XPattern    (p :: Pass)
 data Type = TCon QualifiedName Kind
           | TApp Type Type
           | TVar TVar
-          | TSkol TVar
+          | TSkol QualifiedName TVar
+          --      ^             ^original
+          --      |skolem
           | TForall [TVar] Type
           | TFun Type Type
           | TConstraint Constraint Type
-          deriving (Show, Eq, Generic, Data)
+          deriving (Eq, Ord, Generic, Data)
+
+instance S.Show Type where 
+    show = toString . (<>")") . ("(Type " <>) . ppType
+
+ppType :: Type -> Text
+ppType (TFun a b)               = "(" <> ppType a <> " -> " <> ppType b <> ")"
+ppType (TVar (MkTVar v _))      = show v
+ppType (TSkol v _)   = "#" <> show v
+ppType (TCon v _)               = show v
+ppType (TApp a b)               = "(" <> ppType a <> " " <> ppType b <> ")"
+ppType (TForall ps t)           = "(∀" <> T.intercalate " " (map (\(MkTVar v _) -> show v) ps) <> ". " <> ppType t <> ")"
+ppType (TConstraint c t)        = ppConstraint c <> " => " <> ppType t
+
+ppConstraint :: Constraint -> Text
+ppConstraint (MkConstraint n t) = show n <> " " <> ppType t
 
 data UType = UTCon UnqualifiedName
            | UTApp UType UType
@@ -197,7 +216,7 @@ freeTVs = go mempty
         go bound (TVar tv) 
             | tv `Set.member` bound = mempty
             | otherwise             = one tv
-        go bound (TSkol _)          = mempty
+        go bound (TSkol _ _)        = mempty
         go bound (TForall tvs ty)   = go (bound <> Set.fromList tvs) ty
         go bound (TFun a b)         = go bound a <> go bound b 
         go bound (TConstraint (MkConstraint _ t1) t2) = go bound t1 <> go bound t2
@@ -213,7 +232,7 @@ type family XTVar (p :: Pass) :: HSType
 -- TODO: Also, MultiParam Typeclasses!
 -- TODO: This should also really be a List of (Name, Type p), since you might have multiple constraints
 data Constraint = MkConstraint QualifiedName Type
-                deriving (Show, Eq, Generic, Data)
+                deriving (Show, Eq, Ord, Generic, Data)
 
 data UConstraint = MkUConstraint UnqualifiedName UType 
                  deriving (Show, Eq, Generic, Data)
@@ -336,7 +355,7 @@ instance HasKind TVar where
 instance HasKind Type where
     kind = \case
         TVar v -> kind v
-        TSkol v -> kind v
+        TSkol _ v -> kind v
         TCon _ k -> pure k
         TApp t1 t2 -> bisequence (kind t1, kind t2) >>= \case
             (KFun kp kr, ka)
@@ -374,7 +393,7 @@ deriveCoercePass ''CaseBranch
 deriveCoercePass ''Pattern
 deriveCoercePass ''Decl
 
-makeCompleteX ''Expr ['ExprWrapper]
+makeCompleteX ''Expr ['TyApp, 'TyAbs]
 
 -- TODO: Cannot be generated with TH right now, since it depends on f
 instance {-# INCOHERENT #-} (CoercePass (Name p1) (Name p2), CoercePass (Expr p1) (Expr p2)) => CoercePass (OperatorGroup p1 f) (OperatorGroup p2 f) where

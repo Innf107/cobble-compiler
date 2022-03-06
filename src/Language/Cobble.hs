@@ -150,12 +150,14 @@ compileWithSig m = do
     freshWithInternal do
         tcMod <- -- dumpWhenWithM (asks ddumpTC) ppGivens "dump-givens.tc" 
             -- $ dumpWhenWithM (asks ddumpTC) ppWanteds "dump-wanteds.tc" 
-            dumpWhenWithM (asks ddumpTC) ppTC "dump-tc.tc" 
+            dumpWhenWithM (asks ddumpTC) ppTC "dump-tc" 
             $ mapError TypeError 
             $ runFreshM (\(MkTVar n k) -> freshVar (originalName n) <&> \n' -> MkTVar n' k)
             $ typecheck tcEnv saMod -- TODO: provide environment from other modules
 
         core <- lower tcMod
+
+        dumpWhenWithM (asks ddumpCore) (show . pretty) "dump-core" $ dump core
 
         pure (core, extractSig tcMod)
 

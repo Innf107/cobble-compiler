@@ -254,7 +254,6 @@ test-suite cobble-test
       Language.Cobble.TypesSpec
       Language.CobbleSpec
       Server
-      Server.Framework
       Spec
       Paths_cobble
   hs-source-dirs:

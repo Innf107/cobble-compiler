@@ -42,7 +42,7 @@ type instance XIntLit           Codegen = ()
 type instance XIf               Codegen = Type
 type instance XLet              Codegen = ()
 type instance XVar              Codegen = (Type, [TWanted])
-type instance XAscription       Codegen = Type
+type instance XAscription       Codegen = Void
 type instance XVariantConstr    Codegen = (Type, Int, Int)
 --                                                        ^    ^
 --                                                        |    constructor index
