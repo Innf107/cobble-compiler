@@ -60,10 +60,10 @@ instance Pretty Expr where
         where
             tyApps = case tys of
                 Empty -> ""
-                (ty :<| tys) -> "[" <> foldr (\ty r -> pretty ty <> "," <+> r) (pretty ty) tys <> "]"
+                (tys :|> ty) -> "[" <> foldl' (\r ty -> pretty ty <> "," <+> r) (pretty ty) tys <> "]"
             valApps = case es of
                 Empty -> ""
-                (e :<| es) -> "{" <> foldr (\e r -> pretty e <> "," <+> r) (pretty e) es <> "}"
+                (es :|> e) -> "{" <> foldl' (\r e -> pretty e <> "," <+> r) (pretty e) es <> "}"
 instance Pretty Type where
     pretty (TVar x k) = ppQName x
     pretty (TCon x k) = "(" <> ppQName x <+> ":" <+> pretty k <> ")"
