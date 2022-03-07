@@ -44,8 +44,9 @@ instance {-# OVERLAPPING #-} Pretty [Decl] where
 
 instance Pretty Decl where
     pretty (Def x ty e) = ppQName x <+> ":" <+> pretty ty <> line <> ppQName x <+> "=" <+> align (pretty e)
-    pretty (DefVariant x args clauses) = "variant" <+> ppQName x <+> align (sep (map (\(x, k) -> "(" <> ppQName x <+> ":" <+> pretty k <> ")") args) <+> "="
-                                    <+> (line <> vsep (map (\(c, args) -> "|" <+> ppQName c <+> sep (map pretty args)) clauses)))
+    pretty (DefVariant x args clauses) = "variant" <+> ppQName x <+> sep (map (\(x, k) -> "(" <> ppQName x <+> ":" <+> pretty k <> ")") args) <+> align ("="
+                                    <+> (vsep (zipWith (\bar (c, args) -> (if bar then ("|" <+>) else id) (ppQName c) <+> sep (map pretty args)) (False:repeat True) clauses)))
+
 instance Pretty Expr where
     pretty (Var x) = ppQName x
     pretty (App e1 e2) = "(" <> pretty e1 <+> pretty e2 <> ")"
