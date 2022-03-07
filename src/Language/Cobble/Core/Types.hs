@@ -83,3 +83,16 @@ instance S.Show Type where
     show = show . pretty
 instance S.Show Kind where
     show = show . pretty
+
+-- Does not handle kinds yet
+replaceTVar :: QualifiedName -> Type -> Type -> Type
+replaceTVar tv substTy ty@(TVar tv' _)
+    | tv == tv' = substTy
+    | otherwise = ty
+replaceTVar tv substTy ty@(TForall tv' k ty')
+    | tv == tv' = ty
+    | otherwise = TForall tv' k (replaceTVar tv substTy ty')
+replaceTVar _ _ ty@TCon{} = ty
+replaceTVar tv substTy (TApp t1 t2) = TApp (replaceTVar tv substTy t1) (replaceTVar tv substTy t2)
+replaceTVar tv substTy (TFun t1 t2) = TFun (replaceTVar tv substTy t1) (replaceTVar tv substTy t2)
+

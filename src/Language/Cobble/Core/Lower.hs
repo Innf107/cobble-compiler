@@ -62,7 +62,7 @@ lowerExpr (C.TyAbs _ (C.MkTVar tvName tvKind) e) = F.TyAbs tvName <$> lowerKind 
 lowerVariantConstr :: Members '[Fresh Text QualifiedName] r => F.Type -> Int -> QualifiedName -> Seq F.Type -> Seq F.Expr -> Sem r F.Expr
 lowerVariantConstr (F.TForall a k ty) i constrName tyArgs valArgs = do
     a' <- freshVar (C.originalName a)
-    F.TyAbs a' k <$> lowerVariantConstr ty i constrName (F.TVar a' k <| tyArgs) valArgs
+    F.TyAbs a' k <$> lowerVariantConstr (F.replaceTVar a (F.TVar a' k) ty) i constrName (F.TVar a' k <| tyArgs) valArgs
 lowerVariantConstr (F.TFun t1 t2) i constrName tyArgs valArgs = do
     x <- freshVar "x"
     F.Abs x t1 <$> lowerVariantConstr t2 i constrName tyArgs (F.Var x <| valArgs)

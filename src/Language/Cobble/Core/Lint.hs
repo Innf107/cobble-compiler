@@ -44,7 +44,8 @@ lint env (Def x ty e : ds) = do
     when (eTy /= ty) $ throw (DeclTypeMismatch x ty eTy)
     lint env' ds
 lint env (DefVariant x args clauses : ds) = do
-    let resTy = foldl' (TApp) (TCon x KType) (map (uncurry TVar) args)
+    let resKind = foldr (KFun . snd) KType args
+    let resTy = foldl' (TApp) (TCon x resKind) (map (uncurry TVar) args)
     let constrTys = clauses <&> \(constr, constrArgs) ->
             (constr, (foldr (uncurry TForall) (foldr TFun resTy constrArgs) args))
     let env' = foldr (uncurry insertType) env constrTys
@@ -121,16 +122,4 @@ typeMatch :: Members '[Error e] r
 typeMatch t1 t2 mkErr
     | t1 == t2  = pure ()
     | otherwise = throw $ mkErr t1 t2
-
--- Does not handle kinds yet
-replaceTVar :: QualifiedName -> Type -> Type -> Type
-replaceTVar tv substTy ty@(TVar tv' _)
-    | tv == tv' = substTy
-    | otherwise = ty
-replaceTVar tv substTy ty@(TForall tv' k ty')
-    | tv == tv' = ty
-    | otherwise = TForall tv' k (replaceTVar tv substTy ty')
-replaceTVar _ _ ty@TCon{} = ty
-replaceTVar tv substTy (TApp t1 t2) = TApp (replaceTVar tv substTy t1) (replaceTVar tv substTy t2)
-replaceTVar tv substTy (TFun t1 t2) = TFun (replaceTVar tv substTy t1) (replaceTVar tv substTy t2)
 
