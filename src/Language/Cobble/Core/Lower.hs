@@ -20,13 +20,13 @@ lower (C.Module _deps mname sts) = lowerStmnts sts
 
 lowerStmnts :: Members '[Fresh Text QualifiedName] r => [CStatement] -> Sem r [F.Decl]
 lowerStmnts [] = pure []
-lowerStmnts (C.Def _ _ (C.Decl _ x xs e) ty : sts) = (:)
+lowerStmnts (C.Def _ _ (C.Decl _ x [] e) ty : sts) = (:)
     <$> do
-            xs' <- traverse (secondM lowerType) xs
-            e' <- lowerExpr e
-            ty' <- lowerType ty
-            pure $ F.Def x ty' (foldr (uncurry F.Abs) e' xs')
+        F.Def x
+            <$> lowerType ty
+            <*> lowerExpr e
     <*> lowerStmnts sts
+lowerStmnts (s@C.Def{} : sts) = error "lowerStmnts: Definition with arguments persists after typechecking"
 lowerStmnts (C.Import{} : sts) = lowerStmnts sts
 lowerStmnts (C.DefClass{} : sts) = undefined
 lowerStmnts (C.DefInstance{} : sts) = undefined
@@ -54,7 +54,6 @@ lowerExpr (C.Let () _ (C.Decl (ty, _) f xs e1) e2) = do
         <*> (foldrM (\(x, t) r -> F.Abs x <$> lowerType t <*> pure r) e1' xs)
         <*> lowerExpr e2
 lowerExpr (C.Var _ _ x) = pure $ F.Var x
-lowerExpr (C.Ascription _ _ e ty) = lowerExpr e -- Ascriptions are subsumed (hah) by type applications.
 lowerExpr C.Case{} = undefined
 lowerExpr (C.Lambda (ty, argTy) _ x e) = F.Abs x <$> lowerType argTy <*> lowerExpr e
 lowerExpr (C.TyApp _ ty e) = F.TyApp <$> lowerExpr e <*> lowerType ty

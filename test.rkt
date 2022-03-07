@@ -1,5 +1,7 @@
 #lang racket
 
-(define :_4 (lambda (x_9) (lambda (x_10) (list 1 x_10 x_9))))
+(define id_0 (lambda (x_2) x_2))
+(define f_3 (lambda (g_5) (g_5 5)))
+(define x_6 (f_3 id_0))
 
 (main)

@@ -122,9 +122,13 @@ typecheckStatements env (Def fixity li (Decl () f xs e) expectedTy : sts) = runR
             TForall tvs _ -> tvs
             _ -> []
 
-    e' <- flip (foldr (TyAbs li)) tvs <$> checkPoly (foldr (uncurry insertType) env' xs') e eTy
+    e' <- checkPoly (foldr (uncurry insertType) env' xs') e eTy
+    let lambdas = flip (foldr (TyAbs li)) tvs $ makeLambdas e' xs'
 
-    (Def fixity li (Decl (expectedTy, []) f xs' (w e')) expectedTy :) <$> typecheckStatements env' sts
+    (Def fixity li (Decl (expectedTy, []) f [] lambdas) expectedTy :) <$> typecheckStatements env' sts
+    where
+        makeLambdas :: Expr NextPass -> [(QualifiedName, Type)] -> Expr NextPass
+        makeLambdas = foldr (\(x, ty) e -> Lambda (ty :-> getType e, ty) li x e)
 
 typecheckStatements env (Import () li name : sts) = (Import () li name :) <$> typecheckStatements env sts 
 typecheckStatements env (DefClass k li cname tvs methSigs : sts) = undefined -- (DefClass k li cname tvs methSigs :) <$> typecheckStatements env sts
