@@ -7,6 +7,7 @@ test.mamod
 dump-*
 test.zip
 test.lua
+test.rkt
 tests.log
 cobble.iml
 .hidden/
