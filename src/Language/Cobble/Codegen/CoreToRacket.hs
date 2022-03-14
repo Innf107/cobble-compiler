@@ -33,4 +33,6 @@ compileExpr (If c th el) = RIf
     <*> compileExpr th
     <*> compileExpr el
 compileExpr (VariantConstr x i _tyArgs valArgs) = RList . (RIntLit i :) . toList <$> traverse compileExpr valArgs
+compileExpr (Join _ _ _ _ _) = undefined
+compileExpr (Jump _ _ _ _) = undefined
 

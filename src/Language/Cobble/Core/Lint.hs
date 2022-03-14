@@ -104,6 +104,8 @@ lintExpr env (VariantConstr x i tyArgs valArgs) = do
         go (TForall a k ty) Empty valArgs = throw $ VariantMissingTyArgs x a k ty valArgs
         go ty Empty Empty = pure ty
         go ty tyArgs valArgs = throw $ VariantExcessiveArgs x ty tyArgs valArgs
+lintExpr env (Join _ _ _ _ _) = undefined
+lintExpr env (Jump _ _ _ _) = undefined
 
 intTy :: Type
 intTy = TCon (internalQName "Int") KType

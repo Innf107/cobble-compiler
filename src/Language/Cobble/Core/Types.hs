@@ -23,6 +23,12 @@ data Expr = Var QualifiedName
           | If Expr Expr Expr
           -- Unlike in Cobble, Core's VariantConstrs have to be *fully saturated* with value and type arguments.
           | VariantConstr QualifiedName Int (Seq Type) (Seq Expr)
+
+          | Join QualifiedName (Seq (QualifiedName, Kind)) (Seq (QualifiedName, Type)) Expr Expr -- Create a join point (See note [Join Points])
+          --                    ^ type parameters           ^ value parameters
+          | Jump QualifiedName (Seq Type) (Seq Expr) Type -- Tailcall into a join point (See note [Join Points])
+          --                    ^         ^value args^           
+          --                    | type args          | result type
           deriving (Eq, Generic, Data)
 
 data Type = TVar QualifiedName Kind
@@ -36,8 +42,25 @@ data Kind = KType
           | KFun Kind Kind
           deriving (Eq, Generic, Data)
 
+{- Note [Join Points]
+When lowering case expressions, or after certain optimizations, large expressions might
+be duplicated. We can use a local let-binding that is called in tail position to mitigate the 
+effect of this, but that would require allocating a closure for functions that are immediately 
+invoked. 
+Join points are exactly theses kinds of local bindings, except they may only be called in tail position and
+don't need to allocate a closure. Join points are blazingly fast, since they can be compiled to unconditional jumps.
+
+Unfortunately, join points introduce quite a bit of complexity, since typing them is not trivial, 
+and we have to make sure that `jump` expressions only ever occur in tail positions.
+
+Source: https://www.microsoft.com/en-us/research/wp-content/uploads/2016/11/join-points-pldi17.pdf
+-}
+
 ppQName :: QualifiedName -> Doc ann
 ppQName = pretty . renderDebug
+
+prettyTyped :: (Pretty p) => (QualifiedName, p) -> Doc ann
+prettyTyped (x, p) = ppQName x <+> ":" <+> pretty p
 
 instance {-# OVERLAPPING #-} Pretty [Decl] where
     pretty ds = vsep (map pretty ds)
@@ -55,7 +78,7 @@ instance Pretty Expr where
     pretty (Abs x ty e) = "(λ(" <> ppQName x <+> ":" <+> pretty ty <> ")." <+> align (pretty e) <> ")"
     pretty (IntLit n) = pretty n
     pretty UnitLit = "()"
-    pretty (Let x ty e1 e2) = "(let" <+> ppQName x <+> ":" <+> pretty ty <+> "=" <+> pretty e1 <+> "in" <+> pretty e2 <+> ")"
+    pretty (Let x ty e1 e2) = "(let" <+> ppQName x <+> ":" <+> pretty ty <+> "=" <+> align (pretty e1) <+> "in" <+> pretty e2 <+> ")"
     pretty (If c th el) = "(if" <+> pretty c <+> "then" <+> pretty th <+> "else" <+> pretty el <> ")"
     pretty (VariantConstr x _ tys es) = ppQName x <> tyApps <> valApps
         where
@@ -65,6 +88,19 @@ instance Pretty Expr where
             valApps = case es of
                 Empty -> ""
                 (es :|> e) -> "{" <> foldl' (\r e -> pretty e <> "," <+> r) (pretty e) es <> "}"
+    pretty (Join j tyParams valParams body e) = "(join" <+> ppQName j 
+                                                        <+> encloseSep "[" "]" ", " (map prettyTyped $ toList tyParams)
+                                                        <+> encloseSep "{" "}" ", " (map prettyTyped $ toList tyParams)
+                                                        <+> "="
+                                                        <+> align (pretty body)
+                                                        <+> "in"
+                                                        <+> pretty e
+                                                        <> ")"
+    pretty (Jump j tyArgs valArgs retTy) = "(jump" <+> ppQName j <+> encloseSep "[" "]" "," (map pretty $ toList tyArgs)
+                                                                 <+> encloseSep "{" "}" "," (map pretty $ toList valArgs)
+                                                                 <+> pretty retTy
+                                                                 <> ")"
+
 instance Pretty Type where
     pretty (TVar x k) = ppQName x
     pretty (TCon x k) = "(" <> ppQName x <+> ":" <+> pretty k <> ")"

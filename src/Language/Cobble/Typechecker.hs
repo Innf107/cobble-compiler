@@ -260,14 +260,13 @@ infer env (If () li c th el) = runReader li do
     getType c' !~ boolT
 
     -- Make sure that the types of th' and el' are
-    -- equivalent (though they may not necessarily *look* the same, thanks to deep skolemization).
+    -- equivalent (though they may not necessarily *look* the same).
     w1 <- subsume (getType th') (getType el')
     w2 <- subsume (getType el') (getType th')
-    -- TODO: Not sure how to apply wrapping here.
 
     -- We arbitrarily choose getType th' as the final type, since the types of
     -- th' and el' are equivalent.
-    pure $ If (getType th') li c' th' el'
+    pure $ If (getType th') li c' (w1 th') (w2 el')
 infer env (Let () li decl@(Decl () f xs e1) e2) = do
     xs' <- traverse (\x -> (x,) <$> freshTV KStar) xs
 
@@ -309,8 +308,8 @@ infer env (Case () li e branches) = runReader li do
         checkEquiv []         = freshTV KStar -- the case expression is empty
         checkEquiv [t]        = pure t
         checkEquiv (t1:t2:ts) = do
-            subsume t1 t2
-            subsume t2 t1
+            w1 <- subsume t1 t2 -- TODO: apply wrapping?
+            w2 <- subsume t2 t1
             checkEquiv (t2:ts)
 
 
@@ -333,15 +332,6 @@ checkPoly env expr ty = check env expr ty
 
 correct :: Type -> Expr NextPass -> Expr NextPass
 correct = setType 
--- correct :: Map TVar Type -> Expr NextPass -> Expr NextPass
--- correct skolemMap = transformBi \case
---     t@TSkol{}
---         | Just tv' <- lookup t transmutedSkolemMap -> TVar tv'
---         | otherwise -> t
---         where
---             transmutedSkolemMap :: Map Type TVar
---             transmutedSkolemMap = M.fromList $ map swap $ M.toList skolemMap
---     t -> t
 
 {- note: [Generalization]
 We don't perform *any* (implicit) generalization at the moment.
