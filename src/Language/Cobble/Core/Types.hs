@@ -24,12 +24,19 @@ data Expr = Var QualifiedName
           -- Unlike in Cobble, Core's VariantConstrs have to be *fully saturated* with value and type arguments.
           | VariantConstr QualifiedName Int (Seq Type) (Seq Expr)
 
+          | Case Expr (Seq (Pattern, Expr))
+
           | Join QualifiedName (Seq (QualifiedName, Kind)) (Seq (QualifiedName, Type)) Expr Expr -- Create a join point (See note [Join Points])
           --                    ^ type parameters           ^ value parameters
           | Jump QualifiedName (Seq Type) (Seq Expr) Type -- Tailcall into a join point (See note [Join Points])
           --                    ^         ^value args^           
           --                    | type args          | result type
           deriving (Eq, Generic, Data)
+
+data Pattern = PInt Int
+             | PWildcard
+             | PConstr QualifiedName [QualifiedName]
+             deriving (Eq, Generic, Data)
 
 data Type = TVar QualifiedName Kind
           | TCon QualifiedName Kind
@@ -88,6 +95,12 @@ instance Pretty Expr where
             valApps = case es of
                 Empty -> ""
                 (es :|> e) -> "{" <> foldl' (\r e -> pretty e <> "," <+> r) (pretty e) es <> "}"
+
+    pretty (Case e branches) = "(case" <+> pretty e <+> "of" <> 
+                                    align (line <> vsep (map (\(p, e) -> pretty p <+> "->" <+> pretty e) (toList branches)))
+                                    <> ")"
+
+
     pretty (Join j tyParams valParams body e) = "(join" <+> ppQName j 
                                                         <+> encloseSep "[" "]" ", " (map prettyTyped $ toList tyParams)
                                                         <+> encloseSep "{" "}" ", " (map prettyTyped $ toList tyParams)
@@ -100,6 +113,11 @@ instance Pretty Expr where
                                                                  <+> encloseSep "{" "}" "," (map pretty $ toList valArgs)
                                                                  <+> pretty retTy
                                                                  <> ")"
+
+instance Pretty Pattern where
+    pretty (PInt i) = pretty i
+    pretty PWildcard = "_"
+    pretty (PConstr cname args) = encloseSep "(" ")" " " (map ppQName (cname : args))
 
 instance Pretty Type where
     pretty (TVar x k) = ppQName x
@@ -115,6 +133,8 @@ instance Pretty Kind where
 instance S.Show Decl where
     show = show . pretty
 instance S.Show Expr where
+    show = show . pretty
+instance S.Show Pattern where
     show = show . pretty
 instance S.Show Type where
     show = show . pretty

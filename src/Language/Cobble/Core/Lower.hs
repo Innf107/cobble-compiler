@@ -54,7 +54,7 @@ lowerExpr (C.Let () _ (C.Decl (ty, _) f xs e1) e2) = do
         <*> (foldrM (\(x, t) r -> F.Abs x <$> lowerType t <*> pure r) e1' xs)
         <*> lowerExpr e2
 lowerExpr (C.Var _ _ x) = pure $ F.Var x
-lowerExpr C.Case{} = undefined
+lowerExpr (C.Case t li e branches) = lowerCase t e branches
 lowerExpr (C.Lambda (ty, argTy) _ x e) = F.Abs x <$> lowerType argTy <*> lowerExpr e
 lowerExpr (C.TyApp _ ty e) = F.TyApp <$> lowerExpr e <*> lowerType ty
 lowerExpr (C.TyAbs _ (C.MkTVar tvName tvKind) e) = F.TyAbs tvName <$> lowerKind tvKind <*> lowerExpr e
@@ -68,6 +68,56 @@ lowerVariantConstr (F.TFun t1 t2) i constrName tyArgs valArgs = do
     F.Abs x t1 <$> lowerVariantConstr t2 i constrName tyArgs (valArgs |> F.Var x)
 lowerVariantConstr ty i constrName tyArgs valArgs = do
     pure $ F.VariantConstr constrName i tyArgs valArgs
+
+lowerCase :: forall r. Members '[Fresh Text QualifiedName] r 
+          => C.Type 
+          -> C.Expr C.Codegen 
+          -> [C.CaseBranch C.Codegen] 
+          -> Sem r F.Expr
+lowerCase ty expr branches = do
+    x <- freshVar "x"
+
+    (jpDefs :: [F.Expr -> F.Expr], possibleBranches :: [([(QualifiedName, C.Pattern C.Codegen)], F.Expr)]) <- unzip <$> forM branches \(C.CaseBranch () _ p e) -> do
+        jpName <- freshVar "j"
+        e' <- lowerExpr e
+        pure (F.Join jpName undefined undefined e'
+            , ([(x, p)], F.Jump jpName undefined undefined undefined))
+
+
+    body <- F.Let x <$> lowerType (C.getType expr) <*> lowerExpr expr <*> go [x] possibleBranches
+    pure $ foldr ($) body jpDefs -- prepend join point definitions
+    where
+        go _ [] = error $ "Non-exhaustive patterns. (This should not be a panic)"
+        go [] ((_, e):_) = pure e -- We always Pick the first instance 
+        go (x:xs) possibleBranches = do
+            let possiblePatterns = undefined
+            
+            caseBranches <- forM possiblePatterns \p -> do
+                    possibleBranches' <- tryApplyPattern p possibleBranches
+                    undefined
+            undefined 
+
+        tryApplyPattern :: QualifiedName -> F.Pattern -> ([(QualifiedName, C.Pattern C.Codegen)], F.Expr) -> Maybe ([(QualifiedName, C.Pattern C.Codegen)], F.Expr)
+        tryApplyPattern x F.PWildcard (pats, e) = case filter (\(y, _) -> y == x) pats of
+            [] -> Just (pats, e)
+            _ -> Nothing
+        tryApplyPattern x (F.PInt i) (pats, e) = (,e) . concat <$> traverse asIntPat pats
+            where
+                asIntPat :: (QualifiedName, C.Pattern C.Codegen) -> Maybe [(QualifiedName, C.Pattern C.Codegen)]
+                asIntPat (y, p@(C.IntP _ j))
+                    | x /= y = Just [(y, p)]
+                    | i == j = Just []
+                    | otherwise = Nothing
+                asIntPat (y, p@(C.VarP _ x)) = Just [] -- TODO: Actually bind the variable
+                asIntPat (y, p@C.ConstrP{}) = error $ "lowerCase: tried to lower a constructor pattern at an integer: " <> show p
+        tryApplyPattern x (F.PConstr cname xs) (pats, e) = (,e) . concat <$> traverse asConstrPat pats
+            where
+                asConstrPat :: (QualifiedName, C.Pattern C.Codegen) -> Maybe [(QualifiedName, C.Pattern C.Codegen)]
+                asConstrPat (y, p@C.IntP{}) = error $ "lowerCase: tried to lower an integer pattern at a variant constructor: " <> show p
+                asConstrPat (y, p@(C.VarP _ x)) = Just [] -- TODO: Actually bind the variable
+                asConstrPat (y, p@(C.ConstrP _ cname' subPats))
+                    | x /= y || cname /= cname' = Just [(y, p)]
+                    | otherwise = Just (zip xs subPats)
 
 lowerType :: C.Type -> Sem r F.Type
 lowerType (C.TVar (C.MkTVar tvName tvKind)) = F.TVar tvName <$> lowerKind tvKind
