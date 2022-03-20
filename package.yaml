@@ -41,6 +41,7 @@ dependencies:
 - recursion-schemes
 - data-default
 - prettyprinter
+- witherable
 
 library:
   source-dirs: src

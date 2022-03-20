@@ -145,6 +145,7 @@ library
     , text
     , time
     , uniplate
+    , witherable
     , zip-archive
   default-language: Haskell2010
 
@@ -230,6 +231,7 @@ executable cobble
     , text
     , time
     , uniplate
+    , witherable
     , zip-archive
   default-language: Haskell2010
 
@@ -335,5 +337,6 @@ test-suite cobble-test
     , text
     , time
     , uniplate
+    , witherable
     , zip-archive
   default-language: Haskell2010
