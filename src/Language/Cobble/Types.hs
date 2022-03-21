@@ -58,13 +58,13 @@ instance HasType (Decl Codegen) where
     setType t (Decl (_, x) y z w) = Decl (t, x) y z w
 
 instance HasType (Pattern Codegen) where
-    getType (IntP () n)           = intT
-    getType (VarP ty _)           = ty
-    getType (ConstrP (ty, _) _ _) = ty
+    getType (IntP () n)              = intT
+    getType (VarP ty _)              = ty
+    getType (ConstrP (ty, _, _) _ _) = ty
 
-    setType _ i@IntP{}             = i
-    setType t (VarP _ x)           = VarP t x
-    setType t (ConstrP (_, x) y z) = ConstrP (t, x) y z
+    setType _ i@IntP{}                = i
+    setType t (VarP _ x)              = VarP t x
+    setType t (ConstrP (_, x, w) y z) = ConstrP (t, x, w) y z
 
 instance HasType Type where
     getType     = id

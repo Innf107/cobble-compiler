@@ -221,7 +221,7 @@ checkPattern :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TV
              -> Sem r (Pattern NextPass, TCEnv -> TCEnv)
 checkPattern env (IntP () n) t = pure (IntP () n, id)
 checkPattern env (VarP () x) t = pure (VarP t x, insertType x t)
-checkPattern env (ConstrP i cname ps) t = do
+checkPattern env (ConstrP (i,v) cname ps) t = do
     (constrTy, w) <- instantiate (lookupType cname env)
     (typedPats, resTy, w') <- decomposeParams constrTy ps
     -- TODO: I don't know...
@@ -229,7 +229,7 @@ checkPattern env (ConstrP i cname ps) t = do
 
     (ps', exts) <- unzip <$> forM typedPats \(p, pTy) -> checkPattern env p pTy
 
-    pure (ConstrP (t,i) cname ps', foldr (.) id exts)
+    pure (ConstrP (t,i,v) cname ps', foldr (.) id exts)
 
 infer :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r )
       => TCEnv

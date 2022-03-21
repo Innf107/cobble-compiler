@@ -13,6 +13,9 @@ import Language.Cobble.Util.Polysemy.Fresh
 
 import Data.Sequence qualified as S
 
+import GHC.Show qualified as Show
+import Data.Text qualified as T
+
 type CExpr = C.Expr C.Codegen
 type CStatement = C.Statement C.Codegen
 type CModule = C.Module C.Codegen
@@ -71,9 +74,16 @@ lowerVariantConstr (F.TFun t1 t2) i constrName tyArgs valArgs = do
 lowerVariantConstr ty i constrName tyArgs valArgs = do
     pure $ F.VariantConstr constrName i tyArgs valArgs
 
-newtype PatternMatrix = MkPatternMatrix (Seq (Seq (C.Pattern C.Codegen), F.Expr)) deriving (Show, Eq, Generic, Data)
+newtype PatternMatrix = MkPatternMatrix (Seq (Seq (C.Pattern C.Codegen), Seq F.Expr -> F.Expr)) deriving (Generic, Data)
 
-data HeadConstr = ConstrHead QualifiedName [C.Type] -- TODO: Do we even need types here?
+instance Show.Show PatternMatrix where
+    show (MkPatternMatrix seqs) = toString $ unlines $ map showRow (toList seqs)
+        where
+            showRow (pats, e) = "| " <> unwords (map (T.justifyLeft 10 ' ' . show) (toList pats))
+                                <> " -> " <> show (e []) <> " |"
+
+data HeadConstr = ConstrHead QualifiedName [C.Type] (Seq QualifiedName) -- TODO: Do we even need types here?
+                                                --  ^ other constructors for the type
                 | IntHead Int
                 deriving (Show, Eq, Ord, Generic, Data)
 
@@ -110,7 +120,9 @@ findFirstColNonWildcardConstrs :: PatternMatrix -> Seq HeadConstr
 findFirstColNonWildcardConstrs (MkPatternMatrix rows) = ordNub $ mapMaybe asFirstConstr rows
     where
         asFirstConstr ([C.IntP _ i], _)         = Just (IntHead i)
-        asFirstConstr ([C.ConstrP _ c pats], _) = Just (ConstrHead c (map C.getType pats))
+        asFirstConstr ([C.ConstrP (_,_,v) c pats], _) = case v of
+            C.VariantType _ constrs -> Just $ ConstrHead c (map C.getType pats) (fromList $ map fst constrs) 
+            _ -> error "lowerCase: uncaught pattern match on non-variant constructor (how did this even happen?!)"
         asFirstConstr _                         = Nothing
 
 deconstructPM :: HeadConstr -> PatternMatrix -> PatternMatrix
@@ -118,31 +130,56 @@ deconstructPM pat (MkPatternMatrix rows) = MkPatternMatrix $ (go pat) =<< rows
     where
         go (IntHead i) (C.IntP _ j :<| pats, e)
             | i == j = [(pats, e)]
-        go (ConstrHead c _) (C.ConstrP _ c' subPats :<| pats, e)
+        go (ConstrHead c _ _) (C.ConstrP _ c' subPats :<| pats, e)
             | c == c' = [(fromList subPats <> pats, e)]
         go _ _ = []
+
+defaultMatrix :: PatternMatrix -> PatternMatrix
+defaultMatrix (MkPatternMatrix rows) = MkPatternMatrix $ go =<< rows
+    where
+        go (C.ConstrP{} :<| _, _) = []
+        go (C.IntP{} :<| _, _) = []
+        go (C.VarP _ x :<| ps, e) = [(ps, \valArgs -> e (F.Var x <| valArgs))] -- ?
+        go (Empty, _) = error $ "lowerCase: trying to construct default matrix from a pattern matrix with width 0: " <> show (MkPatternMatrix rows)
 
 compilePMatrix :: forall r. Members '[Fresh Text QualifiedName] r => Seq F.Expr -> PatternMatrix -> Sem r F.Expr
 compilePMatrix occs (MkPatternMatrix Empty) = error "Non-exhaustive patterns. (This should not be a panic)"
 compilePMatrix occs (MkPatternMatrix ((row, expr) :<| _))
-    | all isWildcardLike row = foldrM ($) expr (S.zipWith bindVarPat row occs)
+    | all isWildcardLike row = foldrM ($) (expr []) -- TODO
+                                (S.zipWith bindVarPat row occs)
 compilePMatrix (_occ :<| occs) m
     | Just m' <- findFirstColFullWildcards m = compilePMatrix occs m' -- TODO: bind variables
 compilePMatrix (occ :<| occs) m = do
     let headConstrs = findFirstColNonWildcardConstrs m
-    F.Case occ . addDefaultIfIncomplete headConstrs <$> traverse compileHeadConstr headConstrs
+    fmap (F.Case occ) $ addDefaultIfIncomplete headConstrs =<< traverse compileHeadConstr headConstrs
     where
-        compileHeadConstr:: HeadConstr -> Sem r (F.Pattern, F.Expr)
+        compileHeadConstr :: HeadConstr -> Sem r (F.Pattern, F.Expr)
         compileHeadConstr h@(IntHead i) = (F.PInt i,) <$> compilePMatrix occs (deconstructPM h m)
-        compileHeadConstr h@(ConstrHead c argTys) = do
+        compileHeadConstr h@(ConstrHead c argTys _) = do
             argVars <- traverse (\ty -> (,) <$> freshVar @_ @_ @r "c" <*> lowerType ty) argTys
             (F.PConstr c (map fst argVars),) <$> compilePMatrix (fromList $ fmap (\(x, _) -> F.Var x) argVars) (deconstructPM h m)
         
-        addDefaultIfIncomplete headConstrs cases = undefined
+        addDefaultIfIncomplete :: Seq HeadConstr -> Seq (F.Pattern, F.Expr) -> Sem r (Seq (F.Pattern, F.Expr)) 
+        addDefaultIfIncomplete headConstrs cases = case headConstrs of -- We can assume headConstrs is non-empty
+            (ConstrHead _ _ otherConstrs :<| _) 
+                | isComplete headConstrs otherConstrs -> pure cases
+            _ -> do
+                defaultClause <- (F.PWildcard,) <$> compilePMatrix occs (defaultMatrix m)
+                pure (cases |> defaultClause)
         
+        isComplete headConstrs otherConstrs = S.sort (fmap constrName headConstrs) == S.sort otherConstrs
+
+        constrName (ConstrHead x _ _) = x
+        constrName c = error $ "lowerCase: mixing variant and non-variant head constructor patterns: " <> show c
+
 compilePMatrix occs m = error $ "lowerCase: compilePMatrix: Invalid occurance/pattern matrix combination:"
                                 <> "\n    " <> show occs 
                                 <> "\n    " <> show m
+
+collectVarPatTypes :: C.Pattern C.Codegen -> Sem r (Seq (QualifiedName, F.Type))
+collectVarPatTypes (C.VarP ty x) = lowerType ty <&> \ty' -> [(x, ty')]
+collectVarPatTypes C.IntP{} = pure []
+collectVarPatTypes (C.ConstrP _ _ pats) = fold <$> traverse collectVarPatTypes pats
 
 -- Case desugaring is based on https://www.cs.tufts.edu/~nr/cs257/archive/luc-maranget/jun08.pdf
 lowerCase :: forall r. Members '[Fresh Text QualifiedName] r 
@@ -151,11 +188,13 @@ lowerCase :: forall r. Members '[Fresh Text QualifiedName] r
           -> [C.CaseBranch C.Codegen] 
           -> Sem r F.Expr
 lowerCase ty expr branches = do
-    (jpDefs :: [F.Expr -> F.Expr], possibleBranches :: [(Seq (C.Pattern C.Codegen), F.Expr)]) <- unzip <$> forM branches \(C.CaseBranch () _ p e) -> do
+    (jpDefs :: [F.Expr -> F.Expr], possibleBranches :: [(Seq (C.Pattern C.Codegen), Seq F.Expr -> F.Expr)]) <- unzip <$> forM branches \(C.CaseBranch () _ p e) -> do
         jpName <- freshVar "j"
         e' <- lowerExpr e
-        pure (F.Join jpName undefined undefined e'
-            , ([p], F.Jump jpName undefined undefined undefined))
+        argTypes <- collectVarPatTypes p
+        resultTy <- lowerType (C.getType e)
+        pure (F.Join jpName [] argTypes e' -- ?
+            , ([p], \valArgs -> F.Jump jpName [] valArgs resultTy)) -- ?
 
     let pmatrix = MkPatternMatrix $ fromList $ possibleBranches
 

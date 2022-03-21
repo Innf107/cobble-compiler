@@ -24,7 +24,7 @@ data Scope = Scope {
     _scopeVars :: Map Text QualifiedName
 ,   _scopeTypes :: Map Text (QualifiedName, Kind, TypeVariant)
 ,   _scopeTVars :: Map Text (QualifiedName, Kind)
-,   _scopeVariantConstrs :: Map Text (QualifiedName, Int, Int)
+,   _scopeVariantConstrs :: Map Text (QualifiedName, Int, Int, TypeVariant)
 ,   _scopeFixities :: Map Text Fixity
 }
 
@@ -75,8 +75,9 @@ qualifyStmnt (DefVariant () li n tvs constrs) = runReader li $ do
         cn' <- freshVar (cn, li)
         tys' <- traverse (qualifyType False) tys
         pure (cn', tys', (length tys', i))
-    addType n n' k (VariantType (coercePass tvs') (map (\(cn, ts, _) -> (cn, coercePass ts)) constrs'))
-    zipWithM_ (\(cn, _, _) (cn', _, (ep, i)) -> addVariantConstr cn cn' ep i) constrs constrs'
+    let typeVariant = (VariantType (coercePass tvs') (map (\(cn, ts, _) -> (cn, coercePass ts)) constrs'))
+    addType n n' k typeVariant
+    zipWithM_ (\(cn, _, _) (cn', _, (ep, i)) -> addVariantConstr cn cn' ep i typeVariant) constrs constrs'
     pure (DefVariant k li n' tvs' constrs')
 
 qualifyStmnt (DefClass () li n tvs meths) = runReader li $ do
@@ -163,7 +164,7 @@ qualifyExpr (Ascription () li expr ty) = runReader li $
     <$> qualifyExpr expr
     <*> qualifyType False ty
 qualifyExpr (VariantConstr () li cname) = runReader li do
-    (cname', ep, i) <- lookupVariantConstr cname
+    (cname', ep, i, v) <- lookupVariantConstr cname
     pure $ VariantConstr (ep, i) li cname'
 qualifyExpr (Case () li exp cases) = runReader li $ 
     Case () li
@@ -222,8 +223,8 @@ qualifyPattern (VarP () x) = do
     addVar x x'
     pure (VarP () x')
 qualifyPattern (ConstrP () cname ps) = do
-    (cname, _, i) <- lookupVariantConstr cname
-    ConstrP i cname <$> traverse qualifyPattern ps
+    (cname, _, i, v) <- lookupVariantConstr cname
+    ConstrP (i, v) cname <$> traverse qualifyPattern ps
 
 qualifyType :: forall r. Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r 
             => Bool
@@ -271,8 +272,8 @@ addMFixity :: Members '[StackState Scope] r => Text -> Maybe Fixity -> Sem r ()
 addMFixity n (Just f) = addFixity n f
 addMFixity _ Nothing = pure ()
 
-addVariantConstr :: Members '[StackState Scope] r => Text -> QualifiedName -> Int -> Int -> Sem r ()
-addVariantConstr n n' ep i = smodify (scopeVariantConstrs %~ insert n (n', ep, i))
+addVariantConstr :: Members '[StackState Scope] r => Text -> QualifiedName -> Int -> Int -> TypeVariant -> Sem r ()
+addVariantConstr n n' ep i v = smodify (scopeVariantConstrs %~ insert n (n', ep, i, v))
 
 addType :: Members '[StackState Scope] r => Text -> QualifiedName -> Kind -> TypeVariant -> Sem r ()
 addType n n' k tv = smodify (scopeTypes %~ insert n (n', k, tv))
@@ -290,7 +291,7 @@ lookupFixity n = sgets (lookup n . _scopeFixities) >>= \case
     Just f -> pure f
     Nothing -> ask >>= \li -> throw $ FixityNotFound li n
 
-lookupVariantConstr :: Members '[StackState Scope, Error QualificationError, Reader LexInfo] r => Text -> Sem r (QualifiedName, Int, Int)
+lookupVariantConstr :: Members '[StackState Scope, Error QualificationError, Reader LexInfo] r => Text -> Sem r (QualifiedName, Int, Int, TypeVariant)
 lookupVariantConstr n = sgets (lookup n . _scopeVariantConstrs) >>= \case
     Just c -> pure c
     Nothing -> ask >>= \li -> throw $ VariantConstrNotFound li n

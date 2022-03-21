@@ -60,7 +60,7 @@ type instance XCaseBranch Codegen = ()
 
 type instance XIntP     Codegen = ()
 type instance XVarP     Codegen = Type
-type instance XConstrP  Codegen = (Type, Int)
+type instance XConstrP  Codegen = (Type, Int, TypeVariant)
 type instance XPattern  Codegen = Void
 
 type instance Name 'Codegen = QualifiedName

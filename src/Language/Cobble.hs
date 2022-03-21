@@ -165,7 +165,7 @@ compileWithSig m = do
 modSigToScope :: ModSig -> Scope
 modSigToScope (ModSig{exportedVars, exportedVariantConstrs, exportedTypes, exportedFixities}) = Scope {
                 _scopeVars              = fromList $ map (\(qn, _) -> (originalName qn, qn)) $ M.toList exportedVars
-            ,   _scopeVariantConstrs    = fromList $ map (\(qn, (_, ep, i)) -> (originalName qn, (qn, ep, i))) $ M.toList exportedVariantConstrs
+            ,   _scopeVariantConstrs    = fromList $ map (\(qn, (_, ep, i, v)) -> (originalName qn, (qn, ep, i, v))) $ M.toList exportedVariantConstrs
             ,   _scopeTypes             = fromList $ map (\(qn, (k, tv)) -> (originalName qn, (qn, k, tv))) $ M.toList exportedTypes
             ,   _scopeFixities          = M.mapKeys originalName exportedFixities
             ,   _scopeTVars             = mempty
@@ -183,9 +183,10 @@ makePartialSig = \case
                 map (second coercePass) meths
         }
     DefInstance _ _ cname ty _ -> mempty {exportedInstances = one (cname, [ty])}
-    DefVariant k _ tyName ps cs    -> mempty
-        {   exportedTypes = one (tyName, (k, VariantType ps (map (\(x,y,_) -> (x,y)) cs)))
-        ,   exportedVariantConstrs = fromList (map (\(cname, _, (ty, ep, i)) -> (cname, (ty, ep, i))) cs)
+    DefVariant k _ tyName ps cs -> let tyVariant = VariantType ps (map (\(x,y,_) -> (x,y)) cs) in 
+        mempty
+        {   exportedTypes = one (tyName, (k, tyVariant))
+        ,   exportedVariantConstrs = fromList (map (\(cname, _, (ty, ep, i)) -> (cname, (ty, ep, i, tyVariant))) cs)
         }
     Import () _ _            -> mempty
 

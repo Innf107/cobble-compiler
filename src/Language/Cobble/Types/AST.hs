@@ -43,7 +43,7 @@ type family XModule (p :: Pass)
 -- (Variables, Functions, Types, etc.)
 data ModSig = ModSig {
     exportedVars            :: Map QualifiedName Type
-,   exportedVariantConstrs  :: Map QualifiedName (Type, Int, Int)
+,   exportedVariantConstrs  :: Map QualifiedName (Type, Int, Int, TypeVariant)
 ,   exportedTypes           :: Map QualifiedName (Kind, TypeVariant)
 ,   exportedFixities        :: Map QualifiedName Fixity
 ,   exportedInstances       :: Map QualifiedName [Type]
