@@ -75,6 +75,7 @@ data CompileOpts = CompileOpts {
     , target::Target
     , ddumpTC::Bool
     , ddumpCore::Bool
+    , skipCoreLint::Bool
     }
 
 data Target = Racket
@@ -106,11 +107,12 @@ compileContents contents = do
 
     core <- fmap join $ evalState (one ("prims", primModSig)) $ traverse compileAndAnnotateSig orderedMods
     
-    lintError <- runError $ lint (LintEnv mempty) core
+    whenM (asks (not . skipCoreLint)) do
+        lintError <- runError $ lint (LintEnv mempty) core
 
-    case lintError of
-        Left e   -> traceM Warning $ "[CORE LINT ERROR]: " <> show e
-        Right () -> pure () 
+        case lintError of
+            Left e   -> traceM Warning $ "[CORE LINT ERROR]: " <> show e
+            Right () -> pure () 
 
     freshWithInternal $ compileFromCore core
 

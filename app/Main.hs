@@ -23,7 +23,7 @@ runCobble = \case
     Compile co -> runCompile co
 
 runCompile :: CompileCmdOpts -> IO ()
-runCompile CompileCmdOpts{compFiles, debug, packageName, description, target, traceLevel, ddumpTC, ddumpCore} = do
+runCompile CompileCmdOpts{compFiles, debug, packageName, description, target, traceLevel, ddumpTC, ddumpCore, skipCoreLint} = do
     let opts = CompileOpts {
             name=packageName
         ,   debug
@@ -31,6 +31,7 @@ runCompile CompileCmdOpts{compFiles, debug, packageName, description, target, tr
         ,   target
         ,   ddumpTC
         ,   ddumpCore
+        , skipCoreLint
         }
     case target of
         Racket -> do
@@ -67,6 +68,7 @@ data CompileCmdOpts = CompileCmdOpts {
     , target :: Target
     , ddumpTC :: Bool
     , ddumpCore :: Bool
+    , skipCoreLint :: Bool
     } deriving (Show, Eq)
 
 compileOpts :: Parser CompileCmdOpts
@@ -79,3 +81,4 @@ compileOpts = CompileCmdOpts
     <*> option auto (long "target" <> metavar "TARGET" <> value Racket <> help "Possible targets: racket")
     <*> switch (long "ddump-tc" <> help "Write the typechecker constraints to a file")
     <*> switch (long "ddump-core" <> help "Write the intermediate language Core to a file")
+    <*> switch (long "skip-core-lint" <> help "Skip type checks for the internal language. Unless the compiler has a bug, this should always be safe.")
