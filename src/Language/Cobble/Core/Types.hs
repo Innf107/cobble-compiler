@@ -4,6 +4,7 @@ import Language.Cobble.Prelude
 import Language.Cobble.Types.QualifiedName
 
 import Prettyprinter
+import Prettyprinter.Render.String
 
 import GHC.Show qualified as S
 
@@ -70,7 +71,7 @@ prettyTyped :: (Pretty p) => (QualifiedName, p) -> Doc ann
 prettyTyped (x, p) = ppQName x <+> ":" <+> pretty p
 
 instance {-# OVERLAPPING #-} Pretty [Decl] where
-    pretty ds = vsep (map pretty ds)
+    pretty ds = vsep (map ((<> line) . pretty) ds)
 
 instance Pretty Decl where
     pretty (Def x ty e) = ppQName x <+> ":" <+> pretty ty <> line <> ppQName x <+> "=" <+> align (pretty e)
@@ -80,13 +81,13 @@ instance Pretty Decl where
 instance Pretty Expr where
     pretty (Var x) = ppQName x
     pretty (App e1 e2) = "(" <> pretty e1 <+> pretty e2 <> ")"
-    pretty (TyAbs tv k e) = "(Λ(" <> ppQName tv <+> ":" <+> pretty k <> ")." <+> align (pretty e) <> ")"
+    pretty (TyAbs tv k e) = "(Λ(" <> ppQName tv <+> ":" <+> pretty k <> ")." <> softline <> align (pretty e) <> ")"
     pretty (TyApp e ty) = "(" <> pretty e <+> "@" <> pretty ty <> ")"
-    pretty (Abs x ty e) = "(λ(" <> ppQName x <+> ":" <+> pretty ty <> ")." <+> align (pretty e) <> ")"
+    pretty (Abs x ty e) = "(λ(" <> ppQName x <+> ":" <+> pretty ty <> ")." <> softline <> align (pretty e) <> ")"
     pretty (IntLit n) = pretty n
     pretty UnitLit = "()"
-    pretty (Let x ty e1 e2) = "(let" <+> ppQName x <+> ":" <+> pretty ty <+> "=" <+> align (pretty e1) <+> "in" <+> pretty e2 <+> ")"
-    pretty (If c th el) = "(if" <+> pretty c <+> "then" <+> pretty th <+> "else" <+> pretty el <> ")"
+    pretty (Let x ty e1 e2) = "(let" <+> ppQName x <+> ":" <+> pretty ty <+> "=" <+> align (softline' <> pretty e1) <+> "in" <> line <> pretty e2 <> ")"
+    pretty (If c th el) = "(if" <+> pretty c <> softline <> "then" <+> pretty th <> softline <> "else" <+> pretty el <> ")"
     pretty (VariantConstr x _ tys es) = ppQName x <> tyApps <> valApps
         where
             tyApps = case tys of
@@ -105,9 +106,10 @@ instance Pretty Expr where
                                                         <+> encloseSep "[" "]" ", " (map prettyTyped $ toList tyParams)
                                                         <+> encloseSep "{" "}" ", " (map prettyTyped $ toList tyParams)
                                                         <+> "="
-                                                        <+> align (pretty body)
+                                                        <+> align (softline' <> pretty body)
                                                         <+> "in"
-                                                        <+> pretty e
+                                                        <> line
+                                                        <> pretty e
                                                         <> ")"
     pretty (Jump j tyArgs valArgs retTy) = "(jump" <+> ppQName j <+> encloseSep "[" "]" "," (map pretty $ toList tyArgs)
                                                                  <+> encloseSep "{" "}" "," (map pretty $ toList valArgs)
@@ -130,6 +132,9 @@ instance Pretty Kind where
     pretty (KFun KType t2) = "*" <+> "->" <+> pretty t2
     pretty (KFun t1 t2) = "(" <> pretty t1 <> ")" <+> "->" <+> pretty t2
 
+-- We have to go through string because that's unfortunately what show expects
+instance {-# OVERLAPPING #-} S.Show [Decl] where
+    show = show . pretty
 instance S.Show Decl where
     show = show . pretty
 instance S.Show Expr where

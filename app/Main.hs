@@ -7,6 +7,8 @@ import Language.Cobble.Types
 import Options.Applicative
 import Language.Cobble.Util.Polysemy.Time
 
+import System.IO
+
 main :: IO ()
 main = runCobble =<< execParser (info (mainOpts <**> helper) mainInfo)
     where
@@ -53,9 +55,13 @@ runTracePretty lvl = runTraceStderrWith lvl pretty
             DebugVeryVerbose -> "\ESC[38;2;0;100;0m\STX[DEBUG VERY VERBOSE]\ESC[38;2;40;145;40m\STX "
         
 
--- TODO
 failWithCompError :: CompilationError -> IO a
-failWithCompError e = fail $ "CompilationError: " <> show e
+failWithCompError (Panic msg) = do
+    hPutStrLn stderr $ toString $ "\ESC[38;2;255;0;0m\STXPANIC (the 'impossible' happened):\n" <> msg <> "\ESC[0m\STX"
+    exitFailure
+failWithCompError e = do
+    hPutStrLn stderr $ "CompilationError: " <> show e
+    exitFailure
 
 data CobbleAction = Compile CompileCmdOpts deriving (Show, Eq)
 

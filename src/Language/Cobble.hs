@@ -159,7 +159,7 @@ compileWithSig m = do
 
         core <- lower tcMod
 
-        dumpWhenWithM (asks ddumpCore) (show . pretty) "dump-core" $ dump core
+        dumpWhenWithM (asks ddumpCore) show "dump-core" $ dump core
 
         pure (core, extractSig tcMod)
 
