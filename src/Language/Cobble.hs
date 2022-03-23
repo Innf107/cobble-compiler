@@ -111,7 +111,7 @@ compileContents contents = do
         lintError <- runError $ lint (LintEnv mempty mempty) core
 
         case lintError of
-            Left e   -> traceM Warning $ "[CORE LINT ERROR]: " <> show e
+            Left (MkCoreLintError msg) -> traceM Warning $ "[CORE LINT ERROR]: " <> msg
             Right () -> pure () 
 
     freshWithInternal $ compileFromCore core

@@ -4,23 +4,10 @@ import Language.Cobble.Prelude
 import Language.Cobble.Types.QualifiedName
 import Language.Cobble.Core.Types
 
-data CoreLintError = VarNotFound QualifiedName LintEnv
-                   | DeclTypeMismatch QualifiedName Type Type
-                   | FunTypeMismatch Expr Expr Type Type
-                   | LetTypeMismatch QualifiedName Expr Type Type
-                   | IfCondTypeMismatch Expr Type Type
-                   | IfBranchTypeMismatch Expr Expr Type Type
-                   | AppOfNonFunction Expr Expr Type Type
-                   | TyAppOfNonForall Expr Type Type
-                   | VariantArgMismatch QualifiedName Expr Type Type
-                   | VariantMissingValArgs QualifiedName Type Type (Seq Type) (Seq Expr)
-                   | VariantMissingTyArgs QualifiedName QualifiedName Kind Type (Seq Expr)
-                   | VariantExcessiveArgs QualifiedName Type (Seq Type) (Seq Expr)
-                   | LintMsg Text
-                   deriving (Show, Eq)
+newtype CoreLintError = MkCoreLintError Text deriving (Show, Eq)
 
 throwLint :: Members '[Error CoreLintError] r => Text -> Sem r a
-throwLint = throw . LintMsg
+throwLint = throw . MkCoreLintError
 
 data LintEnv = LintEnv {
     varTypes :: Map QualifiedName Type
@@ -40,7 +27,7 @@ lookupType :: Members '[Error CoreLintError] r
            -> LintEnv 
            -> Sem r Type
 lookupType x env = case lookup x (varTypes env) of
-    Nothing -> throw (VarNotFound x env)
+    Nothing -> throwLint $ "Variable not found: " <> show x <> "\nContext: " <> show env
     Just ty -> pure ty
 
 clearJPs :: LintEnv -> LintEnv
@@ -72,7 +59,7 @@ lint _ [] = pure ()
 lint env (Def x ty e : ds) = do
     let env' = insertType x ty $ clearJPs env
     eTy <- lintExpr env' e 
-    when (eTy /= ty) $ throw (DeclTypeMismatch x ty eTy)
+    typeMatch eTy ty $ "Type mismatch in declaration for '" <> show x <> "'"
     lint env' ds
 lint env (DefVariant x args clauses : ds) = do
     let resKind = foldr (KFun . snd) KType args
@@ -96,14 +83,14 @@ lintExpr env (App e1 e2) = do
     e2Ty <- lintExpr env e2
     case e1Ty of
         TFun dom codom -> do
-            typeMatch dom e2Ty (FunTypeMismatch e1 e2)
+            typeMatch dom e2Ty $ "Function type mismatch.\n    Function: " <> show e1 <> "\n    Argument: " <> show e2
             pure codom
-        _ -> throw $ AppOfNonFunction e1 e2 e1Ty e2Ty
+        _ -> throwLint $ "Application of value with non-function type '" <> show e1Ty <> "'\n    'Function' expression: " <> show e1 <> "\n    Argument type: " <> show e2Ty <> "\n    Argument expression: " <> show e2
 lintExpr env (TyApp e ty) = do
     eTy <- lintExpr env e
     case eTy of
         TForall tv k eAppTy -> pure (replaceTVar tv ty eAppTy)
-        _ -> throw $ TyAppOfNonForall e ty eTy
+        _ -> throwLint $ "Type application at non-forall type '" <> show eTy <> "'\n    Expression: " <> show e <> "\n    Applied type: " <> show ty
 lintExpr env (TyAbs tv k e) = do
     eTy <- lintExpr (clearJPs env) e
     pure (TForall tv k eTy)
@@ -111,14 +98,14 @@ lintExpr env (IntLit i) = pure intTy
 lintExpr env UnitLit = pure unitTy
 lintExpr env (Let x ty e1 e2) = do
     e1Ty <- lintExpr env e1 -- See note [clearJPs for App].
-    typeMatch ty e1Ty (LetTypeMismatch x e1)
+    typeMatch ty e1Ty $ "let type mismatch in binding of '" <> show x <> "' to expression: " <> show e1
     lintExpr (insertType x ty env) e2
 lintExpr env (If c th el) = do
     cTy <- lintExpr env c
-    typeMatch cTy boolTy (IfCondTypeMismatch c)
+    typeMatch cTy boolTy $ "Condition of if expression is not a boolean: " <> show c
     thTy <- lintExpr env th
     elTy <- lintExpr env el
-    typeMatch thTy elTy (IfBranchTypeMismatch th el)
+    typeMatch thTy elTy $ "Branches of if expression have different types.\n    Branch 1: " <> show th <> "\n    Branch 2: " <> show el
     pure thTy
 lintExpr env (VariantConstr x i tyArgs valArgs) = do
     xTy <- lookupType x env
@@ -126,17 +113,19 @@ lintExpr env (VariantConstr x i tyArgs valArgs) = do
     where
         go (TFun t1 t2) tyArgs (arg :<| valArgs) = do
             argTy <- lintExpr env arg
-            typeMatch t1 argTy (VariantArgMismatch x arg)
+            typeMatch t1 argTy $ "Argument type mismatch for variant constructor '" <> show x <> "' with argument: " <> show arg
             go t2 tyArgs valArgs
-        go (TFun t1 t2) tyArgs Empty = throw $ VariantMissingValArgs x t1 t2 tyArgs valArgs  
+        go (TFun t1 t2) tyArgs Empty = throwLint $ "Variant constructor '" <> show x <> "' is missing value arguments.\n    Remaining type: " <> show (TFun t1 t2) <> "\n    Applied value arguments: " <> show valArgs <> "\n    Not yet applied type arguments: " <> show tyArgs  
 
         go (TForall a _k ty) (tyArg :<| tyArgs) valArgs = do
             let ty' = replaceTVar a tyArg ty
             go ty' tyArgs valArgs
-        go (TForall a k ty) Empty valArgs = throw $ VariantMissingTyArgs x a k ty valArgs
+        go (TForall a k ty) Empty valArgs = throwLint $ "Variant constructor '" <> show x <> "' is missing type arguments.\n    Remaining type: " <> show (TForall a k ty) <> "\n    Not yet applied value arguments: " <> show valArgs <> "\n    Applied type arguments: " <> show tyArgs
         go ty Empty Empty = pure ty
-        go ty tyArgs valArgs = throw $ VariantExcessiveArgs x ty tyArgs valArgs
-lintExpr env (Case e branches) = do
+        go ty tyArgs valArgs = throwLint $ "Excessive arguments for variant constructor '" <> show x <> "'.\n    Remaining type: " <> show ty <> "\n    Not yet applied type arguments: " <> show tyArgs <> "\n    Mpt yet applied value arguments: " <> show valArgs
+lintExpr env (Case scrut branches) = do
+    scrutTy <- lookupType scrut env
+
     undefined
 -- TODO: No kind checks yet
 lintExpr env (Join j tyParams valParams body e) = do
@@ -146,7 +135,7 @@ lintExpr env (Join j tyParams valParams body e) = do
     let remainingEnv = insertJP j tyParams (fmap snd valParams) env
     eTy <- lintExpr remainingEnv e
     
-    typeMatch bodyTy eTy \bodyTy eTy -> LintMsg $ "Jump point body type and return type do not match for join point '" <> show j <> "'.\n    Expected: " <> show bodyTy <> "\n    Actual:" <> show eTy
+    typeMatch bodyTy eTy $ "Jump point body type and return type do not match for join point '" <> show j <> "'"
     pure eTy
 
 lintExpr env (Jump j tyArgs valArgs retTy) = do
@@ -160,7 +149,7 @@ lintExpr env (Jump j tyArgs valArgs retTy) = do
     when (length tyPars /= length tyArgs) 
         $ throwLint $ "Mismatched type argument count for jump point '" <> show j <> "'.\nExpected: " <> show tyPars <> "\nActual: " <> show tyArgs
     let appliedTypes = foldr (\((a, _), ty) rs -> fmap (replaceTVar a ty) rs) valPars $ zip tyPars tyArgs 
-    zipWithM_ (\expected expr -> lintExpr (clearJPs env) expr >>= \exprTy -> typeMatch expected exprTy \t1 t2 -> LintMsg $ "Argument mismatch for join point '" <> show j <> "'.\n    Expected: " <> show expected <> ".\n    Actual: " <> show expr <> ":" <> show exprTy) 
+    zipWithM_ (\expected expr -> lintExpr (clearJPs env) expr >>= \exprTy -> typeMatch expected exprTy $ "Argument mismatch for join point '" <> show j <> "' with body '" <> show expr <> "'")
         (toList appliedTypes) 
         (toList valArgs)
     pure retTy
@@ -169,7 +158,7 @@ lintExpr env (Jump j tyArgs valArgs retTy) = do
 In 'Compiling without continuations'[1], the rule for applications clearly states
 that join point contexts should be cleared for function arguments, but not for the evaluation
 of the actual function.
-However, since Cobble and ,by extension, Core are Call by Value, we should be fine if we allow arguments to functions to 
+However, since Cobble and, by extension, Core are Call by Value, we should be fine if we allow arguments to functions to 
 keep the join point context, since we can be sure that they will be evaluated immediately and, crucially, on the same stack.
 
 The same reasoning applies to let expressions, which behave more like single-branch case expressions in lazy System F.
@@ -189,12 +178,14 @@ boolTy = TCon (internalQName "Bool") KType
 unitTy :: Type
 unitTy = TCon (internalQName "Unit") KType
 
-typeMatch :: Members '[Error e] r 
+typeMatch :: Members '[Error CoreLintError] r 
           => Type 
           -> Type 
-          -> (Type -> Type -> e) 
+          -> Text
           -> Sem r ()
-typeMatch t1 t2 mkErr
+typeMatch t1 t2 msg
     | t1 == t2  = pure ()
-    | otherwise = throw $ mkErr t1 t2
+    | otherwise = throw $ MkCoreLintError $ msg 
+                                        <> "\n    Expected: " <> show t1
+                                        <> "\n      Actual: " <> show t2
 
