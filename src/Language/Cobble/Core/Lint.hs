@@ -69,7 +69,7 @@ lint env (DefVariant x args clauses : ds) = do
     let env' = clearJPs $ foldr (uncurry insertType) env constrTys
     lint env' ds
 
-lintExpr :: Members '[Error CoreLintError] r
+lintExpr :: forall r. Members '[Error CoreLintError] r
          => LintEnv
          -> Expr
          -> Sem r Type
@@ -125,8 +125,29 @@ lintExpr env (VariantConstr x i tyArgs valArgs) = do
         go ty tyArgs valArgs = throwLint $ "Excessive arguments for variant constructor '" <> show x <> "'.\n    Remaining type: " <> show ty <> "\n    Not yet applied type arguments: " <> show tyArgs <> "\n    Mpt yet applied value arguments: " <> show valArgs
 lintExpr env (Case scrut branches) = do
     scrutTy <- lookupType scrut env
+    resTys <- forM branches \(pat, e) -> do
+        matchPatTy env pat scrutTy
+        lintExpr env e
+    case resTys of
+        Empty -> throwLint $ "Empty case on scrutinee '" <> show scrut <> "'. This should probably be supported at some point."
+        (ty :<| tys) -> 
+            foldrM 
+                (\branchResTy fullResTy -> typeMatch branchResTy fullResTy ("Mismatched case branches in case for scrutinee '" <> show scrut <> "'") >> pure fullResTy)
+                ty 
+                tys
 
-    undefined
+    where
+        matchPatTy :: LintEnv -> Pattern -> Type -> Sem r ()
+        matchPatTy env pat@PInt{} ty            = typeMatch ty intTy $ "Mismatched scrutinee and pattern types in case on '" <> show scrut <> "' with pattern: " <> show pat
+        matchPatTy env PWildcard{} _            = pure ()
+        matchPatTy env pat@(PConstr cname _ _) ty   = do
+            -- There are no GADTs (yet), so all constructor types are fully polymorphic
+            -- and we can cheat a little, by just looking at the head type constructor, since everything else is
+            -- fully polymorphic.
+            constrTy <- headTyCon <$> lookupType cname env
+            
+            typeMatch (headTyCon ty) constrTy $ "Mismatched scrutinee and pattern types in case on '" <> show scrut <> "' with pattern: " <> show pat
+
 -- TODO: No kind checks yet
 lintExpr env (Join j tyParams valParams body e) = do
     let innerEnv = foldr (uncurry insertType) env valParams
@@ -165,6 +186,12 @@ The same reasoning applies to let expressions, which behave more like single-bra
 
 [1]: https://www.microsoft.com/en-us/research/wp-content/uploads/2016/11/join-points-pldi17.pdf
 -}
+
+headTyCon :: Type -> Type
+headTyCon (TForall _ _ ty) = headTyCon ty
+headTyCon (TFun a b) = headTyCon b
+headTyCon (TApp a b) = headTyCon a 
+headTyCon ty = ty
 
 getKind :: Type -> Kind
 getKind = undefined
