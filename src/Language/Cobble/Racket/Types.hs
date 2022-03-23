@@ -28,7 +28,13 @@ data RacketExpr =
   | RHashSet RacketExpr RacketExpr RacketExpr
   | RHashRef RacketExpr RacketExpr
   | RCadr Int RacketExpr -- RCadr n e ==> (cad{n}r e)  
+  
+  | RCase RacketExpr (Seq (RPattern, RacketExpr))
   deriving (Show, Eq)
+
+data RPattern = RIntP [Int]
+              | RWildcardP
+              deriving (Show, Eq)
 
 instance {-# OVERLAPPING #-} Pretty [RacketExpr] where
     pretty = vsep . map pretty
@@ -52,7 +58,11 @@ instance Pretty RacketExpr where
     pretty (RHashSet h k e) = prettyApp "hash-set" [pretty h, pretty k, pretty e]
     pretty (RHashRef h k) = prettyApp "hash-ref" [pretty h, pretty k]
     pretty (RCadr n e) = prettyApp (pretty $ "ca" <> T.replicate n "d" <> "r") [pretty e]
-
+    pretty (RCase expr cases) = prettyApp ("case" <+> pretty expr) $
+        map (\(pat, e) -> list [prettyPat pat, pretty e]) (toList cases)
+        where
+            prettyPat RWildcardP = "_"
+            prettyPat (RIntP is) = list (map pretty is) 
 prettyQ :: QualifiedName -> Doc ann
 prettyQ = pretty . renderRacket
 

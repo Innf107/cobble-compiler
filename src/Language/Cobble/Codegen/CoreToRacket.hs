@@ -33,7 +33,20 @@ compileExpr (If c th el) = RIf
     <*> compileExpr th
     <*> compileExpr el
 compileExpr (VariantConstr x i _tyArgs valArgs) = RList . (RIntLit i :) . toList <$> traverse compileExpr valArgs
-compileExpr (Case expr branches) = undefined
-compileExpr (Join _ _ _ _ _) = undefined
-compileExpr (Jump _ _ _ _) = undefined
+compileExpr (Case scrut branches) =
+    RCase (RVar scrut)
+    <$> traverse compileBranch branches
+        where
+            compileBranch (PInt i, e) = (RIntP [i],) <$> compileExpr e
+            compileBranch (PConstr _ [] i, e) = (RIntP [i],) <$> compileExpr e
+            compileBranch (PConstr _ args i, e) = 
+                (RIntP [i],) 
+                . RLet (zipWith (\x i -> (x, RCadr i (RVar scrut))) args [0..]) 
+                . pure 
+                <$> compileExpr e
+            compileBranch (PWildcard, e) = (RWildcardP,) <$> compileExpr e
+compileExpr (Join j _tys vals body e) = do
+    body' <- compileExpr body
+    RLet [(j, RLambda (map fst $ toList vals) [body'])] . pure <$> compileExpr e
+compileExpr (Jump j _tyArgs valArgs _resTy) = RApp (RVar j) <$> traverse compileExpr (toList valArgs)
 

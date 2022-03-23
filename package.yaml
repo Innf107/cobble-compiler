@@ -139,3 +139,4 @@ default-extensions:
   - NumDecimals
   - RoleAnnotations
   - QuantifiedConstraints
+  - OverloadedLists

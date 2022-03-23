@@ -25,7 +25,8 @@ data Expr = Var QualifiedName
           -- Unlike in Cobble, Core's VariantConstrs have to be *fully saturated* with value and type arguments.
           | VariantConstr QualifiedName Int (Seq Type) (Seq Expr)
 
-          | Case Expr (Seq (Pattern, Expr))
+            --  Core Scrutinees have to be in WHNF, which makes it much easier to, say, fully eliminate a case expression during optimizations
+          | Case QualifiedName (Seq (Pattern, Expr))
 
           | Join QualifiedName (Seq (QualifiedName, Kind)) (Seq (QualifiedName, Type)) Expr Expr -- Create a join point (See note [Join Points])
           --                    ^ type parameters           ^ value parameters
@@ -36,7 +37,7 @@ data Expr = Var QualifiedName
 
 data Pattern = PInt Int
              | PWildcard
-             | PConstr QualifiedName [QualifiedName]
+             | PConstr QualifiedName [QualifiedName] Int
              deriving (Eq, Generic, Data)
 
 data Type = TVar QualifiedName Kind
@@ -97,7 +98,7 @@ instance Pretty Expr where
                 Empty -> ""
                 (es :|> e) -> "{" <> foldl' (\r e -> pretty e <> "," <+> r) (pretty e) es <> "}"
 
-    pretty (Case e branches) = "(case" <+> pretty e <+> "of" <> 
+    pretty (Case scrut branches) = "(case" <+> ppQName scrut <+> "of" <> 
                                     align (line <> vsep (map (\(p, e) -> pretty p <+> "->" <+> pretty e) (toList branches)))
                                     <> ")"
 
@@ -119,7 +120,7 @@ instance Pretty Expr where
 instance Pretty Pattern where
     pretty (PInt i) = pretty i
     pretty PWildcard = "_"
-    pretty (PConstr cname args) = encloseSep "(" ")" " " (map ppQName (cname : args))
+    pretty (PConstr cname args i) = encloseSep "(" ")" " " (map ppQName (cname : args))
 
 instance Pretty Type where
     pretty (TVar x k) = ppQName x

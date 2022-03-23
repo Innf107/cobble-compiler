@@ -1,3 +1,4 @@
+{-# LANGUAGE NoOverloadedLists #-}
 module Language.Cobble.SemAnalysis where
 
 import Language.Cobble.Prelude

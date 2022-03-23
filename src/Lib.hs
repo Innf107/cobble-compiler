@@ -1,4 +1,7 @@
+{-# LANGUAGE NoOverloadedLists #-}
 module Lib where
+
+-- TODO: Can we delete this module yet?
 
 import Relude
 import System.Directory
