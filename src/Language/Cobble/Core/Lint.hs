@@ -30,10 +30,9 @@ data LintEnv = LintEnv {
 } deriving (Show, Eq)
 
 insertType :: QualifiedName -> Type -> LintEnv -> LintEnv
-insertType x t LintEnv{varTypes, jpArgTypes}= 
-    LintEnv {
+insertType x t env@LintEnv{varTypes}= 
+    env {
             varTypes = insert x t varTypes
-        ,   jpArgTypes
         }
 
 lookupType :: Members '[Error CoreLintError] r 
@@ -54,6 +53,16 @@ lookupJP :: Members '[Error CoreLintError] r
 lookupJP j env@LintEnv{jpArgTypes} = case lookup j jpArgTypes of
     Just pars -> pure pars
     Nothing -> throwLint $ "Join point '" <> show j <> "'not found in the local context. Did a jump expression escape?\nContext: " <> show env
+
+insertJP :: QualifiedName
+         -> Seq (QualifiedName, Kind)
+         -> Seq Type
+         -> LintEnv
+         -> LintEnv
+insertJP j tyParams valParams env@LintEnv{jpArgTypes} = 
+    env{
+        jpArgTypes = insert j (tyParams, valParams) jpArgTypes
+    }
 
 lint :: Members '[Error CoreLintError] r
      => LintEnv
@@ -127,10 +136,19 @@ lintExpr env (VariantConstr x i tyArgs valArgs) = do
         go (TForall a k ty) Empty valArgs = throw $ VariantMissingTyArgs x a k ty valArgs
         go ty Empty Empty = pure ty
         go ty tyArgs valArgs = throw $ VariantExcessiveArgs x ty tyArgs valArgs
--- TODO: Not quite sure how to check case exprssions and join points yet
 lintExpr env (Case e branches) = do
     undefined
-lintExpr env (Join _ _ _ _ _) = undefined
+-- TODO: No kind checks yet
+lintExpr env (Join j tyParams valParams body e) = do
+    let innerEnv = foldr (uncurry insertType) env valParams
+    bodyTy <- lintExpr innerEnv body
+
+    let remainingEnv = insertJP j tyParams (fmap snd valParams) env
+    eTy <- lintExpr remainingEnv e
+    
+    typeMatch bodyTy eTy \bodyTy eTy -> LintMsg $ "Jump point body type and return type do not match for join point '" <> show j <> "'.\n    Expected: " <> show bodyTy <> "\n    Actual:" <> show eTy
+    pure eTy
+
 lintExpr env (Jump j tyArgs valArgs retTy) = do
     (tyPars, valPars) <- lookupJP j env
     when (length tyPars /= length tyArgs) 
@@ -151,12 +169,12 @@ lintExpr env (Jump j tyArgs valArgs retTy) = do
 In 'Compiling without continuations'[1], the rule for applications clearly states
 that join point contexts should be cleared for function arguments, but not for the evaluation
 of the actual function.
-However, since Cobble and, by extension, Core are Call by Value, we should be fine with allowing arguments to functions to 
+However, since Cobble and ,by extension, Core are Call by Value, we should be fine if we allow arguments to functions to 
 keep the join point context, since we can be sure that they will be evaluated immediately and, crucially, on the same stack.
 
 The same reasoning applies to let expressions, which behave more like single-branch case expressions in lazy System F.
 
-[1] TODO: Link
+[1]: https://www.microsoft.com/en-us/research/wp-content/uploads/2016/11/join-points-pldi17.pdf
 -}
 
 getKind :: Type -> Kind
