@@ -5,6 +5,7 @@ import GHC.Exts
 import Relude (Functor(..), uncurry, const, (.), id)
 import qualified Relude as R
 import qualified Data.List.NonEmpty as N
+import qualified Data.Sequence as S
 
 class (Functor l) => ListLike l where
     mkList :: [a] -> l a
@@ -32,3 +33,8 @@ instance ListLike R.NonEmpty where
     zipWith = N.zipWith
     zip     = N.zip
 
+
+instance ListLike S.Seq where
+    mkList = fromList
+    zipWith = S.zipWith
+    zip = S.zip
