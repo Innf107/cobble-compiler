@@ -67,7 +67,7 @@ compileExpr (Case scrut branches) = do
             compileBranch (PConstr _ [] i, e) = (RIntP [i],) <$> compileExpr e
             compileBranch (PConstr _ args i, e) = 
                 (RIntP [i],) 
-                . RLet (zipWith (\(x, _ty) i -> (x, RCadr i (RVar scrut))) (toList args) [0..])
+                . RLet (zipWith (\(x, _ty) i -> (x, RCadr i (RVar scrut))) (toList args) [1..]) -- We start at 1, since the constructor tag is stored at index 0
                 . pure 
                 <$> compileExpr e
             compileBranch (PWildcard, e) = (RWildcardP,) <$> compileExpr e
