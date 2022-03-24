@@ -34,7 +34,7 @@ compileExpr (If c th el) = RIf
     <*> compileExpr el
 compileExpr (VariantConstr x i _tyArgs valArgs) = RList . (RIntLit i :) . toList <$> traverse compileExpr valArgs
 compileExpr (Case scrut branches) =
-    RCase (RVar scrut)
+    RCase (RCadr 0 (RVar scrut)) -- We match on the constructor tag
     <$> traverse compileBranch branches
         where
             compileBranch (PInt i, e) = (RIntP [i],) <$> compileExpr e

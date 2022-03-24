@@ -138,7 +138,7 @@ deconstructPM occ pat (MkPatternMatrix rows) = MkPatternMatrix . fold <$> traver
         go :: HeadConstr -> PMatrixRow -> Sem r (Seq PMatrixRow)
         go (IntHead i) (C.IntP _ j :<| pats, e)
             | i == j = pure [(pats, e)]
-        go (IntHead i) ((C.VarP _ v) :<| pats, e) = pure [(pats, \es -> e (es :|> F.IntLit i))]
+        go (IntHead i) ((C.VarP _ v) :<| pats, e) = pure [(pats, \es -> e (es |> F.IntLit i))]
         go (ConstrHead c _ _ _) (C.ConstrP _ c' subPats :<| pats, e)
             | c == c' = pure [(fromList subPats <> pats, e)]
         go (ConstrHead _ _ constrArgs _) (C.VarP{} :<| pats, e) = do
@@ -146,12 +146,12 @@ deconstructPM occ pat (MkPatternMatrix rows) = MkPatternMatrix . fold <$> traver
             pure [(fromList subPats <> pats, \es -> e (es :|> F.Var occ))]
         go _ _ = pure []
 
-defaultMatrix :: PatternMatrix -> PatternMatrix
-defaultMatrix (MkPatternMatrix rows) = MkPatternMatrix $ go =<< rows
+defaultMatrix :: QualifiedName -> PatternMatrix -> PatternMatrix
+defaultMatrix occ (MkPatternMatrix rows) = MkPatternMatrix $ go =<< rows
     where
         go (C.ConstrP{} :<| _, _) = []
         go (C.IntP{} :<| _, _) = []
-        go (C.VarP _ x :<| ps, e) = [(ps, \valArgs -> e (F.Var x <| valArgs))] -- ?
+        go (C.VarP _ x :<| ps, e) = [(ps, \valArgs -> e (valArgs |> F.Var occ))] -- ?
         go (Empty, _) = error $ "lowerCase: trying to construct default matrix from a pattern matrix with width 0: " <> show (MkPatternMatrix rows)
 
 compilePMatrix :: forall r. (Trace, Members '[Fresh Text QualifiedName] r) => Seq QualifiedName -> PatternMatrix -> Sem r F.Expr
@@ -178,7 +178,7 @@ compilePMatrix (occ :<| occs) m = do
             (ConstrHead _ _ _ otherConstrs :<| _) 
                 | isComplete headConstrs otherConstrs -> pure cases
             _ -> do
-                defaultClause <- (F.PWildcard,) <$> compilePMatrix occs (defaultMatrix m)
+                defaultClause <- (F.PWildcard,) <$> compilePMatrix occs (defaultMatrix occ m)
                 pure (cases |> defaultClause)
         
         isComplete headConstrs otherConstrs = S.sort (fmap constrName headConstrs) == S.sort otherConstrs
