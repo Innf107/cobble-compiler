@@ -41,7 +41,7 @@ compileExpr (Case scrut branches) =
             compileBranch (PConstr _ [] i, e) = (RIntP [i],) <$> compileExpr e
             compileBranch (PConstr _ args i, e) = 
                 (RIntP [i],) 
-                . RLet (zipWith (\x i -> (x, RCadr i (RVar scrut))) args [0..]) 
+                . RLet (zipWith (\(x, _ty) i -> (x, RCadr i (RVar scrut))) (toList args) [0..])
                 . pure 
                 <$> compileExpr e
             compileBranch (PWildcard, e) = (RWildcardP,) <$> compileExpr e

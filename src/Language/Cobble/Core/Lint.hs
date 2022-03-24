@@ -127,7 +127,7 @@ lintExpr env (Case scrut branches) = do
     scrutTy <- lookupType scrut env
     resTys <- forM branches \(pat, e) -> do
         matchPatTy env pat scrutTy
-        lintExpr env e
+        lintExpr (bindPatVars pat env) e
     case resTys of
         Empty -> throwLint $ "Empty case on scrutinee '" <> show scrut <> "'. This should probably be supported at some point."
         (ty :<| tys) -> 
@@ -147,6 +147,11 @@ lintExpr env (Case scrut branches) = do
             constrTy <- headTyCon <$> lookupType cname env
             
             typeMatch (headTyCon ty) constrTy $ "Mismatched scrutinee and pattern types in case on '" <> show scrut <> "' with pattern: " <> show pat
+        
+        bindPatVars :: Pattern -> LintEnv -> LintEnv
+        bindPatVars PInt{} env              = env
+        bindPatVars PWildcard env           = env
+        bindPatVars (PConstr _ vars _) env  = foldr (uncurry insertType) env vars
 
 -- TODO: No kind checks yet
 lintExpr env (Join j tyParams valParams body e) = do

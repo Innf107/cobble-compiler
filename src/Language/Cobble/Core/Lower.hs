@@ -172,7 +172,7 @@ compilePMatrix (occ :<| occs) m = do
         compileHeadConstr h@(ConstrHead c i argTys _) = do
             traceM DebugVerbose $ "compiling pattern matrix with head constructor: " <> show c
             argVars <- traverse (\ty -> (,) <$> freshVar @_ @_ @r "c" <*> lowerType ty) argTys
-            fmap (F.PConstr c (map fst argVars) i,) $ compilePMatrix (fromList (fmap fst argVars) <> occs) =<< deconstructPM h m
+            fmap (F.PConstr c (fromList argVars) i,) $ compilePMatrix (fromList (fmap fst argVars) <> occs) =<< deconstructPM h m
         
         addDefaultIfIncomplete :: Seq HeadConstr -> Seq (F.Pattern, F.Expr) -> Sem r (Seq (F.Pattern, F.Expr)) 
         addDefaultIfIncomplete headConstrs cases = case headConstrs of -- We can assume headConstrs is non-empty

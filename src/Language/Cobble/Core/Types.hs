@@ -37,7 +37,7 @@ data Expr = Var QualifiedName
 
 data Pattern = PInt Int
              | PWildcard
-             | PConstr QualifiedName [QualifiedName] Int
+             | PConstr QualifiedName (Seq (QualifiedName, Type)) Int
              deriving (Eq, Generic, Data)
 
 data Type = TVar QualifiedName Kind
@@ -105,7 +105,7 @@ instance Pretty Expr where
 
     pretty (Join j tyParams valParams body e) = "(join" <+> ppQName j 
                                                         <+> encloseSep "[" "]" ", " (map prettyTyped $ toList tyParams)
-                                                        <+> encloseSep "{" "}" ", " (map prettyTyped $ toList tyParams)
+                                                        <+> encloseSep "{" "}" ", " (map prettyTyped $ toList valParams)
                                                         <+> "="
                                                         <+> align (softline' <> pretty body)
                                                         <+> "in"
@@ -120,7 +120,7 @@ instance Pretty Expr where
 instance Pretty Pattern where
     pretty (PInt i) = pretty i
     pretty PWildcard = "_"
-    pretty (PConstr cname args i) = encloseSep "(" ")" " " (map ppQName (cname : args))
+    pretty (PConstr cname args i) = encloseSep "(" ")" " " (ppQName cname : (map prettyTyped $ toList args))
 
 instance Pretty Type where
     pretty (TVar x k) = ppQName x
