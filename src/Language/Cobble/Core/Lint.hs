@@ -201,14 +201,6 @@ headTyCon ty = ty
 getKind :: Type -> Kind
 getKind = undefined
 
-intTy :: Type
-intTy = TCon (internalQName "Int") KType
-
-boolTy :: Type
-boolTy = TCon (internalQName "Bool") KType
-
-unitTy :: Type
-unitTy = TCon (internalQName "Unit") KType
 
 typeMatch :: Members '[Error CoreLintError] r 
           => Type 

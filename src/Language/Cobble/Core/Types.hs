@@ -65,6 +65,15 @@ and we have to make sure that `jump` expressions only ever occur in tail positio
 Source: https://www.microsoft.com/en-us/research/wp-content/uploads/2016/11/join-points-pldi17.pdf
 -}
 
+intTy :: Type
+intTy = TCon (internalQName "Int") KType
+
+boolTy :: Type
+boolTy = TCon (internalQName "Bool") KType
+
+unitTy :: Type
+unitTy = TCon (internalQName "Unit") KType
+
 ppQName :: QualifiedName -> Doc ann
 ppQName = pretty . renderDebug
 
