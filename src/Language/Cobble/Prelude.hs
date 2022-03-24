@@ -59,7 +59,7 @@ import Relude hiding (
     , uncons
     , (??)
     , zip
-    , zipWith
+    , zipWith, zipWithM
     , trace, traceM, traceId, traceShow, traceShowId, traceShowM, traceShowWith
     , unfoldr
     , tails, inits, sortOn, sort, intersperse, zip3, splitAt, scanr, scanr1, scanl, scanl1
