@@ -172,8 +172,8 @@ lintExpr env (Jump j tyArgs valArgs retTy) = do
         (\(_, k) ty -> when (k /= getKind ty) $ throwLint $ "Mismatched kinds for jump point arguments.\n    Expected: " <> show k <> ".\n    Actual: (" <> show ty <> ":" <> show (getKind ty) <> ").") 
         (toList tyPars) 
         (toList tyArgs)
-    when (length tyPars /= length tyArgs) 
-        $ throwLint $ "Mismatched type argument count for jump point '" <> show j <> "'.\nExpected: " <> show tyPars <> "\nActual: " <> show tyArgs
+    when (length valPars /= length valArgs) 
+        $ throwLint $ "Mismatched value argument count for jump point '" <> show j <> "'.\nExpected: " <> show valPars <> "\nActual: " <> show valArgs
     let appliedTypes = foldr (\((a, _), ty) rs -> fmap (replaceTVar a ty) rs) valPars $ zip tyPars tyArgs 
     zipWithM_ (\expected expr -> lintExpr (clearJPs env) expr >>= \exprTy -> typeMatch expected exprTy $ "Argument mismatch for join point '" <> show j <> "' with body '" <> show expr <> "'")
         (toList appliedTypes) 
