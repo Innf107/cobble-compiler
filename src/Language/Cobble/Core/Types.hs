@@ -120,7 +120,7 @@ instance Pretty Expr where
 instance Pretty Pattern where
     pretty (PInt i) = pretty i
     pretty PWildcard = "_"
-    pretty (PConstr cname args i) = encloseSep "(" ")" " " (ppQName cname : (map prettyTyped $ toList args))
+    pretty (PConstr cname args i) = encloseSep "(" ")" " " (ppQName cname : (map (parens . prettyTyped) $ toList args))
 
 instance Pretty Type where
     pretty (TVar x k) = ppQName x

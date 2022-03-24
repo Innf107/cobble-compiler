@@ -61,7 +61,7 @@ instance Pretty RacketExpr where
     pretty (RCase expr cases) = prettyApp ("case" <+> pretty expr) $
         map (\(pat, e) -> list [prettyPat pat, pretty e]) (toList cases)
         where
-            prettyPat RWildcardP = "_"
+            prettyPat RWildcardP = "else"
             prettyPat (RIntP is) = list (map pretty is) 
 prettyQ :: QualifiedName -> Doc ann
 prettyQ = pretty . renderRacket
