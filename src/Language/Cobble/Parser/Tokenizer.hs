@@ -115,44 +115,47 @@ tokenize fileName content = fmap fst
                 tryInsertDedent
         
         lex :: Members '[State LexState, Error LexicalError, Output Token] r => Char -> Sem r ()
-        lex c = gets _tokenState >>= \s -> case (s, c) of
-            (Default, c)
-                | isWhiteSpace c    -> pure ()
-                | isIdentStart c    -> setState (InIdent [c])
-                | isOpStart c       -> setState (InOp [c])
-                | isIntStart c      -> setState (InIntLit [c])
-                | isParen c         -> outputToken (Paren [c])
-                | c == '-'          -> setState LeadingMinus
-            (InIdent ident, c)
+        lex c = gets _tokenState >>= \case
+            Default -> do
+                modify(\s -> s & lexStartPos .~ (_lexPos s))
+                if
+                    | isWhiteSpace c    -> pure ()
+                    | isIdentStart c    -> setState (InIdent [c])
+                    | isOpStart c       -> setState (InOp [c])
+                    | isIntStart c      -> setState (InIntLit [c])
+                    | isParen c         -> outputParen c
+                    | c == '-'          -> setState LeadingMinus
+                    | otherwise         -> throwLex $ UnexpectedChar c Default
+            InIdent ident
                 | isWhiteSpace c    -> emitIdent ident >> setState Default
                 | isIdentLetter c   -> setState (InIdent (ident |> c))
                 | isOpStart c       -> emitIdent ident >> setState (InOp [c])
                 | isParen c         -> emitIdent ident >> outputToken (Paren [c]) >> setState Default
                 | c == '-'          -> emitIdent ident >> setState LeadingMinus
-            (InOp op, c)
+            InOp op
                 | isWhiteSpace c    -> emitOp op >> setState Default
                 | isOpLetter c      -> setState (InOp (op |> c))
                 | isIdentStart c    -> emitOp op >> setState (InIdent [c])
                 | isIntStart c      -> emitOp op >> setState (InIntLit [c])
                 | isParen c         -> emitOp op >> outputToken (Paren [c]) >> setState Default
-            (InIntLit lit, c)
+            InIntLit lit
                 | isWhiteSpace c    -> emitIntLit lit >> setState Default
                 | isDigit c         -> setState (InIntLit (lit |> c))
                 | isIdentStart c    -> emitIntLit lit >> setState (InIdent [c])
                 | isOpStart c       -> emitIntLit lit >> setState (InOp [c])
                 | isParen c         -> emitIntLit lit >> outputToken (Paren [c]) >> setState Default
                 | c == '-'          -> emitIntLit lit >> setState LeadingMinus
-            (LeadingMinus, c)
+            LeadingMinus
                 | isWhiteSpace c    -> emitOp ['-'] >> setState Default
                 | isIdentLetter c   -> emitOp ['-'] >> setState (InIdent [c])
                 | isOpLetter c      -> setState (InOp ['-', c])
                 | isIntStart c      -> setState (InIntLit ['-', c])
                 | isParen c         -> emitOp ['-'] >> outputToken (Paren [c]) >> setState Default
                 | c == '-'          -> setState InComment
-            (InComment, c)
+            InComment
                 | isNewline c       -> setState Default
                 | otherwise         -> pure ()
-            (s, c) -> throwLex $ UnexpectedChar c s
+            s -> throwLex $ UnexpectedChar c s
            
         lexEOF :: Members '[State LexState, Error LexicalError, Output Token] r => Sem r ()
         lexEOF = gets _tokenState >>= \case
@@ -210,7 +213,15 @@ tokenize fileName content = fmap fst
                             outputToken Dedent
                         else
                             modify (skipDedent .~ False)
-            
+
+        -- Not super happy about this :/
+        outputParen :: Members '[State LexState, Output Token] r => Char -> Sem r ()
+        outputParen p = do
+            LexState{_lexStartPos, _lexPos} <- get
+
+            modify (lexStartPos .~ _lexPos)
+
+            output (Token (LexInfo _lexStartPos (_lexPos{column = column _lexPos + 1}) fileName) (Paren [p]))
 
         outputToken :: Members '[State LexState, Output Token] r => TokenData -> Sem r ()
         outputToken tokData = do

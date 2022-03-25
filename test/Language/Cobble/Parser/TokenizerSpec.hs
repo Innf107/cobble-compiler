@@ -43,7 +43,8 @@ spec = do
                        Token (LexInfo (SourcePos 2 15) (SourcePos 2 17) "Test") (IntLiteral 12),
                        Token (LexInfo (SourcePos 2 18) (SourcePos 2 19) "Test") (Operator "*"),
                        Token (LexInfo (SourcePos 2 20) (SourcePos 2 22) "Test") (IntLiteral 23),
-                       Token (LexInfo (SourcePos 2 23) (SourcePos 2 24) "Test") (Paren ")")]
+                       Token (LexInfo (SourcePos 2 23) (SourcePos 2 24) "Test") (Paren ")"),
+                       Token (LexInfo (SourcePos 2 23) (SourcePos 3 1) "Test") Dedent]
         it "rejects invalid characters" do
             tokenizeTest "test `"
                 `shouldBe`
