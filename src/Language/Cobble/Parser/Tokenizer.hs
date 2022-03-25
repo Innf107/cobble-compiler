@@ -79,11 +79,11 @@ sameTag LeadingMinus    LeadingMinus    = True
 sameTag InComment       InComment       = True
 sameTag _               _               = False
 
-tokenize :: forall r. (Members '[Error LexicalError {-, Output Log-}] r) => FileName -> Text -> Sem r [Token]
+tokenize :: forall r. (Members '[Error LexicalError] r) => FileName -> Text -> Sem r [Token]
 tokenize fp content = D.toList <$> go (SourcePos 1 1) (SourcePos 1 1) Default (toString content)
     where
         go :: SourcePos -> SourcePos -> TokenState -> [Char] -> Sem r (DList Token)
-        go startPos endPos tokState' cs' = {-output (Log LogDebugVeryVerbose (show (startPos, endPos, tokState', cs'))) >>-} case (tokState', cs') of
+        go startPos endPos tokState' cs' = case (tokState', cs') of
             (Default, []) -> pure []
             (Default, (c:_))
                 | isWhiteSpace c -> go' Default
