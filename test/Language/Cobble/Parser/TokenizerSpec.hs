@@ -68,7 +68,7 @@ spec = do
                 Right [Ident "a", Paren "[", Ident "b", Paren "(", Paren ")", Paren "]", Operator "+", Paren "}",
                        Operator "-", Paren ")", Ident "de", Paren ")"]
           
-        it "inserts Dedent and blockEnd" do
+        it "inserts Dedent and BlockEnd" do
             map tokData <$> tokenizeTest (unlines [
                     "f :: Int -> Int"
                 ,   "f x = g x"
