@@ -73,7 +73,7 @@ spec = do
                     "f :: a -> a;"
                 ,   "f x = 5;"
                 ] `shouldSatisfy` \case
-                    Left (SkolBinding _ (MkTVar (QName "a") KStar) (TCon (QName "Int") KStar)) -> True
+                    Left (SkolBinding _ (TSkol (QName "a") _) (TCon (QName "Int") KStar)) -> True
                     e -> errorWithoutStackTrace $ show e
 
         it "different skolems don't unify" do
@@ -81,7 +81,7 @@ spec = do
                     "const :: a -> b -> a;"
                 ,   "const x y = y;"
                 ] `shouldSatisfy` \case
-                    Left (SkolBinding _ (MkTVar (QName "b") KStar) (TSkol (MkTVar (QName "a") KStar))) -> True
+                    Left (SkolBinding _ (TSkol (QName "b") _) (TSkol (QName "a") _)) -> True
                     e -> errorWithoutStackTrace $ show e
 
         it "polymorphic (forall) types are instantiated at usage site" do
@@ -103,7 +103,7 @@ spec = do
                 ,   "const :: a -> b -> a;"
                 ,   "const x y = f x;"
                 ] `shouldSatisfy` \ast -> case [ty | App ty _ (VarType _ "f") _ <- universeBi ast] of
-                    [TSkol (MkTVar (QName "a") KStar)] -> True
+                    [TSkol (QName "a") _] -> True
                     ts -> errorWithoutStackTrace $ toString $ ppTypes ts
         it "(recursive) variant constructors have the correct type" do
             runTypecheck [

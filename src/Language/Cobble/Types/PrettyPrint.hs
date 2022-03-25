@@ -19,4 +19,6 @@ prettyPrintToken = fromString . prettyPrintTokenInner
             Operator o -> toString o
             ReservedOp o -> toString o
             IntLiteral l -> show l
+            Dedent -> ";"
+            BlockEnd -> "}"
 

@@ -68,6 +68,18 @@ spec = do
                 Right [Ident "a", Paren "[", Ident "b", Paren "(", Paren ")", Paren "]", Operator "+", Paren "}",
                        Operator "-", Paren ")", Ident "de", Paren ")"]
           
+        it "inserts Dedent and blockEnd" do
+            map tokData <$> tokenizeTest (unlines [
+                    "f :: Int -> Int"
+                ,   "f x = g x"
+                ,   "      h x"
+                ]) `shouldBe`
+                    Right [
+                            Ident "f", ReservedOp "::", Ident "Int", ReservedOp "->", Ident "Int", Dedent
+                        ,   Ident "f", Ident "x", ReservedOp "=", Ident "g", Ident "x", Dedent
+                        ,                                         Ident "h", Ident "x", BlockEnd
+                        ]
+
 
 tokenizeTest :: Text -> Either LexicalError [Token]
 tokenizeTest = run . runError . tokenize "Test"

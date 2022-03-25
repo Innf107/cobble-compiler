@@ -241,14 +241,6 @@ test-suite cobble-test
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
-      FullScale.FileTest
-      Language.Cobble.Codegen.BasicCPSToTopLevelCPSSpec
-      Language.Cobble.Codegen.LCToBasicCPSSpec
-      Language.Cobble.Codegen.MCAsmToMCFunctionSpec
-      Language.Cobble.Codegen.TestShared
-      Language.Cobble.Codegen.TopLevelCPSToMCAsmSpec
-      Language.Cobble.CPS.TopLevel.TypesSpec
-      Language.Cobble.PackagerSpec
       Language.Cobble.Parser.TokenizerSpec
       Language.Cobble.ParserSpec
       Language.Cobble.QualifierSpec
@@ -257,7 +249,6 @@ test-suite cobble-test
       Language.Cobble.Types.PrettyPrintSpec
       Language.Cobble.TypesSpec
       Language.CobbleSpec
-      Server
       Spec
       Paths_cobble
   hs-source-dirs:

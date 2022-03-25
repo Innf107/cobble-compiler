@@ -6,7 +6,8 @@ import Language.Cobble.Prelude hiding (op, (|>))
 import Language.Cobble.Types
 
 import Data.Char
-import Data.DList as D
+import Data.DList (DList)
+import Data.DList qualified as D
 
 import Text.Read (read)
 
@@ -27,6 +28,8 @@ data TokenData = Ident Text
          | Operator Text
          | ReservedOp Text
          | IntLiteral Int
+         | Dedent
+         | BlockEnd
          deriving (Show, Eq)
 
 isOpStart :: Char -> Bool
@@ -44,11 +47,14 @@ isIdentStart c = isAlpha c || c `elem` "_"
 isIdentLetter :: Char -> Bool
 isIdentLetter c = isAlphaNum c || c `elem` "_"
 
-reserved :: [String]
-reserved = ["let", "in", "if", "then", "else", "module", "import", "struct", "variant", "case", "of", "class", "instance", "infixl", "infixr", "forall"]
+reserved :: Set String
+reserved = fromList ["let", "in", "if", "then", "else", "module", "import", "struct", "variant", "case", "of", "class", "instance", "infixl", "infixr", "forall", "do"]
 
 reservedOps :: [String]
 reservedOps = [".", "::", ";", ",", "=", "=>", "->", "|", "\\"]
+
+canStartBlock :: Set String
+canStartBlock = fromList ["do", "of", "then", "else", "="]
 
 isParen :: Char -> Bool
 isParen = (`elem`"()[]{}")
@@ -147,7 +153,7 @@ tokenize fp content = D.toList <$> go (SourcePos 1 1) (SourcePos 1 1) Default (t
                 throw' = throw . LexicalError endPos fp
                 mkIdent :: DList Char -> TokenData
                 mkIdent (D.toList -> idStr)
-                    | idStr `elem` reserved = Reserved (toText idStr)
+                    | idStr `member` reserved = Reserved (toText idStr)
                     | otherwise = Ident (toText idStr)
                 mkOperator :: DList Char -> TokenData
                 mkOperator (D.toList -> opStr)
