@@ -61,9 +61,6 @@ canStartBlock = fromList ["do", "of", "then", "else", "="]
 isParen :: Char -> Bool
 isParen = (`elem`("()[]{}" :: String))
 
-isNumPrefix :: Char -> Bool
-isNumPrefix c = c `elem` ("+-" :: String)
-
 data LexicalError = LexicalError SourcePos FileName LexicalErrorData deriving (Show, Eq)
 
 data LexicalErrorData = ReachedEOF TokenState
@@ -113,9 +110,9 @@ tokenize fileName content = fmap fst
                 go rest
             -- EOF
             Nothing -> do
+                lexEOF
                 increasePos '\n'
                 tryInsertDedent
-                lexEOF
         
         lex :: Members '[State LexState, Error LexicalError, Output Token] r => Char -> Sem r ()
         lex c = gets _tokenState >>= \s -> case (s, c) of

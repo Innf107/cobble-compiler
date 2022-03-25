@@ -21,15 +21,15 @@ spec = do
         it "tokenizes seperate identifiers" do
             map tokData <$> tokenizeTest "this is a test"
                 `shouldBe`
-                Right [Ident "this", Ident "is", Ident "a", Ident "test"]
+                Right [Ident "this", Ident "is", Ident "a", Ident "test", Dedent]
         it "handles reserved identifiers" do
             map tokData <$> tokenizeTest "this Falsee is a True import bool"
                 `shouldBe`
-                Right [Ident "this", Ident "Falsee", Ident "is", Ident "a", Ident "True", Reserved "import", Ident "bool"]
+                Right [Ident "this", Ident "Falsee", Ident "is", Ident "a", Ident "True", Reserved "import", Ident "bool", Dedent]
         it "handles reserved operators" do
             map tokData <$> tokenizeTest "x : y := 4;"
                 `shouldBe`
-                Right [Ident "x", Operator ":", Ident "y", Operator ":=", IntLiteral 4, ReservedOp ";"]
+                Right [Ident "x", Operator ":", Ident "y", Operator ":=", IntLiteral 4, ReservedOp ";", Dedent]
         it "keeps lexical information" do
             tokenizeTest "this is also\n True + //-/ (12 * 23 )"
                 `shouldBe`
@@ -58,15 +58,15 @@ spec = do
             map tokData <$> tokenizeTest "a+b -c/ de\n*\nf\n"
                 `shouldBe`
                 Right [Ident "a", Operator "+", Ident "b", Operator "-", 
-                    Ident "c", Operator "/", Ident "de", Operator "*", Ident "f"]
+                    Ident "c", Operator "/", Ident "de", Dedent, Operator "*", Dedent, Ident "f", Dedent]
             map tokData <$> tokenizeTest "x : int, y: bool"
                 `shouldBe`
-                Right [Ident "x", Operator ":", Ident "int", ReservedOp ",", Ident "y", Operator ":", Ident "bool"]
+                Right [Ident "x", Operator ":", Ident "int", ReservedOp ",", Ident "y", Operator ":", Ident "bool", Dedent]
         it "does not need spaces between identifiers/operators and parentheses" do
             map tokData <$> tokenizeTest "a[ b () ] +}- )de\n)"
                 `shouldBe`
                 Right [Ident "a", Paren "[", Ident "b", Paren "(", Paren ")", Paren "]", Operator "+", Paren "}",
-                       Operator "-", Paren ")", Ident "de", Paren ")"]
+                       Operator "-", Paren ")", Ident "de", Dedent, Paren ")", Dedent]
           
         it "inserts Dedent and BlockEnd" do
             map tokData <$> tokenizeTest (unlines [
