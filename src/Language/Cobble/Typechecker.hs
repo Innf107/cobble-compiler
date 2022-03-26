@@ -27,8 +27,8 @@ type NextPass = Codegen
 
 data TCEnv = TCEnv {
     _varTypes :: M.Map QualifiedName Type
-,   _tcInstances :: M.Map QualifiedName [Type] 
-    -- ^ Once multiparam typeclasses are implemented, this will have to be @M.Map QualfiedName [[Type]]@
+,   _tcInstances :: M.Map QualifiedName (Seq Type)
+    -- ^ Once multiparam typeclasses are implemented, this will have to be @M.Map QualfiedName (Seq (Seq Type))@
 } deriving (Show, Eq, Generic, Data)
 
 makeLenses ''TCEnv
@@ -96,21 +96,21 @@ lookupType v TCEnv{_varTypes} = lookup v _varTypes & fromMaybe (error $ "lookupT
 insertType :: QualifiedName -> Type -> TCEnv -> TCEnv
 insertType x t env = env & varTypes %~ insert x t
 
-typecheck :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Error TypeError, Dump [TConstraint]] r)
+typecheck :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Error TypeError, Dump (Seq TConstraint)] r)
           => TCEnv 
           -> Module Typecheck 
           -> Sem r (Module NextPass)
 typecheck env (Module ext mname sts) = do
-    (constrs, sts') <- runOutputList $ typecheckStatements env sts
+    (constrs, sts') <- runOutputSeq $ typecheckStatements env sts
     dump constrs
     subst <- solveConstraints constrs
     pure $ Module ext mname (applySubst subst sts')
 
 typecheckStatements :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Output TConstraint] r)
                     => TCEnv
-                    -> [Statement Typecheck]
-                    -> Sem r [Statement NextPass]
-typecheckStatements env (Def fixity li (Decl () f xs e) expectedTy : sts) = runReader li do
+                    -> (Seq (Statement Typecheck))
+                    -> Sem r (Seq (Statement NextPass))
+typecheckStatements env (Def fixity li (Decl () f xs e) expectedTy :<| sts) = runReader li do
     expectedTy' <- skolemize expectedTy
     (xs', eTy, w) <- decomposeParams expectedTy' xs
     traceM DebugVerbose $ "[typecheckStatements env (Def ...)] xs' = " <> show xs' <> " | eTy = " <> show eTy
@@ -125,23 +125,23 @@ typecheckStatements env (Def fixity li (Decl () f xs e) expectedTy : sts) = runR
     e' <- checkPoly (foldr (uncurry insertType) env' xs') e eTy
     let lambdas = flip (foldr (TyAbs li)) tvs $ makeLambdas e' xs'
 
-    (Def fixity li (Decl (expectedTy, []) f [] lambdas) expectedTy :) <$> typecheckStatements env' sts
+    (Def fixity li (Decl (expectedTy, []) f [] lambdas) expectedTy <|) <$> typecheckStatements env' sts
     where
-        makeLambdas :: Expr NextPass -> [(QualifiedName, Type)] -> Expr NextPass
+        makeLambdas :: Expr NextPass -> Seq (QualifiedName, Type) -> Expr NextPass
         makeLambdas = foldr (\(x, ty) e -> Lambda (ty :-> getType e, ty) li x e)
 
-typecheckStatements env (Import () li name : sts) = (Import () li name :) <$> typecheckStatements env sts 
-typecheckStatements env (DefClass k li cname tvs methSigs : sts) = undefined -- (DefClass k li cname tvs methSigs :) <$> typecheckStatements env sts
-typecheckStatements env (DefInstance x li cname ty meths : sts) = undefined
-typecheckStatements env (DefVariant k li tyName tvs constrs : sts) =
-    (DefVariant k li tyName tvs constrs' :) <$> typecheckStatements env' sts
+typecheckStatements env (Import () li name :<| sts) = (Import () li name <|) <$> typecheckStatements env sts 
+typecheckStatements env (DefClass k li cname tvs methSigs :<| sts) = undefined -- (DefClass k li cname tvs methSigs :) <$> typecheckStatements env sts
+typecheckStatements env (DefInstance x li cname ty meths :<| sts) = undefined
+typecheckStatements env (DefVariant k li tyName tvs constrs :<| sts) =
+    (DefVariant k li tyName tvs constrs' <|) <$> typecheckStatements env' sts
         where
             resTy = foldl' (\x y -> TApp x (TVar y)) (TCon tyName k) tvs
             constrTy ps = TForall tvs (foldr (:->) resTy ps)
             constrs' = map (\(n, ps, (i, j)) -> (n, ps, (constrTy ps, i, j))) constrs
             env' = foldr (\(n,_,(t,_,_)) -> insertType n t) env constrs'
 
-typecheckStatements _ [] = pure []
+typecheckStatements _ Empty = pure []
 
 check :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r)
       => TCEnv
@@ -304,14 +304,14 @@ infer env (Case () li e branches) = runReader li do
     pure (Case t li e' branches')
     where
         checkEquiv :: forall r. Members '[Reader LexInfo, Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r 
-                   => [Type] 
+                   => Seq Type 
                    -> Sem r Type
-        checkEquiv []         = freshTV KStar -- the case expression is empty
-        checkEquiv [t]        = pure t
-        checkEquiv (t1:t2:ts) = do
+        checkEquiv Empty           = freshTV KStar -- the case expression is empty
+        checkEquiv (t :<| Empty)  = pure t
+        checkEquiv (t1:<|t2:<|ts) = do
             w1 <- subsume t1 t2 -- TODO: apply wrapping?
             w2 <- subsume t2 t1
-            checkEquiv (t2:ts)
+            checkEquiv (t2<|ts)
 
 
 infer env (Lambda () li x e) = do
@@ -359,7 +359,7 @@ instantiate (TForall tvs ty) = ask >>= \li -> do
     -- of tyvars is important
     tvSubst <- traverse (\tv -> (tv,) . TVar <$> freshVar tv) tvs
     
-    pure (replaceTVars (M.fromList tvSubst) ty, foldr (\(_,x) r -> r . TyApp li x) id tvSubst)
+    pure (replaceTVars (M.fromList (toList tvSubst)) ty, foldr (\(_,x) r -> r . TyApp li x) id tvSubst)
     
 instantiate ty = do
     pure (ty, id)
@@ -380,21 +380,21 @@ decomposeFun t = do
 
 decomposeParams :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Output TConstraint] r
                 => Type
-                -> [a]
-                -> Sem r ([(a, Type)], Type, Expr NextPass -> Expr NextPass)
-decomposeParams ty [] = pure ([], ty, id)
-decomposeParams ty (x:xs) = do
+                -> Seq a
+                -> Sem r (Seq (a, Type), Type, Expr NextPass -> Expr NextPass)
+decomposeParams ty Empty = pure ([], ty, id)
+decomposeParams ty (x:<|xs) = do
     (argTy, resTy, w) <- decomposeFun ty 
     (restArgTys, restResTy, w') <- decomposeParams resTy xs
-    pure ((x,argTy) : restArgTys, restResTy, w . w')
+    pure ((x,argTy) <| restArgTys, restResTy, w . w')
 
 
 lambdasToDecl :: LexInfo -> QualifiedName -> Expr NextPass -> Int -> Decl NextPass
 lambdasToDecl li f = go []
     where
-        go :: [(QualifiedName, Type)] -> Expr NextPass -> Int -> Decl NextPass
+        go :: Seq (QualifiedName, Type) -> Expr NextPass -> Int -> Decl NextPass
         go args e 0                      = Decl (getType e, []) f (reverse args) e
-        go args (Lambda (_, t) _ x e) n  = go ((x,t):args) e (n - 1)
+        go args (Lambda (_, t) _ x e) n  = go ((x,t)<|args) e (n - 1)
         go args e n                      = error $ "Typechecker.lambdasToDecl: suppplied lambda did not have enough parameters.\n  Remaining parameters: " <> show n <> "\n  Expression: " <> show e
 
 
@@ -417,10 +417,10 @@ replaceTVars tvs (TConstraint (MkConstraint constrName constrTy) ty) =
 
 
 solveConstraints :: Members '[Error TypeError, Fresh Text QualifiedName, Fresh TVar TVar] r
-                 => [TConstraint] 
+                 => Seq TConstraint
                  -> Sem r Substitution
-solveConstraints [] = pure mempty
-solveConstraints ((MkTConstraint (Unify t1 t2) li):constrs) = runReader li do
+solveConstraints Empty = pure mempty
+solveConstraints ((MkTConstraint (Unify t1 t2) li):<|constrs) = runReader li do
     -- This is a bit inefficient (quadratic?).
     -- Let's make sure the constraint solver actually works, before we try to deal with that.
     subst <- unify t1 t2
@@ -462,7 +462,7 @@ occurs tv ty = tv `Set.member` freeTVs ty
 
 skolemize :: Members '[Fresh Text QualifiedName] r => Type -> Sem r Type
 skolemize (TForall tvs ty) = do
-    skolemMap <- M.fromList <$> traverse (\tv@(MkTVar n _) -> (tv,) . flip TSkol tv <$> freshVar (originalName n)) tvs
+    skolemMap <- M.fromList . toList <$> traverse (\tv@(MkTVar n _) -> (tv,) . flip TSkol tv <$> freshVar (originalName n)) tvs
     pure $ replaceTVars skolemMap ty
 skolemize ty = pure ty
 
@@ -473,18 +473,18 @@ applySubst s@Subst{substVarTys} = transformBi \case
 
 
 
-ppTC :: [TConstraint] -> Text
-ppTC = unlines . map (\(MkTConstraint c l) -> ppTConstraint c <> "    @" <> show l) 
+ppTC :: Seq TConstraint -> Text
+ppTC = unlines . toList . map (\(MkTConstraint c l) -> ppTConstraint c <> "    @" <> show l) 
 
-ppWanteds :: [TWanted] -> Text
-ppWanteds = unlines . map (\(TWanted c li) -> ppConstraint c <> " @" <> show li)
+ppWanteds :: Seq TWanted -> Text
+ppWanteds = unlines . toList . map (\(TWanted c li) -> ppConstraint c <> " @" <> show li)
 
-ppGivens :: [TGiven] -> Text
-ppGivens = unlines . map (\(TGiven c li) -> ppConstraint c <> " @" <> show li)
+ppGivens :: Seq TGiven -> Text
+ppGivens = unlines . toList . map (\(TGiven c li) -> ppConstraint c <> " @" <> show li)
 
 
 ppTConstraint :: TConstraintComp -> Text
-ppTConstraint (Unify t1 t2)     = ppType t1 <> " ~ " <> ppType t2
+ppTConstraint (Unify t1 t2) = ppType t1 <> " ~ " <> ppType t2
 
 
 

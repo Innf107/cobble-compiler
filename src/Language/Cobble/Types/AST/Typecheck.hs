@@ -14,7 +14,7 @@ type instance XModule Typecheck = Map (Name Codegen) ModSig
   
 type instance XDef              Typecheck = Maybe Fixity
 type instance XDecl             Typecheck = ()
-type instance XParam            Typecheck = [Name Typecheck]
+type instance XParam            Typecheck = Seq (Name Typecheck)
 type instance XImport           Typecheck = ()
 type instance XDefStruct        Typecheck = Kind
 type instance XDefVariant       Typecheck = Kind
@@ -22,7 +22,7 @@ type instance XDefVariantClause Typecheck = (Int, Int)
 type instance XDefClass         Typecheck = Kind
 -- XDefInstance uses a list of pairs instead of a Map, because SemAnalysis shuffles declarations around
 -- to have the same order as class declaration.
-type instance XDefInstance      Typecheck = ([(QualifiedName, Type)], [TVar])
+type instance XDefInstance      Typecheck = (Seq (QualifiedName, Type), Seq TVar)
 type instance XStatement        Typecheck = Void
 
 type instance XFCall            Typecheck = ()

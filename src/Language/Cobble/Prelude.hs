@@ -21,6 +21,14 @@ module Language.Cobble.Prelude (
     , module Prettyprinter
     , module Witherable
     , (|:)
+    , map
+    , concatMap
+    , (\\)
+    , diffEq
+    , concat
+    , unstableNub
+    , runOutputSeq
+    , intercalate
     , state 
     , whenAlt
     , mapFromLeft
@@ -28,7 +36,6 @@ module Language.Cobble.Prelude (
     , censorM
     , HSType
     , HSConstraint
-    , (L.\\)
     , unsafeLast
     ) where
 
@@ -59,13 +66,15 @@ import Relude hiding (
     , uncons
     , (??)
     , zip
-    , zipWith, zipWithM
+    , zipWith, zipWithM, zipWithM_
     , trace, traceM, traceId, traceShow, traceShowId, traceShowM, traceShowWith
     , unfoldr
-    , tails, inits, sortOn, sort, intersperse, zip3, splitAt, scanr, scanr1, scanl, scanl1
-    , mapMaybe, catMaybes
+    , map, concatMap, concat, tails, inits, sortOn, sort, intersperse, zip3, splitAt, scanr, scanr1, scanl, scanl1
+    , replicateM, take, reverse, replicate, drop, length, sortBy, zip, unzip, null
+    , mapMaybe, mapMaybeM, catMaybes
     , ordNub, ordNubOn, hashNub
     , filter
+    , intercalate
     )
 import Language.Cobble.Util.ListLike
 import Language.Cobble.Util.Trace
@@ -84,6 +93,7 @@ import Relude.Extra hiding (
     , (!?)
     , lens
     , Lens'
+    , unstableNub
     )
 
 import Polysemy hiding (transform, rewrite)
@@ -128,9 +138,7 @@ import Data.Foldable (foldrM)
 import Data.Void
 
 import Data.Sequence hiding (
-        empty, fromList, lookup, insertAt, index
-    -- These should really be exported
-    ,   zipWith, replicateM, take, reverse, replicate, drop, length, sortBy, zip, filter, unzip, null
+        empty, fromList, lookup, insertAt, index, zip, zipWith, filter
     )
 import Witherable
 
@@ -139,6 +147,31 @@ import Prettyprinter (Pretty(..))
 (|:) :: a -> NonEmpty a -> NonEmpty a
 a |: (x :| xs) = a :| (x : xs)
 
+map :: (a -> b) -> Seq a -> Seq b
+map = fmap
+
+concatMap :: (Foldable t) => (a -> Seq b) -> t a -> Seq b
+concatMap = foldMap
+
+-- | O(nlog(n))
+(\\) :: forall a. (Eq a, Ord a) => Seq a -> Seq a -> Seq a
+s1 \\ s2 = filter (`notMember` s2Set) s1
+    where
+        s2Set :: Set a
+        s2Set = fromList (toList s2)
+
+-- | O(n^2)
+diffEq :: Eq a => Seq a -> Seq a -> Seq a
+diffEq s1 s2 = filter (`notElem` s2) s1
+
+concat :: Foldable t => t (Seq a) -> Seq a
+concat = fold
+
+runOutputSeq :: Sem (Output o : r) a -> Sem r (Seq o, a)
+runOutputSeq = fmap (first fromList) . runOutputList
+
+intercalate :: Text -> Seq Text -> Text
+intercalate sep seq = T.intercalate sep (toList seq)
 
 state :: (Member (State s) r) => (s -> (a, s)) -> Sem r a
 state f = get >>= \(f -> (r, s')) -> put s' *> pure r
@@ -171,8 +204,9 @@ type HSType = Relude.Type
     
 type HSConstraint = Relude.Constraint
 
-unsafeLast :: [a] -> a
-unsafeLast = L.last
+unsafeLast :: HasCallStack => Seq a -> a
+unsafeLast (_ :|> x) = x
+unsafeLast _ = error $ "unsafeLast: empty list"
 
 munion :: (Ord k, Semigroup v) => Map k v -> Map k v -> Map k v
 munion = M.unionWith (<>)

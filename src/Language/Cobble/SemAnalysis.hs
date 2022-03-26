@@ -1,4 +1,3 @@
-{-# LANGUAGE NoOverloadedLists #-}
 module Language.Cobble.SemAnalysis where
 
 import Language.Cobble.Prelude
@@ -6,17 +5,15 @@ import Language.Cobble.Prelude
 import Language.Cobble.Types
 import Language.Cobble.Types.Lens
 
-import Data.List ((\\))
-
 import Data.Set qualified as S
 
 type NextPass = Typecheck
 
 data SemanticError = MissingField LexInfo UnqualifiedName
-                   | NonExistantOrDuplicateFields LexInfo [UnqualifiedName]
-                   | DuplicateStructDefFields LexInfo [UnqualifiedName]
+                   | NonExistantOrDuplicateFields LexInfo (Seq UnqualifiedName)
+                   | DuplicateStructDefFields LexInfo (Seq UnqualifiedName)
                    | MissingTyClassMethod LexInfo QualifiedName Type
-                   | DuplicateTyClassMethods LexInfo [Decl SemAnalysis]
+                   | DuplicateTyClassMethods LexInfo (Seq (Decl SemAnalysis))
                    deriving (Show, Eq, Generic, Data)
 
 runSemanticAnalysis :: Members '[Error SemanticError] r => Module SemAnalysis -> Sem r (Module NextPass)
@@ -47,7 +44,7 @@ implicitClassConstraints = \case
         DefInstance (map (\(n, t) -> (n, coercePass $ addForall $ addConstraint (coercePass t))) defMeths, ps) li cname ty meths
           where
             addConstraint t = case coercePass ps of 
-                [p] -> TConstraint (MkConstraint cname (TVar p)) t
+                (p :<| Empty) -> TConstraint (MkConstraint cname (TVar p)) t
                 _   -> error $ "SemAnalysis.implicitClassConstraints: multi-param typeclasses NYI: " <> show ps
     
     x -> x
@@ -57,12 +54,12 @@ addForall t@TForall{} = t
 -- TODO
 -- freeTVs does *not* preserve order. This should not be an issue for now, but might be
 -- a bit awkward, if features like type applications, where the order of foralls matters, are ever added.
-addForall t = case toList (freeTVs t) of
+addForall t = case fromList (toList (freeTVs t)) of
     []      -> t
     freeTVs -> TForall freeTVs t
 
-detectDuplicateFields :: Members '[Error SemanticError] r => LexInfo -> [(UnqualifiedName, a)] -> Sem r [(UnqualifiedName, a)]
-detectDuplicateFields li xs = case ks \\ unstableNub ks of
+detectDuplicateFields :: Members '[Error SemanticError] r => LexInfo -> Seq (UnqualifiedName, a) -> Sem r (Seq (UnqualifiedName, a))
+detectDuplicateFields li xs = case ks \\ ordNub ks of
     [] -> pure xs
     leftOver -> throw (DuplicateStructDefFields li leftOver)
     where
@@ -70,9 +67,9 @@ detectDuplicateFields li xs = case ks \\ unstableNub ks of
 
 reorderAndCheckFields :: forall a b r. Members '[Error SemanticError] r
                       => LexInfo
-                      -> [(UnqualifiedName, a)]
-                      -> [(UnqualifiedName, b)]
-                      -> Sem r [(UnqualifiedName, b)]
+                      -> Seq (UnqualifiedName, a)
+                      -> Seq (UnqualifiedName, b)
+                      -> Sem r (Seq (UnqualifiedName, b))
 reorderAndCheckFields li dfs fs = forM dfs \(n, _) -> do
         case lookup n fsMap of
             Nothing -> throw (MissingField li n)
@@ -82,7 +79,7 @@ reorderAndCheckFields li dfs fs = forM dfs \(n, _) -> do
         mfs -> throw (NonExistantOrDuplicateFields li mfs)
     where
         fsMap :: Map UnqualifiedName b
-        fsMap = fromList fs
+        fsMap = fromList $ toList fs
 
 
 -- Reorders the methods in a typeclass instance to have the same
@@ -95,10 +92,10 @@ reorderAndCheckInstances = \case
             case lookup dmName declMap of
                 Nothing -> throw $ MissingTyClassMethod li dmName dmType
                 Just decl -> pure decl
-        case decls \\ reorderedDecls of
+        case decls `diffEq` reorderedDecls of
             [] -> pure (DefInstance (map (second coercePass) defMeths, coercePass classPS) li className ty reorderedDecls)
             ds -> throw $ DuplicateTyClassMethods li ds
         where
             declMap :: Map QualifiedName (Decl SemAnalysis)
-            declMap = fromList (map (\d@(Decl _ n _ _) -> (n, d)) decls)
+            declMap = fromList $ toList (map (\d@(Decl _ n _ _) -> (n, d)) decls)
     x -> pure x

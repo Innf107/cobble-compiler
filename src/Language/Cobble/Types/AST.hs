@@ -30,7 +30,7 @@ type family InstanceRequirements t :: [HSType]
 data Module (p :: Pass) = Module
     { xModule :: (XModule p)
     , moduleName :: (Name p)
-    , moduleStatements :: [Statement p]
+    , moduleStatements :: (Seq (Statement p))
     }
 
 
@@ -46,13 +46,13 @@ data ModSig = ModSig {
 ,   exportedVariantConstrs  :: Map QualifiedName (Type, Int, Int, TypeVariant)
 ,   exportedTypes           :: Map QualifiedName (Kind, TypeVariant)
 ,   exportedFixities        :: Map QualifiedName Fixity
-,   exportedInstances       :: Map QualifiedName [Type]
+,   exportedInstances       :: Map QualifiedName (Seq Type)
 } deriving (Generic, Typeable) -- Instances for @Eq@ and @Data@ are defined in Language.Cobble.Types.AST.Codegen
 
-data TypeVariant = RecordType [XTVar Codegen] [(UnqualifiedName, Type)]
-                 | VariantType [XTVar Codegen] [(QualifiedName, [Type])]
+data TypeVariant = RecordType (Seq (XTVar Codegen)) (Seq (UnqualifiedName, Type))
+                 | VariantType (Seq (XTVar Codegen)) (Seq (QualifiedName, (Seq Type)))
                  | BuiltInType
-                 | TyClass [TVar] [(QualifiedName, Type)]
+                 | TyClass (Seq TVar) (Seq (QualifiedName, Type))
                  deriving (Generic, Typeable)
 
 type Dependencies = Map QualifiedName ModSig
@@ -79,9 +79,9 @@ data Pass = SolveModules
 data Statement (p :: Pass) =
       Def           (XDef p)            LexInfo (Decl p) (XType p)
     | Import        (XImport p)         LexInfo (Name p) -- TODO: qualified? exposing?
-    | DefClass      (XDefClass p)       LexInfo (Name p) [(XTVar p)] [(Name p, XType p)]
-    | DefInstance   (XDefInstance p)    LexInfo (Name p) (XType p) [Decl p]
-    | DefVariant    (XDefVariant p)     LexInfo (Name p) [(XTVar p)] [(Name p, [XType p], XDefVariantClause p)]
+    | DefClass      (XDefClass p)       LexInfo (Name p) (Seq (XTVar p)) (Seq (Name p, XType p))
+    | DefInstance   (XDefInstance p)    LexInfo (Name p) (XType p) (Seq (Decl p))
+    | DefVariant    (XDefVariant p)     LexInfo (Name p) (Seq (XTVar p)) (Seq (Name p, (Seq (XType p)), XDefVariantClause p))
     | StatementX    (XStatement p)      LexInfo
 
 type instance InstanceRequirements (Statement p) = 
@@ -113,7 +113,7 @@ data Expr (p :: Pass) =
     | Var             (XVar p) LexInfo (Name p)
     | Ascription      (XAscription p) LexInfo (Expr p) (XType p)
     | VariantConstr   (XVariantConstr p) LexInfo (Name p)
-    | Case            (XCase p) LexInfo (Expr p) [CaseBranch p]
+    | Case            (XCase p) LexInfo (Expr p) (Seq (CaseBranch p))
     | Lambda          (XLambda p) LexInfo (Name p) (Expr p)
     | ExprX           (XExpr p) LexInfo
 
@@ -146,7 +146,7 @@ type family XCaseBranch (p :: Pass)
 
 data Pattern (p :: Pass) = IntP (XIntP p) Int
                          | VarP (XVarP p) (Name p)
-                         | ConstrP (XConstrP p) (Name p) [Pattern p]
+                         | ConstrP (XConstrP p) (Name p) (Seq (Pattern p))
                          | WildcardP (XWildcardP p)
                          | PatternX (XPattern p)
 
@@ -180,7 +180,7 @@ data Type = TCon QualifiedName Kind
           | TSkol QualifiedName TVar
           --      ^             ^original
           --      |skolem
-          | TForall [TVar] Type
+          | TForall (Seq TVar) Type
           | TFun Type Type
           | TConstraint Constraint Type
           deriving (Eq, Ord, Generic, Data)
@@ -194,7 +194,7 @@ ppType (TVar (MkTVar v _))      = show v
 ppType (TSkol v _)   = "#" <> show v
 ppType (TCon v _)               = show v
 ppType (TApp a b)               = "(" <> ppType a <> " " <> ppType b <> ")"
-ppType (TForall ps t)           = "(∀" <> T.intercalate " " (map (\(MkTVar v _) -> show v) ps) <> ". " <> ppType t <> ")"
+ppType (TForall ps t)           = "(∀" <> T.intercalate " " (toList $ map (\(MkTVar v _) -> show v) ps) <> ". " <> ppType t <> ")"
 ppType (TConstraint c t)        = ppConstraint c <> " => " <> ppType t
 
 ppConstraint :: Constraint -> Text
@@ -203,7 +203,7 @@ ppConstraint (MkConstraint n t) = show n <> " " <> ppType t
 data UType = UTCon UnqualifiedName
            | UTApp UType UType
            | UTVar UnqualifiedName
-           | UTForall [UnqualifiedName] UType
+           | UTForall (Seq UnqualifiedName) UType
            | UTFun UType UType
            | UTConstraint UConstraint UType
            deriving (Show, Eq, Generic, Data)
@@ -219,7 +219,7 @@ freeTVs = go mempty
             | tv `Set.member` bound = mempty
             | otherwise             = one tv
         go bound (TSkol _ _)        = mempty
-        go bound (TForall tvs ty)   = go (bound <> Set.fromList tvs) ty
+        go bound (TForall tvs ty)   = go (bound <> Set.fromList (toList tvs)) ty
         go bound (TFun a b)         = go bound a <> go bound b 
         go bound (TConstraint (MkConstraint _ t1) t2) = go bound t1 <> go bound t2
 
@@ -264,8 +264,8 @@ mergeLexInfo (LexInfo {startPos, file}) (LexInfo {endPos}) = LexInfo {startPos, 
 
 data StructDef = StructDef {
         _structName :: QualifiedName
-    ,   _structParams :: [TVar]
-    ,   _structFields :: [(UnqualifiedName, Type)]
+    ,   _structParams :: (Seq TVar)
+    ,   _structFields :: (Seq (UnqualifiedName, Type))
     } deriving (Show, Eq, Generic, Data)
 
 structKind :: (Profunctor pf, Contravariant f) => Optic' pf f StructDef Kind
@@ -383,6 +383,7 @@ instance {-# INCOHERENT #-} (Coercible a b) => CoercePass a b
 instance {-# INCOHERENT #-} (CoercePass k1 k2, CoercePass v1 v2, Ord k2) => CoercePass (Map k1 v1) (Map k2 v2)
 
 instance {-#INCOHERENT#-} (CoercePass a b) => CoercePass [a] [b]
+instance {-#INCOHERENT#-} (CoercePass a b) => CoercePass (Seq a) (Seq b)
 
 instance {-# INCOHERENT #-} (CoercePass a a', CoercePass b b') => CoercePass (a, b) (a', b')
         

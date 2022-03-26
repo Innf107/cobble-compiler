@@ -14,7 +14,7 @@ type instance XModule 'SemAnalysis = (Map (Name 'Codegen) ModSig)
   
 type instance XDef              SemAnalysis = Maybe Fixity
 type instance XDecl             SemAnalysis = ()
-type instance XParam            SemAnalysis = [Name 'Codegen]
+type instance XParam            SemAnalysis = (Seq (Name 'Codegen))
 type instance XImport           SemAnalysis = ()
 type instance XDefStruct        SemAnalysis = Kind
 type instance XDefVariant       SemAnalysis = Kind
@@ -22,7 +22,7 @@ type instance XDefVariantClause SemAnalysis = (Int, Int)
 type instance XDefClass         SemAnalysis = Kind
 -- XDefInstance uses a list of pairs instead of a Map, because SemAnalysis shuffles declarations around
 -- to have the same order as class declaration.
-type instance XDefInstance      SemAnalysis = ([(QualifiedName, Type)], [TVar])
+type instance XDefInstance      SemAnalysis = (Seq (QualifiedName, Type), Seq TVar)
 type instance XStatement        SemAnalysis = Void
 
 type instance XFCall            'SemAnalysis = ()

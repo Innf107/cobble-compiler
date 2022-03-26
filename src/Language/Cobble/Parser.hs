@@ -9,7 +9,6 @@ import Data.Text qualified as T
 
 import Data.Char
 
-import Text.Parsec hiding ((<|>))
 import Text.Parsec.Pos
 
 import Data.List qualified as L
@@ -147,9 +146,9 @@ exprWithoutOp = "expression" <??> do
         f <- expr'
         args <- many expr'
         case args of
-            []      -> pure f
-            (a:as)  -> let li = (getLexInfo f `mergeLexInfo` (getLexInfo (last (a :| as)))) in
-                pure $ foldl' (App () li) f (a :| as)
+            Empty       -> pure f
+            (a :<| as)  -> let li = (getLexInfo f `mergeLexInfo` (getLexInfo (last (a :| (toList as))))) in
+                            pure $ foldl' (App () li) f (a :| (toList as))
 
 
 expr' :: Parser (Expr NextPass)
@@ -308,7 +307,7 @@ varP = do
     then pure (ConstrP () v [], ls)
     else pure (VarP () v, ls)
 
-statements :: Parser [Statement NextPass]
+statements :: Parser (Seq (Statement NextPass))
 statements = many (statement <* reservedOp ";")
 
 signature :: Parser (LexInfo, Text, UType)

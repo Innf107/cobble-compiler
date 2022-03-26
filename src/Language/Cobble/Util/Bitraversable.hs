@@ -13,4 +13,4 @@ bimapMap :: (Ord k2) => (k1 -> k2) -> (v1 -> v2) -> Map k1 v1 -> Map k2 v2
 bimapMap kf vf = M.mapKeys kf . M.map vf
 
 mapBothMap :: (Ord k2)=> (k1 -> v1 -> (k2, v2)) -> Map k1 v1 -> Map k2 v2
-mapBothMap f = M.fromAscList . map (uncurry f) . M.toAscList
+mapBothMap f = M.fromAscList . fmap (uncurry f) . M.toAscList

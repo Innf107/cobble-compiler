@@ -5,7 +5,7 @@ import Language.Cobble.Core.Types as F
 import Language.Cobble.Racket.Types as R
 import Language.Cobble.Types.QualifiedName
 
-compile :: [Decl] -> Sem r [RacketExpr] 
+compile :: Seq Decl -> Sem r (Seq RacketExpr) 
 compile = evalState initialState . compile'
     where
         initialState = CompState {
@@ -24,12 +24,12 @@ lookupVarType x = gets \CompState{varTypes} -> case lookup x varTypes of
     Just ty -> ty
     _ -> error $ "lookupVarType: core variable '" <> show x <> "' not found. This should have been caught by core lint."
 
-compile' :: Members '[State CompState] r => [Decl] -> Sem r [RacketExpr] 
-compile' [] = pure []
-compile' (Def x _ty e : ds) = (:) 
+compile' :: Members '[State CompState] r => Seq Decl -> Sem r (Seq RacketExpr)
+compile' Empty = pure []
+compile' (Def x _ty e :<| ds) = (<|) 
     <$> (RDefine x <$> compileExpr e) 
     <*> compile' ds
-compile' (DefVariant x args clauses : ds) = compile' ds
+compile' (DefVariant x args clauses :<| ds) = compile' ds
 
 compileExpr :: Members '[State CompState] r => Expr -> Sem r RacketExpr
 compileExpr (Var x) = pure $ RVar x
@@ -53,7 +53,7 @@ compileExpr (If c th el) = RIf
     <$> compileExpr c
     <*> compileExpr th
     <*> compileExpr el
-compileExpr (VariantConstr x i _tyArgs valArgs) = RList . (RIntLit i :) . toList <$> traverse compileExpr valArgs
+compileExpr (VariantConstr x i _tyArgs valArgs) = RList . (RIntLit i <|) <$> traverse compileExpr valArgs
 compileExpr (Case scrut branches) = do
     scrutTy <- lookupVarType scrut
     let actualScrut
@@ -67,7 +67,7 @@ compileExpr (Case scrut branches) = do
             compileBranch (PConstr _ [] i, e) = (RIntP [i],) <$> compileExpr e
             compileBranch (PConstr _ args i, e) = 
                 (RIntP [i],) 
-                . RLet (zipWith (\(x, _ty) i -> (x, RCadr i (RVar scrut))) (toList args) [1..]) -- We start at 1, since the constructor tag is stored at index 0
+                . RLet (mapWithIndex (\i (x, _ty) -> (x, RCadr (i + 1) (RVar scrut))) args) -- We start at 1, since the constructor tag is stored at index 0
                 . pure 
                 <$> do
                     traverse_ (uncurry insertVarType) args
@@ -75,7 +75,7 @@ compileExpr (Case scrut branches) = do
             compileBranch (PWildcard, e) = (RWildcardP,) <$> compileExpr e
 compileExpr (Join j _tys vals body e) = do
     body' <- compileExpr body
-    RLet [(j, RLambda (map fst $ toList vals) [body'])] . pure <$> compileExpr e
-compileExpr (Jump j _tyArgs valArgs _resTy) = RApp (RVar j) <$> traverse compileExpr (toList valArgs)
+    RLet [(j, RLambda (map fst vals) [body'])] . pure <$> compileExpr e
+compileExpr (Jump j _tyArgs valArgs _resTy) = RApp (RVar j) <$> traverse compileExpr valArgs
 compileExpr (PrimOp _ _ _) = undefined
 

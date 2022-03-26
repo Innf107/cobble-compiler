@@ -9,7 +9,7 @@ type instance XModule 'SolveModules = ()
   
 type instance XDef              SolveModules = Maybe Fixity
 type instance XDecl             SolveModules = ()
-type instance XParam            SolveModules = [(Name 'SolveModules)]
+type instance XParam            SolveModules = Seq (Name 'SolveModules)
 type instance XImport           SolveModules = ()
 type instance XDefStruct        SolveModules = ()
 type instance XDefVariant       SolveModules = ()

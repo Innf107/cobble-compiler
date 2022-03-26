@@ -40,7 +40,7 @@ runCompile CompileCmdOpts{compFiles, debug, packageName, description, target, tr
             eRacketFile <- runTracePretty traceLevel $ runControllerC opts (compileToRacketFile compFiles)
             case eRacketFile of
                 Left e -> failWithCompError e
-                Right luaFile -> writeFileText (toString packageName <> ".rkt") luaFile
+                Right racketFile -> writeFileText (toString packageName <> ".rkt") racketFile
 
 runTracePretty :: TraceLevel -> (Trace => a) -> a
 runTracePretty lvl = runTraceStderrWith lvl pretty 
@@ -66,7 +66,7 @@ failWithCompError e = do
 data CobbleAction = Compile CompileCmdOpts deriving (Show, Eq)
 
 data CompileCmdOpts = CompileCmdOpts {
-      compFiles :: [FilePath]
+      compFiles :: Seq FilePath
     , packageName :: Text
     , debug :: Bool
     , traceLevel :: TraceLevel
@@ -79,7 +79,7 @@ data CompileCmdOpts = CompileCmdOpts {
 
 compileOpts :: Parser CompileCmdOpts
 compileOpts = CompileCmdOpts
-    <$> some (argument str (metavar "SOURCEFILES"))
+    <$> (fromList <$> some (argument str (metavar "SOURCEFILES")))
     <*> strOption (long "package-name" <> short 'p' <> metavar "NAME" <> help "The name of the package/datapack")
     <*> switch (long "debug" <> help "Debug mode keeps additional information at runtime")
     <*> option auto (long "log-level" <> metavar "LEVEL" <> value Info <> help "Controls how much information is logged (LogWarning | LogInfo | LogVerbose | LogDebug | LogDebugVerbose)")

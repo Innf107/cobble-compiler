@@ -5,13 +5,13 @@ import Language.Cobble.Types.QualifiedName
 
 import Language.Cobble.Codegen.PrimOps
 
-import Prettyprinter
+import Language.Cobble.Util.Prettyprinter
 import Prettyprinter.Render.String
 
 import GHC.Show qualified as S
 
 data Decl = Def QualifiedName Type Expr
-          | DefVariant QualifiedName [(QualifiedName, Kind)] [(QualifiedName, [Type])] 
+          | DefVariant QualifiedName (Seq (QualifiedName, Kind)) (Seq (QualifiedName, Seq Type))
           deriving (Eq, Generic, Data)
 
 data Expr = Var QualifiedName
@@ -83,13 +83,17 @@ ppQName = pretty . renderDebug
 prettyTyped :: (Pretty p) => (QualifiedName, p) -> Doc ann
 prettyTyped (x, p) = ppQName x <+> ":" <+> pretty p
 
-instance {-# OVERLAPPING #-} Pretty [Decl] where
+instance {-# OVERLAPPING #-} Pretty (Seq Decl) where
     pretty ds = vsep (map ((<> line) . pretty) ds)
 
 instance Pretty Decl where
     pretty (Def x ty e) = ppQName x <+> ":" <+> pretty ty <> line <> ppQName x <+> "=" <+> align (pretty e)
     pretty (DefVariant x args clauses) = "variant" <+> ppQName x <+> sep (map (\(x, k) -> "(" <> ppQName x <+> ":" <+> pretty k <> ")") args) <+> align ("="
-                                    <+> (vsep (zipWith (\bar (c, args) -> (if bar then ("|" <+>) else id) (ppQName c) <+> sep (map pretty args)) (False:repeat True) clauses)))
+                                    <+> (vsep (mapAfter1 False True (\bar (c, args) -> (if bar then ("|" <+>) else id) (ppQName c) <+> sep (map pretty args)) clauses)))
+        where
+            mapAfter1 :: a -> a -> (a -> b -> c) -> Seq b -> Seq c
+            mapAfter1 a1 a2 f Empty = Empty
+            mapAfter1 a1 a2 f (x :<| xs) = f a1 x :<| map (f a2) xs
 
 instance Pretty Expr where
     pretty (Var x) = ppQName x
@@ -111,31 +115,31 @@ instance Pretty Expr where
                 (es :|> e) -> "{" <> foldl' (\r e -> pretty e <> "," <+> r) (pretty e) es <> "}"
 
     pretty (Case scrut branches) = "(case" <+> ppQName scrut <+> "of" <> 
-                                    align (line <> vsep (map (\(p, e) -> pretty p <+> "->" <+> pretty e) (toList branches)))
+                                    align (line <> vsep (map (\(p, e) -> pretty p <+> "->" <+> pretty e) branches))
                                     <> ")"
 
 
     pretty (Join j tyParams valParams body e) = "(join" <+> ppQName j 
-                                                        <+> encloseSep "[" "]" ", " (map prettyTyped $ toList tyParams)
-                                                        <+> encloseSep "{" "}" ", " (map prettyTyped $ toList valParams)
+                                                        <+> encloseSep "[" "]" ", " (map prettyTyped tyParams)
+                                                        <+> encloseSep "{" "}" ", " (map prettyTyped valParams)
                                                         <+> "="
                                                         <+> align (softline' <> pretty body)
                                                         <+> "in"
                                                         <> line
                                                         <> pretty e
                                                         <> ")"
-    pretty (Jump j tyArgs valArgs retTy) = "(jump" <+> ppQName j <+> encloseSep "[" "]" ", " (map pretty $ toList tyArgs)
-                                                                 <+> encloseSep "{" "}" ", " (map pretty $ toList valArgs)
+    pretty (Jump j tyArgs valArgs retTy) = "(jump" <+> ppQName j <+> encloseSep "[" "]" ", " (map pretty tyArgs)
+                                                                 <+> encloseSep "{" "}" ", " (map pretty valArgs)
                                                                  <+> pretty retTy
                                                                  <> ")"
-    pretty (PrimOp op tyArgs valArgs) = "(" <> show op <> encloseSep "[" "]" ", " (map pretty $ toList tyArgs)
-                                                       <> encloseSep "{" "}" ", " (map pretty $ toList valArgs)
+    pretty (PrimOp op tyArgs valArgs) = "(" <> show op <> encloseSep "[" "]" ", " (map pretty tyArgs)
+                                                       <> encloseSep "{" "}" ", " (map pretty valArgs)
                                                        <> ")"
 
 instance Pretty Pattern where
     pretty (PInt i) = pretty i
     pretty PWildcard = "_"
-    pretty (PConstr cname args i) = encloseSep "(" ")" " " (ppQName cname : (map (parens . prettyTyped) $ toList args))
+    pretty (PConstr cname args i) = encloseSep "(" ")" " " (ppQName cname :<| (map (parens . prettyTyped) args))
 
 instance Pretty Type where
     pretty (TVar x k) = ppQName x

@@ -23,8 +23,8 @@ deriving instance Data TypeVariant
 
 type instance XModule Codegen = Map (Name Codegen) ModSig
 
-type instance XDecl      Codegen = (Type, [TGiven])
-type instance XParam     Codegen = [(Name Codegen, Type)]
+type instance XDecl      Codegen = (Type, (Seq TGiven))
+type instance XParam     Codegen = (Seq (Name Codegen, Type))
 
 type instance XDef              Codegen = Maybe Fixity
 type instance XImport           Codegen = ()
@@ -34,14 +34,14 @@ type instance XDefVariantClause Codegen = (Type, Int, Int)
 type instance XDefClass         Codegen = Kind
 -- XDefInstance uses a list of pairs instead of a Map, because SemAnalysis shuffles declarations around
 -- to have the same order as class declaration.
-type instance XDefInstance      Codegen = ([(QualifiedName, Type)], [TVar])
+type instance XDefInstance      Codegen = ((Seq (QualifiedName, Type)), (Seq TVar))
 type instance XStatement        Codegen = Void
 
 type instance XFCall            Codegen = Type
 type instance XIntLit           Codegen = ()
 type instance XIf               Codegen = Type
 type instance XLet              Codegen = ()
-type instance XVar              Codegen = (Type, [TWanted])
+type instance XVar              Codegen = (Type, (Seq TWanted))
 type instance XAscription       Codegen = Void
 type instance XVariantConstr    Codegen = (Type, Type, Int)
 type instance XCase             Codegen = Type

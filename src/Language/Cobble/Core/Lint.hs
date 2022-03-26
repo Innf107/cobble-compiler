@@ -53,15 +53,15 @@ insertJP j tyParams valParams env@LintEnv{jpArgTypes} =
 
 lint :: Members '[Error CoreLintError] r
      => LintEnv
-     -> [Decl]
+     -> Seq Decl
      -> Sem r ()
-lint _ [] = pure ()
-lint env (Def x ty e : ds) = do
+lint _ Empty = pure ()
+lint env (Def x ty e :<| ds) = do
     let env' = insertType x ty $ clearJPs env
     eTy <- lintExpr env' e 
     typeMatch eTy ty $ "Type mismatch in declaration for '" <> show x <> "'"
     lint env' ds
-lint env (DefVariant x args clauses : ds) = do
+lint env (DefVariant x args clauses :<| ds) = do
     let resKind = foldr (KFun . snd) KType args
     let resTy = foldl' (TApp) (TCon x resKind) (map (uncurry TVar) args)
     let constrTys = clauses <&> \(constr, constrArgs) ->
@@ -178,7 +178,7 @@ lintExpr env (Jump j tyArgs valArgs retTy) = do
         (toList appliedTypes) 
         (toList valArgs)
     pure retTy
-    
+
 lintExpr env (PrimOp _ _ _) = undefined
 
 {- note [clearJPs for App]

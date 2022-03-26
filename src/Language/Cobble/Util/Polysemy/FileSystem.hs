@@ -3,6 +3,7 @@ module Language.Cobble.Util.Polysemy.FileSystem where
 
 import Language.Cobble.Prelude
 
+import Relude qualified as R
 import Data.Maybe qualified as P
 import Prelude qualified as P
 
@@ -40,7 +41,7 @@ fileSystemIO = interpret \case
     DeleteDirectory fd      -> embed (S.removeDirectory (toString fd))
     DoesFileExist fd        -> embed (S.doesFileExist (toString fd))
     DoesDirectoryExist fd   -> embed (S.doesDirectoryExist (toString fd))
-    GetDirectoryContents fd -> embed (map fromString <$> S.getDirectoryContents (toString fd))
+    GetDirectoryContents fd -> embed (fmap fromString <$> S.getDirectoryContents (toString fd))
     CreateDirectory fd      -> embed (S.createDirectory (toString fd))
 
 -- | A class representing File Descriptors.
@@ -68,66 +69,7 @@ infixr 5 ./.
 
 instance FileDescriptor FilePath where
     type Segment FilePath = String
-    x ./. y = intercalate "/" $ segments x ++ segments y
+    x ./. y = R.intercalate "/" $ segments x ++ segments y
     root = ""
     segments = filter (/="/") . S.splitDirectories
 
--- | A pure representation of a file system for use with 'fileSystemToPureState'
-data PureFS fd fc = PureFSFile fd fc
-                  | PureFSDirectory fd [PureFS fd fc]
-                  deriving (Show, Eq)
-
-alterFilePure :: forall fd fc a. (FileDescriptor fd)
-              => (Maybe fc -> (Maybe fc, a))
-              -> fd
-              -> PureFS fd fc
-              -> (PureFS fd fc, Maybe a)
-alterFilePure initialF initialFd = first (fromMaybe (PureFSDirectory root [])) . alterFilePureInner root initialF initialFd
-    where
-        alterFilePureInner :: fd
-                          -> (Maybe fc -> (Maybe fc, a))
-                          -> fd
-                          -> PureFS fd fc
-                          -> (Maybe (PureFS fd fc), Maybe a)
-        alterFilePureInner fdTrail f fd = \case
-            fs@(PureFSFile fd' fc)
-                | fd == fdTrail ./. fd' -> let (mfc', res) = f (Just fc) in
-                    (PureFSFile fd' <$> mfc', Just res)
-                | otherwise -> (Just fs, Nothing)
-            fs@(PureFSDirectory fd' chs)
-                | fd == fdTrail ./. fd' -> (Just fs, Nothing)
-                | segments (fdTrail ./. fd') == P.init (segments fd) -> let (newch, res) = f Nothing in
-                    (Just (PureFSDirectory fd' (maybeToList (PureFSFile fd <$> newch) ++ chs)), Just res)
-                | otherwise ->
-                    let results = map (alterFilePureInner (fdTrail ./. fd') f fd) chs
-                        chs' = catMaybes (map fst results)
-                        mresult = getFirst (foldMap (First . snd) results)
-                    in
-                    (Just (PureFSDirectory fd' chs'), mresult)
-
-readFilePure :: (FileDescriptor fd) => fd -> PureFS fd fc -> Maybe fc
-readFilePure = fmap (join . snd) . alterFilePure (\c -> (c, c))
-
-writeFilePure :: (FileDescriptor fd) => fd -> fc -> PureFS fd fc -> (PureFS fd fc, Bool)
-writeFilePure fd fc = second (maybe False (const True)) . alterFilePure (\_ -> (Just fc, True)) fd
-
-deleteFilePure :: (FileDescriptor fd) => fd -> PureFS fd fc -> (PureFS fd fc, Bool)
-deleteFilePure fd = second (maybe False (const True)) . alterFilePure (\_ -> (Nothing, True)) fd
-
-doesFileExistPure :: (FileDescriptor fd) => fd -> PureFS fd fc -> Bool
-doesFileExistPure fd = fromMaybe False . snd . alterFilePure (\x -> (x, maybe False (const True) x)) fd
-
-data PureFSError fd = FileDoesNotExist fd
-                    | DirectoryDoesNotExist fd
-                    | ParentDirectoryDoesNotExist fd
-                    deriving (Show, Eq)
-
-fileSystemToPureState :: (HasCallStack, FileDescriptor fd, Members [Error (PureFSError fd), State (PureFS fd fc)] r)
-                  => Sem (FileSystem fd fc ': r) a
-                  -> Sem r a
-fileSystemToPureState = interpret \case
-    ReadFile fd      -> maybe (throw (FileDoesNotExist fd)) pure =<< gets (readFilePure fd)
-    WriteFile fd fc  -> bool (throw (ParentDirectoryDoesNotExist fd)) pass =<< state (swap . writeFilePure fd fc)
-    DeleteFile fd    -> bool (throw (FileDoesNotExist fd)) pass =<< state (swap . deleteFilePure fd)
-    DoesFileExist fd -> gets (doesFileExistPure fd)
-    _ -> error "fileSystemToPureState: PureFS is not fully implemented"

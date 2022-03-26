@@ -41,3 +41,6 @@ instance ListLike S.Seq where
 
 zipWithM :: (R.Applicative f, R.Traversable l, ListLike l) => (a -> b -> f c) -> l a -> l b -> f (l c)
 zipWithM f xs ys = R.traverse (R.uncurry f) (zip xs ys)
+
+zipWithM_ :: (R.Applicative f, R.Traversable l, ListLike l) => (a -> b -> f c) -> l a -> l b -> f ()
+zipWithM_ f xs ys = R.traverse_ (R.uncurry f) (zip xs ys)

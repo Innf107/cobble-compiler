@@ -67,7 +67,7 @@ qualifyStmnt (DefVariant () li n tvs constrs) = runReader li $ do
     n' <- freshVar (n, li)
     tvs' <- traverse (qualifyTVar KStar) tvs -- TODO: [Kind inference]: probably shouldn't be KStar
     let k = getTyConKind tvs'
-    constrs' <- withFrame $ forM2 [0..] constrs \i (cn, tys, ()) -> do
+    constrs' <- withFrame $ flip traverseWithIndex constrs \i (cn, tys, ()) -> do
         -- The type needs to be locally added as a dummy variant to allow recursive types.
         addType n n' k (VariantType (coercePass tvs') [])
         zipWithM_ addTVar tvs tvs'
@@ -307,9 +307,9 @@ lookupTVar n = sgets (lookup n . _scopeTVars) >>= \case
     Just (n', k) -> pure (MkTVar n' k)
     Nothing -> ask >>= \li -> throw $ TVarNotFound li n
 
-getTyConKind :: [TVar] -> Kind
+getTyConKind :: Seq TVar -> Kind
 getTyConKind = foldr (\(MkTVar _ k) r -> k `KFun` r) KStar 
 
 
-forM2 :: Applicative f => [a] -> [b] -> (a -> b -> f c) -> f [c]
+forM2 :: (Applicative f, ListLike l, Traversable l) => l a -> l b -> (a -> b -> f c) -> f (l c)
 forM2 xs ys f = zipWithM f xs ys

@@ -8,18 +8,18 @@ import Data.Text qualified as T
 
 data RacketExpr =
     RDefine QualifiedName RacketExpr
-  | RDefineF QualifiedName [QualifiedName] [RacketExpr]
+  | RDefineF QualifiedName (Seq QualifiedName) (Seq RacketExpr)
   | RVar QualifiedName
-  | RApp RacketExpr [RacketExpr]
-  | RLambda [QualifiedName] [RacketExpr]
-  | RLet [(QualifiedName, RacketExpr)] [RacketExpr]
-  | RBegin [RacketExpr]
+  | RApp RacketExpr (Seq RacketExpr)
+  | RLambda (Seq QualifiedName) (Seq RacketExpr)
+  | RLet (Seq (QualifiedName, RacketExpr)) (Seq RacketExpr)
+  | RBegin (Seq RacketExpr)
 
   | RSymbol QualifiedName
   | RIntLit Int
   | RNil
-  | RHash [(RacketExpr, RacketExpr)]
-  | RList [RacketExpr]
+  | RHash (Seq (RacketExpr, RacketExpr))
+  | RList (Seq RacketExpr)
 
   | RAdd RacketExpr RacketExpr
   | RLE RacketExpr RacketExpr
@@ -32,20 +32,20 @@ data RacketExpr =
   | RCase RacketExpr (Seq (RPattern, RacketExpr))
   deriving (Show, Eq)
 
-data RPattern = RIntP [Int]
+data RPattern = RIntP (Seq Int)
               | RWildcardP
               deriving (Show, Eq)
 
-instance {-# OVERLAPPING #-} Pretty [RacketExpr] where
-    pretty = vsep . map pretty
+instance {-# OVERLAPPING #-} Pretty (Seq RacketExpr) where
+    pretty = vsep . toList . map pretty
 
 instance Pretty RacketExpr where
     pretty (RDefine x e) = list ["define", prettyQ x, nest 4 (pretty e)]
-    pretty (RDefineF f xs es) = parens ("define" <+> list (prettyQ f : map prettyQ xs) <> nest 4 (line <> pretty es))
+    pretty (RDefineF f xs es) = parens ("define" <+> list (prettyQ f <| map prettyQ xs) <> nest 4 (line <> pretty es))
     pretty (RVar x) = prettyQ x
     pretty (RApp f xs) = prettyApp (pretty f) (map pretty xs) 
     pretty (RLambda xs body) = parens ("lambda" <+> list (map prettyQ xs) <+> nest 4 (pretty body))
-    pretty (RLet bindings body) = parens ("let*" <+> brackets (align (vsep (map prettyBinding bindings))) <+> nest 4 (line <> pretty body))
+    pretty (RLet bindings body) = parens ("let*" <+> brackets (align (vsep (toList (map prettyBinding bindings)))) <+> nest 4 (line <> pretty body))
     pretty (RBegin es) = parens ("begin" <> nest 4 (line <> pretty es))
     pretty (RSymbol x) = "'" <> prettyQ x
     pretty (RIntLit x) = pretty x
@@ -59,7 +59,7 @@ instance Pretty RacketExpr where
     pretty (RHashRef h k) = prettyApp "hash-ref" [pretty h, pretty k]
     pretty (RCadr n e) = prettyApp (pretty $ "ca" <> T.replicate n "d" <> "r") [pretty e]
     pretty (RCase expr cases) = prettyApp ("case" <+> pretty expr) $
-        map (\(pat, e) -> list [prettyPat pat, pretty e]) (toList cases)
+        map (\(pat, e) -> list [prettyPat pat, pretty e]) cases
         where
             prettyPat RWildcardP = "else"
             prettyPat (RIntP is) = list (map pretty is) 
@@ -69,13 +69,13 @@ prettyQ = pretty . renderRacket
 prettyBinding :: (QualifiedName, RacketExpr) -> Doc ann
 prettyBinding (x, e) = parens (prettyQ x <+> nest 4 (pretty e))
 
-prettyApp :: Doc ann -> [Doc ann] -> Doc ann 
-prettyApp f xs = parens (f <+> align (sep xs))
+prettyApp :: Doc ann -> (Seq (Doc ann)) -> Doc ann 
+prettyApp f xs = parens (f <+> align (sep (toList xs)))
 
-list :: [Doc ann] -> Doc ann
-list = parens . hsep
+list :: (Seq (Doc ann)) -> Doc ann
+list = parens . hsep . toList
 
-prettyRacketWithRuntime :: [RacketExpr] -> Doc ann
+prettyRacketWithRuntime :: Seq RacketExpr -> Doc ann
 prettyRacketWithRuntime body = header <> line <> line <> pretty body <> line <> line <> footer
     where
         header = "#lang racket"

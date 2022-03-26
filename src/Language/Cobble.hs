@@ -85,25 +85,25 @@ instance R.Read Target where
     readsPrec _ _ = []
 
 class Compiled m where
-    compileFromCore :: forall r. (ControllerC r, Members '[Fresh Text QualifiedName] r) => [Core.Decl] -> Sem r m
+    compileFromCore :: forall r. (ControllerC r, Members '[Fresh Text QualifiedName] r) => Seq Core.Decl -> Sem r m
 
-instance Compiled [RacketExpr] where
+instance Compiled (Seq RacketExpr) where
     compileFromCore = CoreToRacket.compile
 
-compileToRacketFile :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r) => [FilePath] -> Sem r Text
+compileToRacketFile :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r) => Seq FilePath -> Sem r Text
 compileToRacketFile files = show . prettyRacketWithRuntime <$> compileAll files
 
-compileAll :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m) => [FilePath] -> Sem r m
+compileAll :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m) => Seq FilePath -> Sem r m
 compileAll files = compileContents =<< traverse (\x -> (x,) <$> readFile x) files
 
 compileContents :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m) 
-                => [(FilePath, Text)] 
+                => Seq (FilePath, Text)
                 -> Sem r m
 compileContents contents = do
     tokens <- traverse (\(fn, content) -> mapError LexError $ tokenize (toText fn) content) contents
     asts   <- traverse (\(ts, n) -> mapError ParseError $ fromEither $ parse module_ n ts) (zip tokens (map fst contents))
 
-    orderedMods :: [(S.Module 'SolveModules, [Text])] <- mapError ModuleError $ findCompilationOrder asts
+    orderedMods :: Seq (S.Module 'SolveModules, Seq Text) <- mapError ModuleError $ findCompilationOrder asts
 
     core <- fmap join $ evalState (one ("prims", primModSig)) $ traverse compileAndAnnotateSig orderedMods
     
@@ -117,11 +117,11 @@ compileContents contents = do
     freshWithInternal $ compileFromCore core
 
 compileAndAnnotateSig :: (Trace, ControllerC r, Members '[State (Map (S.Name 'QualifyNames) ModSig), Fresh (Text, LexInfo) QualifiedName] r)
-                      => (S.Module 'SolveModules, [S.Name 'SolveModules])
-                      -> Sem r [Core.Decl]
+                      => (S.Module 'SolveModules, Seq (S.Name 'SolveModules))
+                      -> Sem r (Seq Core.Decl)
 compileAndAnnotateSig (m, deps) = do
     annotatedMod :: (S.Module 'QualifyNames) <- S.Module
-        <$> fromList <$> traverse (\d -> (internalQName d ,) <$> getDep d) ("prims" : deps)
+        <$> fromList . toList <$> traverse (\d -> (internalQName d ,) <$> getDep d) ("prims" <| deps)
         <*> pure (S.moduleName m)
         <*> pure (map (coercePass @(Statement SolveModules) @(Statement QualifyNames)) (moduleStatements m))
     (core, sig) <- compileWithSig annotatedMod
@@ -135,9 +135,9 @@ getDep n = maybe (error $ "Module dependency '" <> show n <> "' not found") pure
 --              TODO^: Should this really be a panic? 
 compileWithSig :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r)
                => S.Module 'QualifyNames
-               -> Sem r ([Core.Decl], ModSig)
+               -> Sem r (Seq Core.Decl, ModSig)
 compileWithSig m = do
-    let qualScopes = map modSigToScope (toList $ xModule m)
+    let qualScopes = map modSigToScope (fromList $ toList $ xModule m)
 
     let tcEnv = foldr (\dsig r -> TCEnv {
                     _varTypes= fmap coercePass (exportedVars dsig <> (view _1 <$> exportedVariantConstrs dsig)) <> _varTypes r
@@ -145,7 +145,7 @@ compileWithSig m = do
                 })
                 (TCEnv mempty mempty)
                 (toList $ xModule m)
-    qMod  <- mapError QualificationError $ evalStackStatePanic (mconcat qualScopes) $ qualify m
+    qMod  <- mapError QualificationError $ evalStackStatePanic (fold qualScopes) $ qualify m
 
     saMod <- mapError SemanticError $ runSemanticAnalysis qMod
 
@@ -166,9 +166,9 @@ compileWithSig m = do
 
 modSigToScope :: ModSig -> Scope
 modSigToScope (ModSig{exportedVars, exportedVariantConstrs, exportedTypes, exportedFixities}) = Scope {
-                _scopeVars              = fromList $ map (\(qn, _) -> (originalName qn, qn)) $ M.toList exportedVars
-            ,   _scopeVariantConstrs    = fromList $ map (\(qn, (_, ep, i, v)) -> (originalName qn, (qn, ep, i, v))) $ M.toList exportedVariantConstrs
-            ,   _scopeTypes             = fromList $ map (\(qn, (k, tv)) -> (originalName qn, (qn, k, tv))) $ M.toList exportedTypes
+                _scopeVars              = fromList $ fmap (\(qn, _) -> (originalName qn, qn)) $ M.toList exportedVars
+            ,   _scopeVariantConstrs    = fromList $ fmap (\(qn, (_, ep, i, v)) -> (originalName qn, (qn, ep, i, v))) $ M.toList exportedVariantConstrs
+            ,   _scopeTypes             = fromList $ fmap (\(qn, (k, tv)) -> (originalName qn, (qn, k, tv))) $ M.toList exportedTypes
             ,   _scopeFixities          = M.mapKeys originalName exportedFixities
             ,   _scopeTVars             = mempty
             }
@@ -182,13 +182,13 @@ makePartialSig = \case
     DefClass k _ n ps meths   -> mempty 
         {   exportedTypes = one (n, (k, TyClass ps meths))
         ,   exportedVars  = fromList $ 
-                map (second coercePass) meths
+                toList $ map (second coercePass) meths
         }
     DefInstance _ _ cname ty _ -> mempty {exportedInstances = one (cname, [ty])}
     DefVariant k _ tyName ps cs -> let tyVariant = VariantType ps (map (\(x,y,_) -> (x,y)) cs) in 
         mempty
         {   exportedTypes = one (tyName, (k, tyVariant))
-        ,   exportedVariantConstrs = fromList (map (\(cname, _, (ty, ep, i)) -> (cname, (ty, ep, i, tyVariant))) cs)
+        ,   exportedVariantConstrs = fromList $ toList (map (\(cname, _, (ty, ep, i)) -> (cname, (ty, ep, i, tyVariant))) cs)
         }
     Import () _ _            -> mempty
 
