@@ -88,6 +88,7 @@ instance Show.Show PatternMatrix where
             showSimplePattern (C.ConstrP _ con []) = show con
             showSimplePattern (C.ConstrP _ con pats) = show con <> "(" <> T.intercalate ", " (map showSimplePattern pats) <> ")"
             showSimplePattern (C.IntP _ n) = show n
+            showSimplePattern (C.WildcardP _) = "_"
 
 data HeadConstr = ConstrHead QualifiedName Int [C.Type] (Seq QualifiedName) -- TODO: Do we even need types here?
                                 --         ^constr index ^ other constructors for the type
@@ -106,7 +107,12 @@ patternAt i j (MkPatternMatrix rows) = S.index (fst (S.index rows i)) j
 
 isWildcardLike :: C.Pattern C.Codegen -> Bool
 isWildcardLike C.VarP{} = True
+isWildcardLike C.WildcardP{} = True
 isWildcardLike _ = False
+
+isVar :: C.Pattern C.Codegen -> Bool
+isVar C.VarP{} = True
+isVar _ = False
 
 -- If the first column in the matrix contains exclusively wildcard-like
 -- patterns, there is no need to actually match on the first argument, so
@@ -115,8 +121,8 @@ isWildcardLike _ = False
 findAndBindFirstColFullWildcards :: Seq QualifiedName -> PatternMatrix -> Maybe PatternMatrix
 findAndBindFirstColFullWildcards occs (MkPatternMatrix rows) = MkPatternMatrix <$> zipWithM asFirstMaybeWildcard occs rows
     where
-        asFirstMaybeWildcard occ (x :<| xs, e)
-            | isWildcardLike x = Just (xs, \es -> e (F.Var occ <| es))
+        asFirstMaybeWildcard occ (C.VarP{} :<| xs, e) = Just (xs, \es -> e (F.Var occ <| es))
+        asFirstMaybeWildcard occ (C.WildcardP{} :<| xs, e) = Just (xs, e)
         asFirstMaybeWildcard _ _ = Nothing
 
 findHeadConstrs :: PatternMatrix -> Seq HeadConstr
@@ -135,11 +141,15 @@ deconstructPM occ pat (MkPatternMatrix rows) = MkPatternMatrix . fold <$> traver
         go (IntHead i) (C.IntP _ j :<| pats, e)
             | i == j = pure [(pats, e)]
         go (IntHead i) ((C.VarP _ v) :<| pats, e) = pure [(pats, \es -> e (F.IntLit i <| es))]
+        go (IntHead i) ((C.WildcardP _) :<| pats, e) = pure [(pats, e)]
         go (ConstrHead c _ _ _) (C.ConstrP _ c' subPats :<| pats, e)
             | c == c' = pure [(fromList subPats <> pats, e)]
         go (ConstrHead _ _ constrArgs _) (C.VarP{} :<| pats, e) = do
-            subPats <- traverse (\ty -> C.VarP ty <$> freshVar "h") constrArgs
+            let subPats = map (C.WildcardP) constrArgs
             pure [(fromList subPats <> pats, \es -> e (F.Var occ <| es))]
+        go (ConstrHead _ _ constrArgs _) (C.WildcardP _ :<| pats, e) = do
+            let subPats = map (C.WildcardP) constrArgs
+            pure [(fromList subPats <> pats, e)]
         go _ _ = pure []
 
 defaultMatrix :: QualifiedName -> PatternMatrix -> PatternMatrix
@@ -147,14 +157,15 @@ defaultMatrix occ (MkPatternMatrix rows) = MkPatternMatrix $ go =<< rows
     where
         go (C.ConstrP{} :<| _, _) = []
         go (C.IntP{} :<| _, _) = []
-        go (C.VarP _ x :<| ps, e) = [(ps, \es -> e (F.Var occ <| es))] -- ?
+        go (C.VarP _ x :<| ps, e) = [(ps, \es -> e (F.Var occ <| es))]
+        go (C.WildcardP _ :<| ps, e) = [(ps, e)]
         go (Empty, _) = error $ "lowerCase: trying to construct default matrix from a pattern matrix with width 0: " <> show (MkPatternMatrix rows)
 
 compilePMatrix :: forall r. (Trace, Members '[Fresh Text QualifiedName] r) => Seq QualifiedName -> PatternMatrix -> Sem r F.Expr
 compilePMatrix occs m | trace DebugVerbose ("compiling pattern matrix with args " <> show occs <> ":\n" <> show m) False = error "unreachable"
 compilePMatrix occs (MkPatternMatrix Empty) = error "Non-exhaustive patterns. (This should not be a panic)"
 compilePMatrix occs (MkPatternMatrix ((row, expr) :<| _))
-    | all isWildcardLike row = pure $ expr (fmap F.Var occs)
+    | all isWildcardLike row = pure $ expr (catMaybes $ zipWith (\occ pat -> if isVar pat then Just (F.Var occ) else Nothing) occs row)
 compilePMatrix (occ :<| occs) m
     | Just m' <- findAndBindFirstColFullWildcards (occ :<| occs) m = compilePMatrix occs m'
 compilePMatrix (occ :<| occs) m = do
@@ -174,6 +185,7 @@ compilePMatrix (occ :<| occs) m = do
             (ConstrHead _ _ _ otherConstrs :<| _) 
                 | isComplete headConstrs otherConstrs -> pure cases
             _ -> do
+                traceM DebugVerbose "compiling default matrix"
                 defaultClause <- (F.PWildcard,) <$> compilePMatrix occs (defaultMatrix occ m)
                 pure (cases |> defaultClause)
         
@@ -190,6 +202,7 @@ collectVarPatTypes :: C.Pattern C.Codegen -> Sem r (Seq (QualifiedName, F.Type))
 collectVarPatTypes (C.VarP ty x) = lowerType ty <&> \ty' -> [(x, ty')]
 collectVarPatTypes C.IntP{} = pure []
 collectVarPatTypes (C.ConstrP _ _ pats) = fold <$> traverse collectVarPatTypes pats
+collectVarPatTypes (C.WildcardP _ty) = pure []
 
 -- Case desugaring is based on https://www.cs.tufts.edu/~nr/cs257/archive/luc-maranget/jun08.pdf
 lowerCase :: forall r. (Trace, Members '[Fresh Text QualifiedName] r)

@@ -147,10 +147,11 @@ type family XCaseBranch (p :: Pass)
 data Pattern (p :: Pass) = IntP (XIntP p) Int
                          | VarP (XVarP p) (Name p)
                          | ConstrP (XConstrP p) (Name p) [Pattern p]
+                         | WildcardP (XWildcardP p)
                          | PatternX (XPattern p)
 
 type instance InstanceRequirements (Pattern p) = [
-        Name p, XIntP p, XVarP p, XConstrP p, XPattern p
+        Name p, XIntP p, XVarP p, XConstrP p, XWildcardP p, XPattern p
     ]
 
 data CodegenExt = TyApp_ Type (Expr Codegen)
@@ -170,6 +171,7 @@ type instance InstanceRequirements (CodegenExt) = '[
 type family XIntP       (p :: Pass)
 type family XVarP       (p :: Pass)
 type family XConstrP    (p :: Pass)
+type family XWildcardP  (p :: Pass)
 type family XPattern    (p :: Pass)
 
 data Type = TCon QualifiedName Kind

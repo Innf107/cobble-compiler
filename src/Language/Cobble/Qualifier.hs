@@ -225,6 +225,7 @@ qualifyPattern (VarP () x) = do
 qualifyPattern (ConstrP () cname ps) = do
     (cname, _, i, v) <- lookupVariantConstr cname
     ConstrP (i, v) cname <$> traverse qualifyPattern ps
+qualifyPattern (WildcardP ()) = pure (WildcardP ()) 
 
 qualifyType :: forall r. Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r 
             => Bool

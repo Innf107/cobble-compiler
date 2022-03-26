@@ -45,11 +45,12 @@ type instance XExpr             'SemAnalysis = Void
 
 type instance XCaseBranch SemAnalysis = ()
 
-type instance XIntP     SemAnalysis = ()
-type instance XVarP     SemAnalysis = ()
-type instance XConstrP  SemAnalysis = (Int, TypeVariant)
+type instance XIntP         SemAnalysis = ()
+type instance XVarP         SemAnalysis = ()
+type instance XConstrP      SemAnalysis = (Int, TypeVariant)
                                 --     ^constr index
-type instance XPattern  SemAnalysis = Void
+type instance XWildcardP    SemAnalysis = ()
+type instance XPattern      SemAnalysis = Void
 
 type instance Name 'SemAnalysis = QualifiedName
 

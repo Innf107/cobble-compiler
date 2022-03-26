@@ -61,10 +61,12 @@ instance HasType (Pattern Codegen) where
     getType (IntP () n)              = intT
     getType (VarP ty _)              = ty
     getType (ConstrP (ty, _, _) _ _) = ty
+    getType (WildcardP ty)           = ty
 
     setType _ i@IntP{}                = i
     setType t (VarP _ x)              = VarP t x
     setType t (ConstrP (_, x, w) y z) = ConstrP (t, x, w) y z
+    setType t (WildcardP _)           = WildcardP t
 
 instance HasType Type where
     getType     = id

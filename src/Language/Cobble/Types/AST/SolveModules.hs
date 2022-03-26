@@ -36,10 +36,11 @@ type instance XExpr             'SolveModules = OperatorGroup SolveModules NoFix
 
 type instance XCaseBranch SolveModules = ()
 
-type instance XIntP     SolveModules = ()
-type instance XVarP     SolveModules = ()
-type instance XConstrP  SolveModules = ()
-type instance XPattern  SolveModules = Void
+type instance XIntP         SolveModules = ()
+type instance XVarP         SolveModules = ()
+type instance XConstrP      SolveModules = ()
+type instance XWildcardP    SolveModules = ()
+type instance XPattern      SolveModules = Void
 
 type instance Name 'SolveModules = Text
 

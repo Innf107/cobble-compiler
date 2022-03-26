@@ -45,11 +45,12 @@ type instance XExpr             Typecheck = Void
 
 type instance XCaseBranch Typecheck = ()
 
-type instance XIntP     Typecheck = ()
-type instance XVarP     Typecheck = ()
-type instance XConstrP  Typecheck = (Int, TypeVariant)
-                                --     ^constr index
-type instance XPattern  Typecheck = Void
+type instance XIntP         Typecheck = ()
+type instance XVarP         Typecheck = ()
+type instance XConstrP      Typecheck = (Int, TypeVariant)
+                                  --     ^constr index
+type instance XWildcardP    Typecheck = ()
+type instance XPattern      Typecheck = Void
 
 type instance Name Typecheck = QualifiedName
 

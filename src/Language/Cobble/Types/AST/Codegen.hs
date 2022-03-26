@@ -58,11 +58,12 @@ type instance XExpr              Codegen = CodegenExt
 
 type instance XCaseBranch Codegen = ()
 
-type instance XIntP     Codegen = ()
-type instance XVarP     Codegen = Type
-type instance XConstrP  Codegen = (Type, Int, TypeVariant)
+type instance XIntP         Codegen = ()
+type instance XVarP         Codegen = Type
+type instance XConstrP      Codegen = (Type, Int, TypeVariant)
                                 --     ^constr index
-type instance XPattern  Codegen = Void
+type instance XWildcardP    Codegen = Type
+type instance XPattern      Codegen = Void
 
 type instance Name 'Codegen = QualifiedName
 

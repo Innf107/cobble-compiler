@@ -36,10 +36,11 @@ type instance XExpr             'QualifyNames = OperatorGroup QualifyNames NoFix
 
 type instance XCaseBranch QualifyNames = ()
 
-type instance XIntP     QualifyNames = ()
-type instance XVarP     QualifyNames = ()
-type instance XConstrP  QualifyNames = ()
-type instance XPattern  QualifyNames = Void
+type instance XIntP         QualifyNames = ()
+type instance XVarP         QualifyNames = ()
+type instance XConstrP      QualifyNames = ()
+type instance XWildcardP    QualifyNames = ()
+type instance XPattern      QualifyNames = Void
 
 type instance Name 'QualifyNames = Text
 

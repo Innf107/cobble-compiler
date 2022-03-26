@@ -230,6 +230,7 @@ checkPattern env (ConstrP (i,v) cname ps) t = do
     (ps', exts) <- unzip <$> forM typedPats \(p, pTy) -> checkPattern env p pTy
 
     pure (ConstrP (t,i,v) cname ps', foldr (.) id exts)
+checkPattern env (WildcardP _) t = pure (WildcardP t, id)
 
 infer :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r )
       => TCEnv
