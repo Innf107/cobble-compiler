@@ -69,7 +69,9 @@ compileExpr (Case scrut branches) = do
                 (RIntP [i],) 
                 . RLet (zipWith (\(x, _ty) i -> (x, RCadr i (RVar scrut))) (toList args) [1..]) -- We start at 1, since the constructor tag is stored at index 0
                 . pure 
-                <$> compileExpr e
+                <$> do
+                    traverse_ (uncurry insertVarType) args
+                    compileExpr e
             compileBranch (PWildcard, e) = (RWildcardP,) <$> compileExpr e
 compileExpr (Join j _tys vals body e) = do
     body' <- compileExpr body
