@@ -77,4 +77,5 @@ compileExpr (Join j _tys vals body e) = do
     body' <- compileExpr body
     RLet [(j, RLambda (map fst $ toList vals) [body'])] . pure <$> compileExpr e
 compileExpr (Jump j _tyArgs valArgs _resTy) = RApp (RVar j) <$> traverse compileExpr (toList valArgs)
+compileExpr (PrimOp _ _ _) = undefined
 

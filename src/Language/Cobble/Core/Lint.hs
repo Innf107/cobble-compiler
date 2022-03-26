@@ -135,7 +135,6 @@ lintExpr env (Case scrut branches) = do
                 (\branchResTy fullResTy -> typeMatch branchResTy fullResTy ("Mismatched case branches in case for scrutinee '" <> show scrut <> "'") >> pure fullResTy)
                 ty 
                 tys
-
     where
         matchPatTy :: LintEnv -> Pattern -> Type -> Sem r ()
         matchPatTy env pat@PInt{} ty            = typeMatch ty intTy $ "Mismatched scrutinee and pattern types in case on '" <> show scrut <> "' with pattern: " <> show pat
@@ -179,6 +178,8 @@ lintExpr env (Jump j tyArgs valArgs retTy) = do
         (toList appliedTypes) 
         (toList valArgs)
     pure retTy
+    
+lintExpr env (PrimOp _ _ _) = undefined
 
 {- note [clearJPs for App]
 In 'Compiling without continuations'[1], the rule for applications clearly states
