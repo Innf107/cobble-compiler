@@ -50,13 +50,13 @@ isIdentLetter :: Char -> Bool
 isIdentLetter c = isAlphaNum c || c `elem` ("_" :: String)
 
 reserved :: Set Text
-reserved = fromList ["let", "in", "if", "then", "else", "module", "import", "struct", "variant", "case", "of", "class", "instance", "infixl", "infixr", "forall", "do"]
+reserved = fromList ["let", "in", "if", "then", "else", "module", "import", "struct", "variant", "case", "of", "class", "where", "instance", "infixl", "infixr", "forall", "do"]
 
 reservedOps :: Set Text
 reservedOps = fromList [".", "::", ";", ",", "=", "=>", "->", "|", "\\"]
 
 canStartBlock :: Set Text
-canStartBlock = fromList ["do", "of", "then", "else", "="]
+canStartBlock = fromList ["do", "of", "then", "else", "=", "where"]
 
 isParen :: Char -> Bool
 isParen = (`elem`("()[]{}" :: String))

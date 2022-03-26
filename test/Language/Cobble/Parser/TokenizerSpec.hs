@@ -74,11 +74,21 @@ spec = do
                     "f :: Int -> Int"
                 ,   "f x = g x"
                 ,   "      h x"
+                ,   ""
+                ,   "g :: Int -> Int"
+                ,   "g x = case x of"
+                ,   "   0 -> 0"
+                ,   "   _ -> 1"
                 ]) `shouldBe`
                     Right [
                             Ident "f", ReservedOp "::", Ident "Int", ReservedOp "->", Ident "Int", Dedent
                         ,   Ident "f", Ident "x", ReservedOp "=", Ident "g", Ident "x", Dedent
                         ,                                         Ident "h", Ident "x", BlockEnd
+
+                        ,   Ident "g", ReservedOp "::", Ident "Int", ReservedOp "->", Ident "Int", Dedent
+                        ,   Ident "g", Ident "x", ReservedOp "=", Reserved "case", Ident "x", Reserved "of"
+                        ,       IntLiteral 0, ReservedOp "->", IntLiteral 0, Dedent
+                        ,       Ident "_",    ReservedOp "->", IntLiteral 1, BlockEnd, BlockEnd
                         ]
 
 

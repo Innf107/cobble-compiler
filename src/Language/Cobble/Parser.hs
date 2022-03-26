@@ -76,6 +76,17 @@ intLit = (token' \case
     Token l (IntLiteral i) -> Just (l, i)
     _ -> Nothing) <?> "integer literal"
 
+dedent :: Parser LexInfo
+dedent = "dedent" <??> token' \case
+    Token l Dedent -> Just l
+    _ -> Nothing
+
+blockEnd :: Parser LexInfo
+blockEnd = "end of block" <??> token' \case
+    Token l BlockEnd -> Just l
+    _ -> Nothing
+
+
 unitLit :: Parser LexInfo
 unitLit = try (mergeLexInfo <$> paren "(" <*> paren ")")
 
@@ -99,7 +110,7 @@ letE = "let binding" <??> (\ls n ps e b -> Let () (mergeLexInfo ls (getLexInfo e
 module_ :: Parser (Module NextPass)
 module_ = "module" <??> Module () <$> moduleDecl <*> statements <* eof
     where
-        moduleDecl = reserved "module" *> (snd <$> modName) <* reservedOp ";"
+        moduleDecl = reserved "module" *> (snd <$> modName) <* dedent
 
 statement :: Parser (Statement NextPass)
 statement = "statement" <??> def <|> defVariant <|> defClass <|> defInstance <|> import_
@@ -161,14 +172,16 @@ expr' = "expression (no fcall)" <??>
 
 def :: Parser (Statement NextPass)
 def = "definition" <??> do
-    mfixity <- optionMaybe fixity
+    mfixity <- optionMaybe (fixity <* optional dedent)
     (liStartSig, sigName, ty) <- signature 
-    reservedOp' ";"
+    dedent
 
     defDecl@(Decl _ name _ e) <- decl
 
     when (name /= sigName) $ fail "Function definition does not immediately follow its type signature"
     
+    _ <- blockEnd
+
     pure $ Def (snd <$> mfixity) 
             (maybe liStartSig fst mfixity `mergeLexInfo` getLexInfo e) 
             defDecl ty
@@ -210,6 +223,7 @@ defVariant = "variant definition" <??> (\ls n ps cs -> DefVariant () (ls `mergeL
     <*> many ident'
     <*  reservedOp' "="
     <*> (constr `sepBy1` reservedOp' "|")
+    <*  blockEnd
     where
         constr = "variant constructor definition" <??> (\(ls, i) ts -> ((i, map snd ts), foldr (\x r -> fst x `mergeLexInfo` r) ls ts))
             <$> ident
@@ -220,18 +234,18 @@ defClass = "class definition" <??> (\ls n ps cs le -> DefClass () (ls `mergeLexI
     <$> reserved "class"
     <*> ident'
     <*> many ident'
-    <*  paren' "{"
-    <*> many (signature' <* reservedOp' ";")
-    <*> paren "}"
+    <*  reserved "where"
+    <*> many (signature' <* dedent)
+    <*> blockEnd
 
 defInstance :: Parser (Statement NextPass)
 defInstance = "instance definition" <??> (\ls cn (_, t) ds le -> DefInstance () (ls `mergeLexInfo` le) cn t ds)
     <$> reserved "instance"
     <*> ident'
     <*> typeP
-    <*  paren' "{"
-    <*> many (decl <* reservedOp' ";")
-    <*> paren "}"
+    <*  reserved "where"
+    <*> many (decl <* dedent)
+    <*> blockEnd
 
 ifE :: Parser (Expr NextPass)
 ifE = "if expression" <??> (\liStart te ee -> If () (liStart `mergeLexInfo` (getLexInfo ee)) te ee)
@@ -244,16 +258,15 @@ caseE = "case expression" <??> (\ls e cases le -> Case () (ls `mergeLexInfo` le)
     <$> reserved "case"
     <*> expr
     <*  reserved "of"
-    <*  paren' "{"
     <*> many caseBranch
-    <*> paren "}"
+    <*> blockEnd
 
 caseBranch :: Parser (CaseBranch NextPass)
 caseBranch = "case branch" <??> (\(p, ls) e le -> CaseBranch () (mergeLexInfo ls le) p e)
     <$> patternP
     <*  reservedOp' "->"
     <*> expr
-    <*> reservedOp ";"
+    <*> dedent
 
 
 varOrConstr :: Parser (Expr NextPass)
@@ -300,7 +313,7 @@ varP = do
     else pure (VarP () v, ls)
 
 statements :: Parser [Statement NextPass]
-statements = many (statement <* reservedOp ";")
+statements = many statement
 
 signature :: Parser (LexInfo, Text, UType)
 signature = "signature" <??> (\(ls, n) (le, t) -> (ls `mergeLexInfo` le, n, t))
