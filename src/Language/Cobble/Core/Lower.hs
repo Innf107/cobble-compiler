@@ -9,6 +9,8 @@ import Language.Cobble.Types qualified as C
 import Language.Cobble.Core.Types qualified as F
 import Language.Cobble.Util.Bitraversable (secondM)
 
+import Language.Cobble.Codegen.PrimOp
+
 import Language.Cobble.Util.Polysemy.Fresh
 
 import Data.Sequence qualified as S
@@ -42,7 +44,9 @@ lowerStmnts (C.DefVariant _ _ x args clauses :<| sts) = do
     (def<|) <$> lowerStmnts sts
 
 lowerExpr :: (Trace, Members '[Fresh Text QualifiedName] r) => CExpr -> Sem r F.Expr
-lowerExpr (C.VariantConstr (_ty, constrTy, ix) _ x) = lowerType constrTy >>= \ty -> lowerVariantConstr ty ix x [] []
+lowerExpr (C.VariantConstr (_ty, constrTy, ix) _ constrName) = do
+    ty <- lowerType constrTy 
+    lowerSaturated ty (F.VariantConstr constrName ix)
 lowerExpr (C.App ty _ e1 e2) = F.App
                                <$> lowerExpr e1
                                <*> lowerExpr e2
@@ -58,21 +62,26 @@ lowerExpr (C.Let () _ (C.Decl (ty, _) f xs e1) e2) = do
         <$> lowerType ty
         <*> (foldrM (\(x, t) r -> F.Abs x <$> lowerType t <*> pure r) e1' xs)
         <*> lowerExpr e2
-lowerExpr (C.Var _ _ x) = pure $ F.Var x
+lowerExpr (C.Var _ _ x) = do
+    case lookup x primOps of
+        Just (PrimOpInfo primOp primOpType) -> do
+            actualTy <- lowerType primOpType
+            lowerSaturated actualTy (F.PrimOp primOp actualTy)
+        Nothing -> pure $ F.Var x
 lowerExpr (C.Case t li e branches) = lowerCase t e branches
 lowerExpr (C.Lambda (ty, argTy) _ x e) = F.Abs x <$> lowerType argTy <*> lowerExpr e
 lowerExpr (C.TyApp _ ty e) = F.TyApp <$> lowerExpr e <*> lowerType ty
 lowerExpr (C.TyAbs _ (C.MkTVar tvName tvKind) e) = F.TyAbs tvName <$> lowerKind tvKind <*> lowerExpr e
 
-lowerVariantConstr :: Members '[Fresh Text QualifiedName] r => F.Type -> Int -> QualifiedName -> Seq F.Type -> Seq F.Expr -> Sem r F.Expr
-lowerVariantConstr (F.TForall a k ty) i constrName tyArgs valArgs = do
+
+lowerSaturated :: Members '[Fresh Text QualifiedName] r => F.Type -> (Seq F.Type -> Seq F.Expr -> F.Expr) -> Sem r F.Expr
+lowerSaturated (F.TForall a k ty) cont = do
     a' <- freshVar (C.originalName a)
-    F.TyAbs a' k <$> lowerVariantConstr (F.replaceTVar a (F.TVar a' k) ty) i constrName (tyArgs |> F.TVar a' k) valArgs
-lowerVariantConstr (F.TFun t1 t2) i constrName tyArgs valArgs = do
+    F.TyAbs a' k <$> lowerSaturated (F.replaceTVar a (F.TVar a' k) ty) (\tyArgs valArgs -> cont (F.TVar a' k <| tyArgs) valArgs)
+lowerSaturated (F.TFun t1 t2) cont = do
     x <- freshVar "x"
-    F.Abs x t1 <$> lowerVariantConstr t2 i constrName tyArgs (valArgs |> F.Var x)
-lowerVariantConstr ty i constrName tyArgs valArgs = do
-    pure $ F.VariantConstr constrName i tyArgs valArgs
+    F.Abs x t1 <$> lowerSaturated t2 (\tyArgs valArgs -> cont tyArgs (F.Var x <| valArgs))
+lowerSaturated ty cont = pure $ cont [] []
 
 newtype PatternMatrix = MkPatternMatrix (Seq PMatrixRow) deriving (Generic, Data)
 

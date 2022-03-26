@@ -17,12 +17,19 @@ data RacketExpr =
 
   | RSymbol QualifiedName
   | RIntLit Int
+  | RTrue
+  | RFalse
   | RNil
   | RHash (Seq (RacketExpr, RacketExpr))
   | RList (Seq RacketExpr)
 
-  | RAdd RacketExpr RacketExpr
-  | RLE RacketExpr RacketExpr
+  | RAdd (Seq RacketExpr)
+  | RSub (Seq RacketExpr)
+  | RMul (Seq RacketExpr)
+  | RMod (Seq RacketExpr)
+  | RQuotient (Seq RacketExpr)
+  | RLE  (Seq RacketExpr)
+  | REQ  (Seq RacketExpr)
   | RIf RacketExpr RacketExpr RacketExpr
 
   | RHashSet RacketExpr RacketExpr RacketExpr
@@ -30,6 +37,8 @@ data RacketExpr =
   | RCadr Int RacketExpr -- RCadr n e ==> (cad{n}r e)  
   
   | RCase RacketExpr (Seq (RPattern, RacketExpr))
+
+  | RDisplayln RacketExpr
   deriving (Show, Eq)
 
 data RPattern = RIntP (Seq Int)
@@ -49,11 +58,18 @@ instance Pretty RacketExpr where
     pretty (RBegin es) = parens ("begin" <> nest 4 (line <> pretty es))
     pretty (RSymbol x) = "'" <> prettyQ x
     pretty (RIntLit x) = pretty x
+    pretty RTrue = "#t"
+    pretty RFalse = "#f"
     pretty RNil = "'()"
     pretty (RHash args) = prettyApp "hash" (concatMap (\(x, e) -> [pretty x, pretty e]) args)
     pretty (RList args) = prettyApp "list" (map pretty args)
-    pretty (RAdd x y)   = prettyApp "+" [pretty x, pretty y]
-    pretty (RLE x y)    = prettyApp "<=" [pretty x, pretty y]
+    pretty (RAdd args)   = prettyApp "+" (map pretty args)
+    pretty (RSub args)   = prettyApp "-" (map pretty args)
+    pretty (RMul args)   = prettyApp "*" (map pretty args)
+    pretty (RMod args)   = prettyApp "modulo" (map pretty args)
+    pretty (RQuotient args) = prettyApp "quotient" (map pretty args)
+    pretty (RLE args)    = prettyApp "<=" (map pretty args)
+    pretty (REQ args)    = prettyApp "=" (map pretty args)
     pretty (RIf c th el) = parens ("if" <+> pretty c <+> (nest 4 (line <> align (vsep [pretty th, pretty el]))))
     pretty (RHashSet h k e) = prettyApp "hash-set" [pretty h, pretty k, pretty e]
     pretty (RHashRef h k) = prettyApp "hash-ref" [pretty h, pretty k]
@@ -63,6 +79,8 @@ instance Pretty RacketExpr where
         where
             prettyPat RWildcardP = "else"
             prettyPat (RIntP is) = list (map pretty is) 
+    pretty (RDisplayln expr) = prettyApp "displayln" [pretty expr]
+
 prettyQ :: QualifiedName -> Doc ann
 prettyQ = pretty . renderRacket
 
@@ -79,4 +97,4 @@ prettyRacketWithRuntime :: Seq RacketExpr -> Doc ann
 prettyRacketWithRuntime body = header <> line <> line <> pretty body <> line <> line <> footer
     where
         header = "#lang racket"
-        footer = "(main)"
+        footer = ""

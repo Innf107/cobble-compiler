@@ -34,7 +34,7 @@ import Language.Cobble.Prelude.Parser (ParseError, parse)
 
 import Language.Cobble.Typechecker as TC
 
-import Language.Cobble.Codegen.PrimOps
+import Language.Cobble.Codegen.PrimOp
 
 import Language.Cobble.Core.Lower as Lower
 import Language.Cobble.Core.Lint
@@ -195,7 +195,7 @@ makePartialSig = \case
 
 primModSig :: ModSig
 primModSig = ModSig {
-        exportedVars = fmap (view primOpType) $ primOps
+        exportedVars = fmap primOpType $ primOps
     ,   exportedVariantConstrs = mempty
             -- The type application is only necessary to satisfy the type checker since the value depending on the type 'r' is ignored
     ,   exportedTypes = fromList [

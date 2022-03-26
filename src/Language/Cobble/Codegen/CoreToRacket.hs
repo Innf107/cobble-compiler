@@ -1,9 +1,11 @@
 module Language.Cobble.Codegen.CoreToRacket where
 
-import Language.Cobble.Prelude
+import Language.Cobble.Prelude hiding (EQ, Debug)
 import Language.Cobble.Core.Types as F
 import Language.Cobble.Racket.Types as R
 import Language.Cobble.Types.QualifiedName
+
+import Language.Cobble.Codegen.PrimOp
 
 compile :: Seq Decl -> Sem r (Seq RacketExpr) 
 compile = evalState initialState . compile'
@@ -77,5 +79,25 @@ compileExpr (Join j _tys vals body e) = do
     body' <- compileExpr body
     RLet [(j, RLambda (map fst vals) [body'])] . pure <$> compileExpr e
 compileExpr (Jump j _tyArgs valArgs _resTy) = RApp (RVar j) <$> traverse compileExpr valArgs
-compileExpr (PrimOp _ _ _) = undefined
+compileExpr (PrimOp op _ty _tyArgs valArgs) = compilePrimOp op <$> traverse compileExpr valArgs
 
+
+compilePrimOp :: PrimOp -> Seq RacketExpr -> RacketExpr
+compilePrimOp True_ _       = RTrue
+compilePrimOp False_ _      = RFalse
+compilePrimOp Add [x, y]    = RAdd [x, y]
+compilePrimOp Add xs        = error $ "compilePrimOp: wrong arguments for 'add#': " <> show xs
+compilePrimOp Sub [x, y]    = RSub [x, y]
+compilePrimOp Sub xs        = error $ "compilePrimOp: wrong arguments for 'sub#': " <> show xs
+compilePrimOp Mul [x, y]    = RMul [x, y]
+compilePrimOp Mul xs        = error $ "compilePrimOp: wrong arguments for 'mul#': " <> show xs
+compilePrimOp IntDiv [x, y] = RQuotient [x, y]
+compilePrimOp IntDiv xs     = error $ "compilePrimOp: wrong arguments for 'intdiv#': " <> show xs
+compilePrimOp Mod [x, y]    = RMod [x, y]
+compilePrimOp Mod xs        = error $ "compilePrimOp: wrong arguments for 'mod#': " <> show xs
+compilePrimOp LE [x, y]     = RLE [x, y]
+compilePrimOp LE xs         = error $ "compilePrimOp: wrong arguments for 'le#': " <> show xs
+compilePrimOp EQ [x, y]     = REQ [x, y]
+compilePrimOp EQ xs         = error $ "compilePrimOp: wrong arguments for 'eq#': " <> show xs
+compilePrimOp Debug [x]     = RDisplayln x
+compilePrimOp Debug xs      = error $ "compilePrimOp: wrong arguments for 'debug#': " <> show xs

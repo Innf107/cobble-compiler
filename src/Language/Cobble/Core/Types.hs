@@ -3,7 +3,7 @@ module Language.Cobble.Core.Types where
 import Language.Cobble.Prelude
 import Language.Cobble.Types.QualifiedName
 
-import Language.Cobble.Codegen.PrimOps
+import Language.Cobble.Codegen.PrimOp
 
 import Language.Cobble.Util.Prettyprinter
 import Prettyprinter.Render.String
@@ -35,7 +35,7 @@ data Expr = Var QualifiedName
           | Jump QualifiedName (Seq Type) (Seq Expr) Type -- Tailcall into a join point (See note [Join Points])
           --                    ^         ^value args^           
           --                    | type args          | result type
-          | PrimOp PrimOp (Seq Type) (Seq Expr)
+          | PrimOp PrimOp Type (Seq Type) (Seq Expr)
           deriving (Eq, Generic, Data)
 
 data Pattern = PInt Int
@@ -132,9 +132,10 @@ instance Pretty Expr where
                                                                  <+> encloseSep "{" "}" ", " (map pretty valArgs)
                                                                  <+> pretty retTy
                                                                  <> ")"
-    pretty (PrimOp op tyArgs valArgs) = "(" <> show op <> encloseSep "[" "]" ", " (map pretty tyArgs)
-                                                       <> encloseSep "{" "}" ", " (map pretty valArgs)
-                                                       <> ")"
+    -- the concrete primop type is not displayed since it should be obvious from the corresponding PrimOpInfo entry.
+    pretty (PrimOp op ty tyArgs valArgs) = "(" <> show op <> encloseSep "[" "]" ", " (map pretty tyArgs)
+                                                          <> encloseSep "{" "}" ", " (map pretty valArgs)
+                                                          <> ")"
 
 instance Pretty Pattern where
     pretty (PInt i) = pretty i

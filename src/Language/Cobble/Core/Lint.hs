@@ -109,20 +109,7 @@ lintExpr env (If c th el) = do
     pure thTy
 lintExpr env (VariantConstr x i tyArgs valArgs) = do
     xTy <- lookupType x env
-    go xTy tyArgs valArgs
-    where
-        go (TFun t1 t2) tyArgs (arg :<| valArgs) = do
-            argTy <- lintExpr env arg
-            typeMatch t1 argTy $ "Argument type mismatch for variant constructor '" <> show x <> "' with argument: " <> show arg
-            go t2 tyArgs valArgs
-        go (TFun t1 t2) tyArgs Empty = throwLint $ "Variant constructor '" <> show x <> "' is missing value arguments.\n    Remaining type: " <> show (TFun t1 t2) <> "\n    Applied value arguments: " <> show valArgs <> "\n    Not yet applied type arguments: " <> show tyArgs  
-
-        go (TForall a _k ty) (tyArg :<| tyArgs) valArgs = do
-            let ty' = replaceTVar a tyArg ty
-            go ty' tyArgs valArgs
-        go (TForall a k ty) Empty valArgs = throwLint $ "Variant constructor '" <> show x <> "' is missing type arguments.\n    Remaining type: " <> show (TForall a k ty) <> "\n    Not yet applied value arguments: " <> show valArgs <> "\n    Applied type arguments: " <> show tyArgs
-        go ty Empty Empty = pure ty
-        go ty tyArgs valArgs = throwLint $ "Excessive arguments for variant constructor '" <> show x <> "'.\n    Remaining type: " <> show ty <> "\n    Not yet applied type arguments: " <> show tyArgs <> "\n    Mpt yet applied value arguments: " <> show valArgs
+    lintSaturated env (show x) xTy tyArgs valArgs
 lintExpr env (Case scrut branches) = do
     scrutTy <- lookupType scrut env
     resTys <- forM branches \(pat, e) -> do
@@ -179,7 +166,24 @@ lintExpr env (Jump j tyArgs valArgs retTy) = do
         (toList valArgs)
     pure retTy
 
-lintExpr env (PrimOp _ _ _) = undefined
+lintExpr env (PrimOp op ty tyArgs valArgs) = lintSaturated env (show op) ty tyArgs valArgs
+
+
+lintSaturated :: Members '[Error CoreLintError] r => LintEnv -> Text -> Type -> Seq Type -> Seq Expr -> Sem r Type
+lintSaturated env x tyArgs valArgs = go tyArgs valArgs
+    where
+        go (TFun t1 t2) tyArgs (arg :<| valArgs) = do
+            argTy <- lintExpr env arg
+            typeMatch t1 argTy $ "Argument type mismatch for variant constructor or primop '" <> x <> "' with argument: " <> show arg
+            go t2 tyArgs valArgs
+        go (TFun t1 t2) tyArgs Empty = throwLint $ "Variant constructor or primop '" <> x <> "' is missing value arguments.\n    Remaining type: " <> show (TFun t1 t2) <> "\n    Applied value arguments: " <> show valArgs <> "\n    Not yet applied type arguments: " <> show tyArgs  
+
+        go (TForall a _k ty) (tyArg :<| tyArgs) valArgs = do
+            let ty' = replaceTVar a tyArg ty
+            go ty' tyArgs valArgs
+        go (TForall a k ty) Empty valArgs = throwLint $ "Variant constructor or primop '" <> x <> "' is missing type arguments.\n    Remaining type: " <> show (TForall a k ty) <> "\n    Not yet applied value arguments: " <> show valArgs <> "\n    Applied type arguments: " <> show tyArgs
+        go ty Empty Empty = pure ty
+        go ty tyArgs valArgs = throwLint $ "Excessive arguments for variant constructor or primop '" <> x <> "'.\n    Remaining type: " <> show ty <> "\n    Not yet applied type arguments: " <> show tyArgs <> "\n    Mpt yet applied value arguments: " <> show valArgs
 
 {- note [clearJPs for App]
 In 'Compiling without continuations'[1], the rule for applications clearly states

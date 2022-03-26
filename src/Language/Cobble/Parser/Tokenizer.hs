@@ -33,7 +33,7 @@ isOpStart :: Char -> Bool
 isOpStart c = c /= '-' && isOpLetter c
 
 isOpLetter :: Char -> Bool
-isOpLetter = flip elem "+-*/~^!?.|<>$&=#:;,\\"
+isOpLetter = flip elem "+-*/~^!?.|<>$&=:;,\\"
 
 isIntStart :: Char -> Bool
 isIntStart x = isDigit x
@@ -42,7 +42,7 @@ isIdentStart :: Char -> Bool
 isIdentStart c = isAlpha c || c `elem` "_"
 
 isIdentLetter :: Char -> Bool
-isIdentLetter c = isAlphaNum c || c `elem` "_"
+isIdentLetter c = isAlphaNum c || c `elem` "_#"
 
 reserved :: [String]
 reserved = ["let", "in", "if", "then", "else", "module", "import", "struct", "variant", "case", "of", "class", "instance", "infixl", "infixr", "forall"]

@@ -28,7 +28,7 @@ library
       Language.Cobble
       Language.Cobble.Codegen.Common
       Language.Cobble.Codegen.CoreToRacket
-      Language.Cobble.Codegen.PrimOps
+      Language.Cobble.Codegen.PrimOp
       Language.Cobble.Core.Lint
       Language.Cobble.Core.Lower
       Language.Cobble.Core.Types
