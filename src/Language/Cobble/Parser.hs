@@ -42,6 +42,11 @@ ident = identNoOperator
 ident' :: Parser Text
 ident' = snd <$> ident
     
+exactIdent :: Text -> Parser LexInfo
+exactIdent ident = token' \case
+    Token li (Ident ident') | ident == ident' -> Just li
+    _ -> Nothing
+
 reserved :: Text -> Parser LexInfo
 reserved r = (token' \case
     Token l (Reserved t) | r == t -> Just l
@@ -264,10 +269,14 @@ varOrConstr = "variable or struct construction" <??> do
     else pure (Var () li name)
 
 patternP :: Parser (Pattern NextPass, LexInfo)
-patternP = "pattern" <??> varOrConstrP <|> patternP'
+patternP = "pattern" <??> wildcardP <|> varOrConstrP <|> patternP'
 
 patternP' :: Parser (Pattern NextPass, LexInfo)
-patternP' = intP <|> withParen patternP
+patternP' = wildcardP <|> intP <|> withParen patternP
+
+wildcardP :: Parser (Pattern NextPass, LexInfo)
+wildcardP = "wildacrd pattern" <??> (\li -> (WildcardP (), li))
+    <$> exactIdent "_"
 
 intP :: Parser (Pattern NextPass, LexInfo)
 intP = "integer pattern" <??> (\(li, n) -> (IntP () n, li))
