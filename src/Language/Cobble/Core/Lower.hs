@@ -108,10 +108,6 @@ isWildcardLike :: C.Pattern C.Codegen -> Bool
 isWildcardLike C.VarP{} = True
 isWildcardLike _ = False
 
-bindVarPat :: C.Pattern C.Codegen -> F.Expr -> F.Expr -> Sem r F.Expr
-bindVarPat (C.VarP ty x) expr body = F.Let x <$> lowerType ty <*> pure expr <*> pure body
-bindVarPat _ _ body = pure body
-
 -- If the first column in the matrix contains exclusively wildcard-like
 -- patterns, there is no need to actually match on the first argument, so
 -- we can simply remove that column from the matrix.
@@ -120,7 +116,7 @@ findAndBindFirstColFullWildcards :: Seq QualifiedName -> PatternMatrix -> Maybe 
 findAndBindFirstColFullWildcards occs (MkPatternMatrix rows) = MkPatternMatrix <$> zipWithM asFirstMaybeWildcard occs rows
     where
         asFirstMaybeWildcard occ (x :<| xs, e)
-            | isWildcardLike x = Just (xs, \es -> e (es :|> F.Var occ))
+            | isWildcardLike x = Just (xs, \es -> e (F.Var occ <| es))
         asFirstMaybeWildcard _ _ = Nothing
 
 findHeadConstrs :: PatternMatrix -> Seq HeadConstr
@@ -138,12 +134,12 @@ deconstructPM occ pat (MkPatternMatrix rows) = MkPatternMatrix . fold <$> traver
         go :: HeadConstr -> PMatrixRow -> Sem r (Seq PMatrixRow)
         go (IntHead i) (C.IntP _ j :<| pats, e)
             | i == j = pure [(pats, e)]
-        go (IntHead i) ((C.VarP _ v) :<| pats, e) = pure [(pats, \es -> e (es |> F.IntLit i))]
+        go (IntHead i) ((C.VarP _ v) :<| pats, e) = pure [(pats, \es -> e (F.IntLit i <| es))]
         go (ConstrHead c _ _ _) (C.ConstrP _ c' subPats :<| pats, e)
             | c == c' = pure [(fromList subPats <> pats, e)]
         go (ConstrHead _ _ constrArgs _) (C.VarP{} :<| pats, e) = do
             subPats <- traverse (\ty -> C.VarP ty <$> freshVar "h") constrArgs
-            pure [(fromList subPats <> pats, \es -> e (es :|> F.Var occ))]
+            pure [(fromList subPats <> pats, \es -> e (F.Var occ <| es))]
         go _ _ = pure []
 
 defaultMatrix :: QualifiedName -> PatternMatrix -> PatternMatrix
@@ -151,7 +147,7 @@ defaultMatrix occ (MkPatternMatrix rows) = MkPatternMatrix $ go =<< rows
     where
         go (C.ConstrP{} :<| _, _) = []
         go (C.IntP{} :<| _, _) = []
-        go (C.VarP _ x :<| ps, e) = [(ps, \valArgs -> e (valArgs |> F.Var occ))] -- ?
+        go (C.VarP _ x :<| ps, e) = [(ps, \es -> e (F.Var occ <| es))] -- ?
         go (Empty, _) = error $ "lowerCase: trying to construct default matrix from a pattern matrix with width 0: " <> show (MkPatternMatrix rows)
 
 compilePMatrix :: forall r. (Trace, Members '[Fresh Text QualifiedName] r) => Seq QualifiedName -> PatternMatrix -> Sem r F.Expr
