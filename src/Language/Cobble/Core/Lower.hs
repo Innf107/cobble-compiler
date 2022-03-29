@@ -98,21 +98,13 @@ instance Show.Show PatternMatrix where
             showSimplePattern (C.ConstrP _ con pats) = show con <> "(" <> intercalate ", " (map showSimplePattern pats) <> ")"
             showSimplePattern (C.IntP _ n) = show n
             showSimplePattern (C.WildcardP _) = "_"
+            showSimplePattern (C.OrP _ pats) = "(" <> intercalate " | " (map showSimplePattern pats) <> ")"
 
 data HeadConstr = ConstrHead QualifiedName Int (Seq C.Type) (Seq QualifiedName) -- TODO: Do we even need types here?
                                 --         ^constr index ^ other constructors for the type
                 | IntHead Int
                 deriving (Show, Eq, Ord, Generic, Data)
 
-width :: PatternMatrix -> Int
-width (MkPatternMatrix Empty) = error "Empty matrix has no width"
-width (MkPatternMatrix ((row, _) :<| _)) = S.length row
-
-height :: PatternMatrix -> Int
-height (MkPatternMatrix m) = S.length m
-
-patternAt :: Int -> Int -> PatternMatrix -> C.Pattern C.Codegen
-patternAt i j (MkPatternMatrix rows) = S.index (fst (S.index rows i)) j
 
 isWildcardLike :: C.Pattern C.Codegen -> Bool
 isWildcardLike C.VarP{} = True
@@ -135,15 +127,16 @@ findAndBindFirstColFullWildcards occs (MkPatternMatrix rows) = MkPatternMatrix <
         asFirstMaybeWildcard _ _ = Nothing
 
 findHeadConstrs :: PatternMatrix -> Seq HeadConstr
-findHeadConstrs (MkPatternMatrix rows) = ordNub $ mapMaybe asFirstConstr rows
+findHeadConstrs (MkPatternMatrix rows) = ordNub $ concatMap asFirstConstr rows
     where
-        asFirstConstr ((C.IntP _ i :<| _), _) = Just (IntHead i)
+        asFirstConstr ((C.IntP _ i :<| _), _) = [IntHead i]
         asFirstConstr ((C.ConstrP (_,i,v) c pats :<| _), _) = case v of
-            C.VariantType _ constrs -> Just $ ConstrHead c i (map C.getType pats) (map fst constrs) 
+            C.VariantType _ constrs -> [ConstrHead c i (map C.getType pats) (map fst constrs)]
             _ -> error "lowerCase: uncaught pattern match on non-variant constructor (how did this even happen?!)"
-        asFirstConstr _ = Nothing
+        asFirstConstr ((C.OrP _ pats :<| _), e) = concatMap (asFirstConstr . (,e) . pure) pats
+        asFirstConstr _ = []
 
-deconstructPM :: forall r. Members '[Fresh Text QualifiedName] r => QualifiedName -> HeadConstr -> PatternMatrix -> Sem r PatternMatrix
+deconstructPM :: QualifiedName -> HeadConstr -> PatternMatrix -> Sem r PatternMatrix
 deconstructPM occ pat (MkPatternMatrix rows) = MkPatternMatrix . fold <$> traverse (go pat) rows
     where
         go :: HeadConstr -> PMatrixRow -> Sem r (Seq PMatrixRow)
@@ -159,6 +152,7 @@ deconstructPM occ pat (MkPatternMatrix rows) = MkPatternMatrix . fold <$> traver
         go (ConstrHead _ _ constrArgs _) (C.WildcardP _ :<| pats, e) = do
             let subPats = map (C.WildcardP) constrArgs
             pure [(subPats <> pats, e)]
+        go h (C.OrP _ subPats :<| pats, e) = fold <$> traverse (\p -> go h (p :<| pats, e)) subPats -- ?
         go _ _ = pure []
 
 defaultMatrix :: QualifiedName -> PatternMatrix -> PatternMatrix
@@ -168,6 +162,7 @@ defaultMatrix occ (MkPatternMatrix rows) = MkPatternMatrix $ go =<< rows
         go (C.IntP{} :<| _, _) = []
         go (C.VarP _ x :<| ps, e) = [(ps, \es -> e (F.Var occ <| es))]
         go (C.WildcardP _ :<| ps, e) = [(ps, e)]
+        go (C.OrP _ subPats :<| ps, e) = concatMap (\p -> go (p :<| ps, e)) subPats -- ?
         go (Empty, _) = error $ "lowerCase: trying to construct default matrix from a pattern matrix with width 0: " <> show (MkPatternMatrix rows)
 
 compilePMatrix :: forall r. (Trace, Members '[Fresh Text QualifiedName] r) => Seq QualifiedName -> PatternMatrix -> Sem r F.Expr
@@ -212,6 +207,7 @@ collectVarPatTypes (C.VarP ty x) = lowerType ty <&> \ty' -> [(x, ty')]
 collectVarPatTypes C.IntP{} = pure []
 collectVarPatTypes (C.ConstrP _ _ pats) = fold <$> traverse collectVarPatTypes pats
 collectVarPatTypes (C.WildcardP _ty) = pure []
+collectVarPatTypes (C.OrP _ pats) = undefined
 
 -- Case desugaring is based on https://www.cs.tufts.edu/~nr/cs257/archive/luc-maranget/jun08.pdf
 lowerCase :: forall r. (Trace, Members '[Fresh Text QualifiedName] r)

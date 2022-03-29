@@ -50,6 +50,7 @@ type instance XVarP         Typecheck = ()
 type instance XConstrP      Typecheck = (Int, TypeVariant)
                                   --     ^constr index
 type instance XWildcardP    Typecheck = ()
+type instance XOrP          Typecheck = ()
 type instance XPattern      Typecheck = Void
 
 type instance Name Typecheck = QualifiedName

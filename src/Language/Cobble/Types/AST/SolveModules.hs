@@ -40,6 +40,7 @@ type instance XIntP         SolveModules = ()
 type instance XVarP         SolveModules = ()
 type instance XConstrP      SolveModules = ()
 type instance XWildcardP    SolveModules = ()
+type instance XOrP          SolveModules = ()
 type instance XPattern      SolveModules = Void
 
 type instance Name 'SolveModules = Text

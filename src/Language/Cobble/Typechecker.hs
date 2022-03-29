@@ -231,6 +231,12 @@ checkPattern env (ConstrP (i,v) cname ps) t = do
 
     pure (ConstrP (t,i,v) cname ps', foldr (.) id exts)
 checkPattern env (WildcardP _) t = pure (WildcardP t, id)
+checkPattern env (OrP () pats) t = do
+    (pats', wrappers) <- unzip <$> traverse (flip (checkPattern env) t) pats
+    let ty = case pats' of
+            (p:<|_) -> getType p
+            Empty -> error "checkPattern: Empty Or-Pattern"
+    pure (OrP ty pats', foldr (.) id wrappers)
 
 infer :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r )
       => TCEnv

@@ -63,6 +63,7 @@ type instance XVarP         Codegen = Type
 type instance XConstrP      Codegen = (Type, Int, TypeVariant)
                                 --     ^constr index
 type instance XWildcardP    Codegen = Type
+type instance XOrP          Codegen = Type
 type instance XPattern      Codegen = Void
 
 type instance Name 'Codegen = QualifiedName

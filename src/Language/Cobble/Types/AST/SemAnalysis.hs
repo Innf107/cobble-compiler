@@ -50,6 +50,7 @@ type instance XVarP         SemAnalysis = ()
 type instance XConstrP      SemAnalysis = (Int, TypeVariant)
                                 --     ^constr index
 type instance XWildcardP    SemAnalysis = ()
+type instance XOrP          SemAnalysis = ()
 type instance XPattern      SemAnalysis = Void
 
 type instance Name 'SemAnalysis = QualifiedName
