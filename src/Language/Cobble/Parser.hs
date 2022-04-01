@@ -268,7 +268,21 @@ varOrConstr = "variable or struct construction" <??> do
     else pure (Var () li name)
 
 patternP :: Parser (Pattern NextPass, LexInfo)
-patternP = "pattern" <??> wildcardP <|> varOrConstrP <|> patternP'
+patternP = parenPatternP `sepBy1` reservedOp' "|"
+    <&> \case
+        [p] -> p
+        ps -> (OrP () (map fst ps), mergeLexInfo lstart lend)  
+            where
+                lstart = case ps of
+                    ((_,ls):<|_) -> ls
+                    _ -> error $ "patternP: sepBy1 returned empty list"
+                lend =  case ps of
+                    (_:|>(_, le)) -> le
+                    _ -> error $ "patternP: sepBy1 returned empty list"
+
+-- | Patterns that need additional parentheses when nested
+parenPatternP :: Parser (Pattern NextPass, LexInfo)
+parenPatternP = "pattern" <??> wildcardP <|> varOrConstrP <|> patternP'
 
 patternP' :: Parser (Pattern NextPass, LexInfo)
 patternP' = wildcardP <|> intP <|> withParen patternP
