@@ -14,6 +14,7 @@ data LintEnv = LintEnv {
 -- `jpArgTypes` does *not* include the result type (which is always `∀r. r`).
 -- This means, if (j : (a*, σ*)) ∈ jpArgTypes, the actual type of j is `∀a*. σ* -> ∀r. r)`.
 ,   jpArgTypes :: Map QualifiedName (Seq (QualifiedName, Kind), Seq Type)
+,   dictTyDefs :: Map QualifiedName (Seq (QualifiedName, Kind), Map QualifiedName Type)
 } deriving (Show, Eq)
 
 insertType :: QualifiedName -> Type -> LintEnv -> LintEnv
@@ -51,6 +52,25 @@ insertJP j tyParams valParams env@LintEnv{jpArgTypes} =
         jpArgTypes = insert j (tyParams, valParams) jpArgTypes
     }
 
+lookupDictTy :: Members '[Error CoreLintError] r
+             => QualifiedName
+             -> LintEnv
+             -> Sem r (Seq (QualifiedName, Kind), Map QualifiedName Type)
+lookupDictTy dictName env@LintEnv{dictTyDefs} = case lookup dictName dictTyDefs of
+    Just def -> pure def
+    Nothing -> throwLint $ "Dictionary type '" <> show dictName <> "' not found.\nContext: " <> show env
+
+insertDictTy :: QualifiedName
+             -> Seq (QualifiedName, Kind)
+             -> Map QualifiedName Type
+             -> LintEnv
+             -> LintEnv
+insertDictTy dictName tvs fields env@LintEnv{dictTyDefs} =
+    env {
+        dictTyDefs = insert dictName (tvs, fields) dictTyDefs
+    }
+
+
 lint :: Members '[Error CoreLintError] r
      => LintEnv
      -> Seq Decl
@@ -68,7 +88,9 @@ lint env (DefVariant x args clauses :<| ds) = do
             (constr, (foldr (uncurry TForall) (foldr TFun resTy constrArgs) args))
     let env' = clearJPs $ foldr (uncurry insertType) env constrTys
     lint env' ds
-lint env (DefDict x args fields :<| ds) = undefined
+lint env (DefDict x args fields :<| ds) = do
+    let env' = insertDictTy x args (fromList $ toList fields) env
+    lint env' ds
 
 lintExpr :: forall r. Members '[Error CoreLintError] r
          => LintEnv
@@ -156,20 +178,30 @@ lintExpr env (Jump j tyArgs valArgs retTy) = do
     when (length tyPars /= length tyArgs) 
         $ throwLint $ "Mismatched type argument count for jump point '" <> show j <> "'.\n    Expected: " <> show tyPars <> "\n    Actual: " <> show tyArgs
     zipWithM_ 
-        (\(_, k) ty -> when (k /= getKind ty) $ throwLint $ "Mismatched kinds for jump point arguments.\n    Expected: " <> show k <> ".\n    Actual: (" <> show ty <> ":" <> show (getKind ty) <> ").") 
-        (toList tyPars) 
-        (toList tyArgs)
+        (\(_, k) ty -> getKind ty >>= \tyK -> when (k /= tyK) $ throwLint $ "Mismatched kinds for jump point arguments.\n    Expected: " <> show k <> ".\n    Actual: (" <> show ty <> ":" <> show tyK <> ").") 
+        tyPars
+        tyArgs
     when (length valPars /= length valArgs) 
         $ throwLint $ "Mismatched value argument count for jump point '" <> show j <> "'.\nExpected: " <> show valPars <> "\nActual: " <> show valArgs
     let appliedTypes = foldr (\((a, _), ty) rs -> fmap (replaceTVar a ty) rs) valPars $ zip tyPars tyArgs 
     zipWithM_ (\expected expr -> lintExpr (clearJPs env) expr >>= \exprTy -> typeMatch expected exprTy $ "Argument mismatch for join point '" <> show j <> "' with body '" <> show expr <> "'")
-        (toList appliedTypes) 
-        (toList valArgs)
+        appliedTypes
+        valArgs
     pure retTy
 
 lintExpr env (PrimOp op ty tyArgs valArgs) = lintSaturated env (show op) ty tyArgs valArgs
 
-lintExpr env (DictAccess e ty field) = undefined
+lintExpr env (DictAccess e className tyArgs field) = do
+    (tyParams, fieldTys) <- lookupDictTy className env
+    when (length tyParams /= length tyArgs)
+        $ throwLint $ "Mismatched type argument count at dict access for '" <> show className <> "', computed by '" <> show e <> "'.\nExpected: " <> show tyParams <> "\nActual: " <> show tyArgs
+    zipWithM_ 
+        (\(_, k) ty -> getKind ty >>= \tyK -> when (k /= tyK) $ throwLint $ "Mismatched kinds for dict access arguments for dict '" <> show className <> ", computed by " <> show e <> "'.\n    Expected: " <> show k <> ".\n    Actual: (" <> show ty <> ":" <> show tyK <> ").")
+        tyParams
+        tyArgs
+    case lookup field fieldTys of
+        Nothing -> throwLint $ "Nonexistant dictionary field '" <> show field <> "'. In dictionary '" <> show className <> "', computed by '" <> show e <> "'."
+        Just ty -> applyTypes ty tyArgs
 
 lintSaturated :: Members '[Error CoreLintError] r => LintEnv -> Text -> Type -> Seq Type -> Seq Expr -> Sem r Type
 lintSaturated env x tyArgs valArgs = go tyArgs valArgs
@@ -199,14 +231,30 @@ The same reasoning applies to let expressions, which behave more like single-bra
 [1]: https://www.microsoft.com/en-us/research/wp-content/uploads/2016/11/join-points-pldi17.pdf
 -}
 
+applyTypes :: Members '[Error CoreLintError] r => Type -> Seq Type -> Sem r Type
+applyTypes ty args = foldrM applyType ty args
+
+applyType :: Members '[Error CoreLintError] r => Type -> Type -> Sem r Type
+applyType ty (TForall a _ ty') = pure $ replaceTVar a ty ty'
+applyType ty ty' = throwLint $ "Excessive application with argument '" <> show ty <> "' in application of type '" <> show ty' <> "'"
+
 headTyCon :: Type -> Type
 headTyCon (TForall _ _ ty) = headTyCon ty
 headTyCon (TFun a b) = headTyCon b
 headTyCon (TApp a b) = headTyCon a 
 headTyCon ty = ty
 
-getKind :: Type -> Kind
-getKind = undefined
+getKind :: Members '[Error CoreLintError] r => Type -> Sem r Kind
+getKind (TFun a b)       = KFun <$> getKind a <*> getKind b
+getKind (TVar _ k)       = pure k
+getKind (TCon _ k)       = pure k
+getKind (TForall _ _ ty) = getKind ty
+getKind (TApp a b) = do
+    bKind <- getKind b
+    getKind a >>= \case
+        KFun dom cod 
+            | dom == bKind -> pure cod
+        aKind -> throwLint $ "Cannot apply type (" <> show a <> " : " <> show aKind <> ") to argument type (" <> show b <> " : " <> show bKind <> ")"
 
 
 typeMatch :: Members '[Error CoreLintError] r 

@@ -81,7 +81,7 @@ compileExpr (Join j _tys vals body e) = do
     RLet [(j, RLambda (map fst vals) [body'])] . pure <$> compileExpr e
 compileExpr (Jump j _tyArgs valArgs _resTy) = RApp (RVar j) <$> traverse compileExpr valArgs
 compileExpr (PrimOp op _ty _tyArgs valArgs) = compilePrimOp op <$> traverse compileExpr valArgs
-compileExpr (DictAccess expr _ty field) = RHashRef <$> compileExpr expr <*> pure (RSymbol field)
+compileExpr (DictAccess expr _className _tyArgs field) = RHashRef <$> compileExpr expr <*> pure (RSymbol field)
 
 compilePrimOp :: PrimOp -> Seq RacketExpr -> RacketExpr
 compilePrimOp True_ _       = RTrue

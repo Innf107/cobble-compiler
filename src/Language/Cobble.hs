@@ -108,7 +108,7 @@ compileContents contents = do
     core <- fmap join $ evalState (one ("prims", primModSig)) $ traverse compileAndAnnotateSig orderedMods
     
     whenM (asks (not . skipCoreLint)) do
-        lintError <- runError $ lint (LintEnv mempty mempty) core
+        lintError <- runError $ lint (LintEnv mempty mempty mempty) core
 
         case lintError of
             Left (MkCoreLintError msg) -> traceM Warning $ "[CORE LINT ERROR]: " <> msg

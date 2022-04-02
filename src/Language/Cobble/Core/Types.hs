@@ -38,7 +38,8 @@ data Expr = Var QualifiedName
           --                    | type args          | result type
           | PrimOp PrimOp Type (Seq Type) (Seq Expr)
 
-          | DictAccess Expr Type QualifiedName
+          | DictAccess Expr QualifiedName (Seq Type) QualifiedName
+          --                ^class name   ^class args ^field
           deriving (Eq, Generic, Data)
 
 data Pattern = PInt Int
@@ -142,7 +143,8 @@ instance Pretty Expr where
                                                           <> encloseSep "{" "}" ", " (map pretty valArgs)
                                                           <> ")"
 
-    pretty (DictAccess e ty field) = pretty e <> ".[" <> pretty ty <> "]" <> show field
+    pretty (DictAccess e cname args field) = pretty e <> encloseSep ".[" "]." " " (ppQName cname :<| map pretty args) 
+                                                      <> show field
 
 instance Pretty Pattern where
     pretty (PInt i) = pretty i

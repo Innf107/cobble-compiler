@@ -47,7 +47,7 @@ lowerStmnts (C.DefClass k li cname tvs methSigs :<| sts) = do
         let tvAbs e = foldr (uncurry F.TyAbs) e tvs'
         let dictTy = foldl' (\r (x, k) -> F.TApp r (F.TVar x k)) (F.TCon cname k') tvs'
         pure $ F.Def methName methTy'
-            $ tvAbs $ F.Abs dictName dictTy $ F.DictAccess (F.Var dictName) dictTy methName
+            $ tvAbs $ F.Abs dictName dictTy $ F.DictAccess (F.Var dictName) cname (map (uncurry F.TVar) tvs') methName
 
     ((dictDef :<| methImpls) <>) <$> lowerStmnts sts
         where
