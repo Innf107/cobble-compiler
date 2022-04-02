@@ -207,7 +207,10 @@ collectVarPatTypes (C.VarP ty x) = lowerType ty <&> \ty' -> [(x, ty')]
 collectVarPatTypes C.IntP{} = pure []
 collectVarPatTypes (C.ConstrP _ _ pats) = fold <$> traverse collectVarPatTypes pats
 collectVarPatTypes (C.WildcardP _ty) = pure []
-collectVarPatTypes (C.OrP _ pats) = undefined
+-- We always choose the first branch of our or pattern for this.
+-- Once we actually bind variables, we can just reorder them to have the same order as the ones in the first branch.
+collectVarPatTypes (C.OrP _ (p :<| _)) = collectVarPatTypes p
+collectVarPatTypes (C.OrP _ Empty) = error "collectVarPatTypes: empty or pattern"
 
 -- Case desugaring is based on https://www.cs.tufts.edu/~nr/cs257/archive/luc-maranget/jun08.pdf
 lowerCase :: forall r. (Trace, Members '[Fresh Text QualifiedName] r)

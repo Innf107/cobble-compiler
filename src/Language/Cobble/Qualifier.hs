@@ -18,6 +18,7 @@ data QualificationError = VarNotFound LexInfo Text
                         | InstanceForNonClass LexInfo QualifiedName Kind TypeVariant
                         | NonClassInConstraint LexInfo QualifiedName Kind TypeVariant
                         | StructConstructNotAStruct LexInfo QualifiedName Kind TypeVariant
+                        | AsymmetricOrPatternVar LexInfo Text
                         deriving (Show, Eq)
 
 data Scope = Scope {
@@ -216,17 +217,36 @@ qualifyCaseBranch (CaseBranch () li pat expr) = runReader li $
 qualifyPattern :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r
                => Pattern QualifyNames
                -> Sem r (Pattern NextPass)
-qualifyPattern (IntP () n) = pure (IntP () n)
-qualifyPattern (VarP () x) = do
-    li <- ask
-    x' <- freshVar (x, li)
-    addVar x x'
-    pure (VarP () x')
-qualifyPattern (ConstrP () cname ps) = do
-    (cname, _, i, v) <- lookupVariantConstr cname
-    ConstrP (i, v) cname <$> traverse qualifyPattern ps
-qualifyPattern (OrP () pats) = OrP () <$> traverse qualifyPattern pats
-qualifyPattern (WildcardP ()) = pure (WildcardP ()) 
+qualifyPattern = evalState mempty . go Nothing
+    where
+        go :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo, State (Map Text QualifiedName)] r
+           => Maybe (Map Text QualifiedName) -> Pattern QualifyNames -> Sem r (Pattern NextPass)
+        go _ (IntP () n) = pure (IntP () n)
+
+        go (Just orPats) (VarP () x) = case lookup x orPats of
+            Just x' -> pure (VarP () x')
+            Nothing -> ask >>= \li -> throw $ AsymmetricOrPatternVar li x
+            
+        go Nothing (VarP () x) = do
+            li <- ask
+            x' <- freshVar (x, li)
+            addVar x x'
+            modify (insert x x')
+            pure (VarP () x')
+
+        go mOrPats (ConstrP () cname ps) = do
+            (cname, _, i, v) <- lookupVariantConstr cname
+            ConstrP (i, v) cname <$> traverse (go mOrPats) ps
+
+        go _ (OrP () Empty) = error "qualifyPattern: empty or pattern" 
+
+        go mOrPats (OrP () (p :<| pats)) = do
+            (firstBoundVars, p') <- runState mempty $ go mOrPats p
+
+            pats' <- traverse (go (mOrPats <> Just firstBoundVars)) pats
+            pure $ OrP () (p' :<| pats')
+
+        go _ (WildcardP ()) = pure (WildcardP ())
 
 qualifyType :: forall r. Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r 
             => Bool

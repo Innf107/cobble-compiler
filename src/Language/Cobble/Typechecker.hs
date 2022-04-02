@@ -236,6 +236,7 @@ checkPattern env (OrP () pats) t = do
     let ty = case pats' of
             (p:<|_) -> getType p
             Empty -> error "checkPattern: Empty Or-Pattern"
+    -- TODO: make sure all bound vars are exactly equivalent in all patterns and have the same type
     pure (OrP ty pats', foldr (.) id wrappers)
 
 infer :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r )

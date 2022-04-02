@@ -154,7 +154,7 @@ instance Pretty Kind where
     pretty (KFun t1 t2) = "(" <> pretty t1 <> ")" <+> "->" <+> pretty t2
 
 -- We have to go through string because that's unfortunately what show expects
-instance {-# OVERLAPPING #-} S.Show [Decl] where
+instance {-# OVERLAPPING #-} S.Show (Seq Decl) where
     show = show . pretty
 instance S.Show Decl where
     show = show . pretty
