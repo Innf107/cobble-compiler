@@ -219,25 +219,41 @@ checkPattern :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TV
              -> Pattern Typecheck
              -> Type
              -> Sem r (Pattern NextPass, TCEnv -> TCEnv)
-checkPattern env (IntP () n) t = pure (IntP () n, id)
-checkPattern env (VarP () x) t = pure (VarP t x, insertType x t)
-checkPattern env (ConstrP (i,v) cname ps) t = do
-    (constrTy, w) <- instantiate (lookupType cname env)
-    (typedPats, resTy, w') <- decomposeParams constrTy ps
-    -- TODO: I don't know...
-    resTy !~ t
+checkPattern env pats ty = evalState mempty $ go Nothing env pats ty
+    where
+        go :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, State (Map QualifiedName Type)] r
+           => Maybe (Map QualifiedName Type)
+           -> TCEnv
+           -> Pattern Typecheck
+           -> Type
+           -> Sem r (Pattern NextPass, TCEnv -> TCEnv)
+        go _ env (IntP () n) t = pure (IntP () n, id)
+        
+        go Nothing env (VarP () x) t = do 
+            modify (insert x t)
+            pure (VarP t x, insertType x t)
+        
+        go (Just orPatTys) env (VarP () x) t = case lookup x orPatTys of
+            Nothing -> error $ "checkPattern: variable '" <> show x <> "' not bound by or pattern. orPatTys=" <> show orPatTys
+            Just ty -> do
+                t !~ ty -- TODO: Use subsumption?
+                pure (VarP t x, id)
 
-    (ps', exts) <- unzip <$> forM typedPats \(p, pTy) -> checkPattern env p pTy
+        go mOrPatTys env (ConstrP (i,v) cname ps) t = do
+            (constrTy, w) <- instantiate (lookupType cname env)
+            (typedPats, resTy, w') <- decomposeParams constrTy ps
+            -- TODO: I don't know...
+            resTy !~ t
+            (ps', exts) <- unzip <$> forM typedPats \(p, pTy) -> go mOrPatTys env p pTy
+            pure (ConstrP (t,i,v) cname ps', foldr (.) id exts)
+        go _ env (WildcardP _) t = pure (WildcardP t, id)
+        go mOrPatTys env (OrP () (p :<| pats)) t = do
+            (boundTys, (p', pWrapper)) <- runState mempty $ go mOrPatTys env p t
+            
+            (pats', wrappers) <- unzip <$> traverse (flip (go (mOrPatTys <> Just boundTys) env) t) pats
 
-    pure (ConstrP (t,i,v) cname ps', foldr (.) id exts)
-checkPattern env (WildcardP _) t = pure (WildcardP t, id)
-checkPattern env (OrP () pats) t = do
-    (pats', wrappers) <- unzip <$> traverse (flip (checkPattern env) t) pats
-    let ty = case pats' of
-            (p:<|_) -> getType p
-            Empty -> error "checkPattern: Empty Or-Pattern"
-    -- TODO: make sure all bound vars are exactly equivalent in all patterns and have the same type
-    pure (OrP ty pats', foldr (.) id wrappers)
+            pure (OrP (getType p') (p' :<| pats'), foldr (.) pWrapper wrappers)
+        go _ _ (OrP () Empty) _ = error "checkPattern: Empty Or-Pattern"
 
 infer :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r )
       => TCEnv
