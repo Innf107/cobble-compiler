@@ -39,7 +39,7 @@ lowerStmnts (C.DefClass k li cname tvs methSigs :<| sts) = do
     tvs' <- traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) tvs
     k' <- lowerKind k
 
-    dictDef <- F.DefDict cname tvs' <$> traverse (secondM lowerType) methSigs
+    dictDef <- F.DefDict cname tvs' <$> traverse (secondM (lowerType . stripConstraint)) methSigs
 
     methImpls <- forM methSigs \(methName, methTy) -> do
         dictName <- freshVar "d"
@@ -50,6 +50,10 @@ lowerStmnts (C.DefClass k li cname tvs methSigs :<| sts) = do
             $ tvAbs $ F.Abs dictName dictTy $ F.DictAccess (F.Var dictName) dictTy methName
 
     ((dictDef :<| methImpls) <>) <$> lowerStmnts sts
+        where
+            stripConstraint (C.TForall tvs ty) = C.TForall tvs (stripConstraint ty)
+            stripConstraint (C.TConstraint _ ty) = ty
+            stripConstraint ty = ty
 lowerStmnts (C.DefInstance{} :<| sts) = undefined
 lowerStmnts (C.DefVariant _ _ x args clauses :<| sts) = do
     def <- F.DefVariant x 
