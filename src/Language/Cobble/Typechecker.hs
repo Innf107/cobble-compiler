@@ -39,6 +39,7 @@ data TypeError = DifferentTCon LexInfo QualifiedName QualifiedName
                | SkolBinding LexInfo Type Type
                | Occurs LexInfo TVar Type
                | Impredicative LexInfo TVar Type
+               | NoInstanceFor LexInfo Constraint
                deriving (Show, Eq, Generic, Data)
 
 
@@ -47,14 +48,16 @@ data TConstraint = MkTConstraint {
 ,   constraintLexInfo :: LexInfo
 } deriving (Show, Eq, Generic, Data)
 
-data TConstraintComp = Unify Type Type      -- σ ~ ρ
+data TConstraintComp = ConUnify Type Type      -- σ ~ ρ
+                     | ConWanted Constraint
+                     | ConGiven Constraint
                      deriving (Show, Eq, Generic, Data)
 
 (!~) :: Members '[Output TConstraint, Reader LexInfo] r 
      => Type 
      -> Type 
      -> Sem r ()
-t1 !~ t2 = ask >>= \li -> output (MkTConstraint (Unify t1 t2) li)
+t1 !~ t2 = ask >>= \li -> output (MkTConstraint (ConUnify t1 t2) li)
 infix 1 !~
 
 subsume :: Members '[Output TConstraint, Reader LexInfo, Fresh Text QualifiedName, Fresh TVar TVar] r 
@@ -67,7 +70,15 @@ subsume t1 t2 = do
     t1' !~ t2'
     pure w
 
+wanted :: Members '[Output TConstraint, Reader LexInfo] r 
+    => Constraint
+    -> Sem r ()
+wanted c = ask >>= \li -> output (MkTConstraint (ConWanted c) li)
 
+given :: Members '[Output TConstraint, Reader LexInfo] r 
+    => Constraint
+    -> Sem r ()
+given c = ask >>= \li -> output (MkTConstraint (ConGiven c) li)
 
 data Substitution = Subst {
         substVarTys :: Map TVar Type
@@ -108,7 +119,7 @@ typecheckStatements :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedNa
                     -> Sem r (Seq (Statement NextPass))
 typecheckStatements env (st :<| sts) = do
     (constraints, (st', env')) <- runOutputSeq $ typecheckStatement env st
-    subst <- solveConstraints constraints
+    subst <- solveConstraints (_tcInstances env) constraints
     
     (applySubst subst st' <|) <$> typecheckStatements env' sts
 typecheckStatements env Empty = pure Empty
@@ -138,7 +149,10 @@ typecheckStatement env (Def fixity li (Decl () f xs e) expectedTy) = runReader l
         makeLambdas = foldr (\(x, ty) e -> Lambda (ty :-> getType e, ty) li x e)
 
 typecheckStatement env (Import () li name) = pure (Import () li name, env)
-typecheckStatement env (DefClass k li cname tvs methSigs) = undefined -- (DefClass k li cname tvs methSigs :) <$> typecheckStatements env sts
+typecheckStatement env (DefClass k li cname tvs methSigs) = do
+    let env' = foldr (uncurry insertType) env methSigs
+    pure (DefClass k li cname tvs methSigs, env')
+
 typecheckStatement env (DefInstance x li cname ty meths) = undefined
 typecheckStatement env (DefVariant k li tyName tvs constrs) =
     pure (DefVariant k li tyName tvs constrs', env')
@@ -155,7 +169,7 @@ check :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh T
       -> Sem r (Expr NextPass)
 check env e t | trace DebugVerbose ("[check]: Γ ⊢ " <> show e <> " : " <> ppType t) False = error "unreachable"
 -- We need to 'correct' the extension field to resubstitute the skolems that were introduced by skolemize
-check env e t@TForall{} = do
+check env e t@TForall{} = runReader (getLexInfo e) do
     t' <- skolemize t
     correct t <$> check env e t'
 check env (App () li f x) t = runReader li do
@@ -381,14 +395,21 @@ checkInst :: Members '[Output TConstraint, Reader LexInfo, Fresh Text QualifiedN
           -> Sem r (Expr NextPass -> Expr NextPass)
 checkInst = subsume
 
-instantiate :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo] r => Type -> Sem r (Type, Expr NextPass -> Expr NextPass)
+instantiate :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Output TConstraint] r 
+            => Type 
+            -> Sem r (Type, Expr NextPass -> Expr NextPass)
 instantiate (TForall tvs ty) = ask >>= \li -> do
     -- The substitution is not immediately converted to a Map, since the order
     -- of tyvars is important
     tvSubst <- traverse (\tv -> (tv,) . TVar <$> freshVar tv) tvs
     
-    pure (replaceTVars (M.fromList (toList tvSubst)) ty, foldr (\(_,x) r -> r . TyApp li x) id tvSubst)
-    
+    (ty', w) <- instantiate (replaceTVars (M.fromList (toList tvSubst)) ty)
+
+    pure (ty', foldr (\(_,x) r -> r . TyApp li x) w tvSubst)
+instantiate (TConstraint c ty) = do
+    wanted c
+ -- TODO: Insert Dictionary application?
+    instantiate ty
 instantiate ty = do
     pure (ty, id)
 
@@ -445,14 +466,33 @@ replaceTVars tvs (TConstraint (MkConstraint constrName constrTy) ty) =
 
 
 solveConstraints :: Members '[Error TypeError, Fresh Text QualifiedName, Fresh TVar TVar] r
-                 => Seq TConstraint
+                 => Map QualifiedName (Seq Type)
+                 -> Seq TConstraint
                  -> Sem r Substitution
-solveConstraints Empty = pure mempty
-solveConstraints ((MkTConstraint (Unify t1 t2) li):<|constrs) = runReader li do
-    -- This is a bit inefficient (quadratic?).
-    -- Let's make sure the constraint solver actually works, before we try to deal with that.
-    subst <- unify t1 t2
-    (subst <>) <$> solveConstraints (applySubst subst constrs)
+solveConstraints _ Empty = pure mempty
+solveConstraints givens ((MkTConstraint (ConUnify t1 t2) li) :<| constrs) = runReader li do
+            -- This is a bit inefficient (quadratic?).
+            -- Let's make sure the constraint solver actually works, before we try to deal with that.
+            subst <- unify t1 t2
+            (subst <>) <$> solveConstraints givens (applySubst subst constrs)
+solveConstraints givens ((MkTConstraint (ConWanted c@(MkConstraint cname ty)) li) :<| constrs) = runReader li do
+            case lookup cname givens of
+                Just tys -> do
+                    let trySolve Empty = pure Nothing
+                        trySolve (t2 :<| tys) = do
+                            runError (unify ty t2) >>= \case
+                                Left _ -> trySolve tys
+                                Right subst -> pure (Just subst)
+                    trySolve tys >>= \case
+                        Nothing  -> throw $ NoInstanceFor li c
+                        Just subst -> do
+                            -- TODO: Apply dictionary somehow
+                            (subst <>) <$> solveConstraints givens (applySubst subst constrs)
+                Nothing -> throw $ NoInstanceFor li c
+
+solveConstraints givens ((MkTConstraint (ConGiven c@(MkConstraint cname ty)) li) :<| constrs) = runReader li do
+            let givens' = alter (<> Just [ty]) cname givens
+            solveConstraints givens' constrs
 
 unify :: Members '[Error TypeError, Reader LexInfo] r
       => Type
@@ -488,10 +528,14 @@ occurs :: TVar -> Type -> Bool
 occurs tv ty = tv `Set.member` freeTVs ty
 
 
-skolemize :: Members '[Fresh Text QualifiedName] r => Type -> Sem r Type
+skolemize :: Members '[Fresh Text QualifiedName, Output TConstraint, Reader LexInfo] r => Type -> Sem r Type
 skolemize (TForall tvs ty) = do
     skolemMap <- M.fromList . toList <$> traverse (\tv@(MkTVar n _) -> (tv,) . flip TSkol tv <$> freshVar (originalName n)) tvs
-    pure $ replaceTVars skolemMap ty
+    skolemize $ replaceTVars skolemMap ty
+skolemize (TConstraint c ty) = do
+    given c -- TODO: Can we really do this for every skolemization?
+    -- TODO: Dictionary abstraction
+    skolemize ty
 skolemize ty = pure ty
 
 applySubst :: Data from => Substitution -> from -> from
@@ -512,7 +556,8 @@ ppGivens = unlines . toList . map (\(TGiven c li) -> ppConstraint c <> " @" <> s
 
 
 ppTConstraint :: TConstraintComp -> Text
-ppTConstraint (Unify t1 t2) = ppType t1 <> " ~ " <> ppType t2
-
+ppTConstraint (ConUnify t1 t2) = ppType t1 <> " ~ " <> ppType t2
+ppTConstraint (ConGiven c) = "[G] " <> show c
+ppTConstraint (ConWanted c) = "[W] " <> show c
 
 
