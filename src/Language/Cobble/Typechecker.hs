@@ -100,17 +100,24 @@ typecheck :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Error 
           => TCEnv 
           -> Module Typecheck 
           -> Sem r (Module NextPass)
-typecheck env (Module ext mname sts) = do
-    (constrs, sts') <- runOutputSeq $ typecheckStatements env sts
-    dump constrs
-    subst <- solveConstraints constrs
-    pure $ Module ext mname (applySubst subst sts')
+typecheck env (Module ext mname sts) = Module ext mname <$> typecheckStatements env sts
 
-typecheckStatements :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Output TConstraint] r)
+typecheckStatements :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Error TypeError] r)
                     => TCEnv
                     -> (Seq (Statement Typecheck))
                     -> Sem r (Seq (Statement NextPass))
-typecheckStatements env (Def fixity li (Decl () f xs e) expectedTy :<| sts) = runReader li do
+typecheckStatements env (st :<| sts) = do
+    (constraints, (st', env')) <- runOutputSeq $ typecheckStatement env st
+    subst <- solveConstraints constraints
+    
+    (applySubst subst st' <|) <$> typecheckStatements env' sts
+typecheckStatements env Empty = pure Empty
+
+typecheckStatement :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Output TConstraint] r)
+                    => TCEnv
+                    -> (Statement Typecheck)
+                    -> Sem r (Statement NextPass, TCEnv)
+typecheckStatement env (Def fixity li (Decl () f xs e) expectedTy) = runReader li do
     expectedTy' <- skolemize expectedTy
     (xs', eTy, w) <- decomposeParams expectedTy' xs
     traceM DebugVerbose $ "[typecheckStatements env (Def ...)] xs' = " <> show xs' <> " | eTy = " <> show eTy
@@ -125,23 +132,21 @@ typecheckStatements env (Def fixity li (Decl () f xs e) expectedTy :<| sts) = ru
     e' <- checkPoly (foldr (uncurry insertType) env' xs') e eTy
     let lambdas = flip (foldr (TyAbs li)) tvs $ makeLambdas e' xs'
 
-    (Def fixity li (Decl (expectedTy, []) f [] lambdas) expectedTy <|) <$> typecheckStatements env' sts
+    pure (Def fixity li (Decl (expectedTy, []) f [] lambdas) expectedTy, env')
     where
         makeLambdas :: Expr NextPass -> Seq (QualifiedName, Type) -> Expr NextPass
         makeLambdas = foldr (\(x, ty) e -> Lambda (ty :-> getType e, ty) li x e)
 
-typecheckStatements env (Import () li name :<| sts) = (Import () li name <|) <$> typecheckStatements env sts 
-typecheckStatements env (DefClass k li cname tvs methSigs :<| sts) = undefined -- (DefClass k li cname tvs methSigs :) <$> typecheckStatements env sts
-typecheckStatements env (DefInstance x li cname ty meths :<| sts) = undefined
-typecheckStatements env (DefVariant k li tyName tvs constrs :<| sts) =
-    (DefVariant k li tyName tvs constrs' <|) <$> typecheckStatements env' sts
+typecheckStatement env (Import () li name) = pure (Import () li name, env)
+typecheckStatement env (DefClass k li cname tvs methSigs) = undefined -- (DefClass k li cname tvs methSigs :) <$> typecheckStatements env sts
+typecheckStatement env (DefInstance x li cname ty meths) = undefined
+typecheckStatement env (DefVariant k li tyName tvs constrs) =
+    pure (DefVariant k li tyName tvs constrs', env')
         where
             resTy = foldl' (\x y -> TApp x (TVar y)) (TCon tyName k) tvs
             constrTy ps = TForall tvs (foldr (:->) resTy ps)
             constrs' = map (\(n, ps, (i, j)) -> (n, ps, (constrTy ps, i, j))) constrs
             env' = foldr (\(n,_,(t,_,_)) -> insertType n t) env constrs'
-
-typecheckStatements _ Empty = pure []
 
 check :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r)
       => TCEnv
