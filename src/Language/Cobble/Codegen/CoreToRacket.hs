@@ -32,6 +32,7 @@ compile' (Def x _ty e :<| ds) = (<|)
     <$> (RDefine x <$> compileExpr e) 
     <*> compile' ds
 compile' (DefVariant x args clauses :<| ds) = compile' ds
+compile' (DefDict x args fields :<| ds) = compile' ds
 
 compileExpr :: Members '[State CompState] r => Expr -> Sem r RacketExpr
 compileExpr (Var x) = pure $ RVar x
@@ -80,7 +81,7 @@ compileExpr (Join j _tys vals body e) = do
     RLet [(j, RLambda (map fst vals) [body'])] . pure <$> compileExpr e
 compileExpr (Jump j _tyArgs valArgs _resTy) = RApp (RVar j) <$> traverse compileExpr valArgs
 compileExpr (PrimOp op _ty _tyArgs valArgs) = compilePrimOp op <$> traverse compileExpr valArgs
-
+compileExpr (DictAccess expr _ty field) = RHashRef <$> compileExpr expr <*> pure (RSymbol field)
 
 compilePrimOp :: PrimOp -> Seq RacketExpr -> RacketExpr
 compilePrimOp True_ _       = RTrue

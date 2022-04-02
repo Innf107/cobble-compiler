@@ -68,6 +68,7 @@ lint env (DefVariant x args clauses :<| ds) = do
             (constr, (foldr (uncurry TForall) (foldr TFun resTy constrArgs) args))
     let env' = clearJPs $ foldr (uncurry insertType) env constrTys
     lint env' ds
+lint env (DefDict x args fields :<| ds) = undefined
 
 lintExpr :: forall r. Members '[Error CoreLintError] r
          => LintEnv
@@ -168,6 +169,7 @@ lintExpr env (Jump j tyArgs valArgs retTy) = do
 
 lintExpr env (PrimOp op ty tyArgs valArgs) = lintSaturated env (show op) ty tyArgs valArgs
 
+lintExpr env (DictAccess e ty field) = undefined
 
 lintSaturated :: Members '[Error CoreLintError] r => LintEnv -> Text -> Type -> Seq Type -> Seq Expr -> Sem r Type
 lintSaturated env x tyArgs valArgs = go tyArgs valArgs

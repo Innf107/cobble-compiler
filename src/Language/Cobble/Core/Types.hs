@@ -12,6 +12,7 @@ import GHC.Show qualified as S
 
 data Decl = Def QualifiedName Type Expr
           | DefVariant QualifiedName (Seq (QualifiedName, Kind)) (Seq (QualifiedName, Seq Type))
+          | DefDict QualifiedName (Seq (QualifiedName, Kind)) (Seq (QualifiedName, Type))
           deriving (Eq, Generic, Data)
 
 data Expr = Var QualifiedName
@@ -36,6 +37,8 @@ data Expr = Var QualifiedName
           --                    ^         ^value args^           
           --                    | type args          | result type
           | PrimOp PrimOp Type (Seq Type) (Seq Expr)
+
+          | DictAccess Expr Type QualifiedName
           deriving (Eq, Generic, Data)
 
 data Pattern = PInt Int
@@ -94,6 +97,8 @@ instance Pretty Decl where
             mapAfter1 :: a -> a -> (a -> b -> c) -> Seq b -> Seq c
             mapAfter1 a1 a2 f Empty = Empty
             mapAfter1 a1 a2 f (x :<| xs) = f a1 x :<| map (f a2) xs
+    pretty (DefDict x args fields) = "dictionary" <+> ppQName x <+> sep (map (parens . prettyTyped) args) <+> "=" <+>
+        align ("{" <> vsep (map prettyTyped fields) <> "}")
 
 instance Pretty Expr where
     pretty (Var x) = ppQName x
@@ -136,6 +141,8 @@ instance Pretty Expr where
     pretty (PrimOp op ty tyArgs valArgs) = "(" <> show op <> encloseSep "[" "]" ", " (map pretty tyArgs)
                                                           <> encloseSep "{" "}" ", " (map pretty valArgs)
                                                           <> ")"
+
+    pretty (DictAccess e ty field) = pretty e <> ".[" <> pretty ty <> "]" <> show field
 
 instance Pretty Pattern where
     pretty (PInt i) = pretty i

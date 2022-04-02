@@ -35,7 +35,21 @@ lowerStmnts (C.Def _ _ (C.Decl _ x [] e) ty :<| sts) = (<|)
     <*> lowerStmnts sts
 lowerStmnts (s@C.Def{} :<| sts) = error "lowerStmnts: Definition with arguments persists after typechecking"
 lowerStmnts (C.Import{} :<| sts) = lowerStmnts sts
-lowerStmnts (C.DefClass _ li cname tvs methSigs :<| sts) = undefined
+lowerStmnts (C.DefClass k li cname tvs methSigs :<| sts) = do
+    tvs' <- traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) tvs
+    k' <- lowerKind k
+
+    dictDef <- F.DefDict cname tvs' <$> traverse (secondM lowerType) methSigs
+
+    methImpls <- forM methSigs \(methName, methTy) -> do
+        dictName <- freshVar "d"
+        methTy' <- lowerType methTy
+        let tvAbs e = foldr (uncurry F.TyAbs) e tvs'
+        let dictTy = foldl' (\r (x, k) -> F.TApp r (F.TVar x k)) (F.TCon cname k') tvs'
+        pure $ F.Def methName methTy'
+            $ tvAbs $ F.Abs dictName dictTy $ F.DictAccess (F.Var dictName) dictTy methName
+
+    ((dictDef :<| methImpls) <>) <$> lowerStmnts sts
 lowerStmnts (C.DefInstance{} :<| sts) = undefined
 lowerStmnts (C.DefVariant _ _ x args clauses :<| sts) = do
     def <- F.DefVariant x 
