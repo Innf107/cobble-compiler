@@ -82,6 +82,7 @@ given c = ask >>= \li -> output (MkTConstraint (ConGiven c) li)
 
 data Substitution = Subst {
         substVarTys :: Map TVar Type
+    -- ,   substDicts :: Map QualifiedName 
     } 
     deriving stock   (Show, Eq, Generic, Data)
 
@@ -483,6 +484,8 @@ solveConstraints givens ((MkTConstraint (ConWanted c@(MkConstraint cname ty)) li
                             runError (unify ty t2) >>= \case
                                 Left _ -> trySolve tys
                                 Right subst -> pure (Just subst)
+                    -- We can rely on coherence and non-overlapping instances here and just pick the
+                    -- first matching dictionary that we find.
                     trySolve tys >>= \case
                         Nothing  -> throw $ NoInstanceFor li c
                         Just subst -> do

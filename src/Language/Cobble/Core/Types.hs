@@ -87,8 +87,7 @@ ppQName = pretty . renderDebug
 prettyTyped :: (Pretty p) => (QualifiedName, p) -> Doc ann
 prettyTyped (x, p) = ppQName x <+> ":" <+> pretty p
 
-instance {-# OVERLAPPING #-} Pretty (Seq Decl) where
-    pretty ds = vsep (map ((<> line) . pretty) ds)
+prettyDecls ds = vsep (map ((<> line) . pretty) ds)
 
 instance Pretty Decl where
     pretty (Def x ty e) = ppQName x <+> ":" <+> pretty ty <> line <> ppQName x <+> "=" <+> align (pretty e)
@@ -162,9 +161,6 @@ instance Pretty Kind where
     pretty (KFun KType t2) = "*" <+> "->" <+> pretty t2
     pretty (KFun t1 t2) = "(" <> pretty t1 <> ")" <+> "->" <+> pretty t2
 
--- We have to go through string because that's unfortunately what show expects
-instance {-# OVERLAPPING #-} S.Show (Seq Decl) where
-    show = show . pretty
 instance S.Show Decl where
     show = show . pretty
 instance S.Show Expr where

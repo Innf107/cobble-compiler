@@ -108,8 +108,6 @@ type PMatrixRow = (Seq (C.Pattern C.Codegen), Seq F.Expr -> F.Expr)
 instance Show.Show PatternMatrix where
     show (MkPatternMatrix seqs) = toString $ unlines $ toList $ map showRow seqs
         where
-            showRow (pats, e) = "| " <> intercalate ", " (map (T.justifyLeft 10 ' ' . showSimplePattern) pats)
-                                <> " -> " <> show (e []) <> " |"
             showSimplePattern :: C.Pattern C.Codegen -> Text
             showSimplePattern (C.VarP _ x) = show x
             showSimplePattern (C.ConstrP _ con []) = show con
@@ -117,6 +115,11 @@ instance Show.Show PatternMatrix where
             showSimplePattern (C.IntP _ n) = show n
             showSimplePattern (C.WildcardP _) = "_"
             showSimplePattern (C.OrP _ pats) = "(" <> intercalate " | " (map showSimplePattern pats) <> ")"
+
+            showRow (pats, e) = "| " <> intercalate ", " (map (T.justifyLeft 10 ' ' . showSimplePattern) pats)
+                                <> " -> " <> show (e dummyArgs) <> " |"
+                where
+                    dummyArgs = replicate (length (concatMap boundVars pats)) (F.Var (C.internalQName "#"))
 
 data HeadConstr = ConstrHead QualifiedName Int (Seq C.Type) (Seq QualifiedName) -- TODO: Do we even need types here?
                                 --         ^constr index ^ other constructors for the type
@@ -154,7 +157,7 @@ findHeadConstrs (MkPatternMatrix rows) = ordNub $ concatMap asFirstConstr rows
         asFirstConstr ((C.OrP _ pats :<| _), e) = concatMap (asFirstConstr . (,e) . pure) pats
         asFirstConstr _ = []
 
-deconstructPM :: QualifiedName -> HeadConstr -> PatternMatrix -> Sem r PatternMatrix
+deconstructPM :: Trace => QualifiedName -> HeadConstr -> PatternMatrix -> Sem r PatternMatrix
 deconstructPM occ pat (MkPatternMatrix rows) = MkPatternMatrix . fold <$> traverse (go pat) rows
     where
         go :: HeadConstr -> PMatrixRow -> Sem r (Seq PMatrixRow)
@@ -170,18 +173,51 @@ deconstructPM occ pat (MkPatternMatrix rows) = MkPatternMatrix . fold <$> traver
         go (ConstrHead _ _ constrArgs _) (C.WildcardP _ :<| pats, e) = do
             let subPats = map (C.WildcardP) constrArgs
             pure [(subPats <> pats, e)]
-        go h (C.OrP _ subPats :<| pats, e) = fold <$> traverse (\p -> go h (p :<| pats, e)) subPats -- ?
+        go h (C.OrP _ (sp1 :<| subPats) :<| pats, e) =
+            (<>)
+                <$> go h (sp1 :<| pats, e)
+                <*> (fold <$> traverse (\p -> go h (p :<| pats, e . (boundVars p `reorderBy` boundVars sp1))) subPats)
+        go h (C.OrP _ Empty :<| _, _) = error "lowerCase: deconstructPM: empty or pattern"    
+        go h (C.OrP _ subPats :<| pats, e) = do
+            fold <$> traverse (\p -> go h (p :<| pats, e)) subPats -- ?
         go _ _ = pure []
 
-defaultMatrix :: QualifiedName -> PatternMatrix -> PatternMatrix
+defaultMatrix :: Trace => QualifiedName -> PatternMatrix -> PatternMatrix
 defaultMatrix occ (MkPatternMatrix rows) = MkPatternMatrix $ go =<< rows
     where
         go (C.ConstrP{} :<| _, _) = []
         go (C.IntP{} :<| _, _) = []
         go (C.VarP _ x :<| ps, e) = [(ps, \es -> e (F.Var occ <| es))]
         go (C.WildcardP _ :<| ps, e) = [(ps, e)]
-        go (C.OrP _ subPats :<| ps, e) = concatMap (\p -> go (p :<| ps, e)) subPats -- ?
+        go (C.OrP _ (sp1 :<| subPats) :<| ps, e) =
+            go (sp1 :<| subPats, e)
+            <>
+            concatMap 
+                (\p -> go (p :<| ps, e . (boundVars p `reorderBy` boundVars sp1)))
+                subPats
+        go (C.OrP _ Empty :<| _, _) = error $ "lowerCase: defaultMatrix: empty or pattern"
         go (Empty, _) = error $ "lowerCase: trying to construct default matrix from a pattern matrix with width 0: " <> show (MkPatternMatrix rows)
+
+boundVars :: C.Pattern C.Codegen -> Seq QualifiedName
+boundVars C.IntP{} = []
+boundVars (C.VarP _ x) = [x]
+boundVars (C.ConstrP _ _ xs) = concatMap boundVars xs
+boundVars C.WildcardP{} = []
+boundVars (C.OrP _ (p :<| _)) = boundVars p
+boundVars (C.OrP _ Empty) = error "lowerCase: boundVars: empty or pattern"
+
+-- | Takes two lists with identical elements and produces
+-- a function that takes a list and permutes it, such that
+-- ∀xs ys. reorderBy xs ys xs = ys
+-- O(n^2)
+reorderBy :: Eq a => Seq a -> Seq a -> (forall b. Seq b -> Seq b)
+reorderBy xs (y :<| ys) zs = runWithError $ do
+    ix <- findIndexL (==y) xs
+    S.lookup ix zs <&> (:<| reorderBy xs ys zs)
+        where
+            runWithError Nothing = error "reorderBy: Invalid combination of lists"
+            runWithError (Just r) = r
+reorderBy _ Empty _ = Empty
 
 compilePMatrix :: forall r. (Trace, Members '[Fresh Text QualifiedName] r) => Seq QualifiedName -> PatternMatrix -> Sem r F.Expr
 compilePMatrix occs m | trace DebugVerbose ("compiling pattern matrix with args " <> show occs <> ":\n" <> show m) False = error "unreachable"
