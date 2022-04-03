@@ -27,7 +27,7 @@ type NextPass = Codegen
 
 data TCEnv = TCEnv {
     _varTypes :: M.Map QualifiedName Type
-,   _tcInstances :: M.Map QualifiedName (Seq Type)
+,   _tcInstances :: M.Map QualifiedName (Seq (Type, QualifiedName))
     -- ^ Once multiparam typeclasses are implemented, this will have to be @M.Map QualfiedName (Seq (Seq Type))@
 } deriving (Show, Eq, Generic, Data)
 
@@ -49,8 +49,10 @@ data TConstraint = MkTConstraint {
 } deriving (Show, Eq, Generic, Data)
 
 data TConstraintComp = ConUnify Type Type      -- σ ~ ρ
-                     | ConWanted Constraint
-                     | ConGiven Constraint
+                     | ConWanted Constraint QualifiedName
+                     --                     ^ dictionary variable
+                     | ConGiven Constraint QualifiedName
+                     --                    ^ dictionary
                      deriving (Show, Eq, Generic, Data)
 
 (!~) :: Members '[Output TConstraint, Reader LexInfo] r 
@@ -66,35 +68,40 @@ subsume :: Members '[Output TConstraint, Reader LexInfo, Fresh Text QualifiedNam
         -> Sem r (Expr NextPass -> Expr NextPass)
 subsume t1 t2 = do
     (t1', w) <- instantiate t1
-    t2' <- skolemize t2
+    (t2', w') <- skolemize t2
     t1' !~ t2'
-    pure w
+    pure (w' . w) -- TODO ?
 
 wanted :: Members '[Output TConstraint, Reader LexInfo] r 
     => Constraint
+    -> QualifiedName
     -> Sem r ()
-wanted c = ask >>= \li -> output (MkTConstraint (ConWanted c) li)
+wanted c dv = ask >>= \li -> output (MkTConstraint (ConWanted c dv) li)
 
 given :: Members '[Output TConstraint, Reader LexInfo] r 
     => Constraint
+    -> QualifiedName
     -> Sem r ()
-given c = ask >>= \li -> output (MkTConstraint (ConGiven c) li)
+given c d = ask >>= \li -> output (MkTConstraint (ConGiven c d) li)
 
 data Substitution = Subst {
         substVarTys :: Map TVar Type
-    -- ,   substDicts :: Map QualifiedName 
+    ,   substDicts  :: Map QualifiedName QualifiedName
     } 
     deriving stock   (Show, Eq, Generic, Data)
 
 -- Not sure if this is really associative...
 instance Semigroup Substitution where
-    Subst s1 <> Subst s2 = Subst (M.filterWithKey notIdentical $ fmap (applySubst (Subst s2)) s1 <> s2)
+    Subst s1 d1 <> Subst s2 d2 = 
+        Subst 
+            (M.filterWithKey notIdentical $ fmap (applySubst (Subst s2 d2)) s1 <> s2)
+            (fmap (applySubst (Subst s2 d2)) d1 <> d2)
         where
             notIdentical tv (TVar tv') | tv == tv' = False
             notIdentical _ _ = True
 
 instance Monoid Substitution where
-    mempty = Subst mempty
+    mempty = Subst mempty mempty
 
 
 {- Note [lookupType for VariantConstr]
@@ -130,8 +137,8 @@ typecheckStatement :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedNam
                     -> (Statement Typecheck)
                     -> Sem r (Statement NextPass, TCEnv)
 typecheckStatement env (Def fixity li (Decl () f xs e) expectedTy) = runReader li do
-    expectedTy' <- skolemize expectedTy
-    (xs', eTy, w) <- decomposeParams expectedTy' xs
+    (expectedTy', w) <- skolemize expectedTy
+    (xs', eTy, w') <- decomposeParams expectedTy' xs
     traceM DebugVerbose $ "[typecheckStatements env (Def ...)] xs' = " <> show xs' <> " | eTy = " <> show eTy
 
     let env' = insertType f expectedTy env
@@ -142,7 +149,7 @@ typecheckStatement env (Def fixity li (Decl () f xs e) expectedTy) = runReader l
             _ -> []
 
     e' <- checkPoly (foldr (uncurry insertType) env' xs') e eTy
-    let lambdas = flip (foldr (TyAbs li)) tvs $ makeLambdas e' xs'
+    let lambdas = flip (foldr (TyAbs li)) tvs $ w $ makeLambdas e' xs'
 
     pure (Def fixity li (Decl (expectedTy, []) f [] lambdas) expectedTy, env')
     where
@@ -171,8 +178,8 @@ check :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh T
 check env e t | trace DebugVerbose ("[check]: Γ ⊢ " <> show e <> " : " <> ppType t) False = error "unreachable"
 -- We need to 'correct' the extension field to resubstitute the skolems that were introduced by skolemize
 check env e t@TForall{} = runReader (getLexInfo e) do
-    t' <- skolemize t
-    correct t <$> check env e t'
+    (t', w) <- skolemize t
+    w . correct t <$> check env e t'
 check env (App () li f x) t = runReader li do
     f' <- infer env f
     (fDomTy, fCodomTy, w) <- decomposeFun (getType f')
@@ -226,7 +233,7 @@ check env (Case () li e branches) t = do
         pure (CaseBranch () li p' brExpr')
     pure $ Case t li e' branches'
     
-check env (Lambda () li x e) t = runReader li do    
+check env (Lambda () li x e) t = runReader li do
     (expectedArgTy, expectedResTy, w) <- decomposeFun t
     traceM DebugVerbose $ "[check env (Lambda ...)] t = " <> ppType t <> " | expectedArgTy = " <> ppType expectedArgTy <> " | expectedResTy = " <> ppType expectedResTy
 
@@ -408,9 +415,12 @@ instantiate (TForall tvs ty) = ask >>= \li -> do
 
     pure (ty', foldr (\(_,x) r -> r . TyApp li x) w tvSubst)
 instantiate (TConstraint c ty) = do
-    wanted c
+    li <- ask
+    dictVar <- freshVar "dv"
+    wanted c dictVar
  -- TODO: Insert Dictionary application?
-    instantiate ty
+    (ty', w) <- instantiate ty
+    pure (ty', \e -> w $ DictVarApp li e dictVar)
 instantiate ty = do
     pure (ty, id)
 
@@ -467,7 +477,8 @@ replaceTVars tvs (TConstraint (MkConstraint constrName constrTy) ty) =
 
 
 solveConstraints :: Members '[Error TypeError, Fresh Text QualifiedName, Fresh TVar TVar] r
-                 => Map QualifiedName (Seq Type)
+                 => Map QualifiedName (Seq (Type, QualifiedName))
+                 --                               ^dict
                  -> Seq TConstraint
                  -> Sem r Substitution
 solveConstraints _ Empty = pure mempty
@@ -476,14 +487,14 @@ solveConstraints givens ((MkTConstraint (ConUnify t1 t2) li) :<| constrs) = runR
             -- Let's make sure the constraint solver actually works, before we try to deal with that.
             subst <- unify t1 t2
             (subst <>) <$> solveConstraints givens (applySubst subst constrs)
-solveConstraints givens ((MkTConstraint (ConWanted c@(MkConstraint cname ty)) li) :<| constrs) = runReader li do
+solveConstraints givens ((MkTConstraint (ConWanted c@(MkConstraint cname ty) dictVar) li) :<| constrs) = runReader li do
             case lookup cname givens of
                 Just tys -> do
                     let trySolve Empty = pure Nothing
-                        trySolve (t2 :<| tys) = do
+                        trySolve ((t2, d) :<| tys) = do
                             runError (unify ty t2) >>= \case
                                 Left _ -> trySolve tys
-                                Right subst -> pure (Just subst)
+                                Right subst -> pure $ Just $ subst <> Subst mempty (one (dictVar, d)) -- Substitute the dictionary
                     -- We can rely on coherence and non-overlapping instances here and just pick the
                     -- first matching dictionary that we find.
                     trySolve tys >>= \case
@@ -493,8 +504,8 @@ solveConstraints givens ((MkTConstraint (ConWanted c@(MkConstraint cname ty)) li
                             (subst <>) <$> solveConstraints givens (applySubst subst constrs)
                 Nothing -> throw $ NoInstanceFor li c
 
-solveConstraints givens ((MkTConstraint (ConGiven c@(MkConstraint cname ty)) li) :<| constrs) = runReader li do
-            let givens' = alter (<> Just [ty]) cname givens
+solveConstraints givens ((MkTConstraint (ConGiven c@(MkConstraint cname ty) dict) li) :<| constrs) = runReader li do
+            let givens' = alter (<> Just [(ty, dict)]) cname givens
             solveConstraints givens' constrs
 
 unify :: Members '[Error TypeError, Reader LexInfo] r
@@ -525,25 +536,35 @@ bind tv ty
     | TVar tv == ty = pure mempty
     | occurs tv ty = ask >>= \li -> throw (Occurs li tv ty)
     | TForall{} <- ty = ask >>= \li -> throw (Impredicative li tv ty)
-    | otherwise = pure $ Subst (one (tv, ty))
+    | otherwise = pure $ Subst (one (tv, ty)) mempty
 
 occurs :: TVar -> Type -> Bool
 occurs tv ty = tv `Set.member` freeTVs ty
 
 
-skolemize :: Members '[Fresh Text QualifiedName, Output TConstraint, Reader LexInfo] r => Type -> Sem r Type
+skolemize :: Members '[Fresh Text QualifiedName, Output TConstraint, Reader LexInfo] r 
+          => Type 
+          -> Sem r (Type, Expr NextPass -> Expr NextPass)
 skolemize (TForall tvs ty) = do
     skolemMap <- M.fromList . toList <$> traverse (\tv@(MkTVar n _) -> (tv,) . flip TSkol tv <$> freshVar (originalName n)) tvs
     skolemize $ replaceTVars skolemMap ty
 skolemize (TConstraint c ty) = do
-    given c -- TODO: Can we really do this for every skolemization?
-    -- TODO: Dictionary abstraction
-    skolemize ty
-skolemize ty = pure ty
+    li <- ask
+    dictName <- freshVar "d"
+    given c dictName
+    (ty', f) <- skolemize ty
+    pure (ty', f . DictAbs li dictName c)
+skolemize ty = pure (ty, id)
 
 applySubst :: Data from => Substitution -> from -> from
-applySubst s@Subst{substVarTys} = transformBi \case
+applySubst s@Subst{substVarTys, substDicts} = applyDictSubst . applyTySubst
+    where
+        applyTySubst = transformBi \case
             TVar a' | Just t' <- lookup a' substVarTys -> t'
+            x -> x
+        applyDictSubst = transformBi \case
+            -- GHC's type checking doesn't terminate if we omit the type signature
+            ExprX (DictVarApp_ e dictVar) li :: Expr Codegen | Just dict <- lookup dictVar substDicts -> DictApp li e dict
             x -> x
 
 
@@ -560,7 +581,7 @@ ppGivens = unlines . toList . map (\(TGiven c li) -> ppConstraint c <> " @" <> s
 
 ppTConstraint :: TConstraintComp -> Text
 ppTConstraint (ConUnify t1 t2) = ppType t1 <> " ~ " <> ppType t2
-ppTConstraint (ConGiven c) = "[G] " <> show c
-ppTConstraint (ConWanted c) = "[W] " <> show c
+ppTConstraint (ConGiven c d) = "[G] " <> show c <> " [" <> show d <> "]"
+ppTConstraint (ConWanted c d) = "[W] " <> show c <> " [" <> show d <> "]"
 
 

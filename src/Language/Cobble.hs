@@ -159,7 +159,7 @@ compileWithSig m = do
 
         core <- lower tcMod
 
-        dumpWhenWithM (asks ddumpCore) show "dump-core" $ dump core
+        dumpWhenWithM (asks ddumpCore) (show . Core.prettyDecls) "dump-core" $ dump core
 
         pure (core, extractSig tcMod)
 
@@ -184,7 +184,7 @@ makePartialSig = \case
         ,   exportedVars  = fromList $ 
                 toList $ map (second coercePass) meths
         }
-    DefInstance _ _ cname ty _ -> mempty {exportedInstances = one (cname, [ty])}
+    DefInstance (_, _, dictName) _ cname ty _ -> mempty {exportedInstances = one (cname, [(ty, dictName)])}
     DefVariant k _ tyName ps cs -> let tyVariant = VariantType ps (map (\(x,y,_) -> (x,y)) cs) in 
         mempty
         {   exportedTypes = one (tyName, (k, tyVariant))

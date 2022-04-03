@@ -46,7 +46,7 @@ data ModSig = ModSig {
 ,   exportedVariantConstrs  :: Map QualifiedName (Type, Int, Int, TypeVariant)
 ,   exportedTypes           :: Map QualifiedName (Kind, TypeVariant)
 ,   exportedFixities        :: Map QualifiedName Fixity
-,   exportedInstances       :: Map QualifiedName (Seq Type)
+,   exportedInstances       :: Map QualifiedName (Seq (Type, QualifiedName))
 } deriving (Generic, Typeable) -- Instances for @Eq@ and @Data@ are defined in Language.Cobble.Types.AST.Codegen
 
 data TypeVariant = RecordType (Seq (XTVar Codegen)) (Seq (UnqualifiedName, Type))
@@ -157,6 +157,10 @@ type instance InstanceRequirements (Pattern p) = [
 
 data CodegenExt = TyApp_ Type (Expr Codegen)
                 | TyAbs_ TVar (Expr Codegen)
+                | DictAbs_ QualifiedName Constraint (Expr Codegen)
+                | DictVarApp_ (Expr Codegen) QualifiedName
+                | DictApp_ (Expr Codegen) QualifiedName
+
 
 pattern TyApp :: (XExpr p ~ CodegenExt) => LexInfo -> Type -> Expr Codegen -> Expr p
 pattern TyApp li ty e = ExprX (TyApp_ ty e) li
@@ -164,6 +168,16 @@ pattern TyApp li ty e = ExprX (TyApp_ ty e) li
 pattern TyAbs :: (XExpr p ~ CodegenExt) => LexInfo -> TVar -> Expr Codegen -> Expr p
 pattern TyAbs li tv e = ExprX (TyAbs_ tv e) li
 -- makeCompleteX ''Expr ['TyApp, 'TyAbs] is defined at the bottom of this file.
+
+pattern DictAbs :: (XExpr p ~ CodegenExt) => LexInfo -> QualifiedName -> Constraint -> Expr Codegen -> Expr p
+pattern DictAbs li x c e = ExprX (DictAbs_ x c e) li
+
+pattern DictVarApp :: (XExpr p ~ CodegenExt) => LexInfo -> Expr Codegen -> QualifiedName -> Expr p
+pattern DictVarApp li e dv = ExprX (DictVarApp_ e dv) li
+
+pattern DictApp :: (XExpr p ~ CodegenExt) => LexInfo -> Expr Codegen -> QualifiedName -> Expr p
+pattern DictApp li e dv = ExprX (DictApp_ e dv) li
+
 
 type instance InstanceRequirements (CodegenExt) = '[
         Expr Codegen
@@ -398,7 +412,7 @@ deriveCoercePass ''CaseBranch
 deriveCoercePass ''Pattern
 deriveCoercePass ''Decl
 
-makeCompleteX ''Expr ['TyApp, 'TyAbs]
+makeCompleteX ''Expr ['TyApp, 'TyAbs, 'DictAbs, 'DictVarApp, 'DictApp]
 
 -- TODO: Cannot be generated with TH right now, since it depends on f
 instance {-# INCOHERENT #-} (CoercePass (Name p1) (Name p2), CoercePass (Expr p1) (Expr p2)) => CoercePass (OperatorGroup p1 f) (OperatorGroup p2 f) where

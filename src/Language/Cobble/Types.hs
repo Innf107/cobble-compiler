@@ -40,6 +40,9 @@ instance HasType (Expr 'Codegen) where
         Lambda (t, _) _ _ _                 -> t
         TyAbs _ tv e                        -> TForall [tv] (getType e)
         TyApp _ targ e                      -> getType e -- TODO: Should apply arg type
+        DictAbs _ _ c e                     -> TConstraint c (getType e)
+        DictVarApp _ e _                    -> getType e -- TODO: Should apply dictionary
+        DictApp _ e _                       -> getType e -- TODO: Should apply dictionary
     setType t = \case
         App _ x y z                         -> App t x y z
         Var (_, x) y z                      -> Var (t, x) y z
@@ -52,6 +55,9 @@ instance HasType (Expr 'Codegen) where
         Lambda (_, x) y z w                 -> Lambda (t, x) y z w
         TyAbs li ty e                       -> TyAbs li ty (setType t e)
         TyApp li targ e                     -> TyApp li targ (setType t e)
+        DictAbs li x c e                    -> DictAbs li x c (setType t e)
+        DictVarApp li e arg                 -> DictVarApp li (setType t e) arg
+        DictApp li e arg                    -> DictVarApp li (setType t e) arg
 
 instance HasType (Decl Codegen) where
     getType (Decl (t, _) _ _ _)   = t

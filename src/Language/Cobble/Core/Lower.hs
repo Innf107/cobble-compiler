@@ -90,7 +90,9 @@ lowerExpr (C.Case t li e branches) = lowerCase t e branches
 lowerExpr (C.Lambda (ty, argTy) _ x e) = F.Abs x <$> lowerType argTy <*> lowerExpr e
 lowerExpr (C.TyApp _ ty e) = F.TyApp <$> lowerExpr e <*> lowerType ty
 lowerExpr (C.TyAbs _ (C.MkTVar tvName tvKind) e) = F.TyAbs tvName <$> lowerKind tvKind <*> lowerExpr e
-
+lowerExpr (C.DictAbs _ x c e) = F.Abs x <$> lowerConstraint c <*> lowerExpr e
+lowerExpr (C.DictVarApp li e dv) = error $ "Invalid unsubstituted dictionary variable application during lowering at " <> show li <> ".\nApplication of dict variable '" <> show dv <> "'\nOn Expression: " <> show e
+lowerExpr (C.DictApp _ e dict) = F.App <$> lowerExpr e <*> pure (F.Var dict)
 
 lowerSaturated :: Members '[Fresh Text QualifiedName] r => F.Type -> (Seq F.Type -> Seq F.Expr -> F.Expr) -> Sem r F.Expr
 lowerSaturated (F.TForall a k ty) cont = do
