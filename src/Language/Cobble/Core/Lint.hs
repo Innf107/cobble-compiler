@@ -14,7 +14,7 @@ data LintEnv = LintEnv {
 -- `jpArgTypes` does *not* include the result type (which is always `∀r. r`).
 -- This means, if (j : (a*, σ*)) ∈ jpArgTypes, the actual type of j is `∀a*. σ* -> ∀r. r)`.
 ,   jpArgTypes :: Map QualifiedName (Seq (QualifiedName, Kind), Seq Type)
-,   dictTyDefs :: Map QualifiedName (Seq (QualifiedName, Kind), Map QualifiedName Type)
+,   dictTyDefs :: Map QualifiedName (Seq (QualifiedName, Kind), Seq (QualifiedName, Type))
 } deriving (Show, Eq)
 
 insertType :: QualifiedName -> Type -> LintEnv -> LintEnv
@@ -55,21 +55,20 @@ insertJP j tyParams valParams env@LintEnv{jpArgTypes} =
 lookupDictTy :: Members '[Error CoreLintError] r
              => QualifiedName
              -> LintEnv
-             -> Sem r (Seq (QualifiedName, Kind), Map QualifiedName Type)
+             -> Sem r (Seq (QualifiedName, Kind), Seq (QualifiedName, Type))
 lookupDictTy dictName env@LintEnv{dictTyDefs} = case lookup dictName dictTyDefs of
     Just def -> pure def
     Nothing -> throwLint $ "Dictionary type '" <> show dictName <> "' not found.\nContext: " <> show env
 
 insertDictTy :: QualifiedName
              -> Seq (QualifiedName, Kind)
-             -> Map QualifiedName Type
+             -> Seq (QualifiedName, Type)
              -> LintEnv
              -> LintEnv
 insertDictTy dictName tvs fields env@LintEnv{dictTyDefs} =
     env {
         dictTyDefs = insert dictName (tvs, fields) dictTyDefs
     }
-
 
 lint :: Members '[Error CoreLintError] r
      => LintEnv
@@ -191,7 +190,24 @@ lintExpr env (Jump j tyArgs valArgs retTy) = do
 
 lintExpr env (PrimOp op ty tyArgs valArgs) = lintSaturated env (show op) ty tyArgs valArgs
 
-lintExpr env (DictConstruct cname tyArgs fields) = undefined
+lintExpr env (DictConstruct className tyArgs fields) = do
+    (tyParams, dictFieldTys) <- lookupDictTy className env
+    when (length tyParams /= length tyArgs)
+        $ throwLint $ "Mismatched type argument count at dict construction for '" <> show className <> "'.\nExpected: " <> show tyParams <> "\nActual: " <> show tyArgs
+    zipWithM_ 
+        (\(_, k) ty -> getKind ty >>= \tyK -> when (k /= tyK) $ throwLint $ "Mismatched kinds for dict access arguments for dict '" <> show className <> "'.\n    Expected: " <> show k <> ".\n    Actual: (" <> show ty <> ":" <> show tyK <> ").")
+        tyParams
+        tyArgs
+    zipWithM_
+        (\expr (_, ty) -> do
+            exprTy <- lintExpr env expr
+            appliedTy <- applyTypes ty tyArgs 
+            typeMatch exprTy appliedTy $ "Mismatched dictionary construction argument for class '" <> show className <> "'."
+            )
+        fields
+        dictFieldTys
+    let dictKind = foldr (KFun . snd) KType tyParams
+    pure $ foldl' TApp (TCon className dictKind) tyArgs
 
 lintExpr env (DictAccess e className tyArgs field) = do
     (tyParams, fieldTys) <- lookupDictTy className env
@@ -201,7 +217,7 @@ lintExpr env (DictAccess e className tyArgs field) = do
         (\(_, k) ty -> getKind ty >>= \tyK -> when (k /= tyK) $ throwLint $ "Mismatched kinds for dict access arguments for dict '" <> show className <> ", computed by " <> show e <> "'.\n    Expected: " <> show k <> ".\n    Actual: (" <> show ty <> ":" <> show tyK <> ").")
         tyParams
         tyArgs
-    case lookup field fieldTys of
+    case snd <$> find ((== field) . fst) fieldTys of
         Nothing -> throwLint $ "Nonexistant dictionary field '" <> show field <> "'. In dictionary '" <> show className <> "', computed by '" <> show e <> "'."
         Just ty -> applyTypes ty tyArgs
 
