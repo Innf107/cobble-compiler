@@ -12,10 +12,12 @@ compile = evalState initialState . compile'
     where
         initialState = CompState {
                             varTypes = mempty    
+                        ,   dictFieldNames = mempty
                         }
 
 data CompState = CompState {
         varTypes :: Map QualifiedName Type
+    ,   dictFieldNames :: Map QualifiedName (Seq QualifiedName)
     } deriving (Show, Eq, Generic, Data)
 
 insertVarType :: Members '[State CompState] r => QualifiedName -> Type -> Sem r ()
@@ -26,13 +28,24 @@ lookupVarType x = gets \CompState{varTypes} -> case lookup x varTypes of
     Just ty -> ty
     _ -> error $ "lookupVarType: core variable '" <> show x <> "' not found. This should have been caught by core lint."
 
+insertDictFieldNames :: Members '[State CompState] r => QualifiedName -> Seq QualifiedName -> Sem r ()
+insertDictFieldNames x names = modify (\s@CompState{dictFieldNames} -> s{dictFieldNames = insert x names dictFieldNames})
+
+lookupDictFieldNames :: Members '[State CompState] r => QualifiedName -> Sem r (Seq QualifiedName)
+lookupDictFieldNames x = gets \CompState{dictFieldNames} -> case lookup x dictFieldNames of
+    Just names -> names
+    _ -> error $ "lookupDictFieldNames: core dictionary '" <> show x <> "' not found."
+
+
 compile' :: Members '[State CompState] r => Seq Decl -> Sem r (Seq RacketExpr)
 compile' Empty = pure []
 compile' (Def x _ty e :<| ds) = (<|) 
     <$> (RDefine x <$> compileExpr e) 
     <*> compile' ds
 compile' (DefVariant x args clauses :<| ds) = compile' ds
-compile' (DefDict x args fields :<| ds) = compile' ds
+compile' (DefDict x args fields :<| ds) = do
+    insertDictFieldNames x (map fst fields)
+    compile' ds
 
 compileExpr :: Members '[State CompState] r => Expr -> Sem r RacketExpr
 compileExpr (Var x) = pure $ RVar x
@@ -81,6 +94,9 @@ compileExpr (Join j _tys vals body e) = do
     RLet [(j, RLambda (map fst vals) [body'])] . pure <$> compileExpr e
 compileExpr (Jump j _tyArgs valArgs _resTy) = RApp (RVar j) <$> traverse compileExpr valArgs
 compileExpr (PrimOp op _ty _tyArgs valArgs) = compilePrimOp op <$> traverse compileExpr valArgs
+compileExpr (DictConstruct className tyArgs methods) = do
+    fieldNames <- lookupDictFieldNames className
+    RHash <$> zipWithM (\x expr -> (RSymbol x,) <$> compileExpr expr) fieldNames methods
 compileExpr (DictAccess expr _className _tyArgs field) = RHashRef <$> compileExpr expr <*> pure (RSymbol field)
 
 compilePrimOp :: PrimOp -> Seq RacketExpr -> RacketExpr

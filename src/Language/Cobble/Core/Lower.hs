@@ -54,7 +54,18 @@ lowerStmnts (C.DefClass k li cname tvs methSigs :<| sts) = do
             stripConstraint (C.TForall tvs ty) = C.TForall tvs (stripConstraint ty)
             stripConstraint (C.TConstraint _ ty) = ty
             stripConstraint ty = ty
-lowerStmnts (C.DefInstance{} :<| sts) = undefined
+lowerStmnts (C.DefInstance (_, _, dictVar) li className tyArg methDecls :<| sts) = do
+    tyArg' <- lowerType tyArg
+    let dictType = F.TApp (F.TCon className (F.KType `F.KFun` F.KType)) tyArg' -- TODO: don't hardcode the kind
+    def <- F.Def dictVar dictType . F.DictConstruct className [tyArg'] <$> forM methDecls \(C.Decl _ _ params expr) -> do 
+            expr' <- lowerExpr (stripDictAbs expr)
+            foldrM (\(x, ty) r -> F.Abs x <$> lowerType ty <*> pure r) expr' params
+    (def :<|) <$> lowerStmnts sts
+        where
+            stripDictAbs (C.TyAbs li tv e) = C.TyAbs li tv (stripDictAbs e)
+            stripDictAbs (C.DictAbs _ _ _ e) = e
+            stripDictAbs _ = error $ "lowerStmnts: non-constrained instance method at " <> show li
+
 lowerStmnts (C.DefVariant _ _ x args clauses :<| sts) = do
     def <- F.DefVariant x 
             <$> traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) args
@@ -180,8 +191,6 @@ deconstructPM occ pat (MkPatternMatrix rows) = MkPatternMatrix . fold <$> traver
                 <$> go h (sp1 :<| pats, e)
                 <*> (fold <$> traverse (\p -> go h (p :<| pats, e . (boundVars p `reorderBy` boundVars sp1))) subPats)
         go h (C.OrP _ Empty :<| _, _) = error "lowerCase: deconstructPM: empty or pattern"    
-        go h (C.OrP _ subPats :<| pats, e) = do
-            fold <$> traverse (\p -> go h (p :<| pats, e)) subPats -- ?
         go _ _ = pure []
 
 defaultMatrix :: Trace => QualifiedName -> PatternMatrix -> PatternMatrix

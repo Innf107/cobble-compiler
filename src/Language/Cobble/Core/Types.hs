@@ -38,6 +38,8 @@ data Expr = Var QualifiedName
           --                    | type args          | result type
           | PrimOp PrimOp Type (Seq Type) (Seq Expr)
 
+          | DictConstruct QualifiedName (Seq Type) (Seq Expr)
+          --              ^class name   ^class args ^fields
           | DictAccess Expr QualifiedName (Seq Type) QualifiedName
           --                ^class name   ^class args ^field
           deriving (Eq, Generic, Data)
@@ -138,9 +140,11 @@ instance Pretty Expr where
                                                                  <+> pretty retTy
                                                                  <> ")"
     -- the concrete primop type is not displayed since it should be obvious from the corresponding PrimOpInfo entry.
-    pretty (PrimOp op ty tyArgs valArgs) = "(" <> show op <> encloseSep "[" "]" ", " (map pretty tyArgs)
+    pretty (PrimOp op ty tyArgs valArgs) = show op <> encloseSep "[" "]" ", " (map pretty tyArgs)
                                                           <> encloseSep "{" "}" ", " (map pretty valArgs)
-                                                          <> ")"
+
+    pretty (DictConstruct cname args fields) = ppQName cname <> encloseSep "[" "]" ", " (map pretty args)
+                                                             <> encloseSep "{" "}" (line <> ", ") (map pretty fields)
 
     pretty (DictAccess e cname args field) = pretty e <> encloseSep ".[" "]." " " (ppQName cname :<| map pretty args) 
                                                       <> show field

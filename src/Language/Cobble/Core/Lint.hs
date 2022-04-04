@@ -191,6 +191,8 @@ lintExpr env (Jump j tyArgs valArgs retTy) = do
 
 lintExpr env (PrimOp op ty tyArgs valArgs) = lintSaturated env (show op) ty tyArgs valArgs
 
+lintExpr env (DictConstruct cname tyArgs fields) = undefined
+
 lintExpr env (DictAccess e className tyArgs field) = do
     (tyParams, fieldTys) <- lookupDictTy className env
     when (length tyParams /= length tyArgs)
