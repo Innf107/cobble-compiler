@@ -133,7 +133,7 @@ typecheckStatements :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedNa
 typecheckStatements env (st :<| sts) = do
     (constraints, (st', env')) <- runOutputSeq $ typecheckStatement env st
     dump constraints
-    subst <- solveConstraints (_tcInstances env) constraints
+    subst <- solveConstraints (_tcInstances env) mempty constraints
     
     (applySubst subst st' <|) <$> typecheckStatements env' sts
 typecheckStatements env Empty = pure Empty
@@ -516,36 +516,48 @@ replaceTVars tvs (TConstraint (MkConstraint constrName constrTy) ty) =
 
 solveConstraints :: (Trace, Members '[Error TypeError, Fresh Text QualifiedName, Fresh TVar TVar] r)
                  => Map QualifiedName (Seq (Type, QualifiedName))
-                 --                               ^dict
+                 --                              v^dict
+                 -> Seq (Constraint, QualifiedName, LexInfo)
                  -> Seq TConstraint
                  -> Sem r Substitution
-solveConstraints _ Empty = pure mempty
-solveConstraints givens ((MkTConstraint (ConUnify t1 t2) li) :<| constrs) = runReader li do
+solveConstraints givens wanteds Empty = solveWanteds givens wanteds
+solveConstraints givens wanteds ((MkTConstraint (ConUnify t1 t2) li) :<| constrs) = runReader li do
             -- This is a bit inefficient (quadratic?).
             -- Let's make sure the constraint solver actually works, before we try to deal with that.
             subst <- unify t1 t2
-            (subst <>) <$> solveConstraints givens (applySubst subst constrs)
-solveConstraints givens ((MkTConstraint (ConWanted c@(MkConstraint cname ty) dictVar) li) :<| constrs) = runReader li do
-            case lookup cname givens of
-                Just tys -> do
-                    let trySolve Empty = pure Nothing
-                        trySolve ((t2, d) :<| tys) = do
-                            runError @TypeError (unify ty t2) >>= \case
-                                Left err -> do
-                                    traceM DebugVerbose $ "[solveConstraints] [W] " <> show c <> ": " <> show ty <> " ~ " <> show t2 <> ": " <> show err
-                                    trySolve tys
-                                Right subst -> pure $ Just $ subst <> Subst mempty (one (dictVar, d)) -- Substitute the dictionary
-                    -- We can rely on coherence and non-overlapping instances here and just pick the
-                    -- first matching dictionary that we find.
-                    trySolve tys >>= \case
-                        Nothing  -> throw $ NoInstanceFor li c
-                        Just subst -> do
-                            (subst <>) <$> solveConstraints givens (applySubst subst constrs)
-                Nothing -> throw $ NoInstanceFor li c
-
-solveConstraints givens ((MkTConstraint (ConGiven c@(MkConstraint cname ty) dict) li) :<| constrs) = runReader li do
+            (subst <>) <$> solveConstraints (applySubst subst givens) (applySubst subst wanteds) (applySubst subst constrs)
+solveConstraints givens wanteds ((MkTConstraint (ConWanted c dictVar) li) :<| constrs) = runReader li do
+            solveConstraints givens ((c, dictVar, li) :<| wanteds) constrs
+        
+solveConstraints givens wanteds ((MkTConstraint (ConGiven c@(MkConstraint cname ty) dict) li) :<| constrs) = runReader li do
             let givens' = alter (<> Just [(ty, dict)]) cname givens
-            solveConstraints givens' constrs
+            solveConstraints givens' wanteds constrs
+
+solveWanteds :: (Trace, Members '[Error TypeError] r)
+                => Map QualifiedName (Seq (Type, QualifiedName))
+                 --                              v^dict
+                -> Seq (Constraint, QualifiedName, LexInfo)
+                -> Sem r Substitution
+solveWanteds givens Empty = pure mempty
+solveWanteds givens ((c@(MkConstraint cname ty), dictVar, li) :<| wanteds) = runReader li do
+    case lookup cname givens of
+        Just tys -> do
+            let trySolve Empty = pure Nothing
+                trySolve ((t2, d) :<| tys) = do
+                    runError @TypeError (unify ty t2) >>= \case
+                        Left err -> do
+                            traceM DebugVerbose $ "[solveWanteds] [W] " <> show c <> ": " <> show ty <> " ~ " <> show t2 <> ": " <> show err
+                            trySolve tys
+                        Right subst -> do
+                            traceM DebugVerbose $ "[solveWanteds] [W] " <> show c <> ": " <> show ty <> " ~ " <> show t2 <> " ✓"
+                            pure $ Just $ subst <> Subst mempty (one (dictVar, d)) -- Substitute the dictionary
+            -- We can rely on coherence and non-overlapping instances here and just pick the
+            -- first matching dictionary that we find.
+            trySolve tys >>= \case
+                Nothing  -> throw $ NoInstanceFor li c
+                Just subst -> do
+                    (subst <>) <$> solveWanteds givens (applySubst subst wanteds)
+        Nothing -> throw $ NoInstanceFor li c
 
 unify :: Members '[Error TypeError, Reader LexInfo] r
       => Type
