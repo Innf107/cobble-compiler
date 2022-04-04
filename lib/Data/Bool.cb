@@ -3,10 +3,10 @@ module Data.Bool;
 -- TODO: Booleans should really be implemented
 -- as a variant, but for now we have to stick to primops
 false :: Bool;
-false = __false__ ();
+false = false# ();
 
 true :: Bool;
-true = __true__ ();
+true = true# ();
 
 not :: Bool -> Bool;
 not x = if x then false else true;

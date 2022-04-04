@@ -115,6 +115,11 @@ lookupType v TCEnv{_varTypes} = lookup v _varTypes & fromMaybe (error $ "lookupT
 insertType :: QualifiedName -> Type -> TCEnv -> TCEnv
 insertType x t env = env & varTypes %~ insert x t
 
+insertInstance :: QualifiedName -> Type -> QualifiedName -> TCEnv -> TCEnv
+insertInstance className ty dictName = over tcInstances $ flip alter className \case
+    Nothing -> Just [(ty, dictName)]
+    Just is -> Just (is :|> (ty, dictName))
+
 typecheck :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Error TypeError, Dump (Seq TConstraint)] r)
           => TCEnv 
           -> Module Typecheck 
@@ -136,10 +141,53 @@ typecheckStatement :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedNam
                     => TCEnv
                     -> (Statement Typecheck)
                     -> Sem r (Statement NextPass, TCEnv)
-typecheckStatement env (Def fixity li (Decl () f xs e) expectedTy) = runReader li do
+typecheckStatement env (Def fixity li decl expectedTy) = runReader li do
+    (decl', env') <- checkTopLevelDecl env decl expectedTy
+
+    pure (Def fixity li decl' expectedTy, env')
+
+typecheckStatement env (Import () li name) = pure (Import () li name, env)
+typecheckStatement env (DefClass k li cname tvs methSigs) = do
+    let env' = foldr (uncurry insertType) env methSigs
+    pure (DefClass k li cname tvs methSigs, env')
+
+typecheckStatement env (DefInstance (methDefs, params) li cname ty meths) = runReader li do
+    dictName <- freshVar $ "d_" <> (originalName cname)
+    let env' = insertInstance cname ty dictName env
+    meths' <- forM (zip meths methDefs) \(decl@(Decl _ declName _ _), (methName, methTy)) -> do
+        -- sanity check
+        when (methName /= declName) $ error $ "typecheckStatement: instance methods were not properly reordered at " <> show li <> "."
+        
+        let methTy' = case params of
+                [p] -> case methTy of
+                    TForall [p'] actualMethTy
+                        | p == p' -> replaceTVar p ty actualMethTy
+                    _ -> error "typecheckStatement: foralls were not properly inserted in instance method type"
+                _ -> error "typecheckStatement: multi parameter typeclasses NYI"
+
+        traceM DebugVerbose$  "[typecheckStatement (instance " <> show cname <> " " <> show ty <> ")]: Γ ⊢ " <> show methName <> " : " <> show methTy'
+
+        -- We discard the modified environment, since instance methods should really not be able to modify it.
+        fst <$> checkTopLevelDecl env' decl methTy'
+    pure (DefInstance (methDefs, params, dictName) li cname ty meths', env')
+typecheckStatement env (DefVariant k li tyName tvs constrs) =
+    pure (DefVariant k li tyName tvs constrs', env')
+        where
+            resTy = foldl' (\x y -> TApp x (TVar y)) (TCon tyName k) tvs
+            constrTy ps = TForall tvs (foldr (:->) resTy ps)
+            constrs' = map (\(n, ps, (i, j)) -> (n, ps, (constrTy ps, i, j))) constrs
+            env' = foldr (\(n,_,(t,_,_)) -> insertType n t) env constrs'
+
+checkTopLevelDecl :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Output TConstraint, Reader LexInfo] r)
+      => TCEnv
+      -> Decl Typecheck
+      -> Type
+      -> Sem r (Decl NextPass, TCEnv)
+checkTopLevelDecl env (Decl () f xs e) expectedTy = do
+    li <- ask
     (expectedTy', w) <- skolemize expectedTy
     (xs', eTy, w') <- decomposeParams expectedTy' xs
-    traceM DebugVerbose $ "[typecheckStatements env (Def ...)] xs' = " <> show xs' <> " | eTy = " <> show eTy
+    traceM DebugVerbose $ "[checkTopLevelDecl env (" <> show f <> ")] xs' = " <> show xs' <> " | eTy = " <> show eTy
 
     let env' = insertType f expectedTy env
 
@@ -149,26 +197,12 @@ typecheckStatement env (Def fixity li (Decl () f xs e) expectedTy) = runReader l
             _ -> []
 
     e' <- checkPoly (foldr (uncurry insertType) env' xs') e eTy
-    let lambdas = flip (foldr (TyAbs li)) tvs $ w $ makeLambdas e' xs'
+    let lambdas = flip (foldr (TyAbs li)) tvs $ w $ makeLambdas li e' xs'
 
-    pure (Def fixity li (Decl (expectedTy, []) f [] lambdas) expectedTy, env')
-    where
-        makeLambdas :: Expr NextPass -> Seq (QualifiedName, Type) -> Expr NextPass
-        makeLambdas = foldr (\(x, ty) e -> Lambda (ty :-> getType e, ty) li x e)
-
-typecheckStatement env (Import () li name) = pure (Import () li name, env)
-typecheckStatement env (DefClass k li cname tvs methSigs) = do
-    let env' = foldr (uncurry insertType) env methSigs
-    pure (DefClass k li cname tvs methSigs, env')
-
-typecheckStatement env (DefInstance x li cname ty meths) = undefined
-typecheckStatement env (DefVariant k li tyName tvs constrs) =
-    pure (DefVariant k li tyName tvs constrs', env')
+    pure (Decl (expectedTy, []) f [] lambdas, env')
         where
-            resTy = foldl' (\x y -> TApp x (TVar y)) (TCon tyName k) tvs
-            constrTy ps = TForall tvs (foldr (:->) resTy ps)
-            constrs' = map (\(n, ps, (i, j)) -> (n, ps, (constrTy ps, i, j))) constrs
-            env' = foldr (\(n,_,(t,_,_)) -> insertType n t) env constrs'
+            makeLambdas :: LexInfo -> Expr NextPass -> Seq (QualifiedName, Type) -> Expr NextPass
+            makeLambdas li = foldr (\(x, ty) e -> Lambda (ty :-> getType e, ty) li x e)
 
 check :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r)
       => TCEnv
@@ -460,6 +494,9 @@ lambdasToDecl li f = go []
 
 freshTV :: Members '[Fresh Text QualifiedName] r => Kind -> Sem r Type
 freshTV k = freshVar "u" <&> \u -> TVar (MkTVar u k) 
+
+replaceTVar :: TVar -> Type -> Type -> Type
+replaceTVar tv ty = replaceTVars (one (tv, ty))
 
 replaceTVars :: Map TVar Type -> Type -> Type
 replaceTVars tvs ty@(TVar tv) = case lookup tv tvs of

@@ -32,9 +32,9 @@ type instance XLet              Typecheck = ()
 type instance XVar              Typecheck = ()
 type instance XAscription       Typecheck = ()
 type instance XVariantConstr    Typecheck = (Int, Int)
---                                                           ^    ^
---                                                           |    constructor index
---                                                           expected number of args
+--                                           ^    ^
+--                                           |    constructor index
+--                                           expected number of args
 type instance XCase             Typecheck = ()
 type instance XStructConstruct  Typecheck = StructDef
 type instance XStructAccess     Typecheck = Map (Name Typecheck) StructDef

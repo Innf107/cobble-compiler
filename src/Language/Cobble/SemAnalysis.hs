@@ -43,7 +43,7 @@ implicitClassConstraints = \case
     (DefInstance (defMeths, ps) li cname ty meths) -> 
         DefInstance (map (\(n, t) -> (n, coercePass $ addForall $ addConstraint (coercePass t))) defMeths, ps) li cname ty meths
           where
-            addConstraint t = case coercePass ps of 
+            addConstraint t = case ps of 
                 (p :<| Empty) -> TConstraint (MkConstraint cname (TVar p)) t
                 _   -> error $ "SemAnalysis.implicitClassConstraints: multi-param typeclasses NYI: " <> show ps
     

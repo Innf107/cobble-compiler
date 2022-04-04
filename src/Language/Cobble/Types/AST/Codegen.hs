@@ -35,6 +35,7 @@ type instance XDefClass         Codegen = Kind
 -- XDefInstance uses a list of pairs instead of a Map, because SemAnalysis shuffles declarations around
 -- to have the same order as class declaration.
 type instance XDefInstance      Codegen = ((Seq (QualifiedName, Type)), (Seq TVar), QualifiedName)
+--                                                                      ^param tvs  ^ dictionary name
 type instance XStatement        Codegen = Void
 
 type instance XFCall            Codegen = Type
