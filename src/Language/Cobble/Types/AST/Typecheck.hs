@@ -22,7 +22,8 @@ type instance XDefVariantClause Typecheck = (Int, Int)
 type instance XDefClass         Typecheck = Kind
 -- XDefInstance uses a list of pairs instead of a Map, because SemAnalysis shuffles declarations around
 -- to have the same order as class declaration.
-type instance XDefInstance      Typecheck = (Seq (QualifiedName, Type), Seq TVar)
+type instance XDefInstance      Typecheck = (Seq (QualifiedName, Type), Seq TVar, Bool)
+--                                                                                ^ is imported
 type instance XStatement        Typecheck = Void
 
 type instance XFCall            Typecheck = ()

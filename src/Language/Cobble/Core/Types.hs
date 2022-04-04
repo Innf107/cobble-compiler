@@ -89,6 +89,7 @@ ppQName = pretty . renderDebug
 prettyTyped :: (Pretty p) => (QualifiedName, p) -> Doc ann
 prettyTyped (x, p) = ppQName x <+> ":" <+> pretty p
 
+prettyDecls :: Seq Decl -> Doc ann
 prettyDecls ds = vsep (map ((<> line) . pretty) ds)
 
 instance Pretty Decl where

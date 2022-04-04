@@ -152,7 +152,7 @@ typecheckStatement env (DefClass k li cname tvs methSigs) = do
     let env' = foldr (uncurry insertType) env methSigs
     pure (DefClass k li cname tvs methSigs, env')
 
-typecheckStatement env (DefInstance (methDefs, params) li cname ty meths) = runReader li do
+typecheckStatement env (DefInstance (methDefs, params, _isImported) li cname ty meths) = runReader li do
     dictName <- freshVar $ "d_" <> (originalName cname)
     let env' = insertInstance cname ty dictName env
     meths' <- forM (zip meths methDefs) \(decl@(Decl _ declName _ _), (methName, methTy)) -> do
@@ -166,7 +166,7 @@ typecheckStatement env (DefInstance (methDefs, params) li cname ty meths) = runR
                     _ -> error "typecheckStatement: foralls were not properly inserted in instance method type"
                 _ -> error "typecheckStatement: multi parameter typeclasses NYI"
 
-        traceM DebugVerbose$  "[typecheckStatement (instance " <> show cname <> " " <> show ty <> ")]: Γ ⊢ " <> show methName <> " : " <> show methTy'
+        traceM DebugVerbose$  "[typecheckStatement (instance " <> show cname <> " " <> show ty <> ")]: Γ ⊢ " <> show methName <> " : " <> show methTy <> " ====> " <> show methTy'
 
         -- We discard the modified environment, since instance methods should really not be able to modify it.
         fst <$> checkTopLevelDecl env' decl methTy'
@@ -542,7 +542,7 @@ solveWanteds givens Empty = pure mempty
 solveWanteds givens ((c@(MkConstraint cname ty), dictVar, li) :<| wanteds) = runReader li do
     case lookup cname givens of
         Just tys -> do
-            let trySolve Empty = pure Nothing
+            let trySolve Empty = throw $ NoInstanceFor li c
                 trySolve ((t2, d) :<| tys) = do
                     runError @TypeError (unify ty t2) >>= \case
                         Left err -> do
@@ -550,13 +550,12 @@ solveWanteds givens ((c@(MkConstraint cname ty), dictVar, li) :<| wanteds) = run
                             trySolve tys
                         Right subst -> do
                             traceM DebugVerbose $ "[solveWanteds] [W] " <> show c <> ": " <> show ty <> " ~ " <> show t2 <> " ✓"
-                            pure $ Just $ subst <> Subst mempty (one (dictVar, d)) -- Substitute the dictionary
+                            pure $ subst <> Subst mempty (one (dictVar, d)) -- Substitute the dictionary
             -- We can rely on coherence and non-overlapping instances here and just pick the
             -- first matching dictionary that we find.
-            trySolve tys >>= \case
-                Nothing  -> throw $ NoInstanceFor li c
-                Just subst -> do
-                    (subst <>) <$> solveWanteds givens (applySubst subst wanteds)
+            -- TODO: Should we throw an ambiguity error if subst contains non-empty tyvar substitutions?
+            subst <- trySolve tys
+            (subst <>) <$> solveWanteds (applySubst subst givens) (applySubst subst wanteds)
         Nothing -> throw $ NoInstanceFor li c
 
 unify :: Members '[Error TypeError, Reader LexInfo] r

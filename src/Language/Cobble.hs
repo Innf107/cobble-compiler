@@ -140,7 +140,7 @@ compileWithSig m = do
     let qualScopes = map modSigToScope (fromList $ toList $ xModule m)
 
     let tcEnv = foldr (\dsig r -> TCEnv {
-                    _varTypes= fmap coercePass (exportedVars dsig <> (view _1 <$> exportedVariantConstrs dsig)) <> _varTypes r
+                    _varTypes = fmap coercePass (exportedVars dsig <> (view _1 <$> exportedVariantConstrs dsig)) <> _varTypes r
                 ,   _tcInstances = coercePass (exportedInstances dsig) <> _tcInstances r
                 })
                 (TCEnv mempty mempty)
@@ -168,7 +168,7 @@ modSigToScope :: ModSig -> Scope
 modSigToScope (ModSig{exportedVars, exportedVariantConstrs, exportedTypes, exportedFixities}) = Scope {
                 _scopeVars              = fromList $ fmap (\(qn, _) -> (originalName qn, qn)) $ M.toList exportedVars
             ,   _scopeVariantConstrs    = fromList $ fmap (\(qn, (_, ep, i, v)) -> (originalName qn, (qn, ep, i, v))) $ M.toList exportedVariantConstrs
-            ,   _scopeTypes             = fromList $ fmap (\(qn, (k, tv)) -> (originalName qn, (qn, k, tv))) $ M.toList exportedTypes
+            ,   _scopeTypes             = fromList $ fmap (\(qn, (k, tv)) -> (originalName qn, (qn, k, tv, True))) $ M.toList exportedTypes
             ,   _scopeFixities          = M.mapKeys originalName exportedFixities
             ,   _scopeTVars             = mempty
             }

@@ -23,7 +23,8 @@ data QualificationError = VarNotFound LexInfo Text
 
 data Scope = Scope {
     _scopeVars :: Map Text QualifiedName
-,   _scopeTypes :: Map Text (QualifiedName, Kind, TypeVariant)
+,   _scopeTypes :: Map Text (QualifiedName, Kind, TypeVariant, Bool)
+--                                                             ^ is imported
 ,   _scopeTVars :: Map Text (QualifiedName, Kind)
 ,   _scopeVariantConstrs :: Map Text (QualifiedName, Int, Int, TypeVariant)
 ,   _scopeFixities :: Map Text Fixity
@@ -94,20 +95,20 @@ qualifyStmnt (DefClass () li n tvs meths) = runReader li $ do
             mn' <- freshVar (mn, li)
             mt' <- qualifyType True mty -- Type class methods *are* allowed to introduce new tyvars
             pure (mn', mt')
-    addType n n' k (TyClass (coercePass tvs') (map (second coercePass) meths'))
+    addType n n' k (TyClass tvs' meths')
     zipWithM_ (\(methName,_) (methName',_) -> addVar methName methName') meths meths'
     pure (DefClass k li n' tvs' meths')
 
 qualifyStmnt (DefInstance () li cname ty meths) = runReader li $ lookupType cname >>= \case
-    (cname', _, TyClass tvs classMeths) -> withFrame do
+    (cname', _, TyClass tvs classMeths, isImported) -> withFrame do
         ty' <- qualifyType False ty 
         -- TODO: Should ty vars in classes be allowed? They are in Haskell, but I'm not sure if cobble is quite
         -- ready to work with these kinds of instances
         meths' <- forM meths \d@(Decl _ n _ _) -> do
             n' <- lookupVar n
             qualifyDeclWithName n' d
-        pure (DefInstance (classMeths, tvs) li cname' ty' meths')
-    (cname', k, tv) -> throw $ InstanceForNonClass li cname' k tv
+        pure (DefInstance (classMeths, tvs, isImported) li cname' ty' meths')
+    (cname', k, tv, _) -> throw $ InstanceForNonClass li cname' k tv
 
 -- | Same as qualifyDecl, but takes the already qualified name as an argument
 -- instead of recomputing it
@@ -255,7 +256,7 @@ qualifyType :: forall r. Members '[StackState Scope, Fresh (Text, LexInfo) Quali
 qualifyType allowFreeVars = go
     where
         go :: UType -> Sem r Type
-        go (UTCon tyName) = (\(tyName', k, _) -> TCon tyName' k) <$> lookupType tyName
+        go (UTCon tyName) = (\(tyName', k, _, _) -> TCon tyName' k) <$> lookupType tyName
         go (UTApp f x) = TApp <$> go f <*> go x
         go (UTFun a b) = TFun <$> go a <*> go b
         go (UTVar tv) = runError (lookupTVar tv) >>= \case
@@ -274,8 +275,8 @@ qualifyType allowFreeVars = go
 
         goConstraint :: UConstraint -> Sem r Constraint
         goConstraint (MkUConstraint className ty) = lookupType className >>= \case
-            (className', _, TyClass _ _) -> MkConstraint className' <$> go ty
-            (className', k, tv) -> ask >>= \li -> throw $ NonClassInConstraint li className' k tv
+            (className', _, TyClass _ _, _) -> MkConstraint className' <$> go ty
+            (className', k, tv, _) -> ask >>= \li -> throw $ NonClassInConstraint li className' k tv
 
 
 qualifyTVar :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r 
@@ -298,7 +299,7 @@ addVariantConstr :: Members '[StackState Scope] r => Text -> QualifiedName -> In
 addVariantConstr n n' ep i v = smodify (scopeVariantConstrs %~ insert n (n', ep, i, v))
 
 addType :: Members '[StackState Scope] r => Text -> QualifiedName -> Kind -> TypeVariant -> Sem r ()
-addType n n' k tv = smodify (scopeTypes %~ insert n (n', k, tv))
+addType n n' k tv = smodify (scopeTypes %~ insert n (n', k, tv, False))
 
 addTVar :: Members '[StackState Scope] r => UnqualifiedName -> TVar -> Sem r ()
 addTVar n (MkTVar n' k) = smodify (scopeTVars %~ insert n (n', k))
@@ -318,7 +319,7 @@ lookupVariantConstr n = sgets (lookup n . _scopeVariantConstrs) >>= \case
     Just c -> pure c
     Nothing -> ask >>= \li -> throw $ VariantConstrNotFound li n
 
-lookupType :: Members '[StackState Scope, Error QualificationError, Reader LexInfo] r => Text -> Sem r (QualifiedName, Kind, TypeVariant)
+lookupType :: Members '[StackState Scope, Error QualificationError, Reader LexInfo] r => Text -> Sem r (QualifiedName, Kind, TypeVariant, Bool)
 lookupType n = sgets (lookup n . _scopeTypes) >>= \case
     Just t -> pure t
     Nothing -> ask >>= \li -> throw $ TypeNotFound li n 

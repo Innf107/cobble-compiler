@@ -38,7 +38,7 @@ geBy comp x y = case comp x y of {
 
 
 instance Ord Int {
-    compare x y = if __le__ x y then LT 
-                  else if __eq__ x y then EQ 
+    compare x y = if le# x y then LT 
+                  else if eq# x y then EQ 
                   else GT;
 };
