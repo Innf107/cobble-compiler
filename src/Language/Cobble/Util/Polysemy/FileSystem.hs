@@ -22,6 +22,7 @@ import System.FilePath qualified as S
 data FileSystem fd fc m a where
     ReadFile             :: fd -> FileSystem fd fc m fc
     WriteFile            :: fd -> fc -> FileSystem fd fc m ()
+    AppendFile           :: fd -> fc -> FileSystem fd fc m ()
     DeleteFile           :: fd -> FileSystem fd fc m ()
     DeleteDirectory      :: fd -> FileSystem fd fc m ()
     DoesFileExist        :: fd -> FileSystem fd fc m Bool
@@ -37,6 +38,7 @@ fileSystemIO :: (ToString fd, IsString fd, ToString fc, IsString fc, Member (Emb
 fileSystemIO = interpret \case
     ReadFile fd             -> embed (fromString <$> S.readFile (toString fd))
     WriteFile fd fc         -> embed (S.writeFile (toString fd) (toString fc))
+    AppendFile fd fc        -> embed (S.appendFile (toString fd) (toString fc))
     DeleteFile fd           -> embed (S.removeFile (toString fd))
     DeleteDirectory fd      -> embed (S.removeDirectory (toString fd))
     DoesFileExist fd        -> embed (S.doesFileExist (toString fd))

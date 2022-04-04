@@ -9,7 +9,7 @@ module Language.Cobble.Util.Polysemy.Dump (
     ,   dumpWhenWithM
     ) where
 
-import Language.Cobble.Prelude hiding (writeFile)
+import Language.Cobble.Prelude hiding (writeFile, appendFile)
 import Language.Cobble.Util.Polysemy.FileSystem
 
 data Dump d m a where
@@ -27,5 +27,7 @@ dontDump = interpret \case
     Dump x -> pure ()
 
 dumpWith :: (Members '[FileSystem FilePath Text] r) => (d -> Text) -> FilePath -> Sem (Dump d : r) a -> Sem r a
-dumpWith pp fp = interpret \case
-    Dump x -> writeFile fp (pp x)
+dumpWith pp fp r = writeFile fp "" >> handle r
+    where
+        handle = interpret \case
+            Dump x -> appendFile fp ("\n---------------------------\n\n" <> pp x)

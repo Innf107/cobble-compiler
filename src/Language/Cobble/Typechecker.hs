@@ -126,12 +126,13 @@ typecheck :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Error 
           -> Sem r (Module NextPass)
 typecheck env (Module ext mname sts) = Module ext mname <$> typecheckStatements env sts
 
-typecheckStatements :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Error TypeError] r)
+typecheckStatements :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Error TypeError, Dump (Seq TConstraint)] r)
                     => TCEnv
                     -> (Seq (Statement Typecheck))
                     -> Sem r (Seq (Statement NextPass))
 typecheckStatements env (st :<| sts) = do
     (constraints, (st', env')) <- runOutputSeq $ typecheckStatement env st
+    dump constraints
     subst <- solveConstraints (_tcInstances env) constraints
     
     (applySubst subst st' <|) <$> typecheckStatements env' sts
@@ -513,7 +514,7 @@ replaceTVars tvs (TConstraint (MkConstraint constrName constrTy) ty) =
                 TConstraint (MkConstraint constrName (replaceTVars tvs constrTy)) (replaceTVars tvs ty)
 
 
-solveConstraints :: Members '[Error TypeError, Fresh Text QualifiedName, Fresh TVar TVar] r
+solveConstraints :: (Trace, Members '[Error TypeError, Fresh Text QualifiedName, Fresh TVar TVar] r)
                  => Map QualifiedName (Seq (Type, QualifiedName))
                  --                               ^dict
                  -> Seq TConstraint
@@ -529,15 +530,16 @@ solveConstraints givens ((MkTConstraint (ConWanted c@(MkConstraint cname ty) dic
                 Just tys -> do
                     let trySolve Empty = pure Nothing
                         trySolve ((t2, d) :<| tys) = do
-                            runError (unify ty t2) >>= \case
-                                Left _ -> trySolve tys
+                            runError @TypeError (unify ty t2) >>= \case
+                                Left err -> do
+                                    traceM DebugVerbose $ "[solveConstraints] [W] " <> show c <> ": " <> show ty <> " ~ " <> show t2 <> ": " <> show err
+                                    trySolve tys
                                 Right subst -> pure $ Just $ subst <> Subst mempty (one (dictVar, d)) -- Substitute the dictionary
                     -- We can rely on coherence and non-overlapping instances here and just pick the
                     -- first matching dictionary that we find.
                     trySolve tys >>= \case
                         Nothing  -> throw $ NoInstanceFor li c
                         Just subst -> do
-                            -- TODO: Apply dictionary somehow
                             (subst <>) <$> solveConstraints givens (applySubst subst constrs)
                 Nothing -> throw $ NoInstanceFor li c
 
