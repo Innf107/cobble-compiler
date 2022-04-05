@@ -48,4 +48,4 @@ type instance Name 'SolveModules = Text
 type instance XKind 'SolveModules = ()
 
 type instance XType SolveModules = UType
-type instance XTVar SolveModules = Text -- = UnqualifiedName
+type instance XTVar SolveModules = (Text, Maybe Kind)

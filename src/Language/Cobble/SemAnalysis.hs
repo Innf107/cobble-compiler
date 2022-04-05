@@ -52,10 +52,7 @@ implicitClassConstraints = \case
 
 addForall :: Type -> Type
 addForall t@TForall{} = t
--- TODO
--- freeTVs does *not* preserve order. This should not be an issue for now, but might be
--- a bit awkward, if features like type applications, where the order of foralls matters, are ever added.
-addForall t = case fromList (toList (freeTVs t)) of
+addForall t = case freeTVsOrdered t of
     []      -> t
     freeTVs -> TForall freeTVs t
 

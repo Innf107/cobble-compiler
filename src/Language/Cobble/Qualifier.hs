@@ -67,12 +67,12 @@ qualifyStmnt (Import () li n) = pure (Import () li (internalQName n))
 
 qualifyStmnt (DefVariant () li n tvs constrs) = runReader li $ do
     n' <- freshVar (n, li)
-    tvs' <- traverse (qualifyTVar KStar) tvs -- TODO: [Kind inference]: probably shouldn't be KStar
+    tvs' <- traverse (uncurry qualifyTVar) tvs
     let k = getTyConKind tvs'
     constrs' <- withFrame $ flip traverseWithIndex constrs \i (cn, tys, ()) -> do
         -- The type needs to be locally added as a dummy variant to allow recursive types.
         addType n n' k (VariantType (coercePass tvs') [])
-        zipWithM_ addTVar tvs tvs'
+        zipWithM_ addTVar (map fst tvs) tvs'
 
         cn' <- freshVar (cn, li)
         tys' <- traverse (qualifyType False) tys
@@ -84,13 +84,13 @@ qualifyStmnt (DefVariant () li n tvs constrs) = runReader li $ do
 
 qualifyStmnt (DefClass () li n tvs meths) = runReader li $ do
     n' <- freshVar (n, li)
-    tvs' <- traverse (qualifyTVar KStar) tvs -- TODO: [Kind inference]: probably shouldn't be KStar
+    tvs' <- traverse (uncurry qualifyTVar) tvs
     let k = foldr (\(MkTVar _ k) r -> k `KFun` r) KConstraint tvs'
     -- Again, the methods have to be stubbed out since we don't have them yet, but we
     -- need the tyclass type in order to qualify them
     meths' <- withFrame $ do
         addType n n' k (TyClass (coercePass tvs') [])
-        zipWithM_ addTVar tvs tvs'
+        zipWithM_ addTVar (map fst tvs) tvs'
         forM meths \(mn, mty) -> do
             mn' <- freshVar (mn, li)
             mt' <- qualifyType True mty -- Type class methods *are* allowed to introduce new tyvars
@@ -263,13 +263,13 @@ qualifyType allowFreeVars = go
             Right tv' -> pure (TVar tv')
             Left err
                 | allowFreeVars -> do
-                    tv' <- qualifyTVar KStar tv -- TODO: [Kind inference]
+                    tv' <- qualifyTVar tv Nothing
                     addTVar tv tv'
                     pure (TVar tv')
                 | otherwise -> throw err
         go (UTForall ps ty) = withFrame do
-            ps' <- traverse (qualifyTVar KStar) ps -- TODO: [Kind inference]: should not just be KStar
-            zipWithM_ addTVar ps ps'
+            ps' <- traverse (uncurry qualifyTVar) ps
+            zipWithM_ addTVar (map fst ps) ps'
             TForall ps' <$> go ty
         go (UTConstraint constr ty) = TConstraint <$> goConstraint constr <*> go ty
 
@@ -280,10 +280,12 @@ qualifyType allowFreeVars = go
 
 
 qualifyTVar :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r 
-            => Kind
-            -> UnqualifiedName
+            => UnqualifiedName
+            -> Maybe Kind
             -> Sem r TVar
-qualifyTVar k n = ask >>= \li -> MkTVar <$> freshVar (n, li) <*> pure k
+qualifyTVar n mk = do
+    li <- ask
+    MkTVar <$> freshVar (n, li) <*> pure (fromMaybe KStar mk)
 
 addVar :: Members '[StackState Scope] r => Text -> QualifiedName -> Sem r ()
 addVar n n' = smodify (scopeVars %~ insert n n')

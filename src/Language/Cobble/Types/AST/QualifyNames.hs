@@ -48,5 +48,5 @@ type instance Name 'QualifyNames = Text
 type instance XKind 'QualifyNames = ()
 
 type instance XType QualifyNames = UType
-type instance XTVar QualifyNames = Text -- = UnqualifiedName
+type instance XTVar QualifyNames = (Text, Maybe Kind)
 

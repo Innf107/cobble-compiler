@@ -453,7 +453,6 @@ instantiate (TConstraint c ty) = do
     li <- ask
     dictVar <- freshVar "dv"
     wanted c dictVar
- -- TODO: Insert Dictionary application?
     (ty', w) <- instantiate ty
     pure (ty', \e -> w $ DictVarApp li e dictVar)
 instantiate ty = do

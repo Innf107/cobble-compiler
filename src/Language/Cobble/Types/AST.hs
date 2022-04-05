@@ -219,7 +219,7 @@ ppConstraint (MkConstraint n t) = show n <> " " <> ppType t
 data UType = UTCon UnqualifiedName
            | UTApp UType UType
            | UTVar UnqualifiedName
-           | UTForall (Seq UnqualifiedName) UType
+           | UTForall (Seq (UnqualifiedName, Maybe Kind)) UType
            | UTFun UType UType
            | UTConstraint UConstraint UType
            deriving (Show, Eq, Generic, Data)
@@ -230,7 +230,21 @@ freeTVs :: Type -> Set TVar
 freeTVs = go mempty
     where
         go bound (TCon _ _)         = mempty
-        go bound (TApp a b)         = freeTVs a <> freeTVs b
+        go bound (TApp a b)         = go bound a <> go bound b
+        go bound (TVar tv) 
+            | tv `Set.member` bound = mempty
+            | otherwise             = one tv
+        go bound (TSkol _ _)        = mempty
+        go bound (TForall tvs ty)   = go (bound <> Set.fromList (toList tvs)) ty
+        go bound (TFun a b)         = go bound a <> go bound b 
+        go bound (TConstraint (MkConstraint _ t1) t2) = go bound t1 <> go bound t2
+
+-- Like freeTVs, but preserves the order of free ty vars
+freeTVsOrdered :: Type -> Seq TVar
+freeTVsOrdered = ordNub . go mempty
+    where
+        go bound (TCon _ _)         = mempty
+        go bound (TApp a b)         = go bound a <> go bound b
         go bound (TVar tv) 
             | tv `Set.member` bound = mempty
             | otherwise             = one tv

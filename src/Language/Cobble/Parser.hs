@@ -72,6 +72,11 @@ reservedOp o = (token' \case
     Token l (ReservedOp t) | t == o -> Just l
     _ -> Nothing) <?> toString o
     
+exactOp :: Text -> Parser LexInfo
+exactOp op = token' \case
+    Token li (Operator op') | op == op' -> Just li
+    _ -> Nothing
+
 reservedOp' :: Text -> Parser ()
 reservedOp' = void . reservedOp
     
@@ -211,7 +216,7 @@ defVariant :: Parser (Statement NextPass)
 defVariant = "variant definition" <??> (\ls n ps cs -> DefVariant () (ls `mergeLexInfo` snd (unsafeLast cs)) n ps (map (\((n,ts),_) -> (n, ts, ())) cs))
     <$> reserved "variant"
     <*> ident'
-    <*> many ident'
+    <*> many tvarBinder
     <*  reservedOp' "="
     <*> (constr `sepBy1` reservedOp' "|")
     where
@@ -223,7 +228,7 @@ defClass :: Parser (Statement NextPass)
 defClass = "class definition" <??> (\ls n ps cs le -> DefClass () (ls `mergeLexInfo` le) n ps cs)
     <$> reserved "class"
     <*> ident'
-    <*> many ident'
+    <*> many tvarBinder
     <*  paren' "{"
     <*> many (signature' <* reservedOp' ";")
     <*> paren "}"
@@ -338,7 +343,7 @@ typeP = "type" <??> forallTyP <|> constrained <|> unconstrained
     where
         forallTyP = (\ls tvs (le, ty) -> (mergeLexInfo ls le, UTForall tvs ty))
             <$> reserved "forall"
-            <*> many ident'
+            <*> many tvarBinder
             <*  reservedOp' "."
             <*> typeP
         constrained = do
@@ -354,7 +359,24 @@ typeP = "type" <??> forallTyP <|> constrained <|> unconstrained
             let t' = foldl' UTApp t1 (map snd restTys)
             functionType ls' t' 
                 <|> pure (ls', t')
-                    
+
+tvarBinder :: Parser (UnqualifiedName, Maybe Kind)
+tvarBinder = (,Nothing) <$> ident'
+          <|> withParen ((\x k -> (x, Just k))
+                    <$> ident'
+                    <*  reservedOp' "::"
+                    <*> kindP)
+
+kindP :: Parser Kind
+kindP = do
+    k1 <- kindP' 
+    rest <- optionMaybe (reservedOp "->" *> kindP)
+    pure $ case rest of
+        Nothing -> k1
+        Just k2 -> k1 `KFun` k2
+
+kindP' :: Parser Kind
+kindP' = withParen kindP <|> (KStar <$ exactOp "*")
 
 constraint :: Parser (LexInfo, UConstraint)
 constraint = (\(ls, n) (le, t) -> (ls `mergeLexInfo` le, MkUConstraint n t))
