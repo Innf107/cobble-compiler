@@ -1,4 +1,4 @@
-# Cobble - A purely functional programming language that compiles to minecraft datapacks
+# Cobble - A purely functional programming language
 
 ## Installation
 The most current release for x86_64 linux can be found here: https://link.us1.storjshare.io/s/jv2rsbkaz6b5dvvlzn3yxkouwvza/releases/cobble
