@@ -133,7 +133,7 @@ typecheckStatements :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedNa
 typecheckStatements env (st :<| sts) = do
     (constraints, (st', env')) <- runOutputSeq $ typecheckStatement env st
     dump constraints
-    subst <- solveConstraints (_tcInstances env) mempty constraints
+    subst <- solveConstraints (_tcInstances env') mempty constraints
     
     (applySubst subst st' <|) <$> typecheckStatements env' sts
 typecheckStatements env Empty = pure Empty
@@ -143,7 +143,7 @@ typecheckStatement :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedNam
                     -> (Statement Typecheck)
                     -> Sem r (Statement NextPass, TCEnv)
 typecheckStatement env (Def fixity li decl expectedTy) = runReader li do
-    (decl', env') <- checkTopLevelDecl env decl expectedTy
+    (decl', env') <- checkTopLevelDecl True env decl expectedTy
 
     pure (Def fixity li decl' expectedTy, env')
 
@@ -155,6 +155,7 @@ typecheckStatement env (DefClass k li cname tvs methSigs) = do
 typecheckStatement env (DefInstance (classKind, methDefs, params, _isImported) li cname ty meths) = runReader li do
     dictName <- freshVar $ "d_" <> (originalName cname)
     let env' = insertInstance cname ty dictName env
+
     meths' <- forM (zip meths methDefs) \(decl@(Decl _ declName _ _), (methName, methTy)) -> do
         -- sanity check
         when (methName /= declName) $ error $ "typecheckStatement: instance methods were not properly reordered at " <> show li <> "."
@@ -162,15 +163,20 @@ typecheckStatement env (DefInstance (classKind, methDefs, params, _isImported) l
         let methTy' = case params of
                 [p] -> case methTy of
                     TForall (p' :<| ps) actualMethTy
-                        | p == p' -> replaceTVar p ty (tforall ps actualMethTy)
+                        | p == p' -> stripConstraint (MkConstraint cname classKind ty) $ replaceTVar p ty (tforall ps actualMethTy)
                     _ -> error $ "typecheckStatement: foralls were not properly inserted in instance method type. methTy: " <> show methTy
                 _ -> error "typecheckStatement: multi parameter typeclasses NYI"
 
         traceM DebugVerbose $ "[typecheckStatement (instance " <> show cname <> " " <> show ty <> ")]: Γ ⊢ " <> show methName <> " : " <> show methTy <> " ====> " <> show methTy'
 
         -- We discard the modified environment, since instance methods should really not be able to modify it.
-        fst <$> checkTopLevelDecl env' decl methTy'
+        fst <$> checkTopLevelDecl False env' decl methTy'
     pure (DefInstance (classKind, methDefs, params, dictName) li cname ty meths', env')
+        where
+            stripConstraint c (TForall ps ty) = TForall ps (stripConstraint c ty)
+            stripConstraint c (TConstraint c' ty) | c == c' = ty
+            stripConstraint c _ = error $ "typecheckStatement: non-constrained instance method at " <> show li
+
 typecheckStatement env (DefVariant k li tyName tvs constrs) =
     pure (DefVariant k li tyName tvs constrs', env')
         where
@@ -184,17 +190,20 @@ tforall Empty ty = ty
 tforall ps ty = TForall ps ty
 
 checkTopLevelDecl :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Output TConstraint, Reader LexInfo] r)
-      => TCEnv
+      => Bool
+      -> TCEnv
       -> Decl Typecheck
       -> Type
       -> Sem r (Decl NextPass, TCEnv)
-checkTopLevelDecl env (Decl () f xs e) expectedTy = do
+checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = do
     li <- ask
     (expectedTy', w) <- skolemize expectedTy
     (xs', eTy, w') <- decomposeParams expectedTy' xs
     traceM DebugVerbose $ "[checkTopLevelDecl env (" <> show f <> ")] xs' = " <> show xs' <> " | eTy = " <> show eTy
 
-    let env' = insertType f expectedTy env
+    let env' = if recursive
+               then insertType f expectedTy env
+               else env
 
     -- Ugh, I really don't want to have to duplicate the logic for lambdas here
     let tvs = case expectedTy of

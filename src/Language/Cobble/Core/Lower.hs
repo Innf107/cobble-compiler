@@ -70,14 +70,9 @@ lowerStmnts (C.DefInstance (classKind, _, tyParams, dictVar) li className tyArg 
 
     let dictType = F.TApp (F.TCon className dictKind) tyArg'
     def <- F.Def dictVar dictType . F.DictConstruct className [tyArg'] <$> forM methDecls \(C.Decl _ _ params expr) -> do 
-            expr' <- lowerExpr (stripDictAbs expr)
+            expr' <- lowerExpr expr
             foldrM (\(x, ty) r -> F.Abs x <$> lowerType ty <*> pure r) expr' params
     (def :<|) <$> lowerStmnts sts
-        where
-            stripDictAbs (C.TyAbs li tv e) = C.TyAbs li tv (stripDictAbs e)
-            stripDictAbs (C.DictAbs _ _ _ e) = e
-            stripDictAbs _ = error $ "lowerStmnts: non-constrained instance method at " <> show li
-
 lowerStmnts (C.DefVariant _ _ x args clauses :<| sts) = do
     def <- F.DefVariant x 
             <$> traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) args
