@@ -101,9 +101,7 @@ qualifyStmnt (DefClass () li n tvs meths) = runReader li $ do
 
 qualifyStmnt (DefInstance () li cname ty meths) = runReader li $ lookupType cname >>= \case
     (cname', k, TyClass tvs classMeths, isImported) -> withFrame do
-        ty' <- qualifyType False ty 
-        -- TODO: Should ty vars in classes be allowed? They are in Haskell, but I'm not sure if cobble is quite
-        -- ready to work with these kinds of instances
+        ty' <- qualifyType True ty 
         meths' <- forM meths \d@(Decl _ n _ _) -> do
             n' <- lookupVar n
             qualifyDeclWithName n' d
