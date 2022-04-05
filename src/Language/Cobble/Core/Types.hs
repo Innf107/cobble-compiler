@@ -157,7 +157,7 @@ instance Pretty Pattern where
 
 instance Pretty Type where
     pretty (TVar x k) = ppQName x
-    pretty (TCon x k) = ppQName x -- We don't currently display the kind of type constructors
+    pretty (TCon x k) = ppQName x -- We don't currently display the kinds of type constructors
     pretty (TFun t1 t2) = "(" <> pretty t1 <+> "->" <+> pretty t2 <> ")"
     pretty (TApp t1 t2) = "(" <> pretty t1 <+> pretty t2 <> ")"
     pretty (TForall x k ty) = "(forall" <+> "(" <> ppQName x <+> ":" <+> pretty k <> ")." <+> pretty ty <> ")"

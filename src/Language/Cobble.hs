@@ -184,7 +184,7 @@ makePartialSig = \case
         ,   exportedVars  = fromList $ 
                 toList $ map (second coercePass) meths
         }
-    DefInstance (_, _, dictName) _ cname ty _ -> mempty {exportedInstances = one (cname, [(ty, dictName)])}
+    DefInstance (_, _, _, dictName) _ cname ty _ -> mempty {exportedInstances = one (cname, [(ty, dictName)])}
     DefVariant k _ tyName ps cs -> let tyVariant = VariantType ps (map (\(x,y,_) -> (x,y)) cs) in 
         mempty
         {   exportedTypes = one (tyName, (k, tyVariant))

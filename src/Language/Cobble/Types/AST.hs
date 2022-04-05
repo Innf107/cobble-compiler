@@ -214,7 +214,7 @@ ppType (TForall ps t)           = "(∀" <> T.intercalate " " (toList $ map (\(M
 ppType (TConstraint c t)        = ppConstraint c <> " => " <> ppType t
 
 ppConstraint :: Constraint -> Text
-ppConstraint (MkConstraint n t) = show n <> " " <> ppType t
+ppConstraint (MkConstraint n k t) = "(" <> show n <> " : " <> show k <> ")" <> ppType t
 
 data UType = UTCon UnqualifiedName
            | UTApp UType UType
@@ -237,7 +237,7 @@ freeTVs = go mempty
         go bound (TSkol _ _)        = mempty
         go bound (TForall tvs ty)   = go (bound <> Set.fromList (toList tvs)) ty
         go bound (TFun a b)         = go bound a <> go bound b 
-        go bound (TConstraint (MkConstraint _ t1) t2) = go bound t1 <> go bound t2
+        go bound (TConstraint (MkConstraint _ _ t1) t2) = go bound t1 <> go bound t2
 
 -- Like freeTVs, but preserves the order of free ty vars
 freeTVsOrdered :: Type -> Seq TVar
@@ -251,7 +251,7 @@ freeTVsOrdered = ordNub . go mempty
         go bound (TSkol _ _)        = mempty
         go bound (TForall tvs ty)   = go (bound <> Set.fromList (toList tvs)) ty
         go bound (TFun a b)         = go bound a <> go bound b 
-        go bound (TConstraint (MkConstraint _ t1) t2) = go bound t1 <> go bound t2
+        go bound (TConstraint (MkConstraint _ _ t1) t2) = go bound t1 <> go bound t2
 
 data TVar = MkTVar QualifiedName Kind
           deriving (Show, Eq, Ord, Generic, Data)
@@ -262,8 +262,8 @@ type family XTVar (p :: Pass) :: HSType
 -- should use @Type@ instead. For now there would be no advantage to
 -- this, so Constraint is implemented like this.
 -- TODO: Also, MultiParam Typeclasses!
--- TODO: This should also really be a List of (Name, Type p), since you might have multiple constraints
-data Constraint = MkConstraint QualifiedName Type
+-- TODO: This should also really be a List of (Name, Type p), since one might have multiple constraints
+data Constraint = MkConstraint QualifiedName Kind Type
                 deriving (Show, Eq, Ord, Generic, Data)
 
 data UConstraint = MkUConstraint UnqualifiedName UType 

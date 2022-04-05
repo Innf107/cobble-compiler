@@ -37,15 +37,15 @@ implicitClassConstraints = \case
         $ map (\(n, t) -> (n, addForall $ addConstraint t)) meths
           where
             addConstraint t = case ps of 
-                [p] -> TConstraint (MkConstraint cname (TVar p)) t
+                [p] -> TConstraint (MkConstraint cname k (TVar p)) t
                 _   -> error $ "SemAnalysis.implicitClassConstraints: multi-param typeclasses NYI: " <> show ps
 
-    (DefInstance (defMeths, ps, isImported) li cname ty meths) -> 
-        DefInstance (map (\(n, t) -> (n, coercePass $ addForall $ addConstraint isImported t)) defMeths, ps, isImported) li cname ty meths
+    (DefInstance (classKind, defMeths, ps, isImported) li cname ty meths) -> 
+        DefInstance (classKind, map (\(n, t) -> (n, coercePass $ addForall $ addConstraint isImported t)) defMeths, ps, isImported) li cname ty meths
           where
             addConstraint True t = t
             addConstraint False t = case ps of 
-                (p :<| Empty) -> insertAfterForalls (TConstraint (MkConstraint cname (TVar p))) t
+                (p :<| Empty) -> insertAfterForalls (TConstraint (MkConstraint cname classKind (TVar p))) t
                 _   -> error $ "SemAnalysis.implicitClassConstraints: multi-param typeclasses NYI: " <> show ps
     
     x -> x
@@ -89,13 +89,13 @@ reorderAndCheckFields li dfs fs = forM dfs \(n, _) -> do
 -- This is necessary for Codegen and expected by the typechecker
 reorderAndCheckInstances :: Members '[Error SemanticError] r => Statement SemAnalysis -> Sem r (Statement SemAnalysis)
 reorderAndCheckInstances = \case
-    DefInstance (defMeths, classPS, isImported) li className ty decls -> do
+    DefInstance (classKind, defMeths, classPS, isImported) li className ty decls -> do
         reorderedDecls <- forM defMeths \(dmName, dmType) -> do
             case lookup dmName declMap of
                 Nothing -> throw $ MissingTyClassMethod li dmName dmType
                 Just decl -> pure decl
         case decls `diffEq` reorderedDecls of
-            [] -> pure (DefInstance (map (second coercePass) defMeths, coercePass classPS, isImported) li className ty reorderedDecls)
+            [] -> pure (DefInstance (classKind, map (second coercePass) defMeths, coercePass classPS, isImported) li className ty reorderedDecls)
             ds -> throw $ DuplicateTyClassMethods li ds
         where
             declMap :: Map QualifiedName (Decl SemAnalysis)

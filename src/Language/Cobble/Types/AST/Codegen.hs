@@ -34,7 +34,7 @@ type instance XDefVariantClause Codegen = (Type, Int, Int)
 type instance XDefClass         Codegen = Kind
 -- XDefInstance uses a list of pairs instead of a Map, because SemAnalysis shuffles declarations around
 -- to have the same order as class declaration.
-type instance XDefInstance      Codegen = ((Seq (QualifiedName, Type)), (Seq TVar), QualifiedName)
+type instance XDefInstance      Codegen = (Kind, (Seq (QualifiedName, Type)), (Seq TVar), QualifiedName)
 --                                                                      ^param tvs  ^ dictionary name
 type instance XStatement        Codegen = Void
 

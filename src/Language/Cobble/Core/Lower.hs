@@ -63,9 +63,12 @@ lowerStmnts (C.DefClass k li cname tvs methSigs :<| sts) = do
             tyAppsFor n (F.TForall _ _ ty) = tyAppsFor (n - 1) ty
             tyAppsFor _ _ = id
 
-lowerStmnts (C.DefInstance (_, _, dictVar) li className tyArg methDecls :<| sts) = do
+lowerStmnts (C.DefInstance (classKind, _, tyParams, dictVar) li className tyArg methDecls :<| sts) = do
     tyArg' <- lowerType tyArg
-    let dictType = F.TApp (F.TCon className (F.KType `F.KFun` F.KType)) tyArg' -- TODO: don't hardcode the kind
+
+    dictKind <- lowerKind classKind
+
+    let dictType = F.TApp (F.TCon className dictKind) tyArg'
     def <- F.Def dictVar dictType . F.DictConstruct className [tyArg'] <$> forM methDecls \(C.Decl _ _ params expr) -> do 
             expr' <- lowerExpr (stripDictAbs expr)
             foldrM (\(x, ty) r -> F.Abs x <$> lowerType ty <*> pure r) expr' params
@@ -323,7 +326,9 @@ lowerType (C.TFun t1 t2) = F.TFun <$> lowerType t1 <*> lowerType t2
 lowerType (C.TConstraint c ty) = F.TFun <$> lowerConstraint c <*> lowerType ty -- Constraints are desugard to dictionary applications
 
 lowerConstraint :: C.Constraint -> Sem r F.Type
-lowerConstraint (C.MkConstraint cname ty) = F.TApp (F.TCon cname (F.KFun F.KType F.KType)) <$> lowerType ty
+lowerConstraint (C.MkConstraint cname k ty) = do
+    k' <- lowerKind k
+    F.TApp (F.TCon cname k') <$> lowerType ty
 
 lowerKind :: C.Kind -> Sem r F.Kind
 lowerKind C.KStar = pure F.KType

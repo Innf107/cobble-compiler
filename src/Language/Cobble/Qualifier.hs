@@ -100,14 +100,14 @@ qualifyStmnt (DefClass () li n tvs meths) = runReader li $ do
     pure (DefClass k li n' tvs' meths')
 
 qualifyStmnt (DefInstance () li cname ty meths) = runReader li $ lookupType cname >>= \case
-    (cname', _, TyClass tvs classMeths, isImported) -> withFrame do
+    (cname', k, TyClass tvs classMeths, isImported) -> withFrame do
         ty' <- qualifyType False ty 
         -- TODO: Should ty vars in classes be allowed? They are in Haskell, but I'm not sure if cobble is quite
         -- ready to work with these kinds of instances
         meths' <- forM meths \d@(Decl _ n _ _) -> do
             n' <- lookupVar n
             qualifyDeclWithName n' d
-        pure (DefInstance (classMeths, tvs, isImported) li cname' ty' meths')
+        pure (DefInstance (k, classMeths, tvs, isImported) li cname' ty' meths')
     (cname', k, tv, _) -> throw $ InstanceForNonClass li cname' k tv
 
 -- | Same as qualifyDecl, but takes the already qualified name as an argument
@@ -275,7 +275,7 @@ qualifyType allowFreeVars = go
 
         goConstraint :: UConstraint -> Sem r Constraint
         goConstraint (MkUConstraint className ty) = lookupType className >>= \case
-            (className', _, TyClass _ _, _) -> MkConstraint className' <$> go ty
+            (className', k, TyClass _ _, _) -> MkConstraint className' k <$> go ty
             (className', k, tv, _) -> ask >>= \li -> throw $ NonClassInConstraint li className' k tv
 
 

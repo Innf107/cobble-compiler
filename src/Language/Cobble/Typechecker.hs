@@ -152,7 +152,7 @@ typecheckStatement env (DefClass k li cname tvs methSigs) = do
     let env' = foldr (uncurry insertType) env methSigs
     pure (DefClass k li cname tvs methSigs, env')
 
-typecheckStatement env (DefInstance (methDefs, params, _isImported) li cname ty meths) = runReader li do
+typecheckStatement env (DefInstance (classKind, methDefs, params, _isImported) li cname ty meths) = runReader li do
     dictName <- freshVar $ "d_" <> (originalName cname)
     let env' = insertInstance cname ty dictName env
     meths' <- forM (zip meths methDefs) \(decl@(Decl _ declName _ _), (methName, methTy)) -> do
@@ -170,7 +170,7 @@ typecheckStatement env (DefInstance (methDefs, params, _isImported) li cname ty 
 
         -- We discard the modified environment, since instance methods should really not be able to modify it.
         fst <$> checkTopLevelDecl env' decl methTy'
-    pure (DefInstance (methDefs, params, dictName) li cname ty meths', env')
+    pure (DefInstance (classKind, methDefs, params, dictName) li cname ty meths', env')
 typecheckStatement env (DefVariant k li tyName tvs constrs) =
     pure (DefVariant k li tyName tvs constrs', env')
         where
@@ -513,8 +513,8 @@ replaceTVars tvs ty@(TFun a b)   = TFun (replaceTVars tvs a) (replaceTVars tvs b
 replaceTVars tvs (TForall forallTVs ty) =
                 let remainingTVs = foldr (M.delete) tvs forallTVs in
                 TForall forallTVs $ replaceTVars remainingTVs ty
-replaceTVars tvs (TConstraint (MkConstraint constrName constrTy) ty) =
-                TConstraint (MkConstraint constrName (replaceTVars tvs constrTy)) (replaceTVars tvs ty)
+replaceTVars tvs (TConstraint (MkConstraint constrName k constrTy) ty) =
+                TConstraint (MkConstraint constrName k (replaceTVars tvs constrTy)) (replaceTVars tvs ty)
 
 
 solveConstraints :: (Trace, Members '[Error TypeError, Fresh Text QualifiedName, Fresh TVar TVar] r)
@@ -532,7 +532,7 @@ solveConstraints givens wanteds ((MkTConstraint (ConUnify t1 t2) li) :<| constrs
 solveConstraints givens wanteds ((MkTConstraint (ConWanted c dictVar) li) :<| constrs) = runReader li do
             solveConstraints givens ((c, dictVar, li) :<| wanteds) constrs
         
-solveConstraints givens wanteds ((MkTConstraint (ConGiven c@(MkConstraint cname ty) dict) li) :<| constrs) = runReader li do
+solveConstraints givens wanteds ((MkTConstraint (ConGiven c@(MkConstraint cname k ty) dict) li) :<| constrs) = runReader li do
             let givens' = alter (<> Just [(ty, dict)]) cname givens
             solveConstraints givens' wanteds constrs
 
@@ -542,7 +542,7 @@ solveWanteds :: (Trace, Members '[Error TypeError] r)
                 -> Seq (Constraint, QualifiedName, LexInfo)
                 -> Sem r Substitution
 solveWanteds givens Empty = pure mempty
-solveWanteds givens ((c@(MkConstraint cname ty), dictVar, li) :<| wanteds) = runReader li do
+solveWanteds givens ((c@(MkConstraint cname k ty), dictVar, li) :<| wanteds) = runReader li do
     case lookup cname givens of
         Just tys -> do
             let trySolve Empty = throw $ NoInstanceFor li c
