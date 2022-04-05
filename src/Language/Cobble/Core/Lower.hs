@@ -47,13 +47,22 @@ lowerStmnts (C.DefClass k li cname tvs methSigs :<| sts) = do
         let tvAbs e = foldr (uncurry F.TyAbs) e tvs'
         let dictTy = foldl' (\r (x, k) -> F.TApp r (F.TVar x k)) (F.TCon cname k') tvs'
         pure $ F.Def methName methTy'
-            $ tvAbs $ F.Abs dictName dictTy $ F.DictAccess (F.Var dictName) cname (map (uncurry F.TVar) tvs') methName
+            $ tvAbs $ tyAbsFor 1 methTy' $ F.Abs dictName dictTy $ tyAppsFor 1 methTy' $ F.DictAccess (F.Var dictName) cname (map (uncurry F.TVar) tvs') methName
 
     ((dictDef :<| methImpls) <>) <$> lowerStmnts sts
         where
             stripConstraint (C.TForall tvs ty) = C.TForall tvs (stripConstraint ty)
             stripConstraint (C.TConstraint _ ty) = ty
             stripConstraint ty = ty
+
+            tyAbsFor 0 (F.TForall tv k ty) = F.TyAbs tv k . tyAbsFor 0 ty
+            tyAbsFor n (F.TForall _ _ ty) = tyAbsFor (n - 1) ty
+            tyAbsFor _ _ = id
+
+            tyAppsFor 0 (F.TForall tv k ty) = tyAppsFor 0 ty . flip F.TyApp (F.TVar tv k)
+            tyAppsFor n (F.TForall _ _ ty) = tyAppsFor (n - 1) ty
+            tyAppsFor _ _ = id
+
 lowerStmnts (C.DefInstance (_, _, dictVar) li className tyArg methDecls :<| sts) = do
     tyArg' <- lowerType tyArg
     let dictType = F.TApp (F.TCon className (F.KType `F.KFun` F.KType)) tyArg' -- TODO: don't hardcode the kind

@@ -45,7 +45,7 @@ implicitClassConstraints = \case
           where
             addConstraint True t = t
             addConstraint False t = case ps of 
-                (p :<| Empty) -> TConstraint (MkConstraint cname (TVar p)) t
+                (p :<| Empty) -> insertAfterForalls (TConstraint (MkConstraint cname (TVar p))) t
                 _   -> error $ "SemAnalysis.implicitClassConstraints: multi-param typeclasses NYI: " <> show ps
     
     x -> x
@@ -55,6 +55,10 @@ addForall t@TForall{} = t
 addForall t = case freeTVsOrdered t of
     []      -> t
     freeTVs -> TForall freeTVs t
+
+insertAfterForalls :: (Type -> Type) -> Type -> Type
+insertAfterForalls f (TForall tvs ty) = TForall tvs (insertAfterForalls f ty)
+insertAfterForalls f ty               = f ty
 
 detectDuplicateFields :: Members '[Error SemanticError] r => LexInfo -> Seq (UnqualifiedName, a) -> Sem r (Seq (UnqualifiedName, a))
 detectDuplicateFields li xs = case ks \\ ordNub ks of

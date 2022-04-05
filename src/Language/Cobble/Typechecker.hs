@@ -161,12 +161,12 @@ typecheckStatement env (DefInstance (methDefs, params, _isImported) li cname ty 
         
         let methTy' = case params of
                 [p] -> case methTy of
-                    TForall [p'] actualMethTy
-                        | p == p' -> replaceTVar p ty actualMethTy
-                    _ -> error "typecheckStatement: foralls were not properly inserted in instance method type"
+                    TForall (p' :<| ps) actualMethTy
+                        | p == p' -> replaceTVar p ty (tforall ps actualMethTy)
+                    _ -> error $ "typecheckStatement: foralls were not properly inserted in instance method type. methTy: " <> show methTy
                 _ -> error "typecheckStatement: multi parameter typeclasses NYI"
 
-        traceM DebugVerbose$  "[typecheckStatement (instance " <> show cname <> " " <> show ty <> ")]: Γ ⊢ " <> show methName <> " : " <> show methTy <> " ====> " <> show methTy'
+        traceM DebugVerbose $ "[typecheckStatement (instance " <> show cname <> " " <> show ty <> ")]: Γ ⊢ " <> show methName <> " : " <> show methTy <> " ====> " <> show methTy'
 
         -- We discard the modified environment, since instance methods should really not be able to modify it.
         fst <$> checkTopLevelDecl env' decl methTy'
@@ -178,6 +178,10 @@ typecheckStatement env (DefVariant k li tyName tvs constrs) =
             constrTy ps = TForall tvs (foldr (:->) resTy ps)
             constrs' = map (\(n, ps, (i, j)) -> (n, ps, (constrTy ps, i, j))) constrs
             env' = foldr (\(n,_,(t,_,_)) -> insertType n t) env constrs'
+
+tforall :: Seq TVar -> Type -> Type
+tforall Empty ty = ty
+tforall ps ty = TForall ps ty
 
 checkTopLevelDecl :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Output TConstraint, Reader LexInfo] r)
       => TCEnv
