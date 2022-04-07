@@ -3,21 +3,18 @@ module Data.List;
 import Control.Functor;
 
 import Data.Tuple;
+import Data.Maybe;
+
+import Data.Function;
+import Data.Arith;
 import Data.Ord;
+import Data.Foldable;
 
 variant List a = Nil | Cons a (List a);
 
 infixr 5
 (:) :: a -> List a -> List a;
 (:) = Cons;
-
--- Invalid, since tyclasses do not support higher kinded types yet
--- instance Functor List {
---     map f l = case l of {
---         Nil -> Nil;
---         Cons x xs -> f x : map f xs;
---     };
--- };
 
 infixr 5
 (++) :: List a -> List a -> List a;
@@ -26,11 +23,99 @@ infixr 5
     Cons x xs -> Cons x (xs ++ ys);
 };
 
-filter :: (a -> Bool) -> List a -> List a;
-filter pred l = case l of {
-    Nil -> Nil;
-    Cons x xs -> if pred x then x : filter pred xs else filter pred xs;
+uncons :: List a -> Maybe (T2 a (List a));
+uncons l = case l of {
+    Nil -> Nothing;
+    Cons x xs -> Just (T2 x xs);
 };
+
+null :: List a -> Bool;
+null l = case l of {
+    Nil -> true;
+    _ -> false;
+};
+
+instance Foldable List {
+    foldr f z l = case l of {
+        Nil -> z;
+        Cons x xs -> f x (foldr f z xs);
+    };
+    foldl f z l = case l of {
+        Nil -> z;
+        Cons x xs -> foldl f (f z x) xs;
+    };
+};
+
+length :: List a -> Int;
+length = foldr (\_ r -> r + 1) 0;
+
+instance Functor List {
+    map f l = foldr (\x r -> f x : r) Nil l;
+};
+
+reverse :: List a -> List a;
+reverse = foldl (flip Cons) Nil;
+
+filter :: (a -> Bool) -> List a -> List a;
+filter pred = foldr (\x r -> if pred x then x : r else r) Nil;
+
+-- intersperse :: a -> List a -> List a
+
+-- intercalate :: List a -> List (List a)) -> List a
+
+-- transpose :: List (List a) -> List (List a)
+
+-- subsequences :: List a -> List (List a)
+
+-- permutations :: List a -> List (List a)
+
+concat :: Foldable t => t (List a) -> List a;
+concat = foldr (++) Nil;
+
+concatMap :: Foldable t => (a -> List b) -> t a -> List b;
+concatMap f l = foldr (\x r -> f x ++ r) Nil l;
+
+scanl :: (b -> a -> b) -> b -> List a -> List b;
+scanl f z l = case l of {
+    Nil -> z : Nil;
+    Cons x xs -> z : scanl f (f z x) xs;
+};
+
+scanl1 :: (a -> a -> a) -> List a -> List a;
+scanl1 f l = case l of {
+    Nil -> Nil;
+    Cons x xs -> scanl f x xs;
+};
+
+replicate :: Int -> a -> List a;
+replicate n x = if n <= 0 then Nil else x : replicate (n - 1) x;
+
+unfoldr :: (b -> Maybe (T2 a b)) -> b -> List a;
+unfoldr f z = case f z of {
+    Nothing -> Nil;
+    Just (T2 x r) -> x : unfoldr f r;
+};
+
+take :: Int -> List a -> List a;
+take n xs = if n <= 0 then Nil else case xs of {
+    Nil -> Nil;
+    Cons x xs -> x : take (n - 1) xs;
+};
+
+drop :: Int -> List a -> List a;
+drop n xs = if n <= 0 then xs else case xs of {
+    Nil -> Nil;
+    Cons x xs -> drop (n - 1) xs;
+};
+
+-- splitAt :: Int -> List a -> T2 (List a) (List a)
+
+-- takeWhile :: (a -> Bool) -> List a -> List a
+
+-- dropWhile :: (a -> Bool) -> List a -> List a
+
+-- dropWhileEnd :: (a -> Bool) -> List a -> List a
+
 
 partition_acc :: T2 (List a) (List a) -> (a -> Bool) -> List a -> T2 (List a) (List a);
 partition_acc acc pred l = case l of {

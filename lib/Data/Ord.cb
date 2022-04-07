@@ -10,6 +10,13 @@ class Ord a {
 };
 
 infixl 4
+(<=) ::Ord a => a -> a -> Bool;
+(<=) x y = case compare x y of {
+    (LT | EQ) -> true;
+    _ -> false;
+};
+
+infixl 4
 (<) :: Ord a => a -> a -> Bool;
 (<) x y = case compare x y of {
     LT -> true;

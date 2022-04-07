@@ -1,6 +1,6 @@
 module Control.Functor;
 
--- class Functor f {
---     map :: (a -> b) -> f a -> f b;
--- };
+class Functor (f :: * -> *) {
+    map :: (a -> b) -> f a -> f b;
+};
 

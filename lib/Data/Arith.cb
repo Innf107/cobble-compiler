@@ -1,0 +1,26 @@
+module Data.Arith;
+
+class Add a {
+    add :: a -> a -> a;
+};
+
+infixr 5
+(+) :: Add a => a -> a -> a;
+(+) = add;
+
+instance Add Int {
+    add = add#;
+};
+
+-- TODO: Do something slightly more principled
+class Subtract a {
+    subtract :: a -> a -> a;
+};
+
+infixr 5
+(-) :: Subtract a => a -> a -> a;
+(-) = subtract;
+
+instance Subtract Int {
+    subtract = sub#;
+};

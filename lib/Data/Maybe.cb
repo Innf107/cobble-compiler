@@ -1,0 +1,5 @@
+module Data.Maybe;
+
+variant Maybe a = Nothing | Just a;
+
+

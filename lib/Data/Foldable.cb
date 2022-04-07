@@ -1,0 +1,6 @@
+module Data.Foldable;
+
+class Foldable (t :: * -> *) {
+    foldr :: (a -> b -> b) -> b -> t a -> b;
+    foldl :: (b -> a -> b) -> b -> t a -> b;
+};
