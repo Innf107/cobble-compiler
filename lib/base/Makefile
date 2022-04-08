@@ -29,9 +29,9 @@ all: ./out/Control/Functor.cbi ./out/Data/Semigroup.cbi ./out/Data/Arith.cbi ./o
 	mkdir -p ./out/Data
 	cobble compile  ./src/Data/Foldable.cb -o ./out/Data/Foldable.cbi
 
-./out/Data/List.cbi: ./src/Data/List.cb ./out/Control/Functor.cbi ./out/Data/Tuple.cbi ./out/Data/Maybe.cbi ./out/Data/Function.cbi ./out/Data/Arith.cbi ./out/Data/Ord.cbi ./out/Data/Foldable.cbi
+./out/Data/List.cbi: ./src/Data/List.cb ./out/Control/Functor.cbi ./out/Data/Bool.cbi ./out/Data/Tuple.cbi ./out/Data/Maybe.cbi ./out/Data/Function.cbi ./out/Data/Arith.cbi ./out/Data/Ord.cbi ./out/Data/Foldable.cbi
 	mkdir -p ./out/Data
-	cobble compile  ./src/Data/List.cb ./out/Control/Functor.cbi ./out/Data/Tuple.cbi ./out/Data/Maybe.cbi ./out/Data/Function.cbi ./out/Data/Arith.cbi ./out/Data/Ord.cbi ./out/Data/Foldable.cbi -o ./out/Data/List.cbi
+	cobble compile  ./src/Data/List.cb ./out/Control/Functor.cbi ./out/Data/Bool.cbi ./out/Data/Tuple.cbi ./out/Data/Maybe.cbi ./out/Data/Function.cbi ./out/Data/Arith.cbi ./out/Data/Ord.cbi ./out/Data/Foldable.cbi -o ./out/Data/List.cbi
 
 ./out/Data/Bool.cbi: ./src/Data/Bool.cb
 	mkdir -p ./out/Data
