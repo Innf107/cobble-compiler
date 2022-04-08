@@ -25,7 +25,6 @@ import qualified GHC.Show as S
 data QualifiedName = UnsafeQualifiedName {
         originalName :: Text
     ,   qnameIndex :: Int
-    ,   location :: LexInfo
     } deriving (Eq, Ord, Generic, Data)
 instance Hashable QualifiedName
 instance Binary QualifiedName
@@ -33,13 +32,13 @@ instance Binary QualifiedName
 type UnqualifiedName = Text
 
 internalQName :: Text -> QualifiedName
-internalQName n = UnsafeQualifiedName n 0 InternalLexInfo
+internalQName n = UnsafeQualifiedName n 0
 
 instance S.Show QualifiedName where
     show = toString . renderDebug
 
 renderDebug :: QualifiedName -> Text
-renderDebug (UnsafeQualifiedName name ix _) = name <> "_" <> show ix
+renderDebug (UnsafeQualifiedName name ix) = name <> "_" <> show ix
 
 renderMinecraft :: QualifiedName -> Text
 renderMinecraft = renameUpper . renameStandardChars . renderDebug

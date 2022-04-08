@@ -1,6 +1,6 @@
 module Main where
 
-import Cobble.Prelude hiding (argument)
+import Cobble.Prelude hiding (argument, output)
 import Cobble
 import Cobble.Types
 
@@ -27,7 +27,7 @@ runCobble = \case
     Compile co -> runCompile co
 
 runCompile :: CompileCmdOpts -> IO ()
-runCompile CompileCmdOpts{compFile, interfaceFiles, target, traceLevel, ddumpTC, ddumpCore, skipCoreLint} = do
+runCompile CompileCmdOpts{compFile, interfaceFiles, output, target, traceLevel, ddumpTC, ddumpCore, skipCoreLint} = do
     let opts = CompileOpts {
             target
         ,   interfaceFiles
@@ -41,8 +41,11 @@ runCompile CompileCmdOpts{compFile, interfaceFiles, target, traceLevel, ddumpTC,
             case eRacketFile of
                 Left e -> failWithCompError e
                 Right (racketFile, interface) -> do
-                    writeFileText (dropExtension compFile <> ".rkt") racketFile
-                    encodeFile (dropExtension compFile <> ".cbi") interface
+                    let (racketOutPath, ifaceOutPath) = case output of
+                            Nothing -> (dropExtension compFile <> ".rkt", dropExtension compFile <> ".cbi")
+                            Just path -> (path, dropExtension path <> ".cbi")
+                    writeFileText racketOutPath racketFile
+                    encodeFile ifaceOutPath interface
 
 runTracePretty :: TraceLevel -> (Trace => a) -> a
 runTracePretty lvl = runTraceStderrWith lvl pretty 
@@ -70,6 +73,7 @@ data CobbleAction = Compile CompileCmdOpts deriving (Show, Eq)
 data CompileCmdOpts = CompileCmdOpts {
       compFile :: FilePath
     , interfaceFiles :: Seq FilePath
+    , output :: Maybe FilePath
     , traceLevel :: TraceLevel
     , target :: Target
     , ddumpTC :: Bool
@@ -81,6 +85,7 @@ compileOpts :: Parser CompileCmdOpts
 compileOpts = CompileCmdOpts
     <$> (argument str (metavar "SOURCEFILE"))
     <*> (fromList <$> many (argument str (metavar "INTERFACES")))
+    <*> option (Just <$> str) (long "output" <>  short 'o' <> metavar "FILE" <> value Nothing <> help "Write the output to FILE. An interface file will be written to FILE.cbi")
     <*> option auto (long "log-level" <> metavar "LEVEL" <> value Info <> help "Controls how much information is logged (LogWarning | LogInfo | LogVerbose | LogDebug | LogDebugVerbose)")
     <*> option auto (long "target" <> metavar "TARGET" <> value Racket <> help "Possible targets: racket")
     <*> switch (long "ddump-tc" <> help "Write the typechecker constraints to a file")

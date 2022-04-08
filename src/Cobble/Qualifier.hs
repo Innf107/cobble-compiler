@@ -44,16 +44,16 @@ instance Monoid Scope where
 
 makeLenses ''Scope
 
-qualify :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
+qualify :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError] r 
         => Module QualifyNames 
         -> Sem r (Module NextPass)
 qualify (Module deps name stmnts) = Module deps name <$> traverse qualifyStmnt stmnts
 
-qualifyStmnt :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
+qualifyStmnt :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError] r 
              => Statement QualifyNames
              -> Sem r (Statement NextPass)
 qualifyStmnt (Def mfixity li d@(Decl _ n _ _) ty) = runReader li do 
-    n' <- freshVar (n, li)
+    n' <- freshVar n
     addVar n n'
     addMFixity n mfixity
     withFrame do
@@ -65,7 +65,7 @@ qualifyStmnt (Def mfixity li d@(Decl _ n _ _) ty) = runReader li do
             <*> pure ty'
 
 qualifyStmnt (DefVariant () li n tvs constrs) = runReader li $ do
-    n' <- freshVar (n, li)
+    n' <- freshVar n
     tvs' <- traverse (uncurry qualifyTVar) tvs
     let k = getTyConKind tvs'
     constrs' <- withFrame $ flip traverseWithIndex constrs \i (cn, tys, ()) -> do
@@ -73,7 +73,7 @@ qualifyStmnt (DefVariant () li n tvs constrs) = runReader li $ do
         addType n n' k (VariantType (coercePass tvs') [])
         zipWithM_ addTVar (map fst tvs) tvs'
 
-        cn' <- freshVar (cn, li)
+        cn' <- freshVar cn
         tys' <- traverse (qualifyType False) tys
         pure (cn', tys', (length tys', i))
     let typeVariant = (VariantType (coercePass tvs') (map (\(cn, ts, _) -> (cn, coercePass ts)) constrs'))
@@ -82,7 +82,7 @@ qualifyStmnt (DefVariant () li n tvs constrs) = runReader li $ do
     pure (DefVariant k li n' tvs' constrs')
 
 qualifyStmnt (DefClass () li n tvs meths) = runReader li $ do
-    n' <- freshVar (n, li)
+    n' <- freshVar n
     tvs' <- traverse (uncurry qualifyTVar) tvs
     let k = foldr (\(MkTVar _ k) r -> k `KFun` r) KConstraint tvs'
     -- Again, the methods have to be stubbed out since we don't have them yet, but we
@@ -91,7 +91,7 @@ qualifyStmnt (DefClass () li n tvs meths) = runReader li $ do
         addType n n' k (TyClass (coercePass tvs') [])
         zipWithM_ addTVar (map fst tvs) tvs'
         forM meths \(mn, mty) -> do
-            mn' <- freshVar (mn, li)
+            mn' <- freshVar mn
             mt' <- qualifyType True mty -- Type class methods *are* allowed to introduce new tyvars
             pure (mn', mt')
     addType n n' k (TyClass tvs' meths')
@@ -109,36 +109,36 @@ qualifyStmnt (DefInstance () li cname ty meths) = runReader li $ lookupType cnam
 
 -- | Same as qualifyDecl, but takes the already qualified name as an argument
 -- instead of recomputing it
-qualifyDeclWithName :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r
+qualifyDeclWithName :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r
             => QualifiedName
             -> Decl 'QualifyNames 
             -> Sem r (Decl NextPass)
 qualifyDeclWithName n' (Decl () _ ps e) = withFrame do
     li <- ask
-    ps' <- traverse (freshVar . (,li)) ps
+    ps' <- traverse freshVar ps
     zipWithM_ addVar ps ps'
     e' <- qualifyExpr e
     pure (Decl () n' ps' e')
 
-qualifyDecl :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r
+qualifyDecl :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r
             => Decl 'QualifyNames 
             -> Sem r (Decl NextPass)
 qualifyDecl d@(Decl _ n _ _) = do
     li <- ask
-    n' <- freshVar (n, li)
+    n' <- freshVar n
     qualifyDeclWithName n' d
         <* addVar n n'
 
-qualifyRecursiveDecl :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r
+qualifyRecursiveDecl :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r
                      => Decl 'QualifyNames 
                      -> Sem r (Decl NextPass)
 qualifyRecursiveDecl d@(Decl _ n _ _) = do
     li <- ask
-    n' <- freshVar (n, li)
+    n' <- freshVar n
     addVar n n'
     qualifyDeclWithName n' d
 
-qualifyExpr :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r
+qualifyExpr :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError] r
             => Expr QualifyNames
             -> Sem r (Expr NextPass)
 qualifyExpr (App () li f e) =
@@ -171,13 +171,13 @@ qualifyExpr (Case () li exp cases) = runReader li $
     <*> traverse qualifyCaseBranch cases
 qualifyExpr (Lambda () li x e) = runReader li $
     withFrame $ do
-        x' <- freshVar (x, li)
+        x' <- freshVar x
         addVar x x'
         Lambda () li x' <$> qualifyExpr e
 
 qualifyExpr (ExprX opGroup li) = runReader li $ replaceOpGroup . reorderByFixity <$> qualifyWithFixity opGroup
     where
-        qualifyWithFixity :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r
+        qualifyWithFixity :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r
                           => OperatorGroup QualifyNames NoFixity 
                           -> Sem r (OperatorGroup NextPass WithFixity)
         qualifyWithFixity (OpLeaf e)            = OpLeaf <$> qualifyExpr e
@@ -204,7 +204,7 @@ qualifyExpr (ExprX opGroup li) = runReader li $ replaceOpGroup . reorderByFixity
             | otherwise                        = OpNode l op (OpNode l' op' r')
         reorderByFixity _ = error "unreachable"
 
-qualifyCaseBranch :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r
+qualifyCaseBranch :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError] r
                   => CaseBranch QualifyNames
                   -> Sem r (CaseBranch NextPass)
 qualifyCaseBranch (CaseBranch () li pat expr) = runReader li $
@@ -212,12 +212,12 @@ qualifyCaseBranch (CaseBranch () li pat expr) = runReader li $
         <$> qualifyPattern pat
         <*> qualifyExpr expr
 
-qualifyPattern :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r
+qualifyPattern :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r
                => Pattern QualifyNames
                -> Sem r (Pattern NextPass)
 qualifyPattern = evalState mempty . go Nothing
     where
-        go :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo, State (Map Text QualifiedName)] r
+        go :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo, State (Map Text QualifiedName)] r
            => Maybe (Map Text QualifiedName) -> Pattern QualifyNames -> Sem r (Pattern NextPass)
         go _ (IntP () n) = pure (IntP () n)
 
@@ -227,7 +227,7 @@ qualifyPattern = evalState mempty . go Nothing
             
         go Nothing (VarP () x) = do
             li <- ask
-            x' <- freshVar (x, li)
+            x' <- freshVar x
             addVar x x'
             modify (insert x x')
             pure (VarP () x')
@@ -246,7 +246,7 @@ qualifyPattern = evalState mempty . go Nothing
 
         go _ (WildcardP ()) = pure (WildcardP ())
 
-qualifyType :: forall r. Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r 
+qualifyType :: forall r. Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r 
             => Bool
             -> UType
             -> Sem r Type
@@ -276,13 +276,13 @@ qualifyType allowFreeVars = go
             (className', k, tv, _) -> ask >>= \li -> throw $ NonClassInConstraint li className' k tv
 
 
-qualifyTVar :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError, Reader LexInfo] r 
+qualifyTVar :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r 
             => UnqualifiedName
             -> Maybe Kind
             -> Sem r TVar
 qualifyTVar n mk = do
     li <- ask
-    MkTVar <$> freshVar (n, li) <*> pure (fromMaybe KStar mk)
+    MkTVar <$> freshVar n <*> pure (fromMaybe KStar mk)
 
 addVar :: Members '[StackState Scope] r => Text -> QualifiedName -> Sem r ()
 addVar n n' = smodify (scopeVars %~ insert n n')

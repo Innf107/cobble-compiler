@@ -68,7 +68,7 @@ type ControllerC r = Members '[Reader CompileOpts, Error CompilationError, FileS
 
 
 runControllerC :: CompileOpts 
-               -> Sem '[Error CompilationError, Reader CompileOpts, FileSystem FilePath LByteString, FileSystem FilePath Text, Fresh (Text, LexInfo) QualifiedName, Embed IO] a
+               -> Sem '[Error CompilationError, Reader CompileOpts, FileSystem FilePath LByteString, FileSystem FilePath Text, Fresh Text QualifiedName, Embed IO] a
                -> IO (Either CompilationError a)
 runControllerC opts r = handle
                       $ runM 
@@ -100,17 +100,17 @@ class Compiled m where
 instance Compiled (Seq RacketExpr) where
     compileFromCore = CoreToRacket.compile
 
-compileToRacketFile :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName, FileSystem FilePath LByteString] r) 
+compileToRacketFile :: (Trace, ControllerC r, Members '[Fresh Text QualifiedName, FileSystem FilePath LByteString] r) 
                     => FilePath 
                     -> Sem r (Text, LByteString)
 compileToRacketFile files = bimap (show . prettyRacketWithRuntime) encode <$> compileAll files
 
-compileAll :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName, FileSystem FilePath LByteString] r, Compiled m) 
+compileAll :: (Trace, ControllerC r, Members '[Fresh Text QualifiedName, FileSystem FilePath LByteString] r, Compiled m) 
            => FilePath 
            -> Sem r (m, Interface)
 compileAll file = compileContents file =<< readFile file
 
-compileContents :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName, FileSystem FilePath LByteString] r, Compiled m) 
+compileContents :: (Trace, ControllerC r, Members '[Fresh Text QualifiedName, FileSystem FilePath LByteString] r, Compiled m) 
                 => FilePath
                 -> Text
                 -> Sem r (m, Interface)
@@ -139,10 +139,10 @@ compileContents path content = do
             Left (MkCoreLintError msg) -> traceM Warning $ "[CORE LINT ERROR]: " <> msg
             Right () -> pure () 
 
-    result <- freshWithInternal $ compileFromCore core
+    result <- compileFromCore core
     pure (result, interface)
 
-compileWithSig :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r)
+compileWithSig :: (Trace, ControllerC r, Members '[Fresh Text QualifiedName] r)
                => S.Module 'QualifyNames
                -> Sem r (Seq Core.Decl, ModSig)
 compileWithSig m = do
@@ -157,20 +157,19 @@ compileWithSig m = do
     qMod  <- mapError QualificationError $ evalStackStatePanic (fold qualScopes) $ qualify m
 
     saMod <- mapError SemanticError $ runSemanticAnalysis qMod
+    
+    tcMod <- -- dumpWhenWithM (asks ddumpTC) ppGivens "dump-givens.tc" 
+        -- $ dumpWhenWithM (asks ddumpTC) ppWanteds "dump-wanteds.tc" 
+        dumpWhenWithM (asks ddumpTC) ppTC "dump-tc" 
+        $ mapError TypeError 
+        $ runFreshM (\(MkTVar n k) -> freshVar (originalName n) <&> \n' -> MkTVar n' k)
+        $ typecheck tcEnv saMod -- TODO: provide environment from other modules
 
-    freshWithInternal do
-        tcMod <- -- dumpWhenWithM (asks ddumpTC) ppGivens "dump-givens.tc" 
-            -- $ dumpWhenWithM (asks ddumpTC) ppWanteds "dump-wanteds.tc" 
-            dumpWhenWithM (asks ddumpTC) ppTC "dump-tc" 
-            $ mapError TypeError 
-            $ runFreshM (\(MkTVar n k) -> freshVar (originalName n) <&> \n' -> MkTVar n' k)
-            $ typecheck tcEnv saMod -- TODO: provide environment from other modules
+    core <- lower tcMod
 
-        core <- lower tcMod
+    dumpWhenWithM (asks ddumpCore) (show . Core.prettyDecls) "dump-core" $ dump core
 
-        dumpWhenWithM (asks ddumpCore) (show . Core.prettyDecls) "dump-core" $ dump core
-
-        pure (core, extractSig tcMod)
+    pure (core, extractSig tcMod)
 
 
 modSigToScope :: ModSig -> Scope
