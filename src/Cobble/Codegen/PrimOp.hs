@@ -18,6 +18,7 @@ data PrimOp = True_
             | EQ
             | Debug
             deriving (Show, Eq, Generic, Data)
+instance Binary PrimOp
 
 data PrimOpInfo = PrimOpInfo {
         primOp :: PrimOp

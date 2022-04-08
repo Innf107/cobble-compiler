@@ -95,7 +95,10 @@ instance R.Read Target where
     readsPrec _ _ = []
 
 class Compiled m where
-    compileFromCore :: forall r. (ControllerC r, Members '[Fresh Text QualifiedName] r) => Seq Core.Decl -> Sem r m
+    compileFromCore :: forall r. (ControllerC r, Members '[Fresh Text QualifiedName] r) 
+                    => Seq Interface 
+                    -> Seq Core.Decl 
+                    -> Sem r m
 
 instance Compiled (Seq RacketExpr) where
     compileFromCore = CoreToRacket.compile
@@ -122,24 +125,33 @@ compileContents path content = do
 
     -- orderedMods :: Seq (S.Module 'SolveModules, Seq Text) <- mapError ModuleError $ findCompilationOrder ast
 
-    modWithInterfaces <- mapError ModuleError $ insertInterfaceSigs interfaces ast
+    modWithSigs <- mapError ModuleError $ insertInterfaceSigs interfaces ast
 
-    (core, sig) <- compileWithSig modWithInterfaces -- evalState (one ("prims", primModSig)) $ compileAndAnnotateSig modWithInterfaces
+    (core, sig) <- compileWithSig modWithSigs
     
-    let (Module _ moduleName _) = modWithInterfaces
-    let interface = Interface {
-            interfaceModName = moduleName
-        ,   interfaceModSig = sig
-        }
-
     whenM (asks (not . skipCoreLint)) do
-        lintError <- runError $ lint (LintEnv mempty mempty mempty) core
+        let (CoreModSig{coreModVars, coreModDictTyDefs}) = foldr (mergeCoreModSig . interfaceCoreModSig) emptyCoreModSig interfaces
+        let lintEnv = LintEnv {
+                varTypes = coreModVars
+            ,   jpArgTypes = mempty
+            ,   dictTyDefs = coreModDictTyDefs
+            }
+
+        lintError <- runError $ lint lintEnv core
 
         case lintError of
             Left (MkCoreLintError msg) -> traceM Warning $ "[CORE LINT ERROR]: " <> msg
             Right () -> pure () 
 
-    result <- compileFromCore core
+    result <- compileFromCore interfaces core
+
+    let (Module _ moduleName _) = modWithSigs
+    let interface = Interface {
+            interfaceModName = moduleName
+        ,   interfaceModSig = sig
+        ,   interfaceCoreModSig = extractCoreSig core
+        }
+
     pure (result, interface)
 
 compileWithSig :: (Trace, ControllerC r, Members '[Fresh Text QualifiedName] r)

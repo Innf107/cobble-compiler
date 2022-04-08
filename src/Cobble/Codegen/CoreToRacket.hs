@@ -4,16 +4,19 @@ import Cobble.Prelude hiding (EQ, Debug)
 import Cobble.Core.Types as F
 import Cobble.Racket.Types as R
 import Cobble.Types.QualifiedName
+import Cobble.Interface
 
 import Cobble.Codegen.PrimOp
 
-compile :: Seq Decl -> Sem r (Seq RacketExpr) 
-compile = evalState initialState . compile'
+compile :: Seq Interface -> Seq Decl -> Sem r (Seq RacketExpr) 
+compile interfaces = evalState initialState . compile'
     where
-        initialState = CompState {
-                            varTypes = mempty    
-                        ,   dictFieldNames = mempty
-                        }
+        initialState = foldr insertInterface (CompState mempty mempty) interfaces
+
+insertInterface :: Interface -> CompState -> CompState
+insertInterface (Interface {interfaceCoreModSig=CoreModSig{coreModVars, coreModDictTyDefs}}) (CompState vts dfns) = 
+    CompState (coreModVars <> vts) (fmap (map fst . snd) coreModDictTyDefs <> dfns)
+
 
 data CompState = CompState {
         varTypes :: Map QualifiedName Type

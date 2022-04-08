@@ -14,6 +14,7 @@ data Decl = Def QualifiedName Type Expr
           | DefVariant QualifiedName (Seq (QualifiedName, Kind)) (Seq (QualifiedName, Seq Type))
           | DefDict QualifiedName (Seq (QualifiedName, Kind)) (Seq (QualifiedName, Type))
           deriving (Eq, Generic, Data)
+instance Binary Decl
 
 data Expr = Var QualifiedName
           | App Expr Expr
@@ -43,11 +44,13 @@ data Expr = Var QualifiedName
           | DictAccess Expr QualifiedName (Seq Type) QualifiedName
           --                ^class name   ^class args ^field
           deriving (Eq, Generic, Data)
+instance Binary Expr
 
 data Pattern = PInt Int
              | PWildcard
              | PConstr QualifiedName (Seq (QualifiedName, Type)) Int
              deriving (Eq, Generic, Data)
+instance Binary Pattern
 
 data Type = TVar QualifiedName Kind
           | TCon QualifiedName Kind
@@ -55,10 +58,12 @@ data Type = TVar QualifiedName Kind
           | TApp Type Type
           | TForall QualifiedName Kind Type
           deriving (Eq, Generic, Data)
+instance Binary Type
 
 data Kind = KType
           | KFun Kind Kind
           deriving (Eq, Generic, Data)
+instance Binary Kind
 
 {- Note [Join Points]
 When lowering case expressions, or after certain optimizations, large expressions might
