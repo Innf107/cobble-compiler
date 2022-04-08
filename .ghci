@@ -1,1 +1,1 @@
-import Language.Cobble.Prelude
+import Cobble.Prelude

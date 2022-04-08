@@ -1,11 +1,11 @@
 module Main where
 
-import Language.Cobble.Prelude hiding (argument)
-import Language.Cobble
-import Language.Cobble.Types
+import Cobble.Prelude hiding (argument)
+import Cobble
+import Cobble.Types
 
 import Options.Applicative
-import Language.Cobble.Util.Polysemy.Time
+import Cobble.Util.Polysemy.Time
 
 import System.IO
 
