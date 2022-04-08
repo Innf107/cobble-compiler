@@ -26,6 +26,7 @@ source-repository head
 library
   exposed-modules:
       Cobble
+      Cobble.Build
       Cobble.Codegen.CoreToRacket
       Cobble.Codegen.PrimOp
       Cobble.Core.Lint
@@ -140,6 +141,7 @@ library
     , polysemy
     , polysemy-plugin
     , prettyprinter
+    , process
     , random
     , recursion-schemes
     , relude
@@ -210,7 +212,7 @@ executable cobble
       RoleAnnotations
       QuantifiedConstraints
       OverloadedLists
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -fplugin=Polysemy.Plugin -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , binary
@@ -228,6 +230,7 @@ executable cobble
     , polysemy
     , polysemy-plugin
     , prettyprinter
+    , process
     , random
     , recursion-schemes
     , relude

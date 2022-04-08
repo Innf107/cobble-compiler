@@ -43,6 +43,7 @@ dependencies:
 - prettyprinter
 - witherable
 - binary
+- process
 
 library:
   source-dirs: src
@@ -68,6 +69,7 @@ executables:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
+    - -fplugin=Polysemy.Plugin
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N

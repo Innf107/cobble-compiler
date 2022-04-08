@@ -1,22 +1,28 @@
 module Main where
 
 import Cobble.Prelude hiding (argument, output)
+
 import Cobble
+import Cobble.Build
+
 import Cobble.Types
 
 import Options.Applicative
 import Cobble.Util.Polysemy.Time
+import Cobble.Util.Polysemy.FileSystem
 
 import Data.Binary (encodeFile)
 
 import System.IO
+import System.Process
 
 main :: IO ()
 main = runCobble =<< execParser (info (mainOpts <**> helper) mainInfo)
     where
         mainOpts = hsubparser (
-              command "compile" (Compile <$> info compileOpts (progDesc "Compile source files to a datapack"))
-            ) 
+                command "compile" (Compile <$> info compileOpts (progDesc "Compile source files to interfaces and object files"))
+            <>  command "build" (Build <$> info buildOpts (progDesc "Build a project"))
+            )
         mainInfo = idm
 
 cobbleInfo :: InfoMod CobbleAction
@@ -25,6 +31,7 @@ cobbleInfo = mempty
 runCobble :: CobbleAction -> IO ()
 runCobble = \case
     Compile co -> runCompile co
+    Build buildOpts -> runBuild buildOpts
 
 runCompile :: CompileCmdOpts -> IO ()
 runCompile CompileCmdOpts{compFile, interfaceFiles, output, target, traceLevel, ddumpTC, ddumpCore, skipCoreLint} = do
@@ -47,6 +54,14 @@ runCompile CompileCmdOpts{compFile, interfaceFiles, output, target, traceLevel, 
                     writeFileText racketOutPath racketFile
                     encodeFile ifaceOutPath interface
 
+runBuild :: BuildCmdOpts -> IO ()
+runBuild BuildCmdOpts{projectFile, makeCommand, makeOptions} = do
+    let opts = BuildOpts {
+        projectFile
+    }
+    makeWorkingDirectory <- runM $ runFileSystemGenericStringIO $ createMakeFile opts
+    callProcess (toString makeCommand) (fmap toString makeOptions <> [makeWorkingDirectory])
+
 runTracePretty :: TraceLevel -> (Trace => a) -> a
 runTracePretty lvl = runTraceStderrWith lvl pretty 
     where
@@ -68,7 +83,9 @@ failWithCompError e = do
     hPutStrLn stderr $ "CompilationError: " <> show e
     exitFailure
 
-data CobbleAction = Compile CompileCmdOpts deriving (Show, Eq)
+data CobbleAction = Compile CompileCmdOpts 
+                  | Build BuildCmdOpts
+                  deriving (Show, Eq)
 
 data CompileCmdOpts = CompileCmdOpts {
       compFile :: FilePath
@@ -91,3 +108,15 @@ compileOpts = CompileCmdOpts
     <*> switch (long "ddump-tc" <> help "Write the typechecker constraints to a file")
     <*> switch (long "ddump-core" <> help "Write the intermediate language Core to a file")
     <*> switch (long "skip-core-lint" <> help "Skip type checks for the internal language. Unless the compiler has a bug, this should always be safe.")
+
+data BuildCmdOpts = BuildCmdOpts {
+    projectFile :: FilePath
+,   makeCommand :: Text
+,   makeOptions :: [Text]
+} deriving (Show, Eq)
+
+buildOpts :: Parser BuildCmdOpts
+buildOpts = BuildCmdOpts
+    <$> option str (long "project-file" <> metavar "FILE" <> value "cobble.yaml" <> help "Use FILE for configuration instead of cobble.yaml")
+    <*> option str (long "make-command" <> metavar "COMMAND" <> value "make" <> help "Use a custom command to run makefiles. Default: make")
+    <*> option (words <$> str) (long "make-options" <> metavar "OPTIONS" <> value [] <> help "Pass additional options to make")
