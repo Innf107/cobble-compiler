@@ -42,6 +42,7 @@ dependencies:
 - data-default
 - prettyprinter
 - witherable
+- binary
 
 library:
   source-dirs: src

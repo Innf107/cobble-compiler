@@ -11,16 +11,6 @@ import Cobble.Types.AST
 import Cobble.Types.Instances
 import Cobble.Types.QualifiedName
 
--- Defined here because the instances need
--- @Type 'Codegen@ to be defined
-deriving instance Show ModSig
-deriving instance Eq ModSig
-deriving instance Data ModSig
-
-deriving instance Show TypeVariant
-deriving instance Eq TypeVariant
-deriving instance Data TypeVariant
-
 type instance XModule Codegen = Map (Name Codegen) ModSig
 
 type instance XDecl      Codegen = (Type, (Seq TGiven))

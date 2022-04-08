@@ -31,6 +31,7 @@ library
       Cobble.Core.Lint
       Cobble.Core.Lower
       Cobble.Core.Types
+      Cobble.Interface
       Cobble.ModuleSolver
       Cobble.Parser
       Cobble.Parser.Tokenizer
@@ -126,6 +127,7 @@ library
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wno-unused-matches -Wno-name-shadowing -Wredundant-constraints -Werror=incomplete-patterns -Werror=incomplete-record-updates -Werror=missing-fields -Werror=missing-methods -Werror=unused-do-bind -freverse-errors
   build-depends:
       base >=4.7 && <5
+    , binary
     , bytestring
     , containers
     , data-default
@@ -211,6 +213,7 @@ executable cobble
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , binary
     , bytestring
     , cobble
     , containers
@@ -317,6 +320,7 @@ test-suite cobble-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , binary
     , bytestring
     , cobble
     , containers

@@ -13,12 +13,14 @@ data LexInfo = LexInfo {
     } deriving (Eq, Ord, Generic, Data, Typeable)
 
 instance Hashable LexInfo
+instance Binary LexInfo
 
 data SourcePos = SourcePos {
       line :: Int
     , column :: Int
     } deriving (Show, Eq, Ord, Generic, Data, Typeable)
 instance Hashable SourcePos
+instance Binary SourcePos
 
 pattern InternalLexInfo :: LexInfo
 pattern InternalLexInfo = LexInfo (SourcePos 0 0) (SourcePos 0 0) "<internal>"

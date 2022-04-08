@@ -28,6 +28,7 @@ data QualifiedName = UnsafeQualifiedName {
     ,   location :: LexInfo
     } deriving (Eq, Ord, Generic, Data)
 instance Hashable QualifiedName
+instance Binary QualifiedName
 
 type UnqualifiedName = Text
 

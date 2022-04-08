@@ -46,13 +46,17 @@ data ModSig = ModSig {
 ,   exportedTypes           :: Map QualifiedName (Kind, TypeVariant)
 ,   exportedFixities        :: Map QualifiedName Fixity
 ,   exportedInstances       :: Map QualifiedName (Seq (Type, QualifiedName))
-} deriving (Generic, Typeable) -- Instances for @Eq@ and @Data@ are defined in Cobble.Types.AST.Codegen
+} deriving (Show, Eq, Generic, Data, Typeable)
 
-data TypeVariant = RecordType (Seq (XTVar Codegen)) (Seq (UnqualifiedName, Type))
-                 | VariantType (Seq (XTVar Codegen)) (Seq (QualifiedName, (Seq Type)))
+instance Binary ModSig
+
+data TypeVariant = RecordType (Seq TVar) (Seq (UnqualifiedName, Type))
+                 | VariantType (Seq TVar) (Seq (QualifiedName, (Seq Type)))
                  | BuiltInType
                  | TyClass (Seq TVar) (Seq (QualifiedName, Type))
-                 deriving (Generic, Typeable)
+                 deriving (Show, Eq, Generic, Data, Typeable)
+
+instance Binary TypeVariant
 
 type Dependencies = Map QualifiedName ModSig
 
@@ -199,6 +203,7 @@ data Type = TCon QualifiedName Kind
           | TFun Type Type
           | TConstraint Constraint Type
           deriving (Eq, Ord, Generic, Data)
+instance Binary Type
 
 instance S.Show Type where 
     show = toString . (<>")") . ("(Type " <>) . ppType
@@ -255,6 +260,8 @@ freeTVsOrdered = ordNub . go mempty
 data TVar = MkTVar QualifiedName Kind
           deriving (Show, Eq, Ord, Generic, Data)
 
+instance Binary TVar
+
 type family XTVar (p :: Pass) :: HSType
 
 -- TODO: Ideally, @Constraint@ should be unnecessary and @TConstraint@
@@ -265,6 +272,8 @@ type family XTVar (p :: Pass) :: HSType
 data Constraint = MkConstraint QualifiedName Kind Type
                 deriving (Show, Eq, Ord, Generic, Data)
 
+instance Binary Constraint
+
 data UConstraint = MkUConstraint UnqualifiedName UType 
                  deriving (Show, Eq, Generic, Data)
 
@@ -272,8 +281,9 @@ data Kind = KStar
           | KConstraint 
           | KFun Kind Kind 
           deriving (Eq, Ord, Generic, Data, Typeable)
-
 infixr 5 `KFun`
+
+instance Binary Kind
 
 data TGiven  = TGiven  Constraint LexInfo deriving (Show, Eq, Generic, Data, Typeable)
 data TWanted = TWanted Constraint LexInfo deriving (Show, Eq, Generic, Data, Typeable)
@@ -321,6 +331,9 @@ type family XFixity (f :: FixityStatus) where
 
 
 data Fixity = LeftFix Int | RightFix Int deriving (Show, Eq, Generic, Data)
+
+instance Binary Fixity
+
 getPrecedence :: Fixity -> Int
 getPrecedence (LeftFix p)  = p
 getPrecedence (RightFix p) = p

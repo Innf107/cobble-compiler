@@ -37,6 +37,7 @@ module Cobble.Prelude (
     , HSType
     , HSConstraint
     , unsafeLast
+    , Binary
     ) where
 
 import qualified Relude
@@ -143,6 +144,8 @@ import Data.Sequence hiding (
 import Witherable
 
 import Prettyprinter (Pretty(..))
+
+import Data.Binary (Binary)
 
 (|:) :: a -> NonEmpty a -> NonEmpty a
 a |: (x :| xs) = a :| (x : xs)
