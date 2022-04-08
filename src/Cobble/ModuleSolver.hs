@@ -3,6 +3,7 @@ module Cobble.ModuleSolver where
 import Cobble.Prelude
 
 import Cobble.Types
+import Cobble.Interface
 
 type ModC (r :: EffectRow) = Members '[Error ModuleError] r
 
@@ -17,6 +18,11 @@ data DepModule = DepModule {
     } deriving (Show, Eq)
 
 type NextPass = 'QualifyNames
+
+-- TODO: resolve imports
+insertInterfaceSigs :: Seq Interface -> Module SolveModules -> Sem r (Module NextPass)
+insertInterfaceSigs iface m = undefined
+
 
 -- | Finds an order for a list of modules such that
 -- whenever a module is compiled, all its dependencies have already been compiled

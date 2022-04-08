@@ -5,8 +5,9 @@ import Cobble.Types
 
 import Data.Binary
 
-newtype Interface = Interface {
-    interfaceModSig :: ModSig
+data Interface = Interface {
+    interfaceModName :: Text
+,   interfaceModSig :: ModSig
 } deriving (Show, Eq, Generic, Data)
 
 instance Binary Interface

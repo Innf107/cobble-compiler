@@ -47,7 +47,7 @@ makeLenses ''Scope
 qualify :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
         => Module QualifyNames 
         -> Sem r (Module NextPass)
-qualify (Module deps name stmnts) = Module deps (internalQName name) <$> traverse qualifyStmnt stmnts
+qualify (Module deps name stmnts) = Module deps name <$> traverse qualifyStmnt stmnts
 
 qualifyStmnt :: Members '[StackState Scope, Fresh (Text, LexInfo) QualifiedName, Error QualificationError] r 
              => Statement QualifyNames

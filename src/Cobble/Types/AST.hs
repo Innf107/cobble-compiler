@@ -28,7 +28,7 @@ type family InstanceRequirements t :: [HSType]
 -- Top level module.
 data Module (p :: Pass) = Module
     { xModule :: (XModule p)
-    , moduleName :: (Name p)
+    , moduleName :: Text
     , moduleStatements :: (Seq (Statement p))
     }
 

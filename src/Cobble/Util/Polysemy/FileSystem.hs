@@ -11,6 +11,8 @@ import System.IO qualified as S
 import System.Directory qualified as S
 import System.FilePath qualified as S
 
+import Data.ByteString.Lazy qualified as LB
+
 -- | An Effect representing a file system, mostly used to simplify testing
 -- The way in wich file descriptors are related to directories may depend on the implementation
 --
@@ -32,10 +34,10 @@ data FileSystem fd fc m a where
 
 makeSem ''FileSystem
 
-fileSystemIO :: (ToString fd, IsString fd, ToString fc, IsString fc, Member (Embed IO) r)
+runFileSystemGenericStringIO :: forall fd fc a r. (ToString fd, IsString fd, ToString fc, IsString fc, Member (Embed IO) r)
              => Sem (FileSystem fd fc ': r) a
              -> Sem r a
-fileSystemIO = interpret \case
+runFileSystemGenericStringIO = interpret \case
     ReadFile fd             -> embed (fromString <$> S.readFile (toString fd))
     WriteFile fd fc         -> embed (S.writeFile (toString fd) (toString fc))
     AppendFile fd fc        -> embed (S.appendFile (toString fd) (toString fc))
@@ -45,6 +47,20 @@ fileSystemIO = interpret \case
     DoesDirectoryExist fd   -> embed (S.doesDirectoryExist (toString fd))
     GetDirectoryContents fd -> embed (fmap fromString <$> S.getDirectoryContents (toString fd))
     CreateDirectory fd      -> embed (S.createDirectory (toString fd))
+
+runFileSystemLByteStringIO :: (Member (Embed IO) r)
+                           => Sem (FileSystem FilePath LByteString ': r) a
+                           -> Sem r a
+runFileSystemLByteStringIO = interpret \case
+    ReadFile fd             -> embed (LB.readFile fd)
+    WriteFile fd fc         -> embed (LB.writeFile fd fc)
+    AppendFile fd fc        -> embed (LB.appendFile fd fc)
+    DeleteFile fd           -> embed (S.removeFile fd)
+    DeleteDirectory fd      -> embed (S.removeDirectory fd)
+    DoesFileExist fd        -> embed (S.doesFileExist fd)
+    DoesDirectoryExist fd   -> embed (S.doesDirectoryExist fd)
+    GetDirectoryContents fd -> embed (S.getDirectoryContents fd)
+    CreateDirectory fd      -> embed (S.createDirectory fd)
 
 -- | A class representing File Descriptors.
 -- Apart from 'segments', this is essentially

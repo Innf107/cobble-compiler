@@ -7,6 +7,8 @@ import Cobble.Types
 import Options.Applicative
 import Cobble.Util.Polysemy.Time
 
+import Data.Binary (encodeFile)
+
 import System.IO
 
 main :: IO ()
@@ -25,22 +27,22 @@ runCobble = \case
     Compile co -> runCompile co
 
 runCompile :: CompileCmdOpts -> IO ()
-runCompile CompileCmdOpts{compFiles, debug, packageName, description, target, traceLevel, ddumpTC, ddumpCore, skipCoreLint} = do
+runCompile CompileCmdOpts{compFile, interfaceFiles, target, traceLevel, ddumpTC, ddumpCore, skipCoreLint} = do
     let opts = CompileOpts {
-            name=packageName
-        ,   debug
-        ,   description
-        ,   target
+            target
+        ,   interfaceFiles
         ,   ddumpTC
         ,   ddumpCore
-        , skipCoreLint
+        ,   skipCoreLint
         }
     case target of
         Racket -> do
-            eRacketFile <- runTracePretty traceLevel $ runControllerC opts (compileToRacketFile compFiles)
+            eRacketFile <- runTracePretty traceLevel $ runControllerC opts (compileToRacketFile compFile)
             case eRacketFile of
                 Left e -> failWithCompError e
-                Right racketFile -> writeFileText (toString packageName <> ".rkt") racketFile
+                Right (racketFile, interface) -> do
+                    writeFileText (dropExtension compFile <> ".rkt") racketFile
+                    encodeFile (dropExtension compFile <> ".cbi") interface
 
 runTracePretty :: TraceLevel -> (Trace => a) -> a
 runTracePretty lvl = runTraceStderrWith lvl pretty 
@@ -66,11 +68,9 @@ failWithCompError e = do
 data CobbleAction = Compile CompileCmdOpts deriving (Show, Eq)
 
 data CompileCmdOpts = CompileCmdOpts {
-      compFiles :: Seq FilePath
-    , packageName :: Text
-    , debug :: Bool
+      compFile :: FilePath
+    , interfaceFiles :: Seq FilePath
     , traceLevel :: TraceLevel
-    , description :: Text
     , target :: Target
     , ddumpTC :: Bool
     , ddumpCore :: Bool
@@ -79,11 +79,9 @@ data CompileCmdOpts = CompileCmdOpts {
 
 compileOpts :: Parser CompileCmdOpts
 compileOpts = CompileCmdOpts
-    <$> (fromList <$> some (argument str (metavar "SOURCEFILES")))
-    <*> strOption (long "package-name" <> short 'p' <> metavar "NAME" <> help "The name of the package/datapack")
-    <*> switch (long "debug" <> help "Debug mode keeps additional information at runtime")
+    <$> (argument str (metavar "SOURCEFILE"))
+    <*> (fromList <$> many (argument str (metavar "INTERFACES")))
     <*> option auto (long "log-level" <> metavar "LEVEL" <> value Info <> help "Controls how much information is logged (LogWarning | LogInfo | LogVerbose | LogDebug | LogDebugVerbose)")
-    <*> strOption (long "description" <> short 'd' <> metavar "DESCRIPTION" <> help "The datapack description for the datapack's pack.mcmeta")
     <*> option auto (long "target" <> metavar "TARGET" <> value Racket <> help "Possible targets: racket")
     <*> switch (long "ddump-tc" <> help "Write the typechecker constraints to a file")
     <*> switch (long "ddump-core" <> help "Write the intermediate language Core to a file")

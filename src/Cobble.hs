@@ -43,7 +43,11 @@ import Cobble.Codegen.CoreToRacket as CoreToRacket
 import Cobble.Racket.Types as Racket
 import Cobble.Core.Types qualified as Core
 
+import Cobble.Interface
+
 import Data.Map qualified as M
+
+import Data.Binary
 
 import qualified Control.Exception as Ex
 
@@ -56,6 +60,7 @@ data CompilationError = LexError LexicalError
                       | TypeError TypeError
                       | ModuleError ModuleError
                       | Panic Text
+                      | InterfaceDecodeError Text FilePath
                       deriving (Show, Eq)
 
 
@@ -63,15 +68,20 @@ type ControllerC r = Members '[Reader CompileOpts, Error CompilationError, FileS
 
 
 runControllerC :: CompileOpts 
-               -> Sem '[Error CompilationError, Reader CompileOpts, FileSystem FilePath Text, Fresh (Text, LexInfo) QualifiedName, Embed IO] a
+               -> Sem '[Error CompilationError, Reader CompileOpts, FileSystem FilePath LByteString, FileSystem FilePath Text, Fresh (Text, LexInfo) QualifiedName, Embed IO] a
                -> IO (Either CompilationError a)
-runControllerC opts r = runM (runFreshQNamesState $ fileSystemIO $ runReader opts $ runError r)
-        `Ex.catch` (\(Ex.SomeException e) -> pure (Left (Panic (show e))))
+runControllerC opts r = handle
+                      $ runM 
+                      $ runFreshQNamesState 
+                      $ runFileSystemGenericStringIO
+                      $ runFileSystemLByteStringIO 
+                      $ runReader opts 
+                      $ runError r
+    where
+        handle m = m `Ex.catch` (\(Ex.SomeException e) -> pure (Left (Panic (show e))))
 
 data CompileOpts = CompileOpts {
-      name::Text
-    , debug::Bool
-    , description::Text
+      interfaceFiles :: Seq FilePath
     , target::Target
     , ddumpTC::Bool
     , ddumpCore::Bool
@@ -90,23 +100,38 @@ class Compiled m where
 instance Compiled (Seq RacketExpr) where
     compileFromCore = CoreToRacket.compile
 
-compileToRacketFile :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r) => Seq FilePath -> Sem r Text
-compileToRacketFile files = show . prettyRacketWithRuntime <$> compileAll files
+compileToRacketFile :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName, FileSystem FilePath LByteString] r) 
+                    => FilePath 
+                    -> Sem r (Text, LByteString)
+compileToRacketFile files = bimap (show . prettyRacketWithRuntime) encode <$> compileAll files
 
-compileAll :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m) => Seq FilePath -> Sem r m
-compileAll files = compileContents =<< traverse (\x -> (x,) <$> readFile x) files
+compileAll :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName, FileSystem FilePath LByteString] r, Compiled m) 
+           => FilePath 
+           -> Sem r (m, Interface)
+compileAll file = compileContents file =<< readFile file
 
-compileContents :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r, Compiled m) 
-                => Seq (FilePath, Text)
-                -> Sem r m
-compileContents contents = do
-    tokens <- traverse (\(fn, content) -> mapError LexError $ tokenize (toText fn) content) contents
-    asts   <- traverse (\(ts, n) -> mapError ParseError $ fromEither $ parse module_ n ts) (zip tokens (map fst contents))
+compileContents :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName, FileSystem FilePath LByteString] r, Compiled m) 
+                => FilePath
+                -> Text
+                -> Sem r (m, Interface)
+compileContents path content = do
+    interfaces <- traverse readInterfaceFile =<< asks interfaceFiles
 
-    orderedMods :: Seq (S.Module 'SolveModules, Seq Text) <- mapError ModuleError $ findCompilationOrder asts
+    tokens <- mapError LexError $ tokenize (toText path) content
+    ast    <- mapError ParseError $ fromEither $ parse module_ path tokens
 
-    core <- fmap join $ evalState (one ("prims", primModSig)) $ traverse compileAndAnnotateSig orderedMods
+    -- orderedMods :: Seq (S.Module 'SolveModules, Seq Text) <- mapError ModuleError $ findCompilationOrder ast
+
+    modWithInterfaces <- insertInterfaceSigs interfaces ast
+
+    (core, sig) <- compileWithSig modWithInterfaces -- evalState (one ("prims", primModSig)) $ compileAndAnnotateSig modWithInterfaces
     
+    let (Module _ moduleName _) = modWithInterfaces
+    let interface = Interface {
+            interfaceModName = moduleName
+        ,   interfaceModSig = sig
+        }
+
     whenM (asks (not . skipCoreLint)) do
         lintError <- runError $ lint (LintEnv mempty mempty mempty) core
 
@@ -114,7 +139,8 @@ compileContents contents = do
             Left (MkCoreLintError msg) -> traceM Warning $ "[CORE LINT ERROR]: " <> msg
             Right () -> pure () 
 
-    freshWithInternal $ compileFromCore core
+    result <- freshWithInternal $ compileFromCore core
+    pure (result, interface)
 
 compileAndAnnotateSig :: (Trace, ControllerC r, Members '[State (Map (S.Name 'QualifyNames) ModSig), Fresh (Text, LexInfo) QualifiedName] r)
                       => (S.Module 'SolveModules, Seq (S.Name 'SolveModules))
@@ -209,3 +235,9 @@ primModSig = ModSig {
     ,   exportedInstances = mempty
     }
 
+readInterfaceFile :: Members '[FileSystem FilePath LByteString, Error CompilationError] r => FilePath -> Sem r Interface
+readInterfaceFile filePath = do
+    contents <- readFile filePath
+    case decodeOrFail contents of
+        Left (_, _, message) -> throw (InterfaceDecodeError (toText message) filePath)
+        Right (_, _, iface) -> pure iface

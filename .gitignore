@@ -11,3 +11,4 @@ test.rkt
 tests.log
 cobble.iml
 .hidden/
+*.cbi
