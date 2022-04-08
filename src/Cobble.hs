@@ -146,24 +146,24 @@ compileWithSig :: (Trace, ControllerC r, Members '[Fresh Text QualifiedName] r)
                => S.Module 'QualifyNames
                -> Sem r (Seq Core.Decl, ModSig)
 compileWithSig m = do
-    let qualScopes = map modSigToScope (fromList $ toList $ xModule m)
+    let modSigs = primModSig :<| fromList (toList (xModule m))
+
+    let qualScopes = map modSigToScope modSigs
 
     let tcEnv = foldr (\dsig r -> TCEnv {
                     _varTypes = fmap coercePass (exportedVars dsig <> (view _1 <$> exportedVariantConstrs dsig)) <> _varTypes r
                 ,   _tcInstances = coercePass (exportedInstances dsig) <> _tcInstances r
                 })
                 (TCEnv mempty mempty)
-                (toList $ xModule m)
+                modSigs
     qMod  <- mapError QualificationError $ evalStackStatePanic (fold qualScopes) $ qualify m
 
     saMod <- mapError SemanticError $ runSemanticAnalysis qMod
     
-    tcMod <- -- dumpWhenWithM (asks ddumpTC) ppGivens "dump-givens.tc" 
-        -- $ dumpWhenWithM (asks ddumpTC) ppWanteds "dump-wanteds.tc" 
-        dumpWhenWithM (asks ddumpTC) ppTC "dump-tc" 
-        $ mapError TypeError 
-        $ runFreshM (\(MkTVar n k) -> freshVar (originalName n) <&> \n' -> MkTVar n' k)
-        $ typecheck tcEnv saMod -- TODO: provide environment from other modules
+    tcMod <- dumpWhenWithM (asks ddumpTC) ppTC "dump-tc" 
+           $ mapError TypeError 
+           $ runFreshM (\(MkTVar n k) -> freshVar (originalName n) <&> \n' -> MkTVar n' k)
+           $ typecheck tcEnv saMod -- TODO: provide environment from other modules
 
     core <- lower tcMod
 

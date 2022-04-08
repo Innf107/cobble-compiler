@@ -34,7 +34,6 @@ lowerStmnts (C.Def _ _ (C.Decl _ x [] e) ty :<| sts) = (<|)
             <*> lowerExpr e
     <*> lowerStmnts sts
 lowerStmnts (s@C.Def{} :<| sts) = error "lowerStmnts: Definition with arguments persists after typechecking"
-lowerStmnts (C.Import{} :<| sts) = lowerStmnts sts
 lowerStmnts (C.DefClass k li cname tvs methSigs :<| sts) = do
     tvs' <- traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) tvs
     k' <- lowerKind k

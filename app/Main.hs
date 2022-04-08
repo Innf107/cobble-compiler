@@ -59,8 +59,10 @@ runBuild BuildCmdOpts{projectFile, makeCommand, makeOptions} = do
     let opts = BuildOpts {
         projectFile
     }
-    makeWorkingDirectory <- runM $ runFileSystemGenericStringIO $ createMakeFile opts
-    callProcess (toString makeCommand) (fmap toString makeOptions <> [makeWorkingDirectory])
+    emakeWorkingDirectory <- runM $ runError $ runFileSystemGenericStringIO $ createMakefile opts
+    case emakeWorkingDirectory of
+        Left err -> failWithBuildError err
+        Right makeWorkingDirectory -> callProcess (toString makeCommand) (fmap toString makeOptions <> ["-C", makeWorkingDirectory])
 
 runTracePretty :: TraceLevel -> (Trace => a) -> a
 runTracePretty lvl = runTraceStderrWith lvl pretty 
@@ -80,7 +82,12 @@ failWithCompError (Panic msg) = do
     hPutStrLn stderr $ toString $ "\ESC[38;2;255;0;0m\STXPANIC (the 'impossible' happened):\n" <> msg <> "\ESC[0m\STX"
     exitFailure
 failWithCompError e = do
-    hPutStrLn stderr $ "CompilationError: " <> show e
+    hPutStrLn stderr $ "\ESC[38;2;255;0;0m\STXCompilation Error: " <> show e <> "\ESC[0m\STX"
+    exitFailure
+
+failWithBuildError :: BuildError -> IO a
+failWithBuildError e = do
+    hPutStrLn stderr $ "\ESC[38;2;255;0;0m\STXBuild Error: " <> show e <> "\ESC[0m\STX"
     exitFailure
 
 data CobbleAction = Compile CompileCmdOpts 

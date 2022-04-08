@@ -44,6 +44,8 @@ dependencies:
 - witherable
 - binary
 - process
+- aeson
+- yaml
 
 library:
   source-dirs: src
