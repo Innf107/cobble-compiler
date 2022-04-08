@@ -96,9 +96,10 @@ renderMakefile BuildOpts{projectFile} ProjectOpts{projectName, sourceDir, outDir
                 sigFileAt file <> ": " <> unwords (sourceFileAt file : toList (map sigFileAt deps))
             ,   "\tmkdir -p " <> toText (takeDirectory (outDir </> file))
             ,   "\t" <> compiler <> " " <> compilerOpts <> " " <> unwords (sourceFileAt file : toList (map sigFileAt deps))
-                    <> " -o " <> sigFileAt file
+                    <> " -o " <> outputFileAt file
             ]
 
+        outputFileAt path = toText $ outDir </> dropExtension path <.> "rkt" 
         sigFileAt path = toText $ outDir </> dropExtension path <.> "cbi"
         sourceFileAt path = toText $ sourceDir </> path
 

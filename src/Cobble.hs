@@ -106,7 +106,7 @@ instance Compiled (Seq RacketExpr) where
 compileToRacketFile :: (Trace, ControllerC r, Members '[Fresh Text QualifiedName, FileSystem FilePath LByteString] r) 
                     => FilePath 
                     -> Sem r (Text, Interface)
-compileToRacketFile files = bimap (show . prettyRacketWithRuntime) id <$> compileAll files
+compileToRacketFile files = bimap (show . prettyRacketExprs) id <$> compileAll files
 
 compileAll :: (Trace, ControllerC r, Members '[Fresh Text QualifiedName, FileSystem FilePath LByteString] r, Compiled m) 
            => FilePath 
@@ -122,8 +122,6 @@ compileContents path content = do
 
     tokens <- mapError LexError $ tokenize (toText path) content
     ast    <- mapError ParseError $ fromEither $ parse module_ path tokens
-
-    -- orderedMods :: Seq (S.Module 'SolveModules, Seq Text) <- mapError ModuleError $ findCompilationOrder ast
 
     modWithSigs <- mapError ModuleError $ insertInterfaceSigs interfaces ast
 

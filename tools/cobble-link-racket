@@ -1,0 +1,3 @@
+#!/usr/bin/bash
+
+cat <(echo "#lang racket") $@ > out.rkt

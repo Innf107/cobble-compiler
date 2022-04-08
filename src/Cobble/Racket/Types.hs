@@ -45,17 +45,15 @@ data RPattern = RIntP (Seq Int)
               | RWildcardP
               deriving (Show, Eq)
 
-instance {-# OVERLAPPING #-} Pretty (Seq RacketExpr) where
-    pretty = vsep . toList . map pretty
 
 instance Pretty RacketExpr where
     pretty (RDefine x e) = list ["define", prettyQ x, nest 4 (pretty e)]
-    pretty (RDefineF f xs es) = parens ("define" <+> list (prettyQ f <| map prettyQ xs) <> nest 4 (line <> pretty es))
+    pretty (RDefineF f xs es) = parens ("define" <+> list (prettyQ f <| map prettyQ xs) <> nest 4 (line <> prettyRacketExprs es))
     pretty (RVar x) = prettyQ x
     pretty (RApp f xs) = prettyApp (pretty f) (map pretty xs) 
-    pretty (RLambda xs body) = parens ("lambda" <+> list (map prettyQ xs) <+> nest 4 (pretty body))
-    pretty (RLet bindings body) = parens ("let*" <+> brackets (align (vsep (toList (map prettyBinding bindings)))) <+> nest 4 (line <> pretty body))
-    pretty (RBegin es) = parens ("begin" <> nest 4 (line <> pretty es))
+    pretty (RLambda xs body) = parens ("lambda" <+> list (map prettyQ xs) <+> nest 4 (prettyRacketExprs body))
+    pretty (RLet bindings body) = parens ("let*" <+> brackets (align (vsep (toList (map prettyBinding bindings)))) <+> nest 4 (line <> prettyRacketExprs body))
+    pretty (RBegin es) = parens ("begin" <> nest 4 (line <> prettyRacketExprs es))
     pretty (RSymbol x) = "'" <> prettyQ x
     pretty (RIntLit x) = pretty x
     pretty RTrue = "#t"
@@ -93,8 +91,5 @@ prettyApp f xs = parens (f <+> align (sep (toList xs)))
 list :: (Seq (Doc ann)) -> Doc ann
 list = parens . hsep . toList
 
-prettyRacketWithRuntime :: Seq RacketExpr -> Doc ann
-prettyRacketWithRuntime body = header <> line <> line <> pretty body <> line <> line <> footer
-    where
-        header = "#lang racket"
-        footer = ""
+prettyRacketExprs :: Seq RacketExpr -> Doc ann
+prettyRacketExprs = vsep . toList . map pretty
