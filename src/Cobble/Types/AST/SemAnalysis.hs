@@ -10,12 +10,12 @@ import Data.Generics.Uniplate.Data
 import Cobble.Types.AST
 import Cobble.Types.QualifiedName
 
-type instance XModule 'SemAnalysis = (Map (Name 'Codegen) ModSig)
+type instance XModule 'SemAnalysis = (Map Text ModSig)
   
 type instance XDef              SemAnalysis = Maybe Fixity
 type instance XDecl             SemAnalysis = ()
 type instance XParam            SemAnalysis = (Seq (Name 'Codegen))
-type instance XImport           SemAnalysis = ()
+type instance XImport           SemAnalysis = Void
 type instance XDefStruct        SemAnalysis = Kind
 type instance XDefVariant       SemAnalysis = Kind
 type instance XDefVariantClause SemAnalysis = (Int, Int)

@@ -122,7 +122,7 @@ compileContents path content = do
 
     -- orderedMods :: Seq (S.Module 'SolveModules, Seq Text) <- mapError ModuleError $ findCompilationOrder ast
 
-    modWithInterfaces <- insertInterfaceSigs interfaces ast
+    modWithInterfaces <- mapError ModuleError $ insertInterfaceSigs interfaces ast
 
     (core, sig) <- compileWithSig modWithInterfaces -- evalState (one ("prims", primModSig)) $ compileAndAnnotateSig modWithInterfaces
     
@@ -142,23 +142,6 @@ compileContents path content = do
     result <- freshWithInternal $ compileFromCore core
     pure (result, interface)
 
-compileAndAnnotateSig :: (Trace, ControllerC r, Members '[State (Map (S.Name 'QualifyNames) ModSig), Fresh (Text, LexInfo) QualifiedName] r)
-                      => (S.Module 'SolveModules, Seq (S.Name 'SolveModules))
-                      -> Sem r (Seq Core.Decl)
-compileAndAnnotateSig (m, deps) = do
-    annotatedMod :: (S.Module 'QualifyNames) <- S.Module
-        <$> fromList . toList <$> traverse (\d -> (internalQName d ,) <$> getDep d) ("prims" <| deps)
-        <*> pure (S.moduleName m)
-        <*> pure (map (coercePass @(Statement SolveModules) @(Statement QualifyNames)) (moduleStatements m))
-    (core, sig) <- compileWithSig annotatedMod
-    modify (insert (S.moduleName m) sig)
-    pure core
-
-getDep :: (ControllerC r, Member (State (Map (S.Name 'QualifyNames) ModSig)) r)
-       => S.Name 'SolveModules
-       -> Sem r ModSig
-getDep n = maybe (error $ "Module dependency '" <> show n <> "' not found") pure =<< gets (lookup n)
---              TODO^: Should this really be a panic? 
 compileWithSig :: (Trace, ControllerC r, Members '[Fresh (Text, LexInfo) QualifiedName] r)
                => S.Module 'QualifyNames
                -> Sem r (Seq Core.Decl, ModSig)
@@ -216,7 +199,6 @@ makePartialSig = \case
         {   exportedTypes = one (tyName, (k, tyVariant))
         ,   exportedVariantConstrs = fromList $ toList (map (\(cname, _, (ty, ep, i)) -> (cname, (ty, ep, i, tyVariant))) cs)
         }
-    Import () _ _            -> mempty
 
 
 primModSig :: ModSig

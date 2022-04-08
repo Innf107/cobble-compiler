@@ -5,12 +5,12 @@ module Cobble.Types.AST.QualifyNames where
 import Cobble.Prelude
 import Cobble.Types.AST
     
-type instance XModule 'QualifyNames = Map (Name 'Codegen) ModSig
+type instance XModule 'QualifyNames = Map Text ModSig
 
 type instance XDef              QualifyNames = Maybe Fixity
 type instance XDecl             QualifyNames = ()
 type instance XParam            QualifyNames = (Seq (Name QualifyNames))
-type instance XImport           QualifyNames = ()
+type instance XImport           QualifyNames = Void
 type instance XDefStruct        QualifyNames = ()
 type instance XDefVariant       QualifyNames = ()
 type instance XDefVariantClause QualifyNames = ()

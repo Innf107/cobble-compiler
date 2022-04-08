@@ -146,7 +146,6 @@ typecheckStatement env (Def fixity li decl expectedTy) = runReader li do
 
     pure (Def fixity li decl' expectedTy, env')
 
-typecheckStatement env (Import () li name) = pure (Import () li name, env)
 typecheckStatement env (DefClass k li cname tvs methSigs) = do
     let env' = foldr (uncurry insertType) env methSigs
     pure (DefClass k li cname tvs methSigs, env')

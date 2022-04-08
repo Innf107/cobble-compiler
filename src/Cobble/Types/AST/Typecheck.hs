@@ -10,12 +10,12 @@ import Data.Generics.Uniplate.Data
 import Cobble.Types.AST
 import Cobble.Types.QualifiedName
 
-type instance XModule Typecheck = Map (Name Codegen) ModSig
+type instance XModule Typecheck = Map Text ModSig
   
 type instance XDef              Typecheck = Maybe Fixity
 type instance XDecl             Typecheck = ()
 type instance XParam            Typecheck = Seq (Name Typecheck)
-type instance XImport           Typecheck = ()
+type instance XImport           Typecheck = Void
 type instance XDefStruct        Typecheck = Kind
 type instance XDefVariant       Typecheck = Kind
 type instance XDefVariantClause Typecheck = (Int, Int)

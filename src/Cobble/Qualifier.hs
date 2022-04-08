@@ -63,7 +63,6 @@ qualifyStmnt (Def mfixity li d@(Decl _ n _ _) ty) = runReader li do
         Def mfixity li
             <$> qualifyDeclWithName n' d
             <*> pure ty'
-qualifyStmnt (Import () li n) = pure (Import () li (internalQName n))
 
 qualifyStmnt (DefVariant () li n tvs constrs) = runReader li $ do
     n' <- freshVar (n, li)

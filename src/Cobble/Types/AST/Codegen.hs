@@ -11,13 +11,13 @@ import Cobble.Types.AST
 import Cobble.Types.Instances
 import Cobble.Types.QualifiedName
 
-type instance XModule Codegen = Map (Name Codegen) ModSig
+type instance XModule Codegen = Map Text ModSig
 
 type instance XDecl      Codegen = (Type, (Seq TGiven))
 type instance XParam     Codegen = (Seq (Name Codegen, Type))
 
 type instance XDef              Codegen = Maybe Fixity
-type instance XImport           Codegen = ()
+type instance XImport           Codegen = Void
 type instance XDefStruct        Codegen = Kind
 type instance XDefVariant       Codegen = Kind
 type instance XDefVariantClause Codegen = (Type, Int, Int)
