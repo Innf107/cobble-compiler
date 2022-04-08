@@ -102,8 +102,8 @@ instance Compiled (Seq RacketExpr) where
 
 compileToRacketFile :: (Trace, ControllerC r, Members '[Fresh Text QualifiedName, FileSystem FilePath LByteString] r) 
                     => FilePath 
-                    -> Sem r (Text, LByteString)
-compileToRacketFile files = bimap (show . prettyRacketWithRuntime) encode <$> compileAll files
+                    -> Sem r (Text, Interface)
+compileToRacketFile files = bimap (show . prettyRacketWithRuntime) id <$> compileAll files
 
 compileAll :: (Trace, ControllerC r, Members '[Fresh Text QualifiedName, FileSystem FilePath LByteString] r, Compiled m) 
            => FilePath 
