@@ -1,6 +1,7 @@
 {-#LANGUAGE TemplateHaskell#-}
 module Cobble.Types.QualifiedName (
     QualifiedName (..)
+,   QNameSpecifier(..)
 ,   UnqualifiedName
 ,   renderDebug
 ,   renderMinecraft
@@ -24,21 +25,28 @@ import qualified GHC.Show as S
 
 data QualifiedName = UnsafeQualifiedName {
         originalName :: Text
-    ,   qnameIndex :: Int
+    ,   qnameSpecifier :: QNameSpecifier
     } deriving (Eq, Ord, Generic, Data)
 instance Hashable QualifiedName
 instance Binary QualifiedName
 
+data QNameSpecifier = GlobalQName Text -- Module
+                    | LocalQName Int
+                    deriving (Show, Eq, Ord, Generic, Data)
+instance Hashable QNameSpecifier
+instance Binary QNameSpecifier
+
 type UnqualifiedName = Text
 
 internalQName :: Text -> QualifiedName
-internalQName n = UnsafeQualifiedName n 0
+internalQName n = UnsafeQualifiedName n (GlobalQName "Internal")
 
 instance S.Show QualifiedName where
     show = toString . renderDebug
 
 renderDebug :: QualifiedName -> Text
-renderDebug (UnsafeQualifiedName name ix) = name <> "_" <> show ix
+renderDebug (UnsafeQualifiedName name (LocalQName ix)) = name <> "_" <> show ix
+renderDebug (UnsafeQualifiedName name (GlobalQName mod)) = mod <> "." <> name
 
 renderMinecraft :: QualifiedName -> Text
 renderMinecraft = renameUpper . renameStandardChars . renderDebug

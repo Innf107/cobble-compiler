@@ -31,7 +31,7 @@ runFreshQNamesState = runFreshQNamesStateInitial 0
 
 runFreshQNamesStateInitial :: Int -> Sem (Fresh Text QualifiedName : r) a -> Sem r a
 runFreshQNamesStateInitial initial = evalState initial . reinterpret \case
-    FreshVar n -> state (\i -> (UnsafeQualifiedName n i, i + 1))
+    FreshVar n -> state (\i -> (UnsafeQualifiedName n (LocalQName i), i + 1))
 
 runFresh :: (u -> q) -> Sem (Fresh u q : r) a -> Sem r a
 runFresh f = runFreshM (pure . f)

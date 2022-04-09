@@ -7,6 +7,7 @@ import Cobble.Types
 import Cobble.Util.Polysemy.StackState
 import Cobble.Util.Polysemy.Fresh
 import Cobble.Util.Bitraversable
+import Cobble.Util.TypeUtils
 
 type NextPass = SemAnalysis
 
@@ -47,13 +48,13 @@ makeLenses ''Scope
 qualify :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError] r 
         => Module QualifyNames 
         -> Sem r (Module NextPass)
-qualify (Module deps name stmnts) = Module deps name <$> traverse qualifyStmnt stmnts
+qualify (Module deps name stmnts) = runReader (MkTagged name) $ Module deps name <$> traverse qualifyStmnt stmnts
 
-qualifyStmnt :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError] r 
+qualifyStmnt :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader (Tagged "ModName" Text)] r 
              => Statement QualifyNames
              -> Sem r (Statement NextPass)
 qualifyStmnt (Def mfixity li d@(Decl _ n _ _) ty) = runReader li do 
-    n' <- freshVar n
+    n' <- freshGlobal n
     addVar n n'
     addMFixity n mfixity
     withFrame do
@@ -65,7 +66,7 @@ qualifyStmnt (Def mfixity li d@(Decl _ n _ _) ty) = runReader li do
             <*> pure ty'
 
 qualifyStmnt (DefVariant () li n tvs constrs) = runReader li $ do
-    n' <- freshVar n
+    n' <- freshGlobal n
     tvs' <- traverse (uncurry qualifyTVar) tvs
     let k = getTyConKind tvs'
     constrs' <- withFrame $ flip traverseWithIndex constrs \i (cn, tys, ()) -> do
@@ -73,7 +74,7 @@ qualifyStmnt (DefVariant () li n tvs constrs) = runReader li $ do
         addType n n' k (VariantType (coercePass tvs') [])
         zipWithM_ addTVar (map fst tvs) tvs'
 
-        cn' <- freshVar cn
+        cn' <- freshGlobal cn
         tys' <- traverse (qualifyType False) tys
         pure (cn', tys', (length tys', i))
     let typeVariant = (VariantType (coercePass tvs') (map (\(cn, ts, _) -> (cn, coercePass ts)) constrs'))
@@ -82,7 +83,7 @@ qualifyStmnt (DefVariant () li n tvs constrs) = runReader li $ do
     pure (DefVariant k li n' tvs' constrs')
 
 qualifyStmnt (DefClass () li n tvs meths) = runReader li $ do
-    n' <- freshVar n
+    n' <- freshGlobal n
     tvs' <- traverse (uncurry qualifyTVar) tvs
     let k = foldr (\(MkTVar _ k) r -> k `KFun` r) KConstraint tvs'
     -- Again, the methods have to be stubbed out since we don't have them yet, but we
@@ -91,7 +92,7 @@ qualifyStmnt (DefClass () li n tvs meths) = runReader li $ do
         addType n n' k (TyClass (coercePass tvs') [])
         zipWithM_ addTVar (map fst tvs) tvs'
         forM meths \(mn, mty) -> do
-            mn' <- freshVar mn
+            mn' <- freshGlobal mn
             mt' <- qualifyType True mty -- Type class methods *are* allowed to introduce new tyvars
             pure (mn', mt')
     addType n n' k (TyClass tvs' meths')
@@ -120,19 +121,10 @@ qualifyDeclWithName n' (Decl () _ ps e) = withFrame do
     e' <- qualifyExpr e
     pure (Decl () n' ps' e')
 
-qualifyDecl :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r
-            => Decl 'QualifyNames 
-            -> Sem r (Decl NextPass)
-qualifyDecl d@(Decl _ n _ _) = do
-    li <- ask
-    n' <- freshVar n
-    qualifyDeclWithName n' d
-        <* addVar n n'
-
-qualifyRecursiveDecl :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r
+qualifyRecursiveLocalDecl :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r
                      => Decl 'QualifyNames 
                      -> Sem r (Decl NextPass)
-qualifyRecursiveDecl d@(Decl _ n _ _) = do
+qualifyRecursiveLocalDecl d@(Decl _ n _ _) = do
     li <- ask
     n' <- freshVar n
     addVar n n'
@@ -155,7 +147,7 @@ qualifyExpr (If () li cond th el) =
 qualifyExpr (Let () li decl b) = runReader li $
     withFrame $ 
         Let () li
-        <$> qualifyRecursiveDecl decl
+        <$> qualifyRecursiveLocalDecl decl
         <*> qualifyExpr b
 qualifyExpr (Var () li x) = runReader li $ Var () li <$> lookupVar x
 qualifyExpr (Ascription () li expr ty) = runReader li $
@@ -283,6 +275,9 @@ qualifyTVar :: Members '[StackState Scope, Fresh Text QualifiedName, Error Quali
 qualifyTVar n mk = do
     li <- ask
     MkTVar <$> freshVar n <*> pure (fromMaybe KStar mk)
+
+freshGlobal :: Members '[Reader (Tagged "ModName" Text)] r => Text -> Sem r QualifiedName
+freshGlobal name = asks unTagged <&> \modName -> UnsafeQualifiedName name (GlobalQName modName)
 
 addVar :: Members '[StackState Scope] r => Text -> QualifiedName -> Sem r ()
 addVar n n' = smodify (scopeVars %~ insert n n')

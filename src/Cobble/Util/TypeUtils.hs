@@ -15,3 +15,5 @@ type family AllOnPass c p xs where
 data DictDisj c1 c2 where
     DictLeft :: c1 => DictDisj c1 c2
     DictRight :: c2 => DictDisj c1 c2
+
+newtype Tagged k v = MkTagged {unTagged :: v}
