@@ -6,6 +6,7 @@ import Cobble.Util
 import Cobble.Util.Bitraversable
 import Cobble.Util.Polysemy.Fresh
 import Cobble.Util.Polysemy.Dump
+import Cobble.Util.TypeUtils
 import Cobble.Types
 import Cobble.Types qualified as C 
 import Cobble.Types.Lens
@@ -123,9 +124,9 @@ typecheck :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Error 
           => TCEnv 
           -> Module Typecheck 
           -> Sem r (Module NextPass)
-typecheck env (Module ext mname sts) = Module ext mname <$> typecheckStatements env sts
+typecheck env (Module ext mname sts) = runReader (MkTagged mname) $ Module ext mname <$> typecheckStatements env sts
 
-typecheckStatements :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Error TypeError, Dump (Seq TConstraint)] r)
+typecheckStatements :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Error TypeError, Dump (Seq TConstraint), Reader (Tagged "ModName" Text)] r)
                     => TCEnv
                     -> (Seq (Statement Typecheck))
                     -> Sem r (Seq (Statement NextPass))
@@ -137,7 +138,7 @@ typecheckStatements env (st :<| sts) = do
     (applySubst subst st' <|) <$> typecheckStatements env' sts
 typecheckStatements env Empty = pure Empty
 
-typecheckStatement :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Output TConstraint] r)
+typecheckStatement :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Output TConstraint, Reader (Tagged "ModName" Text)] r)
                     => TCEnv
                     -> (Statement Typecheck)
                     -> Sem r (Statement NextPass, TCEnv)
@@ -151,7 +152,11 @@ typecheckStatement env (DefClass k li cname tvs methSigs) = do
     pure (DefClass k li cname tvs methSigs, env')
 
 typecheckStatement env (DefInstance (classKind, methDefs, params, _isImported) li cname ty meths) = runReader li do
-    dictName <- freshVar $ "d_" <> (originalName cname)
+    freshIX <- freshVar "" <&> \case
+        UnsafeQualifiedName _ (LocalQName ix) -> ix
+        qn -> error $ "freshVar returned non-local qname: " <> show qn
+
+    dictName <- UnsafeQualifiedName ("d_" <> (originalName cname) <> "_" <> show freshIX) . GlobalQName <$> asks unTagged
     let env' = insertInstance cname ty dictName env
 
     meths' <- forM (zip meths methDefs) \(decl@(Decl _ declName _ _), (methName, methTy)) -> do

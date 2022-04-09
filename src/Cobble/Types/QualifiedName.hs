@@ -66,7 +66,6 @@ renderRacket :: QualifiedName -> Text
 renderRacket = renameRacketChars . renderDebug
     where
         renameRacketChars = T.concatMap \case
-            '.' -> "?dot?"
             '|' -> "?pipe?"
             '#' -> "?hash?"
             ';' -> "?semi?"
