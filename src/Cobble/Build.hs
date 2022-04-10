@@ -61,7 +61,9 @@ importPackageDep baseDirectory dep = do
     let targetPath = baseDirectory </> ".cobble/dependencies" </> toString dependencyName
     embed $ createDirectoryIfMissing True targetPath
 
-    forM_ sourceFiles \file -> embed $ copyFileOrDirectory False (depSourceDir </> file) (targetPath </> takeFileName file)
+    forM_ sourceFiles \file -> embed do
+        exists <- (||) <$> D.doesDirectoryExist (targetPath </> takeFileName file) <*> D.doesFileExist (targetPath </> takeFileName file)
+        when (not exists) $ copyFileOrDirectory False (depSourceDir </> file) (targetPath </> takeFileName file)
     pure targetPath
     
 
