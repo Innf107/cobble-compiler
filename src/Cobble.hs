@@ -217,7 +217,6 @@ primModSig = ModSig {
             -- The type application is only necessary to satisfy the type checker since the value depending on the type 'r' is ignored
     ,   exportedTypes = fromList [
               (internalQName "Int", (KStar, BuiltInType))
-            , (internalQName "Unit", (KStar, BuiltInType))
             , (internalQName "->", (KStar `KFun` KStar `KFun` KStar, BuiltInType))
             ]
     ,   exportedFixities = mempty
