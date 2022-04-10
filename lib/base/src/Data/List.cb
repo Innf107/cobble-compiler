@@ -32,8 +32,8 @@ uncons l = case l of {
 
 null :: List a -> Bool;
 null l = case l of {
-    Nil -> true;
-    _ -> false;
+    Nil -> True;
+    _ -> False;
 };
 
 instance Foldable List {

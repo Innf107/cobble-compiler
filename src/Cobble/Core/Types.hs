@@ -83,7 +83,7 @@ intTy :: Type
 intTy = TCon (internalQName "Int") KType
 
 boolTy :: Type
-boolTy = TCon (internalQName "Bool") KType
+boolTy = TCon (UnsafeQualifiedName "Bool" (GlobalQName "Data.Bool")) KType
 
 unitTy :: Type
 unitTy = TCon (internalQName "Unit") KType

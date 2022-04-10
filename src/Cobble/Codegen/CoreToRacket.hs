@@ -69,7 +69,7 @@ compileExpr (Let x ty e1 e2) = do
     e2' <- compileExpr e2
     pure $ RLet [(x, e1')] [e2']
 compileExpr (If c th el) = RIf
-    <$> compileExpr c
+    . (\c' -> REQ [RCadr 0 c', RIntLit 1]) <$> compileExpr c
     <*> compileExpr th
     <*> compileExpr el
 compileExpr (VariantConstr x i _tyArgs valArgs) = RList . (RIntLit i <|) <$> traverse compileExpr valArgs

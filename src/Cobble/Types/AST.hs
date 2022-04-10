@@ -350,27 +350,10 @@ instance S.Show Kind where
     show KConstraint = "Constraint"
     show (KFun k1 k2) = "(" <> show k1 <> " -> " <> show k2 <> ")"
 
-class TyLit n where
-    tyIntT  :: n
-    tyBoolT :: n
-    tyUnitT :: n 
-    tyFunT  :: n
-    
-instance TyLit QualifiedName where
-    tyIntT  = internalQName "Int"
-    tyBoolT = internalQName "Bool"
-    tyUnitT = internalQName "Unit"
-    tyFunT  = internalQName "->"
-instance TyLit Text where
-    tyIntT = "Int"
-    tyBoolT = "Bool"
-    tyUnitT = "Unit"
-    tyFunT  = "->"
-
 intT, boolT, unitT :: Type
-intT  = TCon tyIntT (fromKind KStar)
-boolT = TCon tyBoolT (fromKind KStar)
-unitT = TCon tyUnitT (fromKind KStar)
+intT  = TCon (internalQName "Int") (fromKind KStar)
+boolT = TCon (UnsafeQualifiedName "Bool" (GlobalQName "Data.Bool")) (fromKind KStar)
+unitT = TCon (internalQName "Bool") (fromKind KStar)
 
 class IsKind t where 
     kFun :: t -> t -> t

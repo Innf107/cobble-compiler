@@ -1,18 +1,15 @@
 module Data.Bool;
 
--- TODO: Booleans should really be implemented
--- as a variant, but for now we have to stick to primops
-false :: Bool;
-false = false# ();
-
-true :: Bool;
-true = true# ();
+-- The order of constructors is important
+-- for compilation to racket!
+variant Bool = False | True;
 
 not :: Bool -> Bool;
-not x = if x then false else true;
+not x = if x then False else True;
 
+-- Neither (||), nor (&&) are lazy, unfortunately
 (||) :: Bool -> Bool -> Bool;
-(||) x y = if x then true else y;
+(||) x y = if x then True else y;
 
 (&&) :: Bool -> Bool -> Bool;
-(&&) x y = if x then y else false;
+(&&) x y = if x then y else False;

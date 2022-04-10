@@ -12,35 +12,35 @@ class Ord a {
 infixl 4
 (<=) ::Ord a => a -> a -> Bool;
 (<=) x y = case compare x y of {
-    (LT | EQ) -> true;
-    _ -> false;
+    (LT | EQ) -> True;
+    _ -> False;
 };
 
 infixl 4
 (<) :: Ord a => a -> a -> Bool;
 (<) x y = case compare x y of {
-    LT -> true;
-    _ -> false;
+    LT -> True;
+    _ -> False;
 };
 
 (>) :: Ord a => a -> a -> Bool;
 (>) x y = case compare x y of {
-    GT -> true;
-    _ -> false;
+    GT -> True;
+    _ -> False;
 };
 
 leBy :: (a -> a -> Ordering) -> a -> a -> Bool;
 leBy comp x y = case comp x y of {
-    LT -> true;
-    EQ -> true;
-    GT -> false;
+    LT -> True;
+    EQ -> True;
+    GT -> False;
 };
 
 geBy :: (a -> a -> Ordering) -> a -> a -> Bool;
 geBy comp x y = case comp x y of {
-    LT -> false;
-    EQ -> true;
-    GT -> true;
+    LT -> False;
+    EQ -> True;
+    GT -> True;
 };
 
 
