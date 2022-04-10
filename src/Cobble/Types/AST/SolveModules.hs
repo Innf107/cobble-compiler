@@ -11,7 +11,6 @@ type instance XDef              SolveModules = Maybe Fixity
 type instance XDecl             SolveModules = ()
 type instance XParam            SolveModules = Seq (Name 'SolveModules)
 type instance XImport           SolveModules = ()
-type instance XDefStruct        SolveModules = ()
 type instance XDefVariant       SolveModules = ()
 type instance XDefVariantClause SolveModules = ()
 type instance XDefClass         SolveModules = ()
@@ -27,8 +26,6 @@ type instance XVar              'SolveModules = ()
 type instance XAscription       'SolveModules = ()
 type instance XVariantConstr    'SolveModules = ()
 type instance XCase             'SolveModules = ()
-type instance XStructConstruct  'SolveModules = ()
-type instance XStructAccess     'SolveModules = ()
 
 type instance XLambda           SolveModules = ()
 

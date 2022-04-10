@@ -23,7 +23,6 @@ data Expr = Var QualifiedName
           | TyAbs QualifiedName Kind Expr
 
           | IntLit Int
-          | UnitLit -- Unit should ideally just be a regular variant constructor, but hard-wiring libraries into the compiler is not really possible yet.
           | Let QualifiedName Type Expr Expr
           | If Expr Expr Expr
           -- Unlike in Cobble, Core's VariantConstrs have to be *fully saturated* with value and type arguments.
@@ -85,9 +84,6 @@ intTy = TCon (internalQName "Int") KType
 boolTy :: Type
 boolTy = TCon (UnsafeQualifiedName "Bool" (GlobalQName "Data.Bool")) KType
 
-unitTy :: Type
-unitTy = TCon (internalQName "Unit") KType
-
 ppQName :: QualifiedName -> Doc ann
 ppQName = pretty . renderDebug
 
@@ -115,7 +111,6 @@ instance Pretty Expr where
     pretty (TyApp e ty) = "(" <> pretty e <+> "@" <> pretty ty <> ")"
     pretty (Abs x ty e) = "(λ(" <> ppQName x <+> ":" <+> pretty ty <> ")." <> softline <> align (pretty e) <> ")"
     pretty (IntLit n) = pretty n
-    pretty UnitLit = "()"
     pretty (Let x ty e1 e2) = "(let" <+> ppQName x <+> ":" <+> pretty ty <+> "=" <+> align (softline' <> pretty e1) <+> "in" <> line <> pretty e2 <> ")"
     pretty (If c th el) = "(if" <+> pretty c <> softline <> "then" <+> pretty th <> softline <> "else" <+> pretty el <> ")"
     pretty (VariantConstr x _ tys es) = ppQName x <> tyApps <> valApps

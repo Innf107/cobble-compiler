@@ -18,7 +18,6 @@ type instance XParam     Codegen = (Seq (Name Codegen, Type))
 
 type instance XDef              Codegen = Maybe Fixity
 type instance XImport           Codegen = Void
-type instance XDefStruct        Codegen = Kind
 type instance XDefVariant       Codegen = Kind
 type instance XDefVariantClause Codegen = (Type, Int, Int)
 type instance XDefClass         Codegen = Kind
@@ -37,8 +36,6 @@ type instance XAscription       Codegen = Void
 type instance XVariantConstr    Codegen = (Type, Type, Int)
 type instance XCase             Codegen = Type
 
-type instance XStructConstruct  'Codegen = (StructDef, Type)
-type instance XStructAccess     'Codegen = (StructDef, Type)
 
 type instance XLambda            Codegen = (Type, Type)
                                         -- ^      ^      

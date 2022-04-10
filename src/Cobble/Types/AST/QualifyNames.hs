@@ -11,7 +11,6 @@ type instance XDef              QualifyNames = Maybe Fixity
 type instance XDecl             QualifyNames = ()
 type instance XParam            QualifyNames = (Seq (Name QualifyNames))
 type instance XImport           QualifyNames = Void
-type instance XDefStruct        QualifyNames = ()
 type instance XDefVariant       QualifyNames = ()
 type instance XDefVariantClause QualifyNames = ()
 type instance XDefClass         QualifyNames = ()
@@ -27,8 +26,6 @@ type instance XVar              'QualifyNames = ()
 type instance XAscription       'QualifyNames = ()
 type instance XVariantConstr    'QualifyNames = ()
 type instance XCase             'QualifyNames = ()
-type instance XStructConstruct  'QualifyNames = ()
-type instance XStructAccess     'QualifyNames = ()
 
 type instance XLambda           QualifyNames = ()
 

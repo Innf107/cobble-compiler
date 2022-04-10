@@ -50,8 +50,7 @@ data ModSig = ModSig {
 
 instance Binary ModSig
 
-data TypeVariant = RecordType (Seq TVar) (Seq (UnqualifiedName, Type))
-                 | VariantType (Seq TVar) (Seq (QualifiedName, (Seq Type)))
+data TypeVariant = VariantType (Seq TVar) (Seq (QualifiedName, (Seq Type)))
                  | BuiltInType
                  | TyClass (Seq TVar) (Seq (QualifiedName, Type))
                  deriving (Show, Eq, Generic, Data, Typeable)
@@ -88,12 +87,11 @@ data Statement (p :: Pass) =
     | StatementX    (XStatement p)      LexInfo
 
 type instance InstanceRequirements (Statement p) = 
-    [XDef p, XImport p, XDefStruct p, XDefClass p, XDefInstance p, XDefVariant p, XDefVariantClause p, XStatement p, Name p, XType p, XTVar p, Decl p]
+    [XDef p, XImport p, XDefClass p, XDefInstance p, XDefVariant p, XDefVariantClause p, XStatement p, Name p, XType p, XTVar p, Decl p]
 
 type family XDef                (p :: Pass)
 type family XParam              (p :: Pass)
 type family XImport             (p :: Pass)
-type family XDefStruct          (p :: Pass)
 type family XDefClass           (p :: Pass)
 type family XDefInstance        (p :: Pass)
 type family XDefVariant         (p :: Pass)
@@ -122,7 +120,7 @@ data Expr (p :: Pass) =
 type instance InstanceRequirements (Expr p) = 
         [
             XFCall p, XIntLit p, XIf p, XLet p, Decl p, XVar p, XAscription p, XVariantConstr p, XCase p, CaseBranch p, 
-            Name p, XType p, XStructConstruct p, XStructAccess p, XLambda p, XExpr p
+            Name p, XType p, XLambda p, XExpr p
         ]
 
 type family XFCall           (p :: Pass)
@@ -133,8 +131,6 @@ type family XVar             (p :: Pass)
 type family XAscription      (p :: Pass)
 type family XVariantConstr   (p :: Pass)
 type family XCase            (p :: Pass)
-type family XStructConstruct (p :: Pass)
-type family XStructAccess    (p :: Pass)
 type family XLambda          (p :: Pass)
 type family XExpr            (p :: Pass)
 
@@ -302,17 +298,6 @@ type family XKind (p :: Pass)
 mergeLexInfo :: LexInfo -> LexInfo -> LexInfo
 mergeLexInfo (LexInfo {startPos, file}) (LexInfo {endPos}) = LexInfo {startPos, endPos, file}
 
-data StructDef = StructDef {
-        _structName :: QualifiedName
-    ,   _structParams :: (Seq TVar)
-    ,   _structFields :: (Seq (UnqualifiedName, Type))
-    } deriving (Show, Eq, Generic, Data)
-
-structKind :: (Profunctor pf, Contravariant f) => Optic' pf f StructDef Kind
-structKind = to \sd -> foldr (\(MkTVar _ k) r -> k `kFun` r) kStar (_structParams sd)
-
-structType :: (Profunctor pf, Contravariant f) => Optic' pf f StructDef Type
-structType = to \sd -> TCon (_structName sd) (view structKind sd) 
 
 -- | Represents a (initially left-associative) group of operators whose fixity has not been resolved yet.
 data OperatorGroup (p :: Pass) (f :: FixityStatus) 
@@ -352,9 +337,9 @@ instance S.Show Kind where
     show (KFun k1 k2) = "(" <> show k1 <> " -> " <> show k2 <> ")"
 
 intT, boolT, unitT :: Type
-intT  = TCon (internalQName "Int") (fromKind KStar)
-boolT = TCon (UnsafeQualifiedName "Bool" (GlobalQName "Data.Bool")) (fromKind KStar)
-unitT = TCon (internalQName "Bool") (fromKind KStar)
+intT  = TCon (internalQName "Int") KStar
+boolT = TCon (UnsafeQualifiedName "Bool" (GlobalQName "Data.Bool")) KStar
+unitT = TCon (UnsafeQualifiedName "Unit" (GlobalQName "Data.Unit")) KStar
 
 class IsKind t where 
     kFun :: t -> t -> t

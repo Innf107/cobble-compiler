@@ -62,7 +62,6 @@ compileExpr (Abs x _ty e) = do
     pure (RLambda [x] [e'])
 compileExpr (TyAbs _ _ e) = compileExpr e
 compileExpr (IntLit n) = pure $ RIntLit n
-compileExpr UnitLit = pure $ RNil
 compileExpr (Let x ty e1 e2) = do
     insertVarType x ty
     e1' <- compileExpr e1

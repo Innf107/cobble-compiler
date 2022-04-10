@@ -16,7 +16,6 @@ type instance XDef              Typecheck = Maybe Fixity
 type instance XDecl             Typecheck = ()
 type instance XParam            Typecheck = Seq (Name Typecheck)
 type instance XImport           Typecheck = Void
-type instance XDefStruct        Typecheck = Kind
 type instance XDefVariant       Typecheck = Kind
 type instance XDefVariantClause Typecheck = (Int, Int)
 type instance XDefClass         Typecheck = Kind
@@ -37,8 +36,6 @@ type instance XVariantConstr    Typecheck = (Int, Int)
 --                                           |    constructor index
 --                                           expected number of args
 type instance XCase             Typecheck = ()
-type instance XStructConstruct  Typecheck = StructDef
-type instance XStructAccess     Typecheck = Map (Name Typecheck) StructDef
 
 type instance XLambda           Typecheck = ()
 

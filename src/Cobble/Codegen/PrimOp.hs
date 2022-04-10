@@ -28,9 +28,7 @@ data PrimOpInfo = PrimOpInfo {
 
 primOps :: Map QualifiedName PrimOpInfo 
 primOps = M.mapKeys (\k -> internalQName k) $ fromList [
-        ("true#",   PrimOpInfo True_    (unitT :-> boolT))
-    ,   ("false#",  PrimOpInfo False_   (unitT :-> boolT))          
-    ,   ("add#",    PrimOpInfo Add      (intT :-> intT :-> intT)) 
+        ("add#",    PrimOpInfo Add      (intT :-> intT :-> intT)) 
     ,   ("sub#",    PrimOpInfo Sub      (intT :-> intT :-> intT)) 
     ,   ("mul#",    PrimOpInfo Mul      (intT :-> intT :-> intT)) 
     ,   ("intdiv#", PrimOpInfo IntDiv   (intT :-> intT :-> intT)) 

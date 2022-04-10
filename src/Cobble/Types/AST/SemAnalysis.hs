@@ -16,7 +16,6 @@ type instance XDef              SemAnalysis = Maybe Fixity
 type instance XDecl             SemAnalysis = ()
 type instance XParam            SemAnalysis = (Seq (Name 'Codegen))
 type instance XImport           SemAnalysis = Void
-type instance XDefStruct        SemAnalysis = Kind
 type instance XDefVariant       SemAnalysis = Kind
 type instance XDefVariantClause SemAnalysis = (Int, Int)
 type instance XDefClass         SemAnalysis = Kind
@@ -37,8 +36,6 @@ type instance XVariantConstr    'SemAnalysis = (Int, Int)
 --                                               |    constructor index
 --                                               expected number of args
 type instance XCase             'SemAnalysis = ()
-type instance XStructConstruct  'SemAnalysis = StructDef
-type instance XStructAccess     'SemAnalysis = Map (Name SemAnalysis) StructDef
 
 type instance XLambda           SemAnalysis = ()
 

@@ -117,7 +117,6 @@ lintExpr env (TyAbs tv k e) = do
     eTy <- lintExpr (clearJPs env) e
     pure (TForall tv k eTy)
 lintExpr env (IntLit i) = pure intTy
-lintExpr env UnitLit = pure unitTy
 lintExpr env (Let x ty e1 e2) = do
     e1Ty <- lintExpr env e1 -- See note [clearJPs for App].
     typeMatch ty e1Ty $ "let type mismatch in binding of '" <> show x <> "' to expression: " <> show e1
