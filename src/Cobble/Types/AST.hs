@@ -84,10 +84,11 @@ data Statement (p :: Pass) =
     | DefClass      (XDefClass p)       LexInfo (Name p) (Seq (XTVar p)) (Seq (Name p, XType p))
     | DefInstance   (XDefInstance p)    LexInfo (Name p) (XType p) (Seq (Decl p))
     | DefVariant    (XDefVariant p)     LexInfo (Name p) (Seq (XTVar p)) (Seq (Name p, (Seq (XType p)), XDefVariantClause p))
+    | DefEffect     (XDefEffect p)      LexInfo (Name p) (Seq (XTVar p)) (Seq (Name p, XType p))
     | StatementX    (XStatement p)      LexInfo
 
 type instance InstanceRequirements (Statement p) = 
-    [XDef p, XImport p, XDefClass p, XDefInstance p, XDefVariant p, XDefVariantClause p, XStatement p, Name p, XType p, XTVar p, Decl p]
+    [XDef p, XImport p, XDefClass p, XDefInstance p, XDefVariant p, XDefVariantClause p, XDefEffect p, XStatement p, Name p, XType p, XTVar p, Decl p]
 
 type family XDef                (p :: Pass)
 type family XParam              (p :: Pass)
@@ -96,6 +97,7 @@ type family XDefClass           (p :: Pass)
 type family XDefInstance        (p :: Pass)
 type family XDefVariant         (p :: Pass)
 type family XDefVariantClause   (p :: Pass)
+type family XDefEffect          (p :: Pass)
 type family XStatement          (p :: Pass)
 
 

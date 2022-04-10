@@ -208,6 +208,7 @@ makePartialSig = \case
         {   exportedTypes = one (tyName, (k, tyVariant))
         ,   exportedVariantConstrs = fromList $ toList (map (\(cname, _, (ty, ep, i)) -> (cname, (ty, ep, i, tyVariant))) cs)
         }
+    DefEffect{} -> error "Effect exports NYI"
 
 
 primModSig :: ModSig

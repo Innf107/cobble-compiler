@@ -111,7 +111,7 @@ module_ = "module" <??> Module () <$> moduleDecl <*> statements <* eof
         moduleDecl = reserved "module" *> (snd <$> modName) <* reservedOp ";"
 
 statement :: Parser (Statement NextPass)
-statement = "statement" <??> def <|> defVariant <|> defClass <|> defInstance <|> import_
+statement = "statement" <??> def <|> defVariant <|> defClass <|> defInstance <|> defEffect <|> import_
 
 expr :: Parser (Expr NextPass)
 expr = merge 
@@ -240,6 +240,15 @@ defInstance = "instance definition" <??> (\ls cn (_, t) ds le -> DefInstance () 
     <*> typeP
     <*  paren' "{"
     <*> many (decl <* reservedOp' ";")
+    <*> paren "}"
+
+defEffect :: Parser (Statement NextPass)
+defEffect = "effect definition" <??> (\ls effName tvs effs le -> DefEffect () (ls `mergeLexInfo` le) effName tvs effs)
+    <$> reserved "effect"
+    <*> ident'
+    <*> many tvarBinder
+    <*  paren' "{"
+    <*> many (signature' <* reservedOp' ";")
     <*> paren "}"
 
 ifE :: Parser (Expr NextPass)

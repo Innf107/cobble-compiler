@@ -18,6 +18,7 @@ type instance XParam            SemAnalysis = (Seq (Name 'Codegen))
 type instance XImport           SemAnalysis = Void
 type instance XDefVariant       SemAnalysis = Kind
 type instance XDefVariantClause SemAnalysis = (Int, Int)
+type instance XDefEffect        SemAnalysis = ()
 type instance XDefClass         SemAnalysis = Kind
 -- XDefInstance uses a list of pairs instead of a Map, because SemAnalysis shuffles declarations around
 -- to have the same order as class declaration.

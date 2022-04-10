@@ -36,3 +36,4 @@ ensureNoExcessiveImport (Def ext li decl ty) = pure $ Def ext li (coercePass dec
 ensureNoExcessiveImport (DefClass ext li cname tvs clauses) = pure $ DefClass ext li cname tvs clauses
 ensureNoExcessiveImport (DefInstance ext li cname ty decls) = pure $ DefInstance ext li cname ty (coercePass decls)
 ensureNoExcessiveImport (DefVariant ext li cname tvs clauses) = pure $ DefVariant ext li cname tvs clauses
+ensureNoExcessiveImport (DefEffect ext li cname tvs effs) = pure $ DefEffect ext li cname tvs effs

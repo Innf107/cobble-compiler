@@ -13,6 +13,7 @@ type instance XParam            QualifyNames = (Seq (Name QualifyNames))
 type instance XImport           QualifyNames = Void
 type instance XDefVariant       QualifyNames = ()
 type instance XDefVariantClause QualifyNames = ()
+type instance XDefEffect        QualifyNames = ()
 type instance XDefClass         QualifyNames = ()
 type instance XDefInstance      QualifyNames = ()
 type instance XStatement        QualifyNames = Void

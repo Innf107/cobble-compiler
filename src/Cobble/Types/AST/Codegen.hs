@@ -20,6 +20,7 @@ type instance XDef              Codegen = Maybe Fixity
 type instance XImport           Codegen = Void
 type instance XDefVariant       Codegen = Kind
 type instance XDefVariantClause Codegen = (Type, Int, Int)
+type instance XDefEffect        Codegen = ()
 type instance XDefClass         Codegen = Kind
 -- XDefInstance uses a list of pairs instead of a Map, because SemAnalysis shuffles declarations around
 -- to have the same order as class declaration.

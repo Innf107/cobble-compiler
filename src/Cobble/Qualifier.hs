@@ -107,6 +107,7 @@ qualifyStmnt (DefInstance () li cname ty meths) = runReader li $ lookupType cnam
             qualifyDeclWithName n' d
         pure (DefInstance (k, classMeths, tvs, isImported) li cname' ty' meths')
     (cname', k, tv, _) -> throw $ InstanceForNonClass li cname' k tv
+qualifyStmnt (DefEffect () li effName tvs effs) = undefined
 
 -- | Same as qualifyDecl, but takes the already qualified name as an argument
 -- instead of recomputing it

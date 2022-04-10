@@ -13,6 +13,7 @@ type instance XParam            SolveModules = Seq (Name 'SolveModules)
 type instance XImport           SolveModules = ()
 type instance XDefVariant       SolveModules = ()
 type instance XDefVariantClause SolveModules = ()
+type instance XDefEffect        SolveModules = ()
 type instance XDefClass         SolveModules = ()
 type instance XDefInstance      SolveModules = ()
 type instance XStatement        SolveModules = Void
