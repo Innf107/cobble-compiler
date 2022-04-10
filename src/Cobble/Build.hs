@@ -4,6 +4,7 @@ import Cobble.Prelude hiding (writeFile)
 
 import Cobble.Util.Polysemy.FileSystem
 import Cobble.Util.Bitraversable
+import Cobble.Util
 
 import Data.Yaml as Y
 import Data.Aeson as A
@@ -15,11 +16,12 @@ import Cobble.Types
 
 import Cobble.Parser
 import Cobble.Prelude.Parser (parse, ParseError)
-import Cobble.Parser.Tokenizer
+import Cobble.Parser.Tokenizer hiding ((|>))
 
 import Cobble.ModuleSolver qualified as S
 
 data BuildError = ProjectParseError ParseException
+                | DependencyProjectParseError FilePath ParseException
                 | ModuleNotFound Text
                 | BuildLexicalError LexicalError
                 | BuildParseError ParseError
@@ -32,31 +34,60 @@ data BuildOpts = BuildOpts {
 
 createMakefile :: Members '[FileSystem FilePath Text, Error BuildError, Embed IO] r => BuildOpts -> Sem r FilePath
 createMakefile buildOpts@BuildOpts{projectFile} = do
-    projectOpts@ProjectOpts{projectName, sourceDir, outDir} <- embed (decodeFileEither projectFile) >>= \case
+    projectOpts@ProjectOpts{projectName, sourceDir, dependencies} <- embed (decodeFileEither projectFile) >>= \case
         Right x -> pure x
         Left err -> throw (ProjectParseError err)
     let baseDirectory = takeDirectory projectFile
+    dependencyDirs <- traverse (importPackageDep baseDirectory) dependencies
 
-    fileDependencies <- findFileDependencies sourceDir
+    fileDependencies <- findFileDependencies (dependencyDirs |> sourceDir)
 
     writeFile (baseDirectory </> "Makefile") =<< renderMakefile buildOpts projectOpts fileDependencies
     pure baseDirectory
 
-findFileDependencies :: Members '[Embed IO, Error BuildError] r 
-                     => FilePath 
-                     -> Sem r (Seq (FilePath, Seq FilePath))
-findFileDependencies sourceDir = do
-    sourceFiles <- embed $ findFilesRecursive ((==".cb") . takeExtension) sourceDir
+importPackageDep :: Members '[Error BuildError, Embed IO] r
+                 => FilePath 
+                 -> FilePath 
+                 -> Sem r FilePath
+importPackageDep baseDirectory dep = do
+    ProjectOpts{sourceDir, projectName=dependencyName} <- embed (decodeFileEither (baseDirectory </> dep </> "cobble.yaml")) >>= \case
+        Right x -> pure x
+        Left err -> throw (DependencyProjectParseError dep err)
     
-    filesWithImports <- traverse (\file -> (file,) <$> (parseImports (toText file) =<< readFileText (sourceDir </> file))) sourceFiles
+    let depSourceDir = baseDirectory </> dep </> sourceDir
 
-    let moduleMap :: Map Text FilePath = fromList $ toList $ map (\(fileName, (modName, _)) -> (modName, fileName)) filesWithImports
+    sourceFiles <- embed $ listDirectory depSourceDir
 
-    forM filesWithImports $ secondM $ \(_, depMods) -> forM depMods \depMod -> case lookup depMod moduleMap of
-        Nothing -> throw $ ModuleNotFound depMod
-        Just fp -> pure fp
+    let targetPath = baseDirectory </> ".cobble/dependencies" </> toString dependencyName
+    embed $ createDirectoryIfMissing True targetPath
 
+    forM_ sourceFiles \file -> embed $ copyFileOrDirectory False (depSourceDir </> file) (targetPath </> takeFileName file)
+    pure targetPath
+    
 
+findFileDependencies :: Members '[Embed IO, Error BuildError] r 
+                     => Seq FilePath 
+                     -> Sem r (Seq (Dependency, Seq Dependency))
+findFileDependencies sourceDirs = do
+    sourceDirsWithFiles :: Seq (FilePath, Seq FilePath) <- embed $ traverse (\x -> (x,) <$> findFilesRecursive ((==".cb") . takeExtension) x) sourceDirs
+    
+    moduleDependencies :: Seq (FilePath, FilePath, Text, Seq Text) <- concat <$> forM sourceDirsWithFiles \(sourceDir, files) -> forM files \file -> do
+        content <- embed $ readFileText (sourceDir </> file)
+        (modName, imports) <- parseImports (toText file) content
+        pure (sourceDir, file, modName, imports)
+
+    let moduleMap :: Map Text Dependency = fromList $ toList $ map (\(sourceDir, fileName, modName, _) -> (modName, MkDependency sourceDir fileName)) moduleDependencies
+
+    forM moduleDependencies \(sourceDir, file, _modName, imports) -> do
+        imports' <- forM imports \importMod -> case lookup importMod moduleMap of
+            Nothing -> throw $ ModuleNotFound importMod
+            Just fp -> pure fp
+        pure (MkDependency sourceDir file, imports')
+
+data Dependency = MkDependency {
+        depSourceDir    :: FilePath
+    ,   depRelPath      :: FilePath
+    } deriving (Show, Eq, Generic, Data)
 
 parseImports :: Members '[Error BuildError] r => Text -> Text -> Sem r (Text, Seq Text)
 --                                                                      ^module name ^imports (as modules)
@@ -76,39 +107,40 @@ findFilesRecursive pred = go ""
             False -> do
                 if pred root then pure [takenPath] else pure []
 
-renderMakefile :: BuildOpts -> ProjectOpts -> Seq (FilePath, Seq FilePath) -> Sem r Text
-renderMakefile BuildOpts{projectFile} ProjectOpts{projectName, sourceDir, outDir, compiler, compilerOpts} deps
+renderMakefile :: BuildOpts -> ProjectOpts -> Seq (Dependency, Seq Dependency) -> Sem r Text
+renderMakefile BuildOpts{projectFile} ProjectOpts{projectName, compiler, compilerOpts} deps
     = pure $ all <> "\n" <> rules <> "\n" <> clean
     where
         clean :: Text
         clean = unlines [
                 ".PHONY: clean"
             ,   "clean:"
-            ,   "\trm -r " <> toText outDir
+            ,   "\t-rm -r .cobble/out"
+            ,   "\t-rm -r .cobble/dependencies"
             ,   ""
             ]
         all = unlines [
                 ".PHONY: all"
-            ,   "all: " <> unwords (toList $ map (\(path,_) -> sigFileAt path) deps)
+            ,   "all: " <> unwords (toList $ map (sigFileAt . fst) deps)
                 -- TODO: add racket link command
             ]
-        rules = unlines $ toList deps <&> \(file, deps) -> unlines [
-                sigFileAt file <> ": " <> unwords (sourceFileAt file : toList (map sigFileAt deps))
-            ,   "\tmkdir -p " <> toText (takeDirectory (outDir </> file))
-            ,   "\t" <> compiler <> " " <> compilerOpts <> " " <> unwords (sourceFileAt file : toList (map sigFileAt deps))
-                    <> " -o " <> outputFileAt file
+        rules = unlines $ toList deps <&> \(dep, depDependencies) -> unlines [
+                sigFileAt dep <> ": " <> unwords (sourceFileAt dep : toList (map sigFileAt depDependencies))
+            ,   "\tmkdir -p " <> toText (takeDirectory (toString $ outputFileAt dep))
+            ,   "\t" <> compiler <> " " <> compilerOpts <> " " <> unwords (sourceFileAt dep : toList (map sigFileAt depDependencies))
+                    <> " -o " <> outputFileAt dep
             ]
 
-        outputFileAt path = toText $ outDir </> dropExtension path <.> "rkt" 
-        sigFileAt path = toText $ outDir </> dropExtension path <.> "cbi"
-        sourceFileAt path = toText $ sourceDir </> path
+        outputFileAt (MkDependency{depRelPath}) = toText $ ".cobble/out" </> dropExtension depRelPath <.> "rkt" 
+        sigFileAt    (MkDependency{depRelPath}) = toText $ ".cobble/out" </> dropExtension depRelPath <.> "cbi"
+        sourceFileAt (MkDependency{depRelPath, depSourceDir}) = toText $ depSourceDir </> depRelPath
 
 
 
 data ProjectOpts = ProjectOpts {
     projectName :: Text
 ,   sourceDir :: FilePath
-,   outDir :: FilePath
+,   dependencies :: Seq FilePath
 ,   compiler :: Text
 ,   compilerOpts :: Text
 } deriving (Show, Eq, Generic, Data)
@@ -117,7 +149,7 @@ instance FromJSON ProjectOpts where
     parseJSON = withObject "Project" $ \p -> ProjectOpts
         <$> p .: "name"
         <*> p .: "source-dir"
-        <*> p .: "out-dir"
+        <*> p .: "dependencies"
         <*> (p .: "compiler" <|> pure "cobble compile")
         <*> (p .: "compiler-options" <|> pure "")
 

@@ -1,7 +1,10 @@
+{-#LANGUAGE NoOverloadedLists#-}
 module Cobble.Util where
 
 import Cobble.Prelude
   
+import System.Directory
+
 mapCompose ::  (f (g a) -> f' (g' b)) -> Compose f g a -> Compose f' g' b
 mapCompose f = Compose . f . getCompose
 
@@ -24,4 +27,15 @@ zipForM x y f = zipWithM f x y
 
 zipForM_ :: (Applicative f) => [a] -> [b] -> (a -> b -> f c) -> f ()
 zipForM_ x y f = zipWithM_ f x y
+
+copyFileOrDirectory :: Bool -> FilePath -> FilePath -> IO ()
+copyFileOrDirectory parents from to =
+    doesFileExist from >>= \case
+        True -> copyFile from to
+        False -> doesDirectoryExist from >>= \case
+            True -> do
+                createDirectoryIfMissing parents to
+                files <- filter (`notElem` ["..", "."]) <$> getDirectoryContents from
+                forM_ files $ \file -> copyFileOrDirectory parents (from </> file) (to </> file)
+            False -> fail $ "copyFileOrDirectory: File does not exist: " <> from
 

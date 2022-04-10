@@ -67,7 +67,6 @@ library
       Cobble.Util.Prettyprinter
       Cobble.Util.Trace
       Cobble.Util.TypeUtils
-      Lib
   other-modules:
       Paths_cobble
   hs-source-dirs:
