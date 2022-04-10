@@ -32,7 +32,7 @@ type instance XStructAccess     'SolveModules = ()
 
 type instance XLambda           SolveModules = ()
 
-type instance XExpr             'SolveModules = OperatorGroup SolveModules NoFixity
+type instance XExpr             'SolveModules = Either (OperatorGroup SolveModules NoFixity) UnitLit
 
 type instance XCaseBranch SolveModules = ()
 

@@ -128,7 +128,7 @@ expr = merge
 exprWithoutAscription :: Parser (Expr NextPass)
 exprWithoutAscription = exprOrOp <&> \case
     OpLeaf e -> e
-    opGroup  -> ExprX opGroup (leftLI opGroup `mergeLexInfo` rightLI opGroup)  
+    opGroup  -> ExprX (Left opGroup) (leftLI opGroup `mergeLexInfo` rightLI opGroup)  
     where
         leftLI (OpLeaf e) = getLexInfo e
         leftLI (OpNode l _ _) = leftLI l
@@ -159,7 +159,7 @@ exprWithoutOp = "expression" <??> do
 expr' :: Parser (Expr NextPass)
 expr' = "expression (no fcall)" <??> 
         uncurry (IntLit ()) <$> intLit 
-    <|> UnitLit <$> unitLit 
+    <|> ExprX (Right UnitLit) <$> unitLit 
     <|> lambdaE 
     <|> letE 
     <|> ifE 

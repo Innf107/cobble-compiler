@@ -138,7 +138,6 @@ qualifyExpr (App () li f e) =
     <$> qualifyExpr f
     <*> qualifyExpr e
 qualifyExpr (IntLit () li n) = pure (IntLit () li n)
-qualifyExpr (UnitLit li) = pure (UnitLit li)
 qualifyExpr (If () li cond th el) = 
     If () li
     <$> qualifyExpr cond
@@ -166,8 +165,8 @@ qualifyExpr (Lambda () li x e) = runReader li $
         x' <- freshVar x
         addVar x x'
         Lambda () li x' <$> qualifyExpr e
-
-qualifyExpr (ExprX opGroup li) = runReader li $ replaceOpGroup . reorderByFixity <$> qualifyWithFixity opGroup
+qualifyExpr (ExprX (Right UnitLit) li) = pure $ VariantConstr (0, 0) li (UnsafeQualifiedName "Unit" (GlobalQName "Data.Unit"))
+qualifyExpr (ExprX (Left opGroup) li) = runReader li $ replaceOpGroup . reorderByFixity <$> qualifyWithFixity opGroup
     where
         qualifyWithFixity :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r
                           => OperatorGroup QualifyNames NoFixity 

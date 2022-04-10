@@ -1,5 +1,5 @@
 .PHONY: all
-all: ./out/Control/Functor.cbi ./out/Data/Semigroup.cbi ./out/Data/Arith.cbi ./out/Data/Function.cbi ./out/Data/Eq.cbi ./out/Data/Ord.cbi ./out/Data/Foldable.cbi ./out/Data/List.cbi ./out/Data/Bool.cbi ./out/Data/Maybe.cbi ./out/Data/Tuple.cbi ./out/Prelude.cbi
+all: ./out/Control/Functor.cbi ./out/Data/Semigroup.cbi ./out/Data/Unit.cbi ./out/Data/Arith.cbi ./out/Data/Function.cbi ./out/Data/Eq.cbi ./out/Data/Ord.cbi ./out/Data/Foldable.cbi ./out/Data/List.cbi ./out/Data/Bool.cbi ./out/Data/Maybe.cbi ./out/Data/Tuple.cbi ./out/Prelude.cbi
 
 ./out/Control/Functor.cbi: ./src/Control/Functor.cb
 	mkdir -p ./out/Control
@@ -8,6 +8,10 @@ all: ./out/Control/Functor.cbi ./out/Data/Semigroup.cbi ./out/Data/Arith.cbi ./o
 ./out/Data/Semigroup.cbi: ./src/Data/Semigroup.cb
 	mkdir -p ./out/Data
 	cobble compile  ./src/Data/Semigroup.cb -o ./out/Data/Semigroup.rkt
+
+./out/Data/Unit.cbi: ./src/Data/Unit.cb
+	mkdir -p ./out/Data
+	cobble compile  ./src/Data/Unit.cb -o ./out/Data/Unit.rkt
 
 ./out/Data/Arith.cbi: ./src/Data/Arith.cb
 	mkdir -p ./out/Data

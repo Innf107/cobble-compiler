@@ -1,0 +1,8 @@
+module Data.Unit;
+
+-- This definition is *very* important, since
+-- the specifics are hard coded into the compiler
+variant Unit = Unit;
+
+ignore :: a -> Unit;
+ignore x = ();

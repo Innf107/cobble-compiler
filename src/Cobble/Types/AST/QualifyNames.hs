@@ -32,7 +32,7 @@ type instance XStructAccess     'QualifyNames = ()
 
 type instance XLambda           QualifyNames = ()
 
-type instance XExpr             'QualifyNames = OperatorGroup QualifyNames NoFixity
+type instance XExpr             'QualifyNames = Either (OperatorGroup QualifyNames NoFixity) UnitLit
 
 type instance XCaseBranch QualifyNames = ()
 

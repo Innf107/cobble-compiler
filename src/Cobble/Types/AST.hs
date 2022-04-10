@@ -110,7 +110,6 @@ type family XDecl (p :: Pass)
 data Expr (p :: Pass) =
       App             (XFCall p) LexInfo (Expr p) (Expr p)
     | IntLit          (XIntLit p) LexInfo Int
-    | UnitLit         LexInfo
     | If              (XIf p) LexInfo (Expr p) (Expr p) (Expr p)
     | Let             (XLet p) LexInfo (Decl p) (Expr p)
     | Var             (XVar p) LexInfo (Name p)
@@ -157,6 +156,8 @@ data Pattern (p :: Pass) = IntP (XIntP p) Int
 type instance InstanceRequirements (Pattern p) = [
         Name p, XIntP p, XVarP p, XConstrP p, XWildcardP p, XOrP p, XPattern p
     ]
+
+data UnitLit = UnitLit
 
 data CodegenExt = TyApp_ Type (Expr Codegen)
                 | TyAbs_ TVar (Expr Codegen)
@@ -411,8 +412,9 @@ instance {-#INCOHERENT#-} (CoercePass a b) => CoercePass [a] [b]
 instance {-#INCOHERENT#-} (CoercePass a b) => CoercePass (Seq a) (Seq b)
 
 instance {-# INCOHERENT #-} (CoercePass a a', CoercePass b b') => CoercePass (a, b) (a', b')
-        
 instance {-# INCOHERENT #-} (CoercePass a a', CoercePass b b', CoercePass c c') => CoercePass (a, b, c) (a', b', c')
+
+instance {-# INCOHERENT #-} (CoercePass a a', CoercePass b b') => CoercePass (Either a b) (Either a' b')
 
 deriveCoercePass ''Module
 deriveCoercePass ''Statement
@@ -433,7 +435,6 @@ instance HasLexInfo (Expr p) where
     getLexInfo = \case
         App _ li _ _             -> li
         IntLit _ li _            -> li
-        UnitLit li               -> li
         If _ li _ _ _            -> li
         Let _ li _ _             -> li
         Var _ li _               -> li

@@ -86,7 +86,6 @@ lowerExpr (C.App ty _ e1 e2) = F.App
                                <$> lowerExpr e1
                                <*> lowerExpr e2
 lowerExpr (C.IntLit () _ n) = pure $ F.IntLit n
-lowerExpr (C.UnitLit li) = pure $ F.UnitLit
 lowerExpr (C.If ty _ c th el) = F.If 
                                 <$> lowerExpr c
                                 <*> lowerExpr th

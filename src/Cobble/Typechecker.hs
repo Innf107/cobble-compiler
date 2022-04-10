@@ -245,9 +245,6 @@ check env (App () li f x) t = runReader li do
 check env (IntLit () li n) t = runReader li $ do
     t !~ intT 
     pure (IntLit () li n)
-check env (UnitLit li) t = runReader li do
-    t !~ unitT
-    pure (UnitLit li)
 check env (If () li c th el) t = do
     c' <- check env c boolT
     th' <- check env th t
@@ -349,7 +346,6 @@ infer env (App () li f x) = runReader li do
     pure (w (App t li (wF f') x'))
 
 infer env (IntLit () li n) = pure (IntLit () li n)
-infer env (UnitLit li) = pure (UnitLit li)
 infer env (If () li c th el) = runReader li do
     -- This is hard, since we have to make sure th and el have the same type,
     -- but we cannot simply use (!~), which could not infer higher rank types.

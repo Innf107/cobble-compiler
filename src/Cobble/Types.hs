@@ -35,7 +35,6 @@ instance HasType (Expr 'Codegen) where
         Case t _ _ _                        -> t
         IntLit _ _ _                        -> intT
         If _ _ _ th _                       -> getType th
-        UnitLit _                           -> unitT
         Let _ _ _ b                         -> getType b
         Lambda (t, _) _ _ _                 -> t
         TyAbs _ tv e                        -> TForall [tv] (getType e)
@@ -50,7 +49,6 @@ instance HasType (Expr 'Codegen) where
         Case _ x y z                        -> Case t x y z
         i@IntLit{}                          -> i
         If x y z th el                      -> If x y z (setType t th) (setType t el)
-        u@UnitLit{}                         -> u
         Let x y z b                         -> Let x y z (setType t b)
         Lambda (_, x) y z w                 -> Lambda (t, x) y z w
         TyAbs li ty e                       -> TyAbs li ty (setType t e)
