@@ -328,3 +328,4 @@ lowerKind :: C.Kind -> Sem r F.Kind
 lowerKind C.KStar = pure F.KType
 lowerKind (C.KFun a b)= F.KFun <$> lowerKind a <*> lowerKind b
 lowerKind C.KConstraint = pure F.KType -- Constraints are desugared to dictionary applications
+lowerKind C.KEffect = error "Effect lowering NYI"

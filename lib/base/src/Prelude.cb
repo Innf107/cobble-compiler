@@ -1,10 +1,15 @@
 module Prelude;
 
+import Control.Functor;
+
+import Data.Arith;
 import Data.Bool;
 import Data.Eq;
+import Data.Foldable;
+import Data.Function;
+import Data.List;
+import Data.Maybe;
 import Data.Ord;
 import Data.Semigroup;
-import Data.List;
 import Data.Tuple;
-
-
+import Data.Unit;

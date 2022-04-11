@@ -107,7 +107,26 @@ qualifyStmnt (DefInstance () li cname ty meths) = runReader li $ lookupType cnam
             qualifyDeclWithName n' d
         pure (DefInstance (k, classMeths, tvs, isImported) li cname' ty' meths')
     (cname', k, tv, _) -> throw $ InstanceForNonClass li cname' k tv
-qualifyStmnt (DefEffect () li effName tvs effs) = undefined
+
+qualifyStmnt (DefEffect () li effName tvs ops) = runReader li do
+    effName' <- freshGlobal effName
+    tvs' <- traverse (uncurry qualifyTVar) tvs
+    
+    let k = foldr (\(MkTVar _ k) r -> k `KFun` r) KEffect tvs'
+
+    ops' <- withFrame $ do
+        -- Just like with variants and classes, the operations have to be stubbed out since we don't have them yet, but we
+        -- need the effect type in order to qualify them
+        addType effName effName' k (TyEffect (coercePass tvs') [])
+        zipWithM_ addTVar (map fst tvs) tvs'
+        forM ops \(opName, opTy) -> do
+            opName' <- freshGlobal opName
+            opTy' <- qualifyType True opTy -- Effect operations *are* allowed to introduce new tyvars
+            pure (opName', opTy')
+
+    addType effName effName' k (TyEffect tvs' ops')
+    zipWithM (\(opName, _) (opName', _) -> addVar opName opName') ops ops'
+    pure (DefEffect () li effName' tvs' ops')
 
 -- | Same as qualifyDecl, but takes the already qualified name as an argument
 -- instead of recomputing it
