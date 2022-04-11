@@ -126,7 +126,7 @@ qualifyStmnt (DefEffect () li effName tvs ops) = runReader li do
 
     addType effName effName' k (TyEffect tvs' ops')
     zipWithM (\(opName, _) (opName', _) -> addVar opName opName') ops ops'
-    pure (DefEffect () li effName' tvs' ops')
+    pure (DefEffect k li effName' tvs' ops')
 
 -- | Same as qualifyDecl, but takes the already qualified name as an argument
 -- instead of recomputing it

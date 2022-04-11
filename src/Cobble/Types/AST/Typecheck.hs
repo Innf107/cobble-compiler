@@ -18,7 +18,7 @@ type instance XParam            Typecheck = Seq (Name Typecheck)
 type instance XImport           Typecheck = Void
 type instance XDefVariant       Typecheck = Kind
 type instance XDefVariantClause Typecheck = (Int, Int)
-type instance XDefEffect        Typecheck = ()
+type instance XDefEffect        Typecheck = Kind
 type instance XDefClass         Typecheck = Kind
 -- XDefInstance uses a list of pairs instead of a Map, because SemAnalysis shuffles declarations around
 -- to have the same order as class declaration.

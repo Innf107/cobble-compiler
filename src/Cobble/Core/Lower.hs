@@ -77,7 +77,7 @@ lowerStmnts (C.DefVariant _ _ x args clauses :<| sts) = do
             <$> traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) args
             <*> traverse (\(x, tys, _) -> (x,) <$> traverse lowerType tys) clauses
     (def<|) <$> lowerStmnts sts
-lowerStmnts (C.DefEffect () li name tvs effs :<| sts) = error "effect codegen NYI"
+lowerStmnts (C.DefEffect k li name tvs effs :<| sts) = error "effect codegen NYI"
 
 lowerExpr :: (Trace, Members '[Fresh Text QualifiedName] r) => CExpr -> Sem r F.Expr
 lowerExpr (C.VariantConstr (_ty, constrTy, ix) _ constrName) = do

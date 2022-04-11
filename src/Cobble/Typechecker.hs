@@ -187,7 +187,9 @@ typecheckStatement env (DefVariant k li tyName tvs constrs) =
             constrTy ps = TForall tvs (foldr (:->) resTy ps)
             constrs' = map (\(n, ps, (i, j)) -> (n, ps, (constrTy ps, i, j))) constrs
             env' = foldr (\(n,_,(t,_,_)) -> insertType n t) env constrs'
-typecheckStatement env (DefEffect () li effName tvs effs) = error "effect typechecking NYI"
+typecheckStatement env (DefEffect k li effName tvs ops) = do
+    let env' = foldr (uncurry insertType) env ops
+    pure (DefEffect k li effName tvs ops, env')
 
 tforall :: Seq TVar -> Type -> Type
 tforall Empty ty = ty
