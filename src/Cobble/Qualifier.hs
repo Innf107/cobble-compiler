@@ -283,6 +283,8 @@ qualifyType allowFreeVars = go
             zipWithM_ addTVar (map fst ps) ps'
             TForall ps' <$> go ty
         go (UTConstraint constr ty) = TConstraint <$> goConstraint constr <*> go ty
+        go UTEffNil = pure TEffNil
+        go (UTEffExtend a b) = TEffExtend <$> go a <*> go b
 
         goConstraint :: UConstraint -> Sem r Constraint
         goConstraint (MkUConstraint className ty) = lookupType className >>= \case

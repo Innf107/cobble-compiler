@@ -233,6 +233,8 @@ data UType = UTCon UnqualifiedName
            | UTFun UType UType
            | UTEffFun UType UType UType
            | UTConstraint UConstraint UType
+           | UTEffNil
+           | UTEffExtend UType UType
            deriving (Show, Eq, Generic, Data)
 
 type family XType (p :: Pass) :: HSType

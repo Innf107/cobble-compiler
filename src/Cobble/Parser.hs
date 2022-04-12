@@ -409,11 +409,21 @@ functionType li tyA = simpleFunction <|> effFunction
         effFunction = do
             exactOp "-"
             paren' "{"
-            (_, effTy) <- typeP
+            effTy <- effectType
             paren' "}"
             exactOp ">"
             (le, tyB) <- typeP
             pure (li `mergeLexInfo` le, UTEffFun tyA effTy tyB)
+
+effectType :: Parser UType
+effectType = emptyEff <|> try effExtend <|> effVar
+    where
+        emptyEff = paren' "{" >> paren' "}" >> pure UTEffNil
+        effVar = UTVar <$> ident'
+        effExtend = UTEffExtend . snd
+            <$> typeP
+            <*  reservedOp' "|"
+            <*> effectType
 
 withParen :: Parser a -> Parser a
 withParen a = paren "(" *> a <* paren ")"
