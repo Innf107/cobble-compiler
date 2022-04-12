@@ -200,22 +200,28 @@ data Type = TCon QualifiedName Kind
           --      ^             ^original
           --      |skolem
           | TForall (Seq TVar) Type
-          | TFun Type Type
+          | TFun Type Type Type         -- σ -{ϵ}> σ
           | TConstraint Constraint Type
+          | TEffNil                     -- ⟨⟩
+          | TEffExtend Type Type        -- ⟨l | ɛ⟩ where l : KLabel /\ ϵ : KEff /\ l = c σ*
           deriving (Eq, Ord, Generic, Data)
 instance Binary Type
+
 
 instance S.Show Type where 
     show = toString . (<>")") . ("(Type " <>) . ppType
 
 ppType :: Type -> Text
-ppType (TFun a b)               = "(" <> ppType a <> " -> " <> ppType b <> ")"
+ppType (TFun a TEffNil b)       = "(" <> ppType a <> " -> " <> ppType b <> ")"
+ppType (TFun a effs b)          = "(" <> ppType a <> " -{" <> ppType effs <> "}> " <> ppType b <> ")"
 ppType (TVar (MkTVar v _))      = show v
 ppType (TSkol v _)   = "#" <> show v
 ppType (TCon v _)               = show v
 ppType (TApp a b)               = "(" <> ppType a <> " " <> ppType b <> ")"
 ppType (TForall ps t)           = "(∀" <> T.intercalate " " (toList $ map (\(MkTVar v _) -> show v) ps) <> ". " <> ppType t <> ")"
 ppType (TConstraint c t)        = ppConstraint c <> " => " <> ppType t
+ppType TEffNil                  = "⟨⟩"
+ppType (TEffExtend ty eff)      = "⟨" <> ppType ty <> " | " <> ppType eff <> "⟩"
 
 ppConstraint :: Constraint -> Text
 ppConstraint (MkConstraint n k t) = "(" <> show n <> " : " <> show k <> ")" <> ppType t
@@ -225,6 +231,7 @@ data UType = UTCon UnqualifiedName
            | UTVar UnqualifiedName
            | UTForall (Seq (UnqualifiedName, Maybe Kind)) UType
            | UTFun UType UType
+           | UTEffFun UType UType UType
            | UTConstraint UConstraint UType
            deriving (Show, Eq, Generic, Data)
 
@@ -240,8 +247,10 @@ freeTVs = go mempty
             | otherwise             = one tv
         go bound (TSkol _ _)        = mempty
         go bound (TForall tvs ty)   = go (bound <> Set.fromList (toList tvs)) ty
-        go bound (TFun a b)         = go bound a <> go bound b 
+        go bound (TFun a eff b)     = go bound a <> go bound eff <> go bound b 
         go bound (TConstraint (MkConstraint _ _ t1) t2) = go bound t1 <> go bound t2
+        go bound TEffNil            = mempty
+        go bound (TEffExtend t eff) = go bound t <> go bound eff
 
 -- Like freeTVs, but preserves the order of free ty vars
 freeTVsOrdered :: Type -> Seq TVar
@@ -254,8 +263,10 @@ freeTVsOrdered = ordNub . go mempty
             | otherwise             = one tv
         go bound (TSkol _ _)        = mempty
         go bound (TForall tvs ty)   = go (bound <> Set.fromList (toList tvs)) ty
-        go bound (TFun a b)         = go bound a <> go bound b 
+        go bound (TFun a effs b)    = go bound a <> go bound effs <> go bound b 
         go bound (TConstraint (MkConstraint _ _ t1) t2) = go bound t1 <> go bound t2
+        go bound TEffNil            = mempty
+        go bound (TEffExtend t eff) = go bound t <> go bound eff
 
 data TVar = MkTVar QualifiedName Kind
           deriving (Show, Eq, Ord, Generic, Data)
@@ -280,6 +291,7 @@ data UConstraint = MkUConstraint UnqualifiedName UType
 data Kind = KStar
           | KConstraint 
           | KEffect
+          | KLabel
           | KFun Kind Kind 
           deriving (Eq, Ord, Generic, Data, Typeable)
 infixr 5 `KFun`
@@ -290,7 +302,7 @@ data TGiven  = TGiven  Constraint LexInfo deriving (Show, Eq, Generic, Data, Typ
 data TWanted = TWanted Constraint LexInfo deriving (Show, Eq, Generic, Data, Typeable)
 
 pattern (:->) :: Type -> Type -> Type
-pattern (:->) t1 t2 = TFun t1 t2
+pattern (:->) t1 t2 = TFun t1 TEffNil t2
 infixr 1 :->
 
 type family XKind (p :: Pass)
@@ -339,6 +351,7 @@ instance S.Show Kind where
     show KStar = "*"
     show KConstraint = "Constraint"
     show KEffect = "Effect"
+    show KLabel = "Label"
     show (KFun k1 k2) = "(" <> show k1 <> " -> " <> show k2 <> ")"
 
 intT, boolT, unitT :: Type
@@ -361,9 +374,11 @@ instance HasKind Type where
             (KFun kp kr, ka)
                 | kp == ka -> pure kr
             (k1, k2) -> Left (k1, k2)
-        TFun t1 t2 -> pure KStar
+        TFun t1 effs t2 -> pure KStar
         TForall _ t -> kind t
         TConstraint _ t -> kind t 
+        TEffNil -> Right KEffect
+        TEffExtend _ _ -> Right KEffect
     
 instance HasKind Constraint where
     kind _ = pure KConstraint 

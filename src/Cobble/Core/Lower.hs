@@ -54,11 +54,11 @@ lowerStmnts (C.DefClass k li cname tvs methSigs :<| sts) = do
             stripConstraint (C.TConstraint _ ty) = ty
             stripConstraint ty = ty
 
-            tyAbsFor 0 (F.TForall tv k ty) = F.TyAbs tv k . tyAbsFor 0 ty
+            tyAbsFor (0 :: Int) (F.TForall tv k ty) = F.TyAbs tv k . tyAbsFor 0 ty
             tyAbsFor n (F.TForall _ _ ty) = tyAbsFor (n - 1) ty
             tyAbsFor _ _ = id
 
-            tyAppsFor 0 (F.TForall tv k ty) = tyAppsFor 0 ty . flip F.TyApp (F.TVar tv k)
+            tyAppsFor (0 :: Int) (F.TForall tv k ty) = tyAppsFor 0 ty . flip F.TyApp (F.TVar tv k)
             tyAppsFor n (F.TForall _ _ ty) = tyAppsFor (n - 1) ty
             tyAppsFor _ _ = id
 
@@ -316,8 +316,10 @@ lowerType (C.TSkol _ (C.MkTVar tvName tvKind)) = F.TVar tvName <$> lowerKind tvK
 lowerType (C.TForall tvs ty) = do
     ty' <- lowerType ty
     foldrM (\(C.MkTVar tvName tvKind) r -> lowerKind tvKind <&> \k' -> F.TForall tvName k' r) ty' tvs
-lowerType (C.TFun t1 t2) = F.TFun <$> lowerType t1 <*> lowerType t2
+lowerType (C.TFun t1 eff t2) = error "Effect lowering NYI" -- F.TFun <$> lowerType t1 <*> lowerType t2
 lowerType (C.TConstraint c ty) = F.TFun <$> lowerConstraint c <*> lowerType ty -- Constraints are desugard to dictionary applications
+lowerType C.TEffNil = error "Effect lowering NYI"
+lowerType C.TEffExtend{} = error "Effect lowering NYI" 
 
 lowerConstraint :: C.Constraint -> Sem r F.Type
 lowerConstraint (C.MkConstraint cname k ty) = do
@@ -329,3 +331,4 @@ lowerKind C.KStar = pure F.KType
 lowerKind (C.KFun a b)= F.KFun <$> lowerKind a <*> lowerKind b
 lowerKind C.KConstraint = pure F.KType -- Constraints are desugared to dictionary applications
 lowerKind C.KEffect = error "Effect lowering NYI"
+lowerKind C.KLabel = error "Effect lowering NYI"

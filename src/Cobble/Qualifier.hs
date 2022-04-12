@@ -266,7 +266,10 @@ qualifyType allowFreeVars = go
         go :: UType -> Sem r Type
         go (UTCon tyName) = (\(tyName', k, _, _) -> TCon tyName' k) <$> lookupType tyName
         go (UTApp f x) = TApp <$> go f <*> go x
-        go (UTFun a b) = TFun <$> go a <*> go b
+        go (UTEffFun a effs b) = TFun <$> go a <*> go effs <*> go b
+        go (UTFun a b) = do
+            effVar <- freshVar "μ"
+            TFun <$> go a <*> pure (TVar (MkTVar effVar KEffect)) <*> go b
         go (UTVar tv) = runError (lookupTVar tv) >>= \case
             Right tv' -> pure (TVar tv')
             Left err

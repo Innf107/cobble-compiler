@@ -480,7 +480,7 @@ decomposeFun :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexI
 decomposeFun t@TForall{} = do
     (t', w) <- instantiate t
     (\(x, y, w') -> (x, y, w . w')) <$> decomposeFun t'
-decomposeFun (TFun a b) = pure (a, b, id)
+decomposeFun (TFun a effs b) = pure (a, b, id) -- TODO: What about effs here?
 decomposeFun t = do
     argTy <- freshTV KStar
     resTy <- freshTV KStar
@@ -520,12 +520,14 @@ replaceTVars tvs ty@(TVar tv) = case lookup tv tvs of
 replaceTVars tvs ty@TCon{} = ty
 replaceTVars tvs ty@TSkol{} = ty
 replaceTVars tvs ty@(TApp t1 t2) = TApp (replaceTVars tvs t1) (replaceTVars tvs t2)
-replaceTVars tvs ty@(TFun a b)   = TFun (replaceTVars tvs a) (replaceTVars tvs b)
+replaceTVars tvs ty@(TFun a eff b) = TFun (replaceTVars tvs a) (replaceTVars tvs eff) (replaceTVars tvs b)
 replaceTVars tvs (TForall forallTVs ty) =
                 let remainingTVs = foldr (M.delete) tvs forallTVs in
                 TForall forallTVs $ replaceTVars remainingTVs ty
 replaceTVars tvs (TConstraint (MkConstraint constrName k constrTy) ty) =
                 TConstraint (MkConstraint constrName k (replaceTVars tvs constrTy)) (replaceTVars tvs ty)
+replaceTVars tvs TEffNil = TEffNil
+replaceTVars tvs (TEffExtend ty eff) = TEffExtend (replaceTVars tvs ty) (replaceTVars tvs eff) 
 
 
 solveConstraints :: (Trace, Members '[Error TypeError, Fresh Text QualifiedName, Fresh TVar TVar] r)
@@ -584,9 +586,10 @@ unify t1 (TVar tv) = bind tv t1
 unify (TApp a1 b1) (TApp a2 b2) = do
     subst <- unify a1 a2
     (subst <>) <$> unify (applySubst subst b1) (applySubst subst b2)
-unify (TFun a1 b1) (TFun a2 b2) = do
+unify (TFun a1 eff1 b1) (TFun a2 eff2 b2) = do
     subst <- unify a1 a2
-    (subst <>) <$> unify (applySubst subst b1) (applySubst subst b2)
+    subst' <- (subst <>) <$> unify (applySubst subst eff1) (applySubst subst eff2)
+    (subst' <>) <$> unify (applySubst subst' b1) (applySubst subst' b2)
 unify t1@TSkol{} t2@TSkol{}
     | t1 == t2 = pure mempty
 

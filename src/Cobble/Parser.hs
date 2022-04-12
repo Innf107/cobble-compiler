@@ -400,10 +400,20 @@ namedType = withParen typeP <|> do
         else (li, UTCon i)
 
 functionType :: LexInfo -> UType -> Parser (LexInfo, UType)
-functionType li tyA = do
-    reservedOp' "->"
-    (le, tyB) <- typeP
-    pure (li `mergeLexInfo` le, tyA `UTFun` tyB)
+functionType li tyA = simpleFunction <|> effFunction
+    where
+        simpleFunction = do
+            reservedOp' "->"
+            (le, tyB) <- typeP
+            pure (li `mergeLexInfo` le, tyA `UTFun` tyB)
+        effFunction = do
+            exactOp "-"
+            paren' "{"
+            (_, effTy) <- typeP
+            paren' "}"
+            exactOp ">"
+            (le, tyB) <- typeP
+            pure (li `mergeLexInfo` le, UTEffFun tyA effTy tyB)
 
 withParen :: Parser a -> Parser a
 withParen a = paren "(" *> a <* paren ")"
