@@ -201,11 +201,11 @@ checkTopLevelDecl :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName
       -> Decl Typecheck
       -> Type
       -> Sem r (Decl NextPass, TCEnv)
-checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = undefined{-do
+checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = do
     li <- ask
     (expectedTy', w) <- skolemize expectedTy
-    (xs', eTy, w') <- decomposeParams expectedTy' xs
-    traceM DebugVerbose $ "[checkTopLevelDecl env (" <> show f <> ")] xs' = " <> show xs' <> " | eTy = " <> show eTy
+    (xs', eTy, mEff, w') <- decomposeParams expectedTy' xs
+    traceM DebugVerbose $ "[checkTopLevelDecl env (" <> show f <> ")] xs' = " <> show xs' <> "mEff = " <> show mEff <> " | eTy = " <> show eTy
 
     let env' = if recursive
                then insertType f expectedTy env
@@ -216,14 +216,18 @@ checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = undefined{-do
             TForall tvs _ -> tvs
             _ -> []
 
-    e' <- checkPoly (foldr (uncurry insertType) env' xs') e eTy
+    eff <- case mEff of
+        Just e -> pure e
+        Nothing -> freshTV KEffect
+
+    e' <- checkPoly (foldr (\(x,ty,_) -> insertType x ty) env' xs') e eTy eff
     let lambdas = flip (foldr (TyAbs li)) tvs $ w $ makeLambdas li e' xs'
 
     pure (Decl (expectedTy, []) f [] lambdas, env')
         where
-            makeLambdas :: LexInfo -> Expr NextPass -> Seq (QualifiedName, Type) -> Expr NextPass
-            makeLambdas li = foldr (\(x, ty) e -> Lambda (ty :-> getType e, ty) li x e)
--}
+            makeLambdas :: LexInfo -> Expr NextPass -> Seq (QualifiedName, Type, Effect) -> Expr NextPass
+            makeLambdas li = foldr (\(x, ty, eff) e -> Lambda (TFun ty eff (getType e), ty) li x e)
+
 check :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r)
       => TCEnv
       -> Expr Typecheck 
@@ -235,16 +239,16 @@ check env e t eff | trace DebugVerbose ("[check]: Γ ⊢ " <> show e <> " : " <>
 check env e t@TForall{} eff = runReader (getLexInfo e) do
     (t', w) <- skolemize t
     w . correct t <$> check env e t' eff
-    -- TODO: Do we need to skolemize effects in checking mode?
 
 check env (App () li f x) t eff = runReader li do
     (f', fValEff) <- infer env f
     (fDomTy, fFunEff, fCodomTy, w) <- decomposeFun (getType f')
     fValEff !~ fFunEff
-    traceM DebugVerbose $ "[check env (FCall ...)] getType f' = " <> ppType (getType f') <> " | t = " <> ppType t <> " | fDomTy = " <> ppType fDomTy  <> " | fFunEff = " <> ppType fFunEff <> " | fCodomTy = " <> ppType fCodomTy
+    fValEff !~ eff
+    traceM DebugVerbose $ "[check env (App ...)] getType f' = " <> ppType (getType f') <> " | t = " <> ppType t <> " | fDomTy = " <> ppType fDomTy  <> " | fFunEff = " <> ppType fFunEff <> " | fCodomTy = " <> ppType fCodomTy
     
 
-    x' <- checkPoly env x fDomTy fValEff
+    x' <- checkPoly env x fDomTy eff
 
     w' <- checkInst fCodomTy t
 
@@ -332,10 +336,10 @@ checkPattern env pats ty = evalState mempty $ go Nothing env pats ty
 
         go mOrPatTys env (ConstrP (i,v) cname ps) t = do
             (constrTy, w) <- instantiate (lookupType cname env)
-            (typedPats, resTy, w') <- decomposeParams constrTy ps
+            (typedPats, resTy, _meff, w') <- decomposeParams constrTy ps
             -- TODO: I don't know...
             resTy !~ t
-            (ps', exts) <- unzip <$> forM typedPats \(p, pTy) -> go mOrPatTys env p pTy
+            (ps', exts) <- unzip <$> forM typedPats \(p, pTy, _eff) -> go mOrPatTys env p pTy
             pure (ConstrP (t,i,v) cname ps', foldr (.) id exts)
         go _ env (WildcardP _) t = pure (WildcardP t, id)
         go mOrPatTys env (OrP () (p :<| pats)) t = do
@@ -526,13 +530,12 @@ decomposeFun t = do
 decomposeParams :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Output TConstraint] r
                 => Type
                 -> Seq a
-                -> Sem r (Seq (a, Type), Type, Expr NextPass -> Expr NextPass)
-decomposeParams = undefined
--- decomposeParams ty Empty = pure ([], ty, id)
--- decomposeParams ty (x:<|xs) = do
---     (argTy, resTy, w) <- decomposeFun ty 
---     (restArgTys, restResTy, w') <- decomposeParams resTy xs
---     pure ((x,argTy) <| restArgTys, restResTy, w . w')
+                -> Sem r (Seq (a, Type, Effect), Type, Maybe Effect, Expr NextPass -> Expr NextPass)
+decomposeParams ty Empty = pure ([], ty, Nothing, id)
+decomposeParams ty (x :<| xs) = do
+    (argTy, eff, resTy, w) <- decomposeFun ty 
+    (restArgTys, restResTy, mEff, w') <- decomposeParams resTy xs
+    pure ((x,argTy, eff) <| restArgTys, restResTy, mEff <|> Just eff, w . w')
 
 
 lambdasToDecl :: LexInfo -> QualifiedName -> Expr NextPass -> Int -> Decl NextPass
@@ -619,6 +622,7 @@ solveWanteds givens ((c@(MkConstraint cname k ty), dictVar, li) :<| wanteds) = r
             (subst <>) <$> solveWanteds (applySubst subst givens) (applySubst subst wanteds)
         Nothing -> throw $ NoInstanceFor li c
 
+-- TODO: Unify rows
 unify :: Members '[Error TypeError, Reader LexInfo] r
       => Type
       -> Type
