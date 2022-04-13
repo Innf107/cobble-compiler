@@ -266,10 +266,7 @@ qualifyType allowFreeVars = go
         go :: UType -> Sem r Type
         go (UTCon tyName) = (\(tyName', k, _, _) -> TCon tyName' k) <$> lookupType tyName
         go (UTApp f x) = TApp <$> go f <*> go x
-        go (UTEffFun a effs b) = TFun <$> go a <*> go effs <*> go b
-        go (UTFun a b) = do
-            effVar <- freshVar "μ"
-            TFun <$> go a <*> pure (TVar (MkTVar effVar KEffect)) <*> go b
+        go (UTFun a effs b) = TFun <$> go a <*> go effs <*> go b
         go (UTVar tv) = runError (lookupTVar tv) >>= \case
             Right tv' -> pure (TVar tv')
             Left err
@@ -283,8 +280,8 @@ qualifyType allowFreeVars = go
             zipWithM_ addTVar (map fst ps) ps'
             TForall ps' <$> go ty
         go (UTConstraint constr ty) = TConstraint <$> goConstraint constr <*> go ty
-        go UTEffNil = pure TEffNil
-        go (UTEffExtend a b) = TEffExtend <$> go a <*> go b
+        go (UTRowClosed tys)   = TRowClosed <$> traverse go tys
+        go (UTRowOpen tys var) = TRowOpen <$> traverse go tys <*> qualifyTVar var (Just KEffect) -- TODO: Do we want to hardcode effect kinds here?
 
         goConstraint :: UConstraint -> Sem r Constraint
         goConstraint (MkUConstraint className ty) = lookupType className >>= \case

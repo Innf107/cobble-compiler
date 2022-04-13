@@ -318,8 +318,9 @@ lowerType (C.TForall tvs ty) = do
     foldrM (\(C.MkTVar tvName tvKind) r -> lowerKind tvKind <&> \k' -> F.TForall tvName k' r) ty' tvs
 lowerType (C.TFun t1 eff t2) = error "Effect lowering NYI" -- F.TFun <$> lowerType t1 <*> lowerType t2
 lowerType (C.TConstraint c ty) = F.TFun <$> lowerConstraint c <*> lowerType ty -- Constraints are desugard to dictionary applications
-lowerType C.TEffNil = error "Effect lowering NYI"
-lowerType C.TEffExtend{} = error "Effect lowering NYI" 
+lowerType C.TRowClosed{} = error "Effect lowering NYI"
+lowerType C.TRowOpen{} = error "Effect lowering NYI" 
+lowerType C.TRowSkol{} = error "Effect lowering NYI" 
 
 lowerConstraint :: C.Constraint -> Sem r F.Type
 lowerConstraint (C.MkConstraint cname k ty) = do

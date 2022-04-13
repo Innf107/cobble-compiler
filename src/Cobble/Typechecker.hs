@@ -201,7 +201,7 @@ checkTopLevelDecl :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName
       -> Decl Typecheck
       -> Type
       -> Sem r (Decl NextPass, TCEnv)
-checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = do
+checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = undefined{-do
     li <- ask
     (expectedTy', w) <- skolemize expectedTy
     (xs', eTy, w') <- decomposeParams expectedTy' xs
@@ -223,74 +223,87 @@ checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = do
         where
             makeLambdas :: LexInfo -> Expr NextPass -> Seq (QualifiedName, Type) -> Expr NextPass
             makeLambdas li = foldr (\(x, ty) e -> Lambda (ty :-> getType e, ty) li x e)
-
+-}
 check :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r)
       => TCEnv
       -> Expr Typecheck 
       -> Type 
+      -> Effect
       -> Sem r (Expr NextPass)
-check env e t | trace DebugVerbose ("[check]: Γ ⊢ " <> show e <> " : " <> ppType t) False = error "unreachable"
+check env e t eff | trace DebugVerbose ("[check]: Γ ⊢ " <> show e <> " : " <> ppType t <> " | " <> ppType eff) False = error "unreachable"
 -- We need to 'correct' the extension field to resubstitute the skolems that were introduced by skolemize
-check env e t@TForall{} = runReader (getLexInfo e) do
+check env e t@TForall{} eff = runReader (getLexInfo e) do
     (t', w) <- skolemize t
-    w . correct t <$> check env e t'
-check env (App () li f x) t = runReader li do
-    f' <- infer env f
-    (fDomTy, fCodomTy, w) <- decomposeFun (getType f')
-    traceM DebugVerbose $ "[check env (FCall ...)] getType f' = " <> ppType (getType f') <> " | t = " <> ppType t <> " | fDomTy = " <> ppType fDomTy <> " | fCodomTy = " <> ppType fCodomTy
+    w . correct t <$> check env e t' eff
+    -- TODO: Do we need to skolemize effects in checking mode?
+
+check env (App () li f x) t eff = runReader li do
+    (f', fValEff) <- infer env f
+    (fDomTy, fFunEff, fCodomTy, w) <- decomposeFun (getType f')
+    fValEff !~ fFunEff
+    traceM DebugVerbose $ "[check env (FCall ...)] getType f' = " <> ppType (getType f') <> " | t = " <> ppType t <> " | fDomTy = " <> ppType fDomTy  <> " | fFunEff = " <> ppType fFunEff <> " | fCodomTy = " <> ppType fCodomTy
     
-    x' <- checkPoly env x fDomTy
+
+    x' <- checkPoly env x fDomTy fValEff
 
     w' <- checkInst fCodomTy t
 
     pure $ w' (App t li (w f') x')
 
-check env (IntLit () li n) t = runReader li $ do
+check env (IntLit () li n) t _eff = runReader li $ do
     t !~ intT 
     pure (IntLit () li n)
-check env (If () li c th el) t = do
-    c' <- check env c boolT
-    th' <- check env th t
-    el' <- check env el t
+
+check env (If () li c th el) t eff = do
+    c' <- check env c boolT eff
+    th' <- check env th t eff
+    el' <- check env el t eff
     pure (If t li c' th' el')
-check env (Let () li decl@(Decl () f xs e1) e2) t = runReader li do
+
+check env (Let () li decl@(Decl () f xs e1) e2) t eff = runReader li do
     xs' <- traverse (\x -> (x,) <$> freshTV KStar) xs
 
-    e1' <- infer (foldr (uncurry insertType) env xs') e1
+    (e1', e1Eff) <- infer (foldr (uncurry insertType) env xs') e1
 
-    Let () li (Decl (getType e1', []) f xs' e1') <$> check (insertType f (getType e1') env) e2 t
+    eff !~ e1Eff
+
+    Let () li (Decl (getType e1', []) f xs' e1') <$> check (insertType f (getType e1') env) e2 t eff
 
 
-check env (Var () li x) t = runReader li do
+check env (Var () li x) t _eff = runReader li do
     let xTy = lookupType x env
     w <- checkInst xTy t
     pure $ w (Var (t, []) li x)
 
-check env (Ascription () li e (coercePass -> t1)) t2 = runReader li do
-    e' <- checkPoly env e t1
+check env (Ascription () li e (coercePass -> t1)) t2 eff = runReader li do
+    e' <- checkPoly env e t1 eff
     w <- checkInst t1 t2
     pure $ w e'
 
-check env (VariantConstr (i, j) li c) t = runReader li do
+check env (VariantConstr (i, j) li c) t _eff = runReader li do
     let cTy = lookupType c env
     w <- checkInst cTy t
     pure $ w (VariantConstr (t, cTy, j) li c)
 
-check env (Case () li e branches) t = do
-    e' <- infer env e
+check env (Case () li e branches) t eff = runReader li do
+    (e', eEff) <- infer env e
+    eEff !~ eff
     branches' <- forM branches \(CaseBranch () li p brExpr) -> runReader li do
         (p', extendEnv) <- checkPattern env p (getType e')
-        brExpr' <- check (extendEnv env) brExpr t
+        brExpr' <- check (extendEnv env) brExpr t eff
         pure (CaseBranch () li p' brExpr')
     pure $ Case t li e' branches'
-    
-check env (Lambda () li x e) t = runReader li do
-    (expectedArgTy, expectedResTy, w) <- decomposeFun t
+
+check env (Lambda () li x e) t _eff = runReader li do
+    (expectedArgTy, tEff, expectedResTy, w) <- decomposeFun t
     traceM DebugVerbose $ "[check env (Lambda ...)] t = " <> ppType t <> " | expectedArgTy = " <> ppType expectedArgTy <> " | expectedResTy = " <> ppType expectedResTy
 
-    e' <- checkPoly (insertType x expectedArgTy env) e expectedResTy
+    -- We check the expression against the effect contained in its type, *not* against
+    -- the environment effect (which is irrelevant since lambdas are values)
+    e' <- checkPoly (insertType x expectedArgTy env) e expectedResTy tEff 
 
     pure $ w (Lambda (t, expectedArgTy) li x e')
+
 
 checkPattern :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo] r 
              => TCEnv
@@ -336,28 +349,33 @@ checkPattern env pats ty = evalState mempty $ go Nothing env pats ty
 infer :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r )
       => TCEnv
       -> Expr Typecheck 
-      -> Sem r (Expr NextPass)
+      -> Sem r (Expr NextPass, Effect)
 infer env (App () li f x) = runReader li do
-    f' <- infer env f
-    (fDomTy, fCodomTy, wF) <- decomposeFun (getType f') 
-    traceM DebugVerbose $ "[infer env (FCall ...)] getType f' = " <> ppType (getType f') <> " | fDomTy = " <> ppType fDomTy <> " | fCodomTy = " <> ppType fCodomTy
-    
-    x' <- checkPoly env x fDomTy
+    (f', fValEff) <- infer env f
+    (fDomTy, fFunEff, fCodomTy, wF) <- decomposeFun (getType f') 
+    traceM DebugVerbose $ "[infer env (FCall ...)] getType f' = " <> ppType (getType f') <> " | fDomTy = " <> ppType fDomTy <> " | fFunEff = " <> ppType fFunEff <> " | fCodomTy = " <> ppType fCodomTy
+    fValEff !~ fFunEff
+
+    x' <- checkPoly env x fDomTy fFunEff
 
     (t, w) <- instantiate fCodomTy
 
-    pure (w (App t li (wF f') x'))
-
-infer env (IntLit () li n) = pure (IntLit () li n)
+    pure (w (App t li (wF f') x'), fFunEff)
+infer env (IntLit () li n) = do
+    eff <- freshTV KEffect
+    pure (IntLit () li n, eff)
 infer env (If () li c th el) = runReader li do
     -- This is hard, since we have to make sure th and el have the same type,
     -- but we cannot simply use (!~), which could not infer higher rank types.
     -- Instead, we check that both types are equivalent using subsumption:
     --     getType th' <= getType el' /\ getType el' <= getType th'.
-    c'  <- infer env c
-    th' <- infer env th
-    el' <- infer env el
+    (c', cEff)  <- infer env c
+    (th', thEff) <- infer env th
+    (el', elEff) <- infer env el
     
+    cEff !~ thEff
+    cEff !~ elEff
+
     getType c' !~ boolT
 
     -- Make sure that the types of th' and el' are
@@ -367,69 +385,85 @@ infer env (If () li c th el) = runReader li do
 
     -- We arbitrarily choose getType th' as the final type, since the types of
     -- th' and el' are equivalent.
-    pure $ If (getType th') li c' (w1 th') (w2 el')
-infer env (Let () li decl@(Decl () f xs e1) e2) = do
+    pure (If (getType th') li c' (w1 th') (w2 el'), cEff)
+
+infer env (Let () li decl@(Decl () f xs e1) e2) = runReader li do
     xs' <- traverse (\x -> (x,) <$> freshTV KStar) xs
 
-    e1' <- infer (foldr (uncurry insertType) env xs') e1
+    (e1', e1Eff) <- infer (foldr (uncurry insertType) env xs') e1
+    (e2', e2Eff) <- infer (insertType f (getType e1') env) e2
 
-    Let () li (Decl (getType e1', []) f xs' e1') <$> infer (insertType f (getType e1') env) e2
-    
+    e1Eff !~ e2Eff
+
+    pure (Let () li (Decl (getType e1', []) f xs' e1') e2', e1Eff)
+
 infer env (Var () li x) = runReader li do
     let xTy = lookupType x env
     (ty, w) <- instantiate xTy
-    pure $ w (Var (ty, []) li x)
 
-infer env (Ascription () li e (coercePass -> t)) = runReader li do
-    e' <- checkPoly env e t
+    eff <- freshTV KEffect
+    pure (w (Var (ty, []) li x), eff)
+
+infer env (Ascription () li e t) = runReader li do
+    -- TODO: Can we really just check against a fresh effect variable?
+    eff <- freshTV KEffect
+    e' <- checkPoly env e t eff
     (t2, w) <- instantiate t
-    pure (w e')
+    pure (w e', eff)
+
 
 infer env (VariantConstr (i, j) li c) = runReader li do
     let cTy = lookupType c env
     (cTy', w) <- instantiate cTy
-    pure (w $ VariantConstr (cTy', cTy, j) li c)
+    
+    eff <- freshTV KEffect
+    pure (w $ VariantConstr (cTy', cTy, j) li c, eff)
 
 infer env (Case () li e branches) = runReader li do
-    e' <- infer env e
+    (e', eEff) <- infer env e
     branches' <- forM branches \(CaseBranch () li p brExpr) -> do
         (p', extendEnv) <- checkPattern env p (getType e')
-        brExpr' <- infer (extendEnv env) brExpr
-        pure (CaseBranch () li p' brExpr')
+        (brExpr', brEff) <- infer (extendEnv env) brExpr
+        pure (CaseBranch () li p' brExpr', brEff)
     
 
     -- We have to make sure all branches have the same return type.
     -- See 'infer env (If ...)' for a more detailed explanation
-    t <- checkEquiv (map (\(CaseBranch _ _ _ expr) -> getType expr) branches')
-    pure (Case t li e' branches')
+    (t, eff) <- checkEquiv (map (\(CaseBranch _ _ _ expr, eff) -> (getType expr, eff)) branches')
+    pure (Case t li e' (map fst branches'), eff)
     where
         checkEquiv :: forall r. Members '[Reader LexInfo, Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r 
-                   => Seq Type 
-                   -> Sem r Type
-        checkEquiv Empty           = freshTV KStar -- the case expression is empty
-        checkEquiv (t :<| Empty)  = pure t
-        checkEquiv (t1:<|t2:<|ts) = do
+                   => Seq (Type, Effect) 
+                   -> Sem r (Type, Effect)
+        checkEquiv Empty                = (,) <$> freshTV KStar <*> freshTV KEffect -- the case expression is empty.
+        checkEquiv ((t, eff) :<| Empty) = pure (t, eff)
+        checkEquiv ((t1, eff1):<|(t2, eff2):<|ts) = do
             w1 <- subsume t1 t2 -- TODO: apply wrapping?
             w2 <- subsume t2 t1
-            checkEquiv (t2<|ts)
+            eff1 !~ eff2
+            checkEquiv ((t2, eff2)<|ts)
 
 
 infer env (Lambda () li x e) = do
     xTy <- freshTV KStar
 
-    e' <- infer (insertType x xTy env) e
+    (e', eEff) <- infer (insertType x xTy env) e
 
-    pure (Lambda (xTy :-> getType e', xTy) li x e')
+    -- The lambda captures the body's effect in the function type, but it itself has a fully polymorphic
+    -- effect type.
+    lamEff <- freshTV KEffect 
+    pure (Lambda (TFun xTy eEff (getType e'), xTy) li x e', lamEff)
 
 checkPoly :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo] r)
           => TCEnv
-          -> Expr Typecheck 
+          -> Expr Typecheck
           -> Type 
+          -> Effect
           -> Sem r (Expr NextPass)
-checkPoly _ _ ty | trace DebugVerbose ("checkPoly " <> ppType ty) False = error "unreachable"
-checkPoly env expr (TForall tvs ty) = ask >>= \li -> do
-    flip (foldr (TyAbs li)) tvs <$> checkPoly env expr ty
-checkPoly env expr ty = check env expr ty
+checkPoly _ _ ty eff | trace DebugVerbose ("checkPoly " <> ppType ty) False = error "unreachable"
+checkPoly env expr (TForall tvs ty) eff = ask >>= \li -> do
+    flip (foldr (TyAbs li)) tvs <$> checkPoly env expr ty eff
+checkPoly env expr ty eff = check env expr ty eff
 
 correct :: Type -> Expr NextPass -> Expr NextPass
 correct = setType 
@@ -476,26 +510,29 @@ instantiate ty = do
 
 decomposeFun :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Output TConstraint] r 
           => Type 
-          -> Sem r (Type, Type, Expr NextPass -> Expr NextPass)
+          -> Sem r (Type, Effect, Type, Expr NextPass -> Expr NextPass)
 decomposeFun t@TForall{} = do
     (t', w) <- instantiate t
-    (\(x, y, w') -> (x, y, w . w')) <$> decomposeFun t'
-decomposeFun (TFun a effs b) = pure (a, b, id) -- TODO: What about effs here?
+    (\(x, eff, y, w') -> (x, eff, y, w . w')) <$> decomposeFun t'
+
+decomposeFun (TFun a eff b) = pure (a, eff, b, id)
 decomposeFun t = do
     argTy <- freshTV KStar
+    effTy <- freshTV KEffect
     resTy <- freshTV KStar
-    w <- subsume t (argTy :-> resTy)
-    pure (argTy, resTy, w)
+    w <- subsume t (TFun argTy effTy resTy)
+    pure (argTy, effTy, resTy, w)
 
 decomposeParams :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Output TConstraint] r
                 => Type
                 -> Seq a
                 -> Sem r (Seq (a, Type), Type, Expr NextPass -> Expr NextPass)
-decomposeParams ty Empty = pure ([], ty, id)
-decomposeParams ty (x:<|xs) = do
-    (argTy, resTy, w) <- decomposeFun ty 
-    (restArgTys, restResTy, w') <- decomposeParams resTy xs
-    pure ((x,argTy) <| restArgTys, restResTy, w . w')
+decomposeParams = undefined
+-- decomposeParams ty Empty = pure ([], ty, id)
+-- decomposeParams ty (x:<|xs) = do
+--     (argTy, resTy, w) <- decomposeFun ty 
+--     (restArgTys, restResTy, w') <- decomposeParams resTy xs
+--     pure ((x,argTy) <| restArgTys, restResTy, w . w')
 
 
 lambdasToDecl :: LexInfo -> QualifiedName -> Expr NextPass -> Int -> Decl NextPass
@@ -526,9 +563,17 @@ replaceTVars tvs (TForall forallTVs ty) =
                 TForall forallTVs $ replaceTVars remainingTVs ty
 replaceTVars tvs (TConstraint (MkConstraint constrName k constrTy) ty) =
                 TConstraint (MkConstraint constrName k (replaceTVars tvs constrTy)) (replaceTVars tvs ty)
-replaceTVars tvs TEffNil = TEffNil
-replaceTVars tvs (TEffExtend ty eff) = TEffExtend (replaceTVars tvs ty) (replaceTVars tvs eff) 
-
+replaceTVars tvs (TRowClosed tys)   = TRowClosed (map (replaceTVars tvs) tys)
+replaceTVars tvs (TRowOpen tys var) = let replacedTys = map (replaceTVars tvs) tys in case lookup var tvs of
+    Nothing                         -> TRowOpen replacedTys var
+    Just (TVar var')                -> TRowOpen replacedTys var'
+    Just (TSkol skol var')          -> TRowSkol replacedTys skol var'
+    Just (TRowClosed tys')          -> TRowClosed (replacedTys <> tys')
+    Just (TRowOpen tys' var')       -> TRowOpen (replacedTys <> tys') var'
+    Just (TRowSkol tys' skol var')  -> TRowSkol (replacedTys <> tys') skol var'
+    Just ty -> error $ "replaceTVars: Trying to replace variable '" <> show var <> "' in open row type '" <> show (TRowOpen tys var)
+                        <> "' with non-row type: " <> show ty
+replaceTVars tvs (TRowSkol tys skol var) = TRowSkol (map (replaceTVars tvs) tys) skol var
 
 solveConstraints :: (Trace, Members '[Error TypeError, Fresh Text QualifiedName, Fresh TVar TVar] r)
                  => Map QualifiedName (Seq (Type, QualifiedName))

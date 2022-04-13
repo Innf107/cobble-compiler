@@ -97,7 +97,7 @@ import Relude.Extra hiding (
     , unstableNub
     )
 
-import Polysemy hiding (transform, rewrite)
+import Polysemy hiding (transform, rewrite, Effect)
 import Polysemy.State
 import Polysemy.Error
 import Polysemy.Reader

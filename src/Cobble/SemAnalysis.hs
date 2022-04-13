@@ -11,7 +11,6 @@ type NextPass = Typecheck
 
 data SemanticError = MissingField LexInfo UnqualifiedName
                    | NonExistantOrDuplicateFields LexInfo (Seq UnqualifiedName)
-                   | DuplicateStructDefFields LexInfo (Seq UnqualifiedName)
                    | MissingTyClassMethod LexInfo QualifiedName Type
                    | DuplicateTyClassMethods LexInfo (Seq (Decl SemAnalysis))
                    deriving (Show, Eq, Generic, Data)
@@ -59,13 +58,6 @@ addForall t = case freeTVsOrdered t of
 insertAfterForalls :: (Type -> Type) -> Type -> Type
 insertAfterForalls f (TForall tvs ty) = TForall tvs (insertAfterForalls f ty)
 insertAfterForalls f ty               = f ty
-
-detectDuplicateFields :: Members '[Error SemanticError] r => LexInfo -> Seq (UnqualifiedName, a) -> Sem r (Seq (UnqualifiedName, a))
-detectDuplicateFields li xs = case ks \\ ordNub ks of
-    [] -> pure xs
-    leftOver -> throw (DuplicateStructDefFields li leftOver)
-    where
-        ks = map fst xs
 
 reorderAndCheckFields :: forall a b r. Members '[Error SemanticError] r
                       => LexInfo

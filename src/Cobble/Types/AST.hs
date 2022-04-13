@@ -193,48 +193,52 @@ type family XWildcardP  (p :: Pass)
 type family XOrP        (p :: Pass)
 type family XPattern    (p :: Pass)
 
-data Type = TCon QualifiedName Kind
-          | TApp Type Type
-          | TVar TVar
-          | TSkol QualifiedName TVar
+data Type = TCon QualifiedName Kind                 -- c
+          | TApp Type Type                          -- σ σ
+          | TVar TVar                               -- α
+          | TSkol QualifiedName TVar                -- #α
           --      ^             ^original
           --      |skolem
-          | TForall (Seq TVar) Type
-          | TFun Type Type Type         -- σ -{ϵ}> σ
-          | TConstraint Constraint Type
-          | TEffNil                     -- ⟨⟩
-          | TEffExtend Type Type        -- ⟨l | ɛ⟩ where l : KLabel /\ ϵ : KEff /\ l = c σ*
+          | TForall (Seq TVar) Type                 -- ∀α*. σ
+          | TFun Type Effect Type                   -- σ -{ϵ}> σ
+          | TConstraint Constraint Type             -- Q => σ
+          | TRowClosed (Seq Type)                   -- ⟨σ*⟩
+          | TRowOpen (Seq Type) TVar                -- ⟨σ* | α⟩
+          | TRowSkol (Seq Type) QualifiedName TVar  -- ⟨σ* | #α⟩
           deriving (Eq, Ord, Generic, Data)
 instance Binary Type
 
+
+type Effect = Type
 
 instance S.Show Type where 
     show = toString . (<>")") . ("(Type " <>) . ppType
 
 ppType :: Type -> Text
-ppType (TFun a TEffNil b)       = "(" <> ppType a <> " -> " <> ppType b <> ")"
-ppType (TFun a effs b)          = "(" <> ppType a <> " -{" <> ppType effs <> "}> " <> ppType b <> ")"
-ppType (TVar (MkTVar v _))      = show v
-ppType (TSkol v _)   = "#" <> show v
-ppType (TCon v _)               = show v
-ppType (TApp a b)               = "(" <> ppType a <> " " <> ppType b <> ")"
-ppType (TForall ps t)           = "(∀" <> T.intercalate " " (toList $ map (\(MkTVar v _) -> show v) ps) <> ". " <> ppType t <> ")"
-ppType (TConstraint c t)        = ppConstraint c <> " => " <> ppType t
-ppType TEffNil                  = "⟨⟩"
-ppType (TEffExtend ty eff)      = "⟨" <> ppType ty <> " | " <> ppType eff <> "⟩"
+ppType (TFun a (TRowClosed Empty) b) = "(" <> ppType a <> " -> " <> ppType b <> ")"
+ppType (TFun a effs b)               = "(" <> ppType a <> " -{" <> ppType effs <> "}> " <> ppType b <> ")"
+ppType (TVar (MkTVar v _))           = show v
+ppType (TSkol v _)                   = "#" <> show v
+ppType (TCon v _)                    = show v
+ppType (TApp a b)                    = "(" <> ppType a <> " " <> ppType b <> ")"
+ppType (TForall ps t)                = "(∀" <> T.intercalate " " (toList $ map (\(MkTVar v _) -> show v) ps) <> ". " <> ppType t <> ")"
+ppType (TConstraint c t)             = ppConstraint c <> " => " <> ppType t
+ppType (TRowClosed tys)              = "⟨" <> intercalate ", " (map ppType tys) <> "⟩"
+ppType (TRowOpen tys var)            = "⟨" <> intercalate ", " (map ppType tys) <> " | " <> show var <> "⟩"
+ppType (TRowSkol tys skolName var)   = "⟨" <> intercalate ", " (map ppType tys) <> " | " <> ppType (TSkol skolName var) <> "⟩"
 
 ppConstraint :: Constraint -> Text
 ppConstraint (MkConstraint n k t) = "(" <> show n <> " : " <> show k <> ")" <> ppType t
 
+-- See @Type@ for descriptions
 data UType = UTCon UnqualifiedName
            | UTApp UType UType
            | UTVar UnqualifiedName
            | UTForall (Seq (UnqualifiedName, Maybe Kind)) UType
-           | UTFun UType UType
-           | UTEffFun UType UType UType
+           | UTFun UType UType UType
            | UTConstraint UConstraint UType
-           | UTEffNil
-           | UTEffExtend UType UType
+           | UTRowClosed (Seq UType)
+           | UTRowOpen (Seq UType) UnqualifiedName
            deriving (Show, Eq, Generic, Data)
 
 type family XType (p :: Pass) :: HSType
@@ -251,8 +255,9 @@ freeTVs = go mempty
         go bound (TForall tvs ty)   = go (bound <> Set.fromList (toList tvs)) ty
         go bound (TFun a eff b)     = go bound a <> go bound eff <> go bound b 
         go bound (TConstraint (MkConstraint _ _ t1) t2) = go bound t1 <> go bound t2
-        go bound TEffNil            = mempty
-        go bound (TEffExtend t eff) = go bound t <> go bound eff
+        go bound (TRowClosed tys)   = foldMap (go bound) tys
+        go bound (TRowOpen tys var) = foldMap (go bound) tys <> go bound (TVar var)
+        go bound (TRowSkol tys _ _) = foldMap (go bound) tys
 
 -- Like freeTVs, but preserves the order of free ty vars
 freeTVsOrdered :: Type -> Seq TVar
@@ -267,8 +272,9 @@ freeTVsOrdered = ordNub . go mempty
         go bound (TForall tvs ty)   = go (bound <> Set.fromList (toList tvs)) ty
         go bound (TFun a effs b)    = go bound a <> go bound effs <> go bound b 
         go bound (TConstraint (MkConstraint _ _ t1) t2) = go bound t1 <> go bound t2
-        go bound TEffNil            = mempty
-        go bound (TEffExtend t eff) = go bound t <> go bound eff
+        go bound (TRowClosed tys)   = foldMap (go bound) tys
+        go bound (TRowOpen tys var) = foldMap (go bound) tys <> go bound (TVar var)
+        go bound (TRowSkol tys _ _) = foldMap (go bound) tys
 
 data TVar = MkTVar QualifiedName Kind
           deriving (Show, Eq, Ord, Generic, Data)
@@ -304,7 +310,7 @@ data TGiven  = TGiven  Constraint LexInfo deriving (Show, Eq, Generic, Data, Typ
 data TWanted = TWanted Constraint LexInfo deriving (Show, Eq, Generic, Data, Typeable)
 
 pattern (:->) :: Type -> Type -> Type
-pattern (:->) t1 t2 = TFun t1 TEffNil t2
+pattern (:->) t1 t2 = TFun t1 (TRowClosed Empty) t2
 infixr 1 :->
 
 type family XKind (p :: Pass)
@@ -379,9 +385,10 @@ instance HasKind Type where
         TFun t1 effs t2 -> pure KStar
         TForall _ t -> kind t
         TConstraint _ t -> kind t 
-        TEffNil -> Right KEffect
-        TEffExtend _ _ -> Right KEffect
-    
+        TRowClosed _   -> Right KEffect -- TODO: Should we really hardcode row kinds to be effects here?
+        TRowOpen _ tv -> kind tv
+        TRowSkol _ _ tv -> kind tv
+
 instance HasKind Constraint where
     kind _ = pure KConstraint 
 

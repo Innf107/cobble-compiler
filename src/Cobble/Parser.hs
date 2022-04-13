@@ -171,7 +171,7 @@ expr' = "expression (no fcall)" <??>
 def :: Parser (Statement NextPass)
 def = "definition" <??> do
     mfixity <- optionMaybe fixity
-    (liStartSig, sigName, ty) <- signature 
+    (liStartSig, sigName, ty) <- signature_ 
     reservedOp' ";"
 
     defDecl@(Decl _ name _ e) <- decl
@@ -338,14 +338,17 @@ varP = do
 statements :: Parser (Seq (Statement NextPass))
 statements = many (statement <* reservedOp ";")
 
-signature :: Parser (LexInfo, Text, UType)
-signature = "signature" <??> (\(ls, n) (le, t) -> (ls `mergeLexInfo` le, n, t))
+signature_ :: Parser (LexInfo, Text, UType)
+signature_ = "signature" <??> (\(ls, n) (le, t) -> (ls `mergeLexInfo` le, n, t))
     <$> ident 
     <*  reservedOp' "::"
     <*> typeP
 
 signature' :: Parser (Text, UType)
-signature' = (\(_, y, z) -> (y, z)) <$> signature
+signature' = (\(_, y, z) -> (y, z)) <$> signature_
+
+typeP' :: Parser UType
+typeP' = snd <$> typeP
 
 typeP :: Parser (LexInfo, UType)
 typeP = "type" <??> forallTyP <|> constrained <|> unconstrained
@@ -405,25 +408,23 @@ functionType li tyA = simpleFunction <|> effFunction
         simpleFunction = do
             reservedOp' "->"
             (le, tyB) <- typeP
-            pure (li `mergeLexInfo` le, tyA `UTFun` tyB)
+            pure (li `mergeLexInfo` le, UTFun tyA (UTRowClosed Empty) tyB)
         effFunction = do
             exactOp "-"
             paren' "{"
-            effTy <- effectType
+            effRow <- effectRow
             paren' "}"
             exactOp ">"
             (le, tyB) <- typeP
-            pure (li `mergeLexInfo` le, UTEffFun tyA effTy tyB)
+            pure (li `mergeLexInfo` le, UTFun tyA effRow tyB)
 
-effectType :: Parser UType
-effectType = emptyEff <|> try effExtend <|> effVar
-    where
-        emptyEff = paren' "{" >> paren' "}" >> pure UTEffNil
-        effVar = UTVar <$> ident'
-        effExtend = UTEffExtend . snd
-            <$> typeP
-            <*  reservedOp' "|"
-            <*> effectType
+effectRow :: Parser UType
+effectRow = do
+    tys <- typeP' `sepBy1` reservedOp' ","
+    mOpenVar <- optionMaybe (reservedOp' "|" *> ident')
+    pure case mOpenVar of
+        Nothing -> UTRowClosed tys
+        Just var -> UTRowOpen tys var
 
 withParen :: Parser a -> Parser a
 withParen a = paren "(" *> a <* paren ")"
