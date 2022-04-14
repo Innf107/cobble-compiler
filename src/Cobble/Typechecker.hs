@@ -41,7 +41,7 @@ data TypeError = DifferentTCon LexInfo QualifiedName QualifiedName
                | Impredicative LexInfo TVar Type
                | NoInstanceFor LexInfo Constraint
                | InvalidRowHeadConstr LexInfo Type
-               | RemainingRowFields LexInfo (Seq (QualifiedName, Seq Type)) Type Type 
+               | RemainingRowFields LexInfo (Seq (Type, QualifiedName, Seq Type)) Type Type 
                | MissingRowField LexInfo QualifiedName Type Type
                deriving (Show, Eq, Generic, Data)
 
@@ -646,7 +646,17 @@ unify (TFun a1 eff1 b1) (TFun a2 eff2 b2) = do
     (subst' <>) <$> unify (applySubst subst' b1) (applySubst subst' b2)
 unify t1@TSkol{} t2@TSkol{}
     | t1 == t2 = pure mempty
-unify t1@TRowAny t2@TRowAny = unifyRows t1 t2
+unify row1@(TRowClosed t1s) row2@(TRowClosed t2s) = 
+    unifyRows row1 row2 t1s t2s \remaining -> ask >>= \li -> throw $ RemainingRowFields li remaining row1 row2
+unify row1@(TRowOpen t1s tvar) row2@(TRowClosed t2s) = 
+    unifyRows row1 row2 t1s t2s \remaining -> bind tvar (TRowClosed (map (\(ty,_,_) -> ty) remaining))
+unify row1@TRowClosed{} row2@TRowOpen{} = unify row2 row1
+unify row1@(TRowOpen t1s tvar) row2@(TRowSkol t2s skol tvar2) = 
+    unifyRows row1 row2 t1s t2s \remaining -> bind tvar (TRowSkol (map (\(ty,_,_) -> ty) remaining) skol tvar2)
+unify row1@TRowSkol{} row2@TRowOpen{} = unify row2 row1
+
+unify row1@TRowClosed{} row2@TRowSkol{} = ask >>= \li -> throw $ CannotUnify li row1 row2
+unify row1@TRowSkol{} row2@TRowClosed{} = ask >>= \li -> throw $ CannotUnify li row1 row2
 
 unify s@TSkol{} t2  = ask >>= \li -> throw $ SkolBinding li s t2
 unify t1 s@TSkol{}  = ask >>= \li -> throw $ SkolBinding li t1 s
@@ -654,54 +664,25 @@ unify t1 t2         = ask >>= \li -> throw $ CannotUnify li t1 t2
 
 unifyRows :: Members '[Reader LexInfo, Error TypeError] r
           => Type 
-          -> Type 
+          -> Type
+          -> (Seq Type)
+          -> (Seq Type)
+          -> (Seq (Type, QualifiedName, Seq Type) -> Sem r Substitution)
           -> Sem r Substitution
-unifyRows row1@(TRowClosed t1s) row2@(TRowClosed t2s) = do
+unifyRows row1 row2 t1s t2s remainingCont = do
     headT1s <- traverse getHeadConstr t1s
-    headT2s <- traverse getHeadConstr t2s
+    headT2s <- traverse (\ty -> (\(name, tys) -> (name, (tys, ty))) <$> getHeadConstr ty) t2s
     go headT1s headT2s
         where
             go ((con1, args1) :<| t1s) t2s = do
                 case lookupAndDelete con1 t2s of
                     Nothing -> ask >>= \li -> throw $ MissingRowField li con1 row1 row2
-                    Just (args2, t2s') -> do
-                        subst <- unifyAll args1 args2
-                        (subst<>) <$> go (applySubst subst t1s) (applySubst subst t2s')
-            go Empty Empty = pure mempty
-            go Empty t2s = ask >>= \li -> throw $ RemainingRowFields li t2s row1 row2
-unifyRows row1@(TRowOpen t1s tvar) row2@(TRowClosed t2s) = do
-    headT1s <- traverse (\x -> (\(h,tys) -> (h,(tys,x))) <$> getHeadConstr x) t1s
-    headT2s <- traverse (\x -> (\(h,tys) -> (h,(tys,x))) <$> getHeadConstr x) t2s
-    go headT1s headT2s
-        where
-            go ((con1, (args1, _)) :<| t1s) t2s = do
-                case lookupAndDelete con1 t2s of
-                    Nothing -> ask >>= \li -> throw $ MissingRowField li con1 row1 row2
                     Just ((args2, _), t2s') -> do
                         subst <- unifyAll args1 args2
                         (subst<>) <$> go (applySubst subst t1s) (applySubst subst t2s')
             go Empty Empty = pure mempty
-            go Empty t2s = bind tvar (TRowClosed (map (\(_,(_,ty)) -> ty) t2s))
-unifyRows row1@TRowClosed{} row2@TRowOpen{} = unifyRows row2 row1
-unifyRows row1@(TRowOpen t1s tvar) row2@(TRowSkol t2s skol tvar2) = do
-    headT1s <- traverse (\x -> (\(h,tys) -> (h,(tys,x))) <$> getHeadConstr x) t1s
-    headT2s <- traverse (\x -> (\(h,tys) -> (h,(tys,x))) <$> getHeadConstr x) t2s
-    go headT1s headT2s
-        where
-            go ((con1, (args1, _)) :<| t1s) t2s = do
-                case lookupAndDelete con1 t2s of
-                    Nothing -> ask >>= \li -> throw $ MissingRowField li con1 row1 row2
-                    Just ((args2, _), t2s') -> do
-                        subst <- unifyAll args1 args2
-                        (subst<>) <$> go (applySubst subst t1s) (applySubst subst t2s')
-            go Empty Empty = pure mempty
-            go Empty t2s = bind tvar (TRowSkol (map (\(_,(_,ty)) -> ty) t2s) skol tvar2)
-unifyRows row1@TRowSkol{} row2@TRowOpen{} = unifyRows row2 row1
+            go Empty t2s = remainingCont (map (\(x,(y,z)) -> (z, x, y)) t2s)
 
-unifyRows row1@TRowClosed{} row2@TRowSkol{} = ask >>= \li -> throw $ CannotUnify li row1 row2
-unifyRows row1@TRowSkol{} row2@TRowClosed{} = ask >>= \li -> throw $ CannotUnify li row1 row2
-
-unifyRows t1 t2 = error $ "unifyRows: Trying to unify non-row types '" <> ppType t1 <> "' and '" <> ppType t2 <> "'"
 
 unifyAll :: Members '[Reader LexInfo, Error TypeError] r 
           => Seq Type 
