@@ -420,7 +420,7 @@ functionType li tyA = simpleFunction <|> effFunction
 
 effectRow :: Parser UType
 effectRow = do
-    tys <- typeP' `sepBy1` reservedOp' ","
+    tys <- typeP' `sepBy` reservedOp' ","
     mOpenVar <- optionMaybe (reservedOp' "|" *> ident')
     pure case mOpenVar of
         Nothing -> UTRowClosed tys

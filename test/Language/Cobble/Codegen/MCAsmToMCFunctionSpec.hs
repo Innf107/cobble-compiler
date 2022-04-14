@@ -22,7 +22,7 @@ spec = do
                         ])
                     ,   ("icall/node2", [
                             Execute 
-                                $ EIf (IScore (Player "%ICALL") "REGS" $ IMatches (REQ 2))
+                              $ EIf (IScore (Player "%ICALL") "REGS" $ IMatches (REQ 2))
                                 $ ERun $ Scoreboard $ Players $ Set (Player "%ICALLDONE") "REGS" 1
                         ,   Execute
                                 $ EIf (IScore (Player "%ICALL") "REGS" $ IMatches (REQ 2))

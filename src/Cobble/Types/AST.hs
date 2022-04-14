@@ -208,6 +208,15 @@ data Type = TCon QualifiedName Kind                 -- c
           deriving (Eq, Ord, Generic, Data)
 instance Binary Type
 
+isTRowAny :: Type -> Bool
+isTRowAny TRowClosed{} = True
+isTRowAny TRowOpen{} = True
+isTRowAny TRowSkol{} = True
+isTRowAny _ = False
+
+pattern TRowAny :: Type
+pattern TRowAny <- (isTRowAny -> True)
+
 
 type Effect = Type
 
@@ -299,7 +308,7 @@ data UConstraint = MkUConstraint UnqualifiedName UType
 data Kind = KStar
           | KConstraint 
           | KEffect
-          | KLabel
+          | KRow Kind
           | KFun Kind Kind 
           deriving (Eq, Ord, Generic, Data, Typeable)
 infixr 5 `KFun`
@@ -359,7 +368,7 @@ instance S.Show Kind where
     show KStar = "*"
     show KConstraint = "Constraint"
     show KEffect = "Effect"
-    show KLabel = "Label"
+    show (KRow k) = "(Kind " <> show k <> ")"
     show (KFun k1 k2) = "(" <> show k1 <> " -> " <> show k2 <> ")"
 
 intT, boolT, unitT :: Type

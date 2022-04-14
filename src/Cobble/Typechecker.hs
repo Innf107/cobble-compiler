@@ -40,6 +40,9 @@ data TypeError = DifferentTCon LexInfo QualifiedName QualifiedName
                | Occurs LexInfo TVar Type
                | Impredicative LexInfo TVar Type
                | NoInstanceFor LexInfo Constraint
+               | InvalidRowHeadConstr LexInfo Type
+               | RemainingRowFields LexInfo (Seq (QualifiedName, Seq Type)) Type Type 
+               | MissingRowField LexInfo QualifiedName Type Type
                deriving (Show, Eq, Generic, Data)
 
 
@@ -218,7 +221,7 @@ checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = do
 
     eff <- case mEff of
         Just e -> pure e
-        Nothing -> freshTV KEffect
+        Nothing -> freshEffectRow
 
     e' <- checkPoly (foldr (\(x,ty,_) -> insertType x ty) env' xs') e eTy eff
     let lambdas = flip (foldr (TyAbs li)) tvs $ w $ makeLambdas li e' xs'
@@ -366,7 +369,7 @@ infer env (App () li f x) = runReader li do
 
     pure (w (App t li (wF f') x'), fFunEff)
 infer env (IntLit () li n) = do
-    eff <- freshTV KEffect
+    eff <- freshEffectRow
     pure (IntLit () li n, eff)
 infer env (If () li c th el) = runReader li do
     -- This is hard, since we have to make sure th and el have the same type,
@@ -405,12 +408,12 @@ infer env (Var () li x) = runReader li do
     let xTy = lookupType x env
     (ty, w) <- instantiate xTy
 
-    eff <- freshTV KEffect
+    eff <- freshEffectRow
     pure (w (Var (ty, []) li x), eff)
 
 infer env (Ascription () li e t) = runReader li do
     -- TODO: Can we really just check against a fresh effect variable?
-    eff <- freshTV KEffect
+    eff <- freshEffectRow
     e' <- checkPoly env e t eff
     (t2, w) <- instantiate t
     pure (w e', eff)
@@ -420,7 +423,7 @@ infer env (VariantConstr (i, j) li c) = runReader li do
     let cTy = lookupType c env
     (cTy', w) <- instantiate cTy
     
-    eff <- freshTV KEffect
+    eff <- freshEffectRow
     pure (w $ VariantConstr (cTy', cTy, j) li c, eff)
 
 infer env (Case () li e branches) = runReader li do
@@ -439,7 +442,7 @@ infer env (Case () li e branches) = runReader li do
         checkEquiv :: forall r. Members '[Reader LexInfo, Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r 
                    => Seq (Type, Effect) 
                    -> Sem r (Type, Effect)
-        checkEquiv Empty                = (,) <$> freshTV KStar <*> freshTV KEffect -- the case expression is empty.
+        checkEquiv Empty                = (,) <$> freshTV KStar <*> freshEffectRow -- the case expression is empty.
         checkEquiv ((t, eff) :<| Empty) = pure (t, eff)
         checkEquiv ((t1, eff1):<|(t2, eff2):<|ts) = do
             w1 <- subsume t1 t2 -- TODO: apply wrapping?
@@ -455,7 +458,7 @@ infer env (Lambda () li x e) = do
 
     -- The lambda captures the body's effect in the function type, but it itself has a fully polymorphic
     -- effect type.
-    lamEff <- freshTV KEffect 
+    lamEff <- freshEffectRow 
     pure (Lambda (TFun xTy eEff (getType e'), xTy) li x e', lamEff)
 
 checkPoly :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo] r)
@@ -522,7 +525,7 @@ decomposeFun t@TForall{} = do
 decomposeFun (TFun a eff b) = pure (a, eff, b, id)
 decomposeFun t = do
     argTy <- freshTV KStar
-    effTy <- freshTV KEffect
+    effTy <- freshEffectRow
     resTy <- freshTV KStar
     w <- subsume t (TFun argTy effTy resTy)
     pure (argTy, effTy, resTy, w)
@@ -546,6 +549,8 @@ lambdasToDecl li f = go []
         go args (Lambda (_, t) _ x e) n  = go ((x,t)<|args) e (n - 1)
         go args e n                      = error $ "Typechecker.lambdasToDecl: suppplied lambda did not have enough parameters.\n  Remaining parameters: " <> show n <> "\n  Expression: " <> show e
 
+freshEffectRow :: Members '[Fresh Text QualifiedName] r => Sem r Type
+freshEffectRow = freshTV (KRow KEffect)
 
 freshTV :: Members '[Fresh Text QualifiedName] r => Kind -> Sem r Type
 freshTV k = freshVar "u" <&> \u -> TVar (MkTVar u k) 
@@ -641,11 +646,87 @@ unify (TFun a1 eff1 b1) (TFun a2 eff2 b2) = do
     (subst' <>) <$> unify (applySubst subst' b1) (applySubst subst' b2)
 unify t1@TSkol{} t2@TSkol{}
     | t1 == t2 = pure mempty
-
+unify t1@TRowAny t2@TRowAny = unifyRows t1 t2
 
 unify s@TSkol{} t2  = ask >>= \li -> throw $ SkolBinding li s t2
 unify t1 s@TSkol{}  = ask >>= \li -> throw $ SkolBinding li t1 s
 unify t1 t2         = ask >>= \li -> throw $ CannotUnify li t1 t2 
+
+unifyRows :: Members '[Reader LexInfo, Error TypeError] r
+          => Type 
+          -> Type 
+          -> Sem r Substitution
+unifyRows row1@(TRowClosed t1s) row2@(TRowClosed t2s) = do
+    headT1s <- traverse getHeadConstr t1s
+    headT2s <- traverse getHeadConstr t2s
+    go headT1s headT2s
+        where
+            go ((con1, args1) :<| t1s) t2s = do
+                case lookupAndDelete con1 t2s of
+                    Nothing -> ask >>= \li -> throw $ MissingRowField li con1 row1 row2
+                    Just (args2, t2s') -> do
+                        subst <- unifyAll args1 args2
+                        (subst<>) <$> go (applySubst subst t1s) (applySubst subst t2s')
+            go Empty Empty = pure mempty
+            go Empty t2s = ask >>= \li -> throw $ RemainingRowFields li t2s row1 row2
+unifyRows row1@(TRowOpen t1s tvar) row2@(TRowClosed t2s) = do
+    headT1s <- traverse (\x -> (\(h,tys) -> (h,(tys,x))) <$> getHeadConstr x) t1s
+    headT2s <- traverse (\x -> (\(h,tys) -> (h,(tys,x))) <$> getHeadConstr x) t2s
+    go headT1s headT2s
+        where
+            go ((con1, (args1, _)) :<| t1s) t2s = do
+                case lookupAndDelete con1 t2s of
+                    Nothing -> ask >>= \li -> throw $ MissingRowField li con1 row1 row2
+                    Just ((args2, _), t2s') -> do
+                        subst <- unifyAll args1 args2
+                        (subst<>) <$> go (applySubst subst t1s) (applySubst subst t2s')
+            go Empty Empty = pure mempty
+            go Empty t2s = bind tvar (TRowClosed (map (\(_,(_,ty)) -> ty) t2s))
+unifyRows row1@TRowClosed{} row2@TRowOpen{} = unifyRows row2 row1
+unifyRows row1@(TRowOpen t1s tvar) row2@(TRowSkol t2s skol tvar2) = do
+    headT1s <- traverse (\x -> (\(h,tys) -> (h,(tys,x))) <$> getHeadConstr x) t1s
+    headT2s <- traverse (\x -> (\(h,tys) -> (h,(tys,x))) <$> getHeadConstr x) t2s
+    go headT1s headT2s
+        where
+            go ((con1, (args1, _)) :<| t1s) t2s = do
+                case lookupAndDelete con1 t2s of
+                    Nothing -> ask >>= \li -> throw $ MissingRowField li con1 row1 row2
+                    Just ((args2, _), t2s') -> do
+                        subst <- unifyAll args1 args2
+                        (subst<>) <$> go (applySubst subst t1s) (applySubst subst t2s')
+            go Empty Empty = pure mempty
+            go Empty t2s = bind tvar (TRowSkol (map (\(_,(_,ty)) -> ty) t2s) skol tvar2)
+unifyRows row1@TRowSkol{} row2@TRowOpen{} = unifyRows row2 row1
+
+unifyRows row1@TRowClosed{} row2@TRowSkol{} = ask >>= \li -> throw $ CannotUnify li row1 row2
+unifyRows row1@TRowSkol{} row2@TRowClosed{} = ask >>= \li -> throw $ CannotUnify li row1 row2
+
+unifyRows t1 t2 = error $ "unifyRows: Trying to unify non-row types '" <> ppType t1 <> "' and '" <> ppType t2 <> "'"
+
+unifyAll :: Members '[Reader LexInfo, Error TypeError] r 
+          => Seq Type 
+          -> Seq Type 
+          -> Sem r Substitution
+unifyAll Empty Empty = mempty
+unifyAll (t1 :<| t1s) (t2 :<| t2s) = do
+    subst <- unify t1 t2
+    (subst <>) <$> unifyAll t1s t2s
+unifyAll t1s t2s = error $ "unifyAll: differently sized type seqs '" <> show t1s <> "' and '" <> show t2s <> "'"
+
+getHeadConstr :: Members '[Reader LexInfo, Error TypeError] r 
+              => Type 
+              -> Sem r (QualifiedName, Seq Type)
+getHeadConstr (TCon qname k) = pure (qname, [])
+getHeadConstr (TApp t1 t2) = do
+    (headC, args) <- getHeadConstr t1
+    pure (headC, args |> t2)
+getHeadConstr ty = ask >>= \li -> throw $ InvalidRowHeadConstr li ty
+
+lookupAndDelete :: (Eq a) => a -> Seq (a, b) -> Maybe (b, Seq (a, b))
+lookupAndDelete x Empty = Nothing
+lookupAndDelete x ((k,v) :<| ys)
+    | x == k    = Just (v, ys)
+    | otherwise = second ((k,v) <|) <$> lookupAndDelete x ys
 
 bind :: Members '[Reader LexInfo, Error TypeError] r => TVar -> Type -> Sem r Substitution
 bind tv ty

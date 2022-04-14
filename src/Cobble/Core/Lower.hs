@@ -176,7 +176,7 @@ findHeadConstrs (MkPatternMatrix rows) = ordNub $ concatMap asFirstConstr rows
         asFirstConstr ((C.OrP _ pats :<| _), e) = concatMap (asFirstConstr . (,e) . pure) pats
         asFirstConstr _ = []
 
-deconstructPM :: Trace => QualifiedName -> HeadConstr -> PatternMatrix -> Sem r PatternMatrix
+deconstructPM :: QualifiedName -> HeadConstr -> PatternMatrix -> Sem r PatternMatrix
 deconstructPM occ pat (MkPatternMatrix rows) = MkPatternMatrix . fold <$> traverse (go pat) rows
     where
         go :: HeadConstr -> PMatrixRow -> Sem r (Seq PMatrixRow)
@@ -193,13 +193,14 @@ deconstructPM occ pat (MkPatternMatrix rows) = MkPatternMatrix . fold <$> traver
             let subPats = map (C.WildcardP) constrArgs
             pure [(subPats <> pats, e)]
         go h (C.OrP _ (sp1 :<| subPats) :<| pats, e) =
+            let sp1Vars = boundVars sp1 in
             (<>)
                 <$> go h (sp1 :<| pats, e)
-                <*> (fold <$> traverse (\p -> go h (p :<| pats, e . (boundVars p `reorderBy` boundVars sp1))) subPats)
+                <*> (fold <$> traverse (\p -> go h (p :<| pats, e . (boundVars p `reorderBy` sp1Vars))) subPats)
         go h (C.OrP _ Empty :<| _, _) = error "lowerCase: deconstructPM: empty or pattern"    
         go _ _ = pure []
 
-defaultMatrix :: Trace => QualifiedName -> PatternMatrix -> PatternMatrix
+defaultMatrix :: QualifiedName -> PatternMatrix -> PatternMatrix
 defaultMatrix occ (MkPatternMatrix rows) = MkPatternMatrix $ go =<< rows
     where
         go (C.ConstrP{} :<| _, _) = []
@@ -332,4 +333,4 @@ lowerKind C.KStar = pure F.KType
 lowerKind (C.KFun a b)= F.KFun <$> lowerKind a <*> lowerKind b
 lowerKind C.KConstraint = pure F.KType -- Constraints are desugared to dictionary applications
 lowerKind C.KEffect = error "Effect lowering NYI"
-lowerKind C.KLabel = error "Effect lowering NYI"
+lowerKind C.KRow{} = error "Effect lowering NYI"

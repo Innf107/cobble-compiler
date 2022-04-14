@@ -94,7 +94,6 @@ import Relude.Extra hiding (
     , (!?)
     , lens
     , Lens'
-    , unstableNub
     )
 
 import Polysemy hiding (transform, rewrite, Effect)
