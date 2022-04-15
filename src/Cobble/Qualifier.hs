@@ -280,14 +280,19 @@ qualifyType allowFreeVars = go
             zipWithM_ addTVar (map fst ps) ps'
             TForall ps' <$> go ty
         go (UTConstraint constr ty) = TConstraint <$> goConstraint constr <*> go ty
-        go (UTRowClosed tys)   = TRowClosed <$> traverse go tys
+        go (UTRowClosed tys) = do
+            -- TODO: We currently open *all* closed rows. If we ever use row polymorphism
+            -- for anything other than effects (e.g. for extensible records), we have to make sure 
+            -- to only do this if the row is part of a function type.
+            tvar <- MkTVar <$> freshVar "μ" <*> pure (KRow KEffect)
+            TRowOpen <$> traverse go tys <*> pure tvar
         go (UTRowOpen tys var) = do
             tys' <- traverse go tys
             tv' <- runError (lookupTVar var) >>= \case 
                 Right tv' -> pure tv'
                 Left err
                     | allowFreeVars -> do
-                        tv' <- qualifyTVar var (Just KEffect) -- TODO: Do we want to hardcode effect kinds here?
+                        tv' <- qualifyTVar var (Just (KRow KEffect)) -- TODO: Do we want to hardcode effect kinds here?
                         addTVar var tv'
                         pure tv'
                     | otherwise -> throw err
