@@ -651,6 +651,11 @@ unify (TFun a1 eff1 b1) (TFun a2 eff2 b2) = do
     (subst' <>) <$> unify (applySubst subst' b1) (applySubst subst' b2)
 unify t1@TSkol{} t2@TSkol{}
     | t1 == t2 = pure mempty
+
+-- Open and skolem rows with an empty extension should be equivalent to the variables/skolems on their own.
+unify (TRowOpen Empty var) t2 = unify (TVar var) t2
+unify (TRowSkol Empty skol var) t2 = unify (TSkol skol var) t2
+
 unify row1@(TRowClosed t1s) row2@(TRowClosed t2s) = 
     unifyRows row1 row2 t1s t2s \remaining -> ask >>= \li -> throw $ RemainingRowFields li remaining row1 row2
 unify row1@(TRowOpen t1s tvar) row2@(TRowClosed t2s) = 
@@ -662,6 +667,7 @@ unify row1@TRowSkol{} row2@TRowOpen{} = unify row2 row1
 
 unify row1@(TRowSkol t1s skol1 var1) row2@(TRowSkol t2s skol2 var2)
     | skol1 == skol2 && var1 == var2 = unifyRows row1 row2 t1s t2s \remaining ->  ask >>= \li -> throw $ RemainingRowFields li remaining row1 row2 
+
 
 unify row1@(TRowOpen t1s tvar1@(MkTVar _ kind)) row2@(TRowOpen t2s tvar2) = do
     headT1s <- traverse (\ty -> (\(name, tys) -> (name, (tys, ty))) <$> getHeadConstr ty) t1s
