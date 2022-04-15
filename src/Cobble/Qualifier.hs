@@ -280,6 +280,9 @@ qualifyType allowFreeVars = go
             zipWithM_ addTVar (map fst ps) ps'
             TForall ps' <$> go ty
         go (UTConstraint constr ty) = TConstraint <$> goConstraint constr <*> go ty
+        go (UTRowClosed Empty) = do
+            tvar <- MkTVar <$> freshVar "μ" <*> pure (KRow KEffect)
+            pure (TVar tvar)
         go (UTRowClosed tys) = do
             -- TODO: We currently open *all* closed rows. If we ever use row polymorphism
             -- for anything other than effects (e.g. for extensible records), we have to make sure 

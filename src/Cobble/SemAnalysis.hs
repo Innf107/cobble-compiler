@@ -43,6 +43,7 @@ implicitEffectType = \case
                 consEff eff (TRowClosed effs) = TRowClosed (eff <| effs)
                 consEff eff (TRowOpen effs var) = TRowOpen (eff <| effs) var
                 consEff eff (TRowSkol effs skol var) = TRowSkol (eff <| effs) skol var
+                consEff eff (TVar var) = TRowOpen [eff] var
                 consEff eff ty = error $ "implicitEffectType: consEff: Non-row type in function effect: " <> show ty
     x -> pure x
 

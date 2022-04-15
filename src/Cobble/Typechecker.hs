@@ -214,7 +214,7 @@ checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = do
     li <- ask
     (expectedTy', w) <- skolemize expectedTy
     (xs', eTy, mEff, w') <- decomposeParams expectedTy' xs
-    traceM DebugVerbose $ "[checkTopLevelDecl env (" <> show f <> ")] xs' = " <> show xs' <> "mEff = " <> show mEff <> " | eTy = " <> show eTy
+    traceM DebugVerbose $ "[checkTopLevelDecl env (" <> show f <> ")] expectedTy = " <> show expectedTy <> "| xs' = " <> show xs' <> " | mEff = " <> show mEff <> " | eTy = " <> show eTy
 
     let env' = if recursive
                then insertType f expectedTy env

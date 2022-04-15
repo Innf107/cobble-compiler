@@ -57,7 +57,7 @@ compileExpr (App e1 e2) = do
     e2' <- compileExpr e2
     pure (RApp e1' [e2'])
 compileExpr (TyApp e _ty) = compileExpr e
-compileExpr (Abs x _ty e) = do
+compileExpr (Abs x _eff _ty e) = do
     e' <- compileExpr e
     pure (RLambda [x] [e'])
 compileExpr (TyAbs _ _ e) = compileExpr e

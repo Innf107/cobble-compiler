@@ -84,7 +84,8 @@ lint env (DefVariant x args clauses :<| ds) = do
     let resKind = foldr (KFun . snd) KType args
     let resTy = foldl' (TApp) (TCon x resKind) (map (uncurry TVar) args)
     let constrTys = clauses <&> \(constr, constrArgs) ->
-            (constr, (foldr (uncurry TForall) (foldr TFun resTy constrArgs) args))
+            -- TODO: Include effect variables in function types
+            undefined -- (constr, (foldr (uncurry TForall) (foldr TFun resTy constrArgs) args))
     let env' = clearJPs $ foldr (uncurry insertType) env constrTys
     lint env' ds
 lint env (DefDict x args fields :<| ds) = do
@@ -96,15 +97,16 @@ lintExpr :: forall r. Members '[Error CoreLintError] r
          -> Expr
          -> Sem r Type
 lintExpr env (Var x) = lookupType x env
-lintExpr env (Abs x domTy body) = do
+lintExpr env (Abs x eff domTy body) = do
     bodyTy <- lintExpr (insertType x domTy $ clearJPs env) body
-    pure (TFun domTy bodyTy)
+    pure (TFun domTy eff bodyTy)
 -- See note [clearJPs for App]
 lintExpr env (App e1 e2) = do
     e1Ty <- lintExpr env e1
     e2Ty <- lintExpr env e2
     case e1Ty of
-        TFun dom codom -> do
+        TFun dom eff codom -> do
+            -- TODO: handle eff?
             typeMatch dom e2Ty $ "Function type mismatch.\n    Function: " <> show e1 <> "\n    Argument: " <> show e2
             pure codom
         _ -> throwLint $ "Application of value with non-function type '" <> show e1Ty <> "'\n    'Function' expression: " <> show e1 <> "\n    Argument type: " <> show e2Ty <> "\n    Argument expression: " <> show e2
@@ -223,11 +225,12 @@ lintExpr env (DictAccess e className tyArgs field) = do
 lintSaturated :: Members '[Error CoreLintError] r => LintEnv -> Text -> Type -> Seq Type -> Seq Expr -> Sem r Type
 lintSaturated env x tyArgs valArgs = go tyArgs valArgs
     where
-        go (TFun t1 t2) tyArgs (arg :<| valArgs) = do
+        go (TFun t1 eff t2) tyArgs (arg :<| valArgs) = do
+            -- TODO: Handle eff
             argTy <- lintExpr env arg
             typeMatch t1 argTy $ "Argument type mismatch for variant constructor or primop '" <> x <> "' with argument: " <> show arg
             go t2 tyArgs valArgs
-        go (TFun t1 t2) tyArgs Empty = throwLint $ "Variant constructor or primop '" <> x <> "' is missing value arguments.\n    Remaining type: " <> show (TFun t1 t2) <> "\n    Applied value arguments: " <> show valArgs <> "\n    Not yet applied type arguments: " <> show tyArgs  
+        go (TFun t1 eff t2) tyArgs Empty = throwLint $ "Variant constructor or primop '" <> x <> "' is missing value arguments.\n    Remaining type: " <> show (TFun t1 eff t2) <> "\n    Applied value arguments: " <> show valArgs <> "\n    Not yet applied type arguments: " <> show tyArgs  
 
         go (TForall a _k ty) (tyArg :<| tyArgs) valArgs = do
             let ty' = replaceTVar a tyArg ty
@@ -257,12 +260,12 @@ applyType ty ty' = throwLint $ "Excessive application with argument '" <> show t
 
 headTyCon :: Type -> Type
 headTyCon (TForall _ _ ty) = headTyCon ty
-headTyCon (TFun a b) = headTyCon b
+headTyCon (TFun a eff b) = headTyCon b
 headTyCon (TApp a b) = headTyCon a 
 headTyCon ty = ty
 
 getKind :: Members '[Error CoreLintError] r => Type -> Sem r Kind
-getKind (TFun a b)       = KFun <$> getKind a <*> getKind b
+getKind (TFun a eff b)   = pure KType
 getKind (TVar _ k)       = pure k
 getKind (TCon _ k)       = pure k
 getKind (TForall _ _ ty) = getKind ty
@@ -272,7 +275,8 @@ getKind (TApp a b) = do
         KFun dom cod 
             | dom == bKind -> pure cod
         aKind -> throwLint $ "Cannot apply type (" <> show a <> " : " <> show aKind <> ") to argument type (" <> show b <> " : " <> show bKind <> ")"
-
+getKind TRowNil = pure $ KRow undefined -- What kind should fully polymorphic rows have?
+getKind (TRowExtend tys row) = getKind row
 
 typeMatch :: Members '[Error CoreLintError] r 
           => Type 

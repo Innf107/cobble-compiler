@@ -36,7 +36,8 @@ extractPartialCoreSig (F.Def x ty e) = emptyCoreModSig {coreModVars = one (x, ty
 extractPartialCoreSig (F.DefVariant x args clauses) = emptyCoreModSig {
         coreModVars = let resKind = foldr (F.KFun . snd) F.KType args
                           resTy = foldl' (F.TApp) (F.TCon x resKind) (map (uncurry F.TVar) args)
-                      in fromList $ toList $ clauses <&> \(constr, constrArgs) -> (constr, (foldr (uncurry F.TForall) (foldr F.TFun resTy constrArgs) args))
+                        -- TODO: We have to include effect variables in the function arrows
+                      in undefined -- fromList $ toList $ clauses <&> \(constr, constrArgs) -> (constr, (foldr (uncurry F.TForall) (foldr F.TFun resTy constrArgs) args))
     }
 extractPartialCoreSig (F.DefDict x args fields) = emptyCoreModSig {coreModDictTyDefs = one (x, (args, fields))}
 
