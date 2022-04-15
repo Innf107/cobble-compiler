@@ -608,7 +608,7 @@ solveConstraints givens wanteds ((MkTConstraint (ConGiven c@(MkConstraint cname 
             let givens' = alter (<> Just [(ty, dict)]) cname givens
             solveConstraints givens' wanteds constrs
 
-solveWanteds :: (Trace, Members '[Error TypeError] r)
+solveWanteds :: (Trace, Members '[Error TypeError, Fresh Text QualifiedName] r)
                 => Map QualifiedName (Seq (Type, QualifiedName))
                  --                              v^dict
                 -> Seq (Constraint, QualifiedName, LexInfo)
@@ -633,8 +633,7 @@ solveWanteds givens ((c@(MkConstraint cname k ty), dictVar, li) :<| wanteds) = r
             (subst <>) <$> solveWanteds (applySubst subst givens) (applySubst subst wanteds)
         Nothing -> throw $ NoInstanceFor li c
 
--- TODO: Unify rows
-unify :: Members '[Error TypeError, Reader LexInfo] r
+unify :: Members '[Error TypeError, Reader LexInfo, Fresh Text QualifiedName] r
       => Type
       -> Type
       -> Sem r Substitution
@@ -661,7 +660,25 @@ unify row1@(TRowOpen t1s tvar) row2@(TRowSkol t2s skol tvar2) =
     unifyRows row1 row2 t1s t2s \remaining -> bind tvar (TRowSkol (map (\(ty,_,_) -> ty) remaining) skol tvar2)
 unify row1@TRowSkol{} row2@TRowOpen{} = unify row2 row1
 
-unify row1@(TRowOpen t1s tvar1) row2@(TRowOpen t2s tvar2) = error $ "Cannot unify two open rows yet."
+unify row1@(TRowSkol t1s skol1 var1) row2@(TRowSkol t2s skol2 var2)
+    | skol1 == skol2 && var1 == var2 = unifyRows row1 row2 t1s t2s \remaining ->  ask >>= \li -> throw $ RemainingRowFields li remaining row1 row2 
+
+unify row1@(TRowOpen t1s tvar1@(MkTVar _ kind)) row2@(TRowOpen t2s tvar2) = do
+    headT1s <- traverse (\ty -> (\(name, tys) -> (name, (tys, ty))) <$> getHeadConstr ty) t1s
+    headT2s <- traverse (\ty -> (\(name, tys) -> (name, (tys, ty))) <$> getHeadConstr ty) t2s
+    go headT1s headT2s []
+        where
+            go ((con1, (args1, ty1)) :<| t1s) t2s remaining1 = do
+                case lookupAndDelete con1 t2s of
+                    Nothing -> ask >>= \li -> go t1s t2s (ty1 <| remaining1) -- TODO: prepend or append? This is probably important with duplicate labels.
+                    Just ((args2, _), t2s') -> do
+                        subst <- unifyAll args1 args2
+                        (subst<>) <$> go (applySubst subst t1s) (applySubst subst t2s') remaining1
+            go Empty remaining2 remaining1 = do
+                newRowVar <- freshVar "μ" <&> \mu -> MkTVar mu kind
+                (<>)
+                    <$> bind tvar1 (TRowOpen (map (\(_,(_,ty)) -> ty) remaining2) newRowVar) 
+                    <*> bind tvar2 (TRowOpen remaining1 newRowVar)
 
 unify row1@TRowClosed{} row2@TRowSkol{} = ask >>= \li -> throw $ CannotUnify li row1 row2
 unify row1@TRowSkol{} row2@TRowClosed{} = ask >>= \li -> throw $ CannotUnify li row1 row2
@@ -670,7 +687,7 @@ unify s@TSkol{} t2  = ask >>= \li -> throw $ SkolBinding li s t2
 unify t1 s@TSkol{}  = ask >>= \li -> throw $ SkolBinding li t1 s
 unify t1 t2         = ask >>= \li -> throw $ CannotUnify li t1 t2 
 
-unifyRows :: Members '[Reader LexInfo, Error TypeError] r
+unifyRows :: Members '[Reader LexInfo, Error TypeError, Fresh Text QualifiedName] r
           => Type 
           -> Type
           -> (Seq Type)
@@ -692,7 +709,7 @@ unifyRows row1 row2 t1s t2s remainingCont = do
             go Empty t2s = remainingCont (map (\(x,(y,z)) -> (z, x, y)) t2s)
 
 
-unifyAll :: Members '[Reader LexInfo, Error TypeError] r 
+unifyAll :: Members '[Reader LexInfo, Error TypeError, Fresh Text QualifiedName] r 
           => Seq Type 
           -> Seq Type 
           -> Sem r Substitution
