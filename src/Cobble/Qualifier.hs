@@ -275,7 +275,7 @@ qualifyType allowFreeVars = go
                     addTVar tv tv'
                     pure (TVar tv')
                 | otherwise -> throw err
-        go (UTForall ps ty) = withFrame do
+        go (UTForall ps ty) = do
             ps' <- traverse (uncurry qualifyTVar) ps
             zipWithM_ addTVar (map fst ps) ps'
             TForall ps' <$> go ty
