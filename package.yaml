@@ -37,7 +37,6 @@ dependencies:
 - bytestring
 - random
 - dlist
-- mcrcon
 - recursion-schemes
 - data-default
 - prettyprinter

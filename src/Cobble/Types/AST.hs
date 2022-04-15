@@ -318,10 +318,6 @@ instance Binary Kind
 data TGiven  = TGiven  Constraint LexInfo deriving (Show, Eq, Generic, Data, Typeable)
 data TWanted = TWanted Constraint LexInfo deriving (Show, Eq, Generic, Data, Typeable)
 
-pattern (:->) :: Type -> Type -> Type
-pattern (:->) t1 t2 = TFun t1 (TRowClosed Empty) t2
-infixr 1 :->
-
 type family XKind (p :: Pass)
 
 

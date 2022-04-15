@@ -183,13 +183,14 @@ typecheckStatement env (DefInstance (classKind, methDefs, params, _isImported) l
             stripConstraint c (TConstraint c' ty) | c == c' = ty
             stripConstraint c _ = error $ "typecheckStatement: non-constrained instance method at " <> show li
 
-typecheckStatement env (DefVariant k li tyName tvs constrs) =
+typecheckStatement env (DefVariant k li tyName tvs constrs) = do
+    let resTy = foldl' (\x y -> TApp x (TVar y)) (TCon tyName k) tvs
+    let constrTy ps = forallFun tvs resTy ps
+    constrs' <- traverse (\(n, ps, (i, j)) -> (\psTy -> (n, ps, (psTy, i, j))) <$> constrTy ps) constrs
+    let env' = foldr (\(n,_,(t,_,_)) -> insertType n t) env constrs'
+
     pure (DefVariant k li tyName tvs constrs', env')
         where
-            resTy = foldl' (\x y -> TApp x (TVar y)) (TCon tyName k) tvs
-            constrTy ps = TForall tvs (foldr (:->) resTy ps)
-            constrs' = map (\(n, ps, (i, j)) -> (n, ps, (constrTy ps, i, j))) constrs
-            env' = foldr (\(n,_,(t,_,_)) -> insertType n t) env constrs'
 typecheckStatement env (DefEffect k li effName tvs ops) = do
     let env' = foldr (uncurry insertType) env ops
     pure (DefEffect k li effName tvs ops, env')
@@ -197,6 +198,11 @@ typecheckStatement env (DefEffect k li effName tvs ops) = do
 tforall :: Seq TVar -> Type -> Type
 tforall Empty ty = ty
 tforall ps ty = TForall ps ty
+
+forallFun :: Members '[Fresh Text QualifiedName] r => Seq TVar -> Type -> Seq Type -> Sem r Type
+forallFun vars result args = do
+    argsAndEffs <- traverse (\x -> freshVar "μ" <&> \effName -> (x, MkTVar effName (KRow KEffect))) args
+    pure $ TForall (vars <> map snd argsAndEffs) $ foldr (\(x, eff) r -> TFun x (TVar eff) r) result argsAndEffs
 
 checkTopLevelDecl :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Output TConstraint, Reader LexInfo] r)
       => Bool
@@ -654,6 +660,8 @@ unify row1@TRowClosed{} row2@TRowOpen{} = unify row2 row1
 unify row1@(TRowOpen t1s tvar) row2@(TRowSkol t2s skol tvar2) = 
     unifyRows row1 row2 t1s t2s \remaining -> bind tvar (TRowSkol (map (\(ty,_,_) -> ty) remaining) skol tvar2)
 unify row1@TRowSkol{} row2@TRowOpen{} = unify row2 row1
+
+unify row1@(TRowOpen t1s tvar1) row2@(TRowOpen t2s tvar2) = error $ "Cannot unify two open rows yet."
 
 unify row1@TRowClosed{} row2@TRowSkol{} = ask >>= \li -> throw $ CannotUnify li row1 row2
 unify row1@TRowSkol{} row2@TRowClosed{} = ask >>= \li -> throw $ CannotUnify li row1 row2

@@ -28,14 +28,16 @@ data PrimOpInfo = PrimOpInfo {
 
 primOps :: Map QualifiedName PrimOpInfo 
 primOps = M.mapKeys (\k -> internalQName k) $ fromList [
-        ("add#",    PrimOpInfo Add      (intT :-> intT :-> intT)) 
-    ,   ("sub#",    PrimOpInfo Sub      (intT :-> intT :-> intT)) 
-    ,   ("mul#",    PrimOpInfo Mul      (intT :-> intT :-> intT)) 
-    ,   ("intdiv#", PrimOpInfo IntDiv   (intT :-> intT :-> intT)) 
-    ,   ("mod#",    PrimOpInfo Mod      (intT :-> intT :-> intT)) 
-    ,   ("le#",     PrimOpInfo LE       (intT :-> intT :-> boolT))
-    ,   ("eq#",     PrimOpInfo EQ       (intT :-> intT :-> boolT))
-    ,   ("debug#",  PrimOpInfo Debug    let debugArg = MkTVar (internalQName "debugArg") KStar in (TForall [debugArg] $ TVar debugArg :-> unitT))
-    ]
+        ("add#",    PrimOpInfo Add      let f1 = internalEffFun "μ1" in let f2 = internalEffFun "μ2" in (intT `f1` (intT `f2` intT)))
+    ,   ("sub#",    PrimOpInfo Sub      let f1 = internalEffFun "μ1" in let f2 = internalEffFun "μ2" in (intT `f1` (intT `f2` intT)))
+    ,   ("mul#",    PrimOpInfo Mul      let f1 = internalEffFun "μ1" in let f2 = internalEffFun "μ2" in (intT `f1` (intT `f2` intT)))
+    ,   ("intdiv#", PrimOpInfo IntDiv   let f1 = internalEffFun "μ1" in let f2 = internalEffFun "μ2" in (intT `f1` (intT `f2` intT)))
+    ,   ("mod#",    PrimOpInfo Mod      let f1 = internalEffFun "μ1" in let f2 = internalEffFun "μ2" in (intT `f1` (intT `f2` intT)))
+    ,   ("le#",     PrimOpInfo LE       let f1 = internalEffFun "μ1" in let f2 = internalEffFun "μ2" in (intT `f1` (intT `f2` boolT)))
+    ,   ("eq#",     PrimOpInfo EQ       let f1 = internalEffFun "μ1" in let f2 = internalEffFun "μ2" in (intT `f1` (intT `f2` boolT)))
+    ,   ("debug#",  PrimOpInfo Debug    let debugArg = MkTVar (internalQName "debugArg") KStar in let f = internalEffFun "μ" in (TForall [debugArg] $ TVar debugArg `f` unitT))
+    ] where
+        internalEff x = MkTVar (internalQName x) (KRow KEffect)
+        internalEffFun effName x y = TFun x (TVar (internalEff effName)) y 
 
 

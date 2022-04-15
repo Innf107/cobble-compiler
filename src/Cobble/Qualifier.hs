@@ -281,7 +281,17 @@ qualifyType allowFreeVars = go
             TForall ps' <$> go ty
         go (UTConstraint constr ty) = TConstraint <$> goConstraint constr <*> go ty
         go (UTRowClosed tys)   = TRowClosed <$> traverse go tys
-        go (UTRowOpen tys var) = TRowOpen <$> traverse go tys <*> qualifyTVar var (Just KEffect) -- TODO: Do we want to hardcode effect kinds here?
+        go (UTRowOpen tys var) = do
+            tys' <- traverse go tys
+            tv' <- runError (lookupTVar var) >>= \case 
+                Right tv' -> pure tv'
+                Left err
+                    | allowFreeVars -> do
+                        tv' <- qualifyTVar var (Just KEffect) -- TODO: Do we want to hardcode effect kinds here?
+                        addTVar var tv'
+                        pure tv'
+                    | otherwise -> throw err
+            pure (TRowOpen tys' tv')
 
         goConstraint :: UConstraint -> Sem r Constraint
         goConstraint (MkUConstraint className ty) = lookupType className >>= \case

@@ -28,7 +28,7 @@ data Expr = Var QualifiedName
           -- Unlike in Cobble, Core's VariantConstrs have to be *fully saturated* with value and type arguments.
           | VariantConstr QualifiedName Int (Seq Type) (Seq Expr)
 
-            --  Core Scrutinees have to be in WHNF, which makes it much easier to, say, fully eliminate a case expression during optimizations
+            --  Core Scrutinees have to be in HNF, which makes it much easier to, say, fully eliminate a case expression during optimizations
           | Case QualifiedName (Seq (Pattern, Expr))
 
           | Join QualifiedName (Seq (QualifiedName, Kind)) (Seq (QualifiedName, Type)) Expr Expr -- Create a join point (See note [Join Points])

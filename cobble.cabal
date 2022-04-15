@@ -136,7 +136,6 @@ library
     , dlist
     , filepath
     , lens
-    , mcrcon
     , parsec
     , polysemy
     , polysemy-plugin
@@ -226,7 +225,6 @@ executable cobble
     , dlist
     , filepath
     , lens
-    , mcrcon
     , optparse-applicative
     , parsec
     , polysemy
@@ -337,7 +335,6 @@ test-suite cobble-test
     , filepath
     , hspec
     , lens
-    , mcrcon
     , parsec
     , polysemy
     , polysemy-plugin
