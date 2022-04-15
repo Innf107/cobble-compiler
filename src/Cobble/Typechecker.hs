@@ -73,7 +73,7 @@ subsume t1 t2 = do
     (t1', w) <- instantiate t1
     (t2', w') <- skolemize t2
     t1' !~ t2'
-    pure (w' . w) -- TODO ?
+    pure (w' . w)
 
 wanted :: Members '[Output TConstraint, Reader LexInfo] r 
     => Constraint
@@ -418,7 +418,6 @@ infer env (Var () li x) = runReader li do
     pure (w (Var (ty, []) li x), eff)
 
 infer env (Ascription () li e t) = runReader li do
-    -- TODO: Can we really just check against a fresh effect variable?
     eff <- freshEffectRow
     e' <- checkPoly env e t eff
     (t2, w) <- instantiate t
