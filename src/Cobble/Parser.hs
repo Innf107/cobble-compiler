@@ -41,6 +41,11 @@ ident = identNoOperator
 ident' :: Parser Text
 ident' = snd <$> ident
     
+identWhere :: (Text -> Bool) -> Parser (LexInfo, Text)
+identWhere pred = token' \case
+    Token l (Ident t) | pred t -> Just (l, t)
+    _ -> Nothing
+
 exactIdent :: Text -> Parser LexInfo
 exactIdent ident = token' \case
     Token li (Ident ident') | ident == ident' -> Just li
@@ -419,12 +424,16 @@ functionType li tyA = simpleFunction <|> effFunction
             pure (li `mergeLexInfo` le, UTFun tyA effRow tyB)
 
 effectRow :: Parser UType
-effectRow = do
-    tys <- typeP' `sepBy` reservedOp' ","
-    mOpenVar <- optionMaybe (reservedOp' "|" *> ident')
-    pure case mOpenVar of
-        Nothing -> UTRowClosed tys
-        Just var -> UTRowOpen tys var
+effectRow = effVar <|> effRow 
+    where
+        effVar = UTVar . snd <$> identWhere (isLower . T.head)
+
+        effRow = do
+            tys <- typeP' `sepBy` reservedOp' ","
+            mOpenVar <- optionMaybe (reservedOp' "|" *> ident')
+            pure case mOpenVar of
+                Nothing -> UTRowClosed tys
+                Just var -> UTRowOpen tys var
 
 withParen :: Parser a -> Parser a
 withParen a = paren "(" *> a <* paren ")"
