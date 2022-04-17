@@ -351,12 +351,10 @@ infer env (If () li c th el) = runReader li do
     -- but we cannot simply use (!~), which could not infer higher rank types.
     -- Instead, we check that both types are equivalent using subsumption:
     --     getType th' <= getType el' /\ getType el' <= getType th'.
-    c'  <- infer env c
+    c'  <- check env c boolT
     th' <- infer env th
     el' <- infer env el
     
-    getType c' !~ boolT
-
     -- Make sure that the types of th' and el' are
     -- equivalent (though they may not necessarily *look* the same).
     w1 <- subsume (getType th') (getType el')
