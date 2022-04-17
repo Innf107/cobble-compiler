@@ -38,8 +38,8 @@ type instance XVariantConstr    Codegen = (Type, Type, Int)
 type instance XCase             Codegen = Type
 
 
-type instance XLambda            Codegen = (Type, Type)
-                                        -- ^      ^      
+type instance XLambda            Codegen = (Type, Type, Type)
+                                        -- ^      ^     ^effect type 
                                         -- |      parameter type
                                         -- full type
 

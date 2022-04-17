@@ -40,4 +40,4 @@ extractPartialCoreSig (F.DefVariant x args clauses) = emptyCoreModSig {
                       in undefined -- fromList $ toList $ clauses <&> \(constr, constrArgs) -> (constr, (foldr (uncurry F.TForall) (foldr F.TFun resTy constrArgs) args))
     }
 extractPartialCoreSig (F.DefDict x args fields) = emptyCoreModSig {coreModDictTyDefs = one (x, (args, fields))}
-
+extractPartialCoreSig (F.DefEffect x args ops) = error "TODO: extract F.DefEffect NYI" 

@@ -46,8 +46,7 @@ lowerStmnts (C.DefClass k li cname tvs methSigs :<| sts) = do
         let tvAbs e = foldr (uncurry F.TyAbs) e tvs'
         let dictTy = foldl' (\r (x, k) -> F.TApp r (F.TVar x k)) (F.TCon cname k') tvs'
         pure $ F.Def methName methTy'
-        -- TODO: Include effect
-            $ tvAbs $ tyAbsFor 1 methTy' $ F.Abs dictName undefined dictTy $ tyAppsFor 1 methTy' $ F.DictAccess (F.Var dictName) cname (map (uncurry F.TVar) tvs') methName
+            $ tvAbs $ tyAbsFor 1 methTy' $ F.Abs dictName F.TEffUR dictTy $ tyAppsFor 1 methTy' $ F.DictAccess (F.Var dictName) cname (map (uncurry F.TVar) tvs') methName
 
     ((dictDef :<| methImpls) <>) <$> lowerStmnts sts
         where
@@ -71,15 +70,18 @@ lowerStmnts (C.DefInstance (classKind, _, tyParams, dictVar) li className tyArg 
     let dictType = F.TApp (F.TCon className dictKind) tyArg'
     def <- F.Def dictVar dictType . F.DictConstruct className [tyArg'] <$> forM methDecls \(C.Decl _ _ params expr) -> do 
             expr' <- lowerExpr expr
-            -- TODO: Include effect
-            foldrM (\(x, ty) r -> F.Abs x undefined <$> lowerType ty <*> pure r) expr' params
+            foldrM (\(x, ty) r -> F.Abs x F.TEffUR <$> lowerType ty <*> pure r) expr' params
     (def :<|) <$> lowerStmnts sts
 lowerStmnts (C.DefVariant _ _ x args clauses :<| sts) = do
     def <- F.DefVariant x 
             <$> traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) args
             <*> traverse (\(x, tys, _) -> (x,) <$> traverse lowerType tys) clauses
     (def<|) <$> lowerStmnts sts
-lowerStmnts (C.DefEffect k li name tvs effs :<| sts) = error "effect codegen NYI"
+lowerStmnts (C.DefEffect k li name tvs ops :<| sts) = do
+    def <- F.DefEffect name
+            <$> traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) tvs
+            <*> traverse (secondM lowerType) ops
+    (def<|) <$> lowerStmnts sts
 
 lowerExpr :: (Trace, Members '[Fresh Text QualifiedName] r) => CExpr -> Sem r F.Expr
 lowerExpr (C.VariantConstr (_ty, constrTy, ix) _ constrName) = do
@@ -97,8 +99,7 @@ lowerExpr (C.Let () _ (C.Decl (ty, _) f xs e1) e2) = do
     e1' <- lowerExpr e1
     F.Let f
         <$> lowerType ty
-        -- TODO: Include effect
-        <*> (foldrM (\(x, t) r -> F.Abs x undefined <$> lowerType t <*> pure r) e1' xs)
+        <*> (foldrM (\(x, t) r -> F.Abs x F.TEffUR <$> lowerType t <*> pure r) e1' xs)
         <*> lowerExpr e2
 lowerExpr (C.Var _ _ x) = do
     case lookup x primOps of
@@ -107,12 +108,10 @@ lowerExpr (C.Var _ _ x) = do
             lowerSaturated actualTy (F.PrimOp primOp actualTy)
         Nothing -> pure $ F.Var x
 lowerExpr (C.Case t li e branches) = lowerCase t e branches
--- TODO: Include effect
-lowerExpr (C.Lambda (ty, argTy) _ x e) = F.Abs x undefined <$> lowerType argTy <*> lowerExpr e
+lowerExpr (C.Lambda (ty, argTy, eff) _ x e) = F.Abs x <$> lowerType eff <*> lowerType argTy <*> lowerExpr e
 lowerExpr (C.TyApp _ ty e) = F.TyApp <$> lowerExpr e <*> lowerType ty
 lowerExpr (C.TyAbs _ (C.MkTVar tvName tvKind) e) = F.TyAbs tvName <$> lowerKind tvKind <*> lowerExpr e
--- TODO: Include effect
-lowerExpr (C.DictAbs _ x c e) = F.Abs x undefined <$> lowerConstraint c <*> lowerExpr e
+lowerExpr (C.DictAbs _ x c e) = F.Abs x F.TEffUR <$> lowerConstraint c <*> lowerExpr e
 lowerExpr (C.DictVarApp li e dv) = error $ "Invalid unsubstituted dictionary variable application during lowering at " <> show li <> ".\nApplication of dict variable '" <> show dv <> "'\nOn Expression: " <> show e
 lowerExpr (C.DictApp _ e dict) = F.App <$> lowerExpr e <*> pure (F.Var dict)
 
@@ -318,16 +317,23 @@ lowerType :: C.Type -> Sem r F.Type
 lowerType (C.TVar (C.MkTVar tvName tvKind)) = F.TVar tvName <$> lowerKind tvKind
 lowerType (C.TCon tcName tcKind) = F.TCon tcName <$> lowerKind tcKind
 lowerType (C.TApp t1 t2) = F.TApp <$> lowerType t1 <*> lowerType t2
-lowerType (C.TSkol _ (C.MkTVar tvName tvKind)) = F.TVar tvName <$> lowerKind tvKind  -- error $ "lowerType: detected escaped skolem type constant: " <> show t
+lowerType (C.TSkol _ (C.MkTVar tvName tvKind)) = F.TVar tvName <$> lowerKind tvKind
 lowerType (C.TForall tvs ty) = do
     ty' <- lowerType ty
     foldrM (\(C.MkTVar tvName tvKind) r -> lowerKind tvKind <&> \k' -> F.TForall tvName k' r) ty' tvs
-lowerType (C.TFun t1 eff t2) = error "Effect lowering NYI" -- F.TFun <$> lowerType t1 <*> lowerType t2
--- TODO: Add fresh effect var
-lowerType (C.TConstraint c ty) = F.TFun <$> lowerConstraint c <*> undefined <*> lowerType ty -- Constraints are desugard to dictionary applications
-lowerType C.TRowClosed{} = error "Effect lowering NYI"
-lowerType C.TRowOpen{} = error "Effect lowering NYI" 
-lowerType C.TRowSkol{} = error "Effect lowering NYI" 
+lowerType (C.TFun t1 eff t2) = F.TFun <$> lowerType t1 <*> lowerType eff <*> lowerType t2
+lowerType (C.TConstraint c ty) = F.TFun <$> lowerConstraint c <*> pure F.TEffUR <*> lowerType ty -- Constraints are desugard to dictionary applications
+lowerType (C.TRowClosed tys) = do
+    tys' <- traverse lowerType tys
+    pure (F.TRowExtend tys' F.TRowNil)
+lowerType (C.TRowOpen tys (C.MkTVar var kind)) = do
+    tys' <- traverse lowerType tys
+    kind' <- lowerKind kind
+    pure (F.TRowExtend tys' (F.TVar var kind'))
+lowerType (C.TRowSkol tys _ (C.MkTVar var kind)) = do
+    tys' <- traverse lowerType tys
+    kind' <- lowerKind kind
+    pure (F.TRowExtend tys' (F.TVar var kind'))
 
 lowerConstraint :: C.Constraint -> Sem r F.Type
 lowerConstraint (C.MkConstraint cname k ty) = do
@@ -338,5 +344,5 @@ lowerKind :: C.Kind -> Sem r F.Kind
 lowerKind C.KStar = pure F.KType
 lowerKind (C.KFun a b)= F.KFun <$> lowerKind a <*> lowerKind b
 lowerKind C.KConstraint = pure F.KType -- Constraints are desugared to dictionary applications
-lowerKind C.KEffect = error "Effect lowering NYI"
-lowerKind C.KRow{} = error "Effect lowering NYI"
+lowerKind C.KEffect = pure F.KEffect
+lowerKind (C.KRow k) = F.KRow <$> lowerKind k

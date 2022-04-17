@@ -13,6 +13,7 @@ import GHC.Show qualified as S
 data Decl = Def QualifiedName Type Expr
           | DefVariant QualifiedName (Seq (QualifiedName, Kind)) (Seq (QualifiedName, Seq Type))
           | DefDict QualifiedName (Seq (QualifiedName, Kind)) (Seq (QualifiedName, Type))
+          | DefEffect QualifiedName (Seq (QualifiedName, Kind)) (Seq (QualifiedName, Type))
           deriving (Eq, Generic, Data)
 instance Binary Decl
 
@@ -51,13 +52,14 @@ data Pattern = PInt Int
              deriving (Eq, Generic, Data)
 instance Binary Pattern
 
-data Type = TVar QualifiedName Kind
-          | TCon QualifiedName Kind
-          | TFun Type Effect Type
-          | TApp Type Type
-          | TForall QualifiedName Kind Type
-          | TRowNil
-          | TRowExtend (Seq Type) Type
+data Type = TVar QualifiedName Kind             -- α
+          | TCon QualifiedName Kind             -- C
+          | TFun Type Effect Type               -- σ -{ϵ}> σ
+          | TApp Type Type                      -- σ σ
+          | TForall QualifiedName Kind Type     -- ∀(α : κ). σ
+          | TRowNil                             -- ⟨⟩
+          | TRowExtend (Seq Type) Type          -- ⟨σ* | σ⟩
+          | TEffUR                              -- ✶
           deriving (Eq, Generic, Data)
 instance Binary Type
 
@@ -109,13 +111,15 @@ instance Pretty Decl where
             mapAfter1 a1 a2 f (x :<| xs) = f a1 x :<| map (f a2) xs
     pretty (DefDict x args fields) = "dictionary" <+> ppQName x <+> sep (map (parens . prettyTyped) args) <+> "=" <+>
         align ("{" <> vsep (map prettyTyped fields) <> "}")
+    pretty (DefEffect x args ops) = "effect" <+> ppQName x <+> sep (map (parens . prettyTyped) args) 
+        <+> align ("{" <> vsep (map prettyTyped ops) <> "}")
 
 instance Pretty Expr where
     pretty (Var x) = ppQName x
     pretty (App e1 e2) = "(" <> pretty e1 <+> pretty e2 <> ")"
     pretty (TyAbs tv k e) = "(Λ(" <> ppQName tv <+> ":" <+> pretty k <> ")." <> softline <> align (pretty e) <> ")"
     pretty (TyApp e ty) = "(" <> pretty e <+> "@" <> pretty ty <> ")"
-    pretty (Abs x eff ty e) = "(λ^" <> pretty eff <> "(" <> ppQName x <+> ":" <+> pretty ty <> ")." <> softline <> align (pretty e) <> ")"
+    pretty (Abs x eff ty e) = "(λ[" <> pretty eff <> "](" <> ppQName x <+> ":" <+> pretty ty <> ")." <> softline <> align (pretty e) <> ")"
     pretty (IntLit n) = pretty n
     pretty (Let x ty e1 e2) = "(let" <+> ppQName x <+> ":" <+> pretty ty <+> "=" <+> align (softline' <> pretty e1) <+> "in" <> line <> pretty e2 <> ")"
     pretty (If c th el) = "(if" <+> pretty c <> softline <> "then" <+> pretty th <> softline <> "else" <+> pretty el <> ")"
@@ -164,11 +168,12 @@ instance Pretty Pattern where
 instance Pretty Type where
     pretty (TVar x k) = ppQName x
     pretty (TCon x k) = ppQName x -- We don't currently display the kinds of type constructors
-    pretty (TFun t1 eff t2) = "(" <> pretty t1 <+> "-" <> show eff <> ">" <+> pretty t2 <> ")"
+    pretty (TFun t1 eff t2) = "(" <> pretty t1 <+> "-{" <> show eff <> "}>" <+> pretty t2 <> ")"
     pretty (TApp t1 t2) = "(" <> pretty t1 <+> pretty t2 <> ")"
     pretty (TForall x k ty) = "(forall" <+> "(" <> ppQName x <+> ":" <+> pretty k <> ")." <+> pretty ty <> ")"
     pretty (TRowNil) = "{}"
     pretty (TRowExtend tys row) = "{" <> fold (intersperse ", " (map pretty tys)) <> " | " <> pretty row <> "}"
+    pretty TEffUR = "✶"
 instance Pretty Kind where
     pretty KType = "*"
     pretty KEffect = "Effect"
@@ -200,3 +205,4 @@ replaceTVar tv substTy (TApp t1 t2) = TApp (replaceTVar tv substTy t1) (replaceT
 replaceTVar tv substTy (TFun t1 effs t2) = TFun (replaceTVar tv substTy t1) (replaceTVar tv substTy effs) (replaceTVar tv substTy t2)
 replaceTVar tv substTy TRowNil = TRowNil
 replaceTVar tv substTy (TRowExtend tys row) = TRowExtend (map (replaceTVar tv substTy) tys) (replaceTVar tv substTy row)
+replaceTVar tv substTy TEffUR = TEffUR

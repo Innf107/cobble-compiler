@@ -235,7 +235,7 @@ checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = do
     pure (Decl (expectedTy, []) f [] lambdas, env')
         where
             makeLambdas :: LexInfo -> Expr NextPass -> Seq (QualifiedName, Type, Effect) -> Expr NextPass
-            makeLambdas li = foldr (\(x, ty, eff) e -> Lambda (TFun ty eff (getType e), ty) li x e)
+            makeLambdas li = foldr (\(x, ty, eff) e -> Lambda (TFun ty eff (getType e), ty, eff) li x e)
 
 check :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r)
       => TCEnv
@@ -315,7 +315,7 @@ check env (Lambda () li x e) t _eff = runReader li do
     -- the environment effect (which is irrelevant since lambdas are values)
     e' <- checkPoly (insertType x expectedArgTy env) e expectedResTy tEff 
 
-    pure $ w (Lambda (t, expectedArgTy) li x e')
+    pure $ w (Lambda (t, expectedArgTy, tEff) li x e')
 
 
 checkPattern :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo] r 
@@ -464,7 +464,7 @@ infer env (Lambda () li x e) = do
     -- The lambda captures the body's effect in the function type, but it itself has a fully polymorphic
     -- effect type.
     lamEff <- freshEffectRow 
-    pure (Lambda (TFun xTy eEff (getType e'), xTy) li x e', lamEff)
+    pure (Lambda (TFun xTy eEff (getType e'), xTy, lamEff) li x e', lamEff)
 
 checkPoly :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo] r)
           => TCEnv
@@ -550,9 +550,9 @@ lambdasToDecl :: LexInfo -> QualifiedName -> Expr NextPass -> Int -> Decl NextPa
 lambdasToDecl li f = go []
     where
         go :: Seq (QualifiedName, Type) -> Expr NextPass -> Int -> Decl NextPass
-        go args e 0                      = Decl (getType e, []) f (reverse args) e
-        go args (Lambda (_, t) _ x e) n  = go ((x,t)<|args) e (n - 1)
-        go args e n                      = error $ "Typechecker.lambdasToDecl: suppplied lambda did not have enough parameters.\n  Remaining parameters: " <> show n <> "\n  Expression: " <> show e
+        go args e 0                         = Decl (getType e, []) f (reverse args) e
+        go args (Lambda (_, t, _) _ x e) n  = go ((x,t)<|args) e (n - 1)
+        go args e n                         = error $ "Typechecker.lambdasToDecl: suppplied lambda did not have enough parameters.\n  Remaining parameters: " <> show n <> "\n  Expression: " <> show e
 
 freshEffectRow :: Members '[Fresh Text QualifiedName] r => Sem r Type
 freshEffectRow = freshTV (KRow KEffect)
@@ -654,6 +654,8 @@ unify t1@TSkol{} t2@TSkol{}
 -- Open and skolem rows with an empty extension should be equivalent to the variables/skolems on their own.
 unify (TRowOpen Empty var) t2 = unify (TVar var) t2
 unify (TRowSkol Empty skol var) t2 = unify (TSkol skol var) t2
+unify t1 (TRowOpen Empty var) = unify t1 (TVar var)
+unify t1 (TRowSkol Empty skol var) = unify t1 (TSkol skol var)
 
 unify row1@(TRowClosed t1s) row2@(TRowClosed t2s) = 
     unifyRows row1 row2 t1s t2s \remaining -> ask >>= \li -> throw $ RemainingRowFields li remaining row1 row2

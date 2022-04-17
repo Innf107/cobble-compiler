@@ -91,6 +91,7 @@ lint env (DefVariant x args clauses :<| ds) = do
 lint env (DefDict x args fields :<| ds) = do
     let env' = insertDictTy x args (fromList $ toList fields) env
     lint env' ds
+lint env (DefEffect x args fields :<| ds) = undefined
 
 lintExpr :: forall r. Members '[Error CoreLintError] r
          => LintEnv
@@ -265,7 +266,7 @@ headTyCon (TApp a b) = headTyCon a
 headTyCon ty = ty
 
 getKind :: Members '[Error CoreLintError] r => Type -> Sem r Kind
-getKind (TFun a eff b)   = pure KType
+getKind TFun{}           = pure KType
 getKind (TVar _ k)       = pure k
 getKind (TCon _ k)       = pure k
 getKind (TForall _ _ ty) = getKind ty
@@ -277,6 +278,7 @@ getKind (TApp a b) = do
         aKind -> throwLint $ "Cannot apply type (" <> show a <> " : " <> show aKind <> ") to argument type (" <> show b <> " : " <> show bKind <> ")"
 getKind TRowNil = pure $ KRow undefined -- What kind should fully polymorphic rows have?
 getKind (TRowExtend tys row) = getKind row
+getKind TEffUR = pure $ KRow KEffect
 
 typeMatch :: Members '[Error CoreLintError] r 
           => Type 
