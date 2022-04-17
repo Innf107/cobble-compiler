@@ -8,3 +8,11 @@ This is obviously not great and Cobble features a much better solution anyway. I
 
 For this reason, cobble automatically opens every seemingly closed function type before typechecking, by inserting a fresh type variable. A function type `A -{Eff1, Eff2}> B` therefore becomes `A -{Eff1, Eff2 | μ}> B`, where μ is a fresh variable. This means that programmers never have to worry about row polymorphism if they don't need it.
 
+Importantly, the forall, that introduces our new `μ` variable is located on the *leftmost type in the current sequence of function arrows*.
+
+Formally, the effect variables introduced by `σ₂` in `σ₁ -> σ₂` are exactly the effect variables introduced by the full type, whereas the variables introduced by `σ₁` are immediately quantified.
+
+For example, the type `A -> B -> C` is quantified as
+`∀μ₁ μ₂. A -{μ₁}> B -{μ₂}> C`, whereas 
+`(A -> B) -> C` is quantified as
+`∀μ₂. (∀μ₁. A -{μ₁}> B) -> C`.

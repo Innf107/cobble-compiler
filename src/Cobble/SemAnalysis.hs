@@ -19,17 +19,10 @@ data SemanticError = MissingField LexInfo UnqualifiedName
 runSemanticAnalysis :: Members '[Error SemanticError] r => Module SemAnalysis -> Sem r (Module NextPass)
 runSemanticAnalysis (Module x n sts) = fmap (coercePass . Module x n)
     $ transformBiM reorderAndCheckInstances 
-    =<< pure . transformBi (implicitForall . implicitClassConstraints)
+    =<< pure . transformBi implicitClassConstraints
     =<< transformBiM implicitEffectType sts
 
 
--- inserts an implicit forall on every type signature. 
--- This function *cannot* just @transformBi@ over @Type@s, since
--- that would also apply on nested types.
-implicitForall :: Statement SemAnalysis -> Statement SemAnalysis
-implicitForall = \case
-    (Def x l d t) -> Def x l d (addForall t)
-    x -> x
 
 implicitEffectType :: Members '[Error SemanticError] r => Statement SemAnalysis -> Sem r (Statement SemAnalysis)
 implicitEffectType = \case
@@ -51,14 +44,14 @@ implicitClassConstraints :: Statement SemAnalysis -> Statement SemAnalysis
 implicitClassConstraints = \case
     (DefClass k li cname ps meths) -> 
         DefClass k li cname ps
-        $ map (\(n, t) -> (n, addForall $ addConstraint t)) meths
+        $ map (\(n, t) -> (n, addConstraint t)) meths
           where
             addConstraint t = case ps of 
                 [p] -> TConstraint (MkConstraint cname k (TVar p)) t
                 _   -> error $ "SemAnalysis.implicitClassConstraints: multi-param typeclasses NYI: " <> show ps
 
     (DefInstance (classKind, defMeths, ps, isImported) li cname ty meths) -> 
-        DefInstance (classKind, map (\(n, t) -> (n, coercePass $ addForall $ addConstraint isImported t)) defMeths, ps, isImported) li cname ty meths
+        DefInstance (classKind, map (\(n, t) -> (n, coercePass $ addConstraint isImported t)) defMeths, ps, isImported) li cname ty meths
           where
             addConstraint True t = t
             addConstraint False t = case ps of 

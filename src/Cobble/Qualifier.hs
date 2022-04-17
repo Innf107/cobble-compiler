@@ -16,6 +16,7 @@ data QualificationError = VarNotFound LexInfo Text
                         | VariantConstrNotFound LexInfo Text
                         | TypeNotFound LexInfo Text
                         | TVarNotFound LexInfo UnqualifiedName
+                        | TVarsNotFound LexInfo (Seq TVar)
                         | InstanceForNonClass LexInfo QualifiedName Kind TypeVariant
                         | NonClassInConstraint LexInfo QualifiedName Kind TypeVariant
                         | StructConstructNotAStruct LexInfo QualifiedName Kind TypeVariant
@@ -94,7 +95,7 @@ qualifyStmnt (DefClass () li n tvs meths) = runReader li $ do
         forM meths \(mn, mty) -> do
             mn' <- freshGlobal mn
             mt' <- qualifyType True mty -- Type class methods *are* allowed to introduce new tyvars
-            pure (mn', mt')
+            pure (mn', insertInForall tvs' mt')
     addType n n' k (TyClass tvs' meths')
     zipWithM_ (\(methName,_) (methName',_) -> addVar methName methName') meths meths'
     pure (DefClass k li n' tvs' meths')
@@ -261,50 +262,85 @@ qualifyType :: forall r. Members '[StackState Scope, Fresh Text QualifiedName, E
             => Bool
             -> UType
             -> Sem r Type
-qualifyType allowFreeVars = go
+qualifyType allowFreeVars uty = do
+    (ty, effVars, freeVars) <- go uty
+    case (allowFreeVars, freeVars) of
+        (False, (_:<|_)) -> ask >>= \li -> throw $ TVarsNotFound li freeVars
+        _ -> pure $ addForall (freeVars <> effVars) ty
     where
-        go :: UType -> Sem r Type
-        go (UTCon tyName) = (\(tyName', k, _, _) -> TCon tyName' k) <$> lookupType tyName
-        go (UTApp f x) = TApp <$> go f <*> go x
-        go (UTFun a effs b) = TFun <$> go a <*> go effs <*> go b
+        -- @go@ returns two distinct sequences of tvars.
+        -- The second one captures all free type variables *that have been explicitly written by the user*.
+        -- These are propagated all the way up to @qualifyType@, where they are written into a top-level forall.
+        -- The first sequence captures all free effect variables, that were introduced by opening closed effect rows.
+        -- (See docs/RowOpening.md)
+        -- These were *not* written by the user and will often (but not always) be discharged and turned into foralls
+        -- before reaching @qualifyType@. User written effect variables will still be returned in the second sequence.
+        --                          μ         ϕ
+        go :: UType -> Sem r (Type, Seq TVar, Seq TVar)
+        go (UTCon tyName) = (\(tyName', k, _, _) -> (TCon tyName' k, Empty, Empty)) <$> lookupType tyName
+        go (UTApp f x) = do
+            (f', effs1, tvs1) <- go f
+            (x', effs2, tvs2) <- go x
+            pure (TApp f' x', effs1 <> effs2, tvs1 <> tvs2)
+        go (UTFun a effs b) = do
+            (a', aEffs, aVars) <- go a
+            (effs', effEffs, effVars) <- go effs
+            (b', bEffs, bVars) <- go b
+            pure (TFun (addForall aEffs a') effs' b', effEffs <> bEffs, aVars <> effVars <> bVars)
         go (UTVar tv) = runError (lookupTVar tv) >>= \case
-            Right tv' -> pure (TVar tv')
-            Left err
-                | allowFreeVars -> do
+            Right tv' -> pure (TVar tv', Empty, Empty)
+            Left err -> do
                     tv' <- qualifyTVar tv Nothing
                     addTVar tv tv'
-                    pure (TVar tv')
-                | otherwise -> throw err
+                    pure (TVar tv', [], [tv'])
         go (UTForall ps ty) = do
             ps' <- traverse (uncurry qualifyTVar) ps
             zipWithM_ addTVar (map fst ps) ps'
-            TForall ps' <$> go ty
-        go (UTConstraint constr ty) = TConstraint <$> goConstraint constr <*> go ty
+            (ty', tyEffs, tyVars) <- go ty
+            pure (TForall ps' ty', tyEffs, tyVars)
+        go (UTConstraint constr ty) = do
+            (constr', conEffs, conVars) <- goConstraint constr
+            (ty', tyEffs, tyVars) <- go ty
+            pure (TConstraint constr' ty', conEffs <> tyEffs, conVars <> tyVars)
+
         go (UTRowClosed Empty) = do
             tvar <- MkTVar <$> freshVar "μ" <*> pure (KRow KEffect)
-            pure (TVar tvar)
+            pure (TVar tvar, [tvar], Empty)
+
         go (UTRowClosed tys) = do
             -- TODO: We currently open *all* closed rows. If we ever use row polymorphism
             -- for anything other than effects (e.g. for extensible records), we have to make sure 
             -- to only do this if the row is part of a function type.
             tvar <- MkTVar <$> freshVar "μ" <*> pure (KRow KEffect)
-            TRowOpen <$> traverse go tys <*> pure tvar
+            (tys', tyEffs, tyVars) <- goAll tys
+            
+            pure (TRowOpen tys' tvar, (tvar :<| tyEffs), tyVars)
         go (UTRowOpen tys var) = do
-            tys' <- traverse go tys
-            tv' <- runError (lookupTVar var) >>= \case 
-                Right tv' -> pure tv'
-                Left err
-                    | allowFreeVars -> do
+            (tys', tyEffs, tyVars) <- goAll tys
+            runError (lookupTVar var) >>= \case 
+                Right tv' -> pure (TRowOpen tys' tv', tyEffs, tyVars)
+                Left err -> do
                         tv' <- qualifyTVar var (Just (KRow KEffect)) -- TODO: Do we want to hardcode effect kinds here?
                         addTVar var tv'
-                        pure tv'
-                    | otherwise -> throw err
-            pure (TRowOpen tys' tv')
+                        pure (TRowOpen tys' tv', tyEffs, tyVars |> tv')
 
-        goConstraint :: UConstraint -> Sem r Constraint
+        goAll :: Seq UType -> Sem r (Seq Type, Seq TVar, Seq TVar)
+        goAll tys = do
+            tys' :: Seq (Type, Seq TVar, Seq TVar) <- traverse go tys 
+            let (tys'' :: Seq Type, effVars :: Seq (Seq TVar, Seq TVar)) = unzipWith (\(ty, effs, vars) -> (ty, (effs, vars))) tys'
+                (effs, vars) = bimap fold fold (unzip effVars)
+            pure (tys'', effs, vars)
+
+        goConstraint :: UConstraint -> Sem r (Constraint, Seq TVar, Seq TVar)
         goConstraint (MkUConstraint className ty) = lookupType className >>= \case
-            (className', k, TyClass _ _, _) -> MkConstraint className' k <$> go ty
+            (className', k, TyClass _ _, _) -> do
+                (ty', tyEffs, tyVars) <- go ty
+                pure (MkConstraint className' k ty', tyEffs, tyVars)
             (className', k, tv, _) -> ask >>= \li -> throw $ NonClassInConstraint li className' k tv
+
+        addForall :: Seq TVar -> Type -> Type
+        addForall Empty ty = ty
+        addForall tvs ty = TForall tvs ty 
 
 
 qualifyTVar :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r 
@@ -365,6 +401,10 @@ lookupTVar n = sgets (lookup n . _scopeTVars) >>= \case
 getTyConKind :: Seq TVar -> Kind
 getTyConKind = foldr (\(MkTVar _ k) r -> k `KFun` r) KStar 
 
+insertInForall :: Seq TVar -> Type -> Type
+insertInForall Empty ty = ty
+insertInForall tvs (TForall tvs' ty) = TForall (tvs <> tvs') ty
+insertInForall tvs ty = TForall tvs ty
 
 forM2 :: (Applicative f, ListLike l, Traversable l) => l a -> l b -> (a -> b -> f c) -> f (l c)
 forM2 xs ys f = zipWithM f xs ys
