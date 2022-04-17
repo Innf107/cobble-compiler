@@ -15,6 +15,7 @@ data LintEnv = LintEnv {
 -- This means, if (j : (a*, σ*)) ∈ jpArgTypes, the actual type of j is `∀a*. σ* -> ∀r. r)`.
 ,   jpArgTypes :: Map QualifiedName (Seq (QualifiedName, Kind), Seq Type)
 ,   dictTyDefs :: Map QualifiedName (Seq (QualifiedName, Kind), Seq (QualifiedName, Type))
+,   effDefs    :: Map QualifiedName (Seq (QualifiedName, Kind), Seq (QualifiedName, Type))
 } deriving (Show, Eq)
 
 insertType :: QualifiedName -> Type -> LintEnv -> LintEnv
@@ -70,6 +71,16 @@ insertDictTy dictName tvs fields env@LintEnv{dictTyDefs} =
         dictTyDefs = insert dictName (tvs, fields) dictTyDefs
     }
 
+insertEff :: QualifiedName
+          -> Seq (QualifiedName, Kind)
+          -> Seq (QualifiedName, Type)
+          -> LintEnv
+          -> LintEnv
+insertEff effName tvs ops env@LintEnv{effDefs} =
+    env {
+        effDefs = insert effName (tvs, ops) effDefs
+    }
+
 lint :: Members '[Error CoreLintError] r
      => LintEnv
      -> Seq Decl
@@ -84,14 +95,15 @@ lint env (DefVariant x args clauses :<| ds) = do
     let resKind = foldr (KFun . snd) KType args
     let resTy = foldl' (TApp) (TCon x resKind) (map (uncurry TVar) args)
     let constrTys = clauses <&> \(constr, constrArgs) ->
-            -- TODO: Include effect variables in function types
-            undefined -- (constr, (foldr (uncurry TForall) (foldr TFun resTy constrArgs) args))
+            (constr, (foldr (uncurry TForall) (foldr (\x r -> TFun x TEffUR r) resTy constrArgs) args))
     let env' = clearJPs $ foldr (uncurry insertType) env constrTys
     lint env' ds
 lint env (DefDict x args fields :<| ds) = do
     let env' = insertDictTy x args (fromList $ toList fields) env
     lint env' ds
-lint env (DefEffect x args fields :<| ds) = undefined
+lint env (DefEffect x args fields :<| ds) = do
+    let env' = insertEff x args fields env
+    lint env' ds
 
 lintExpr :: forall r. Members '[Error CoreLintError] r
          => LintEnv
@@ -276,7 +288,7 @@ getKind (TApp a b) = do
         KFun dom cod 
             | dom == bKind -> pure cod
         aKind -> throwLint $ "Cannot apply type (" <> show a <> " : " <> show aKind <> ") to argument type (" <> show b <> " : " <> show bKind <> ")"
-getKind TRowNil = pure $ KRow undefined -- What kind should fully polymorphic rows have?
+getKind TRowNil = pure $ KRow KEffect -- TODO: We hardcode this kind to effect right now. This is going to be an issue once we have extensible records.
 getKind (TRowExtend tys row) = getKind row
 getKind TEffUR = pure $ KRow KEffect
 

@@ -128,11 +128,12 @@ compileContents path content = do
     (core, sig) <- compileWithSig modWithSigs
     
     whenM (asks (not . skipCoreLint)) do
-        let (CoreModSig{coreModVars, coreModDictTyDefs}) = foldr (mergeCoreModSig . interfaceCoreModSig) emptyCoreModSig interfaces
+        let (CoreModSig{coreModVars, coreModDictTyDefs, coreModEffs}) = foldr (mergeCoreModSig . interfaceCoreModSig) emptyCoreModSig interfaces
         let lintEnv = LintEnv {
                 varTypes = coreModVars
             ,   jpArgTypes = mempty
             ,   dictTyDefs = coreModDictTyDefs
+            ,   effDefs = coreModEffs
             }
 
         lintError <- runError $ lint lintEnv core
@@ -208,7 +209,10 @@ makePartialSig = \case
         {   exportedTypes = one (tyName, (k, tyVariant))
         ,   exportedVariantConstrs = fromList $ toList (map (\(cname, _, (ty, ep, i)) -> (cname, (ty, ep, i, tyVariant))) cs)
         }
-    DefEffect{} -> error "Effect exports NYI"
+    DefEffect k _ effName ps ops -> let tyVariant = TyEffect ps ops in
+        mempty 
+        {   exportedTypes = one (effName, (k, tyVariant))
+        }
 
 
 primModSig :: ModSig

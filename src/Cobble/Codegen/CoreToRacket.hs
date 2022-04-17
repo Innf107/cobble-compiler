@@ -49,8 +49,9 @@ compile' (DefVariant x args clauses :<| ds) = compile' ds
 compile' (DefDict x args fields :<| ds) = do
     insertDictFieldNames x (map fst fields)
     compile' ds
+-- Effect definitions are not actually necessary for compilation, since performing functions are generated separately.
 compile' (DefEffect x args fields :<| ds) = do
-    undefined
+    compile' ds
 
 compileExpr :: Members '[State CompState] r => Expr -> Sem r RacketExpr
 compileExpr (Var x) = pure $ RVar x

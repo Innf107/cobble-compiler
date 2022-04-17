@@ -81,6 +81,7 @@ lowerStmnts (C.DefEffect k li name tvs ops :<| sts) = do
     def <- F.DefEffect name
             <$> traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) tvs
             <*> traverse (secondM lowerType) ops
+    -- TODO: Also generate fun defs for ops which just `perform` the effect.
     (def<|) <$> lowerStmnts sts
 
 lowerExpr :: (Trace, Members '[Fresh Text QualifiedName] r) => CExpr -> Sem r F.Expr
