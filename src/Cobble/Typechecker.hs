@@ -256,8 +256,10 @@ check env (App () li f x) t eff = runReader li do
     fValEff !~ eff
     traceM DebugVerbose $ "[check env (App ...)] getType f' = " <> ppType (getType f') <> " | t = " <> ppType t <> " | fDomTy = " <> ppType fDomTy  <> " | fFunEff = " <> ppType fFunEff <> " | fCodomTy = " <> ppType fCodomTy
     
-
-    x' <- checkPoly env x fDomTy eff
+    -- 'Practical Type inference for arbitrary rank types' suggests using `checkPoly` here, but if we actually did that,
+    -- then this would also infer monomorphic arguments when a polymorphic one is expected. This is obviously wrong
+    -- so we try to do the right thing here.
+    x' <- check env x fDomTy eff
 
     w' <- checkInst fCodomTy t
 
