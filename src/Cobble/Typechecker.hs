@@ -230,7 +230,7 @@ checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = do
         Nothing -> freshEffectRow
 
     e' <- check (foldr (\(x,ty,_) -> insertType x ty) env' xs') e eTy eff
-    let lambdas = flip (foldr (TyAbs li)) tvs $ w $ makeLambdas li e' xs'
+    let lambdas = w $ makeLambdas li e' xs'
 
     pure (Decl (expectedTy, []) f [] lambdas, env')
         where
@@ -744,8 +744,10 @@ skolemize :: Members '[Fresh Text QualifiedName, Output TConstraint, Reader LexI
           => Type 
           -> Sem r (Type, Expr NextPass -> Expr NextPass)
 skolemize (TForall tvs ty) = do
+    li <- ask
     skolemMap <- M.fromList . toList <$> traverse (\tv@(MkTVar n _) -> (tv,) . flip TSkol tv <$> freshVar (originalName n)) tvs
-    skolemize $ replaceTVars skolemMap ty
+    (ty', f) <- skolemize $ replaceTVars skolemMap ty
+    pure (ty', f . foldr (\tv r -> TyAbs li tv . r) id tvs)
 skolemize (TConstraint c ty) = do
     li <- ask
     dictName <- freshVar "d"
