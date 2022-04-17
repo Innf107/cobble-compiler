@@ -229,7 +229,7 @@ checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = do
         Just e -> pure e
         Nothing -> freshEffectRow
 
-    e' <- checkPoly (foldr (\(x,ty,_) -> insertType x ty) env' xs') e eTy eff
+    e' <- check (foldr (\(x,ty,_) -> insertType x ty) env' xs') e eTy eff
     let lambdas = flip (foldr (TyAbs li)) tvs $ w $ makeLambdas li e' xs'
 
     pure (Decl (expectedTy, []) f [] lambdas, env')
@@ -256,10 +256,7 @@ check env (App () li f x) t eff = runReader li do
     fValEff !~ eff
     traceM DebugVerbose $ "[check env (App ...)] getType f' = " <> ppType (getType f') <> " | t = " <> ppType t <> " | fDomTy = " <> ppType fDomTy  <> " | fFunEff = " <> ppType fFunEff <> " | fCodomTy = " <> ppType fCodomTy
     
-    -- 'Practical Type inference for arbitrary rank types' suggests using `checkPoly` here, but if we actually did that,
-    -- then this would also infer monomorphic arguments when a polymorphic one is expected. This is obviously wrong
-    -- so we try to do the right thing here.
-    x' <- checkPoly env x fDomTy eff
+    x' <- check env x fDomTy eff
 
     w' <- checkInst fCodomTy t
 
@@ -291,7 +288,7 @@ check env (Var () li x) t _eff = runReader li do
     pure $ w (Var (t, []) li x)
 
 check env (Ascription () li e (coercePass -> t1)) t2 eff = runReader li do
-    e' <- checkPoly env e t1 eff
+    e' <- check env e t1 eff
     w <- checkInst t1 t2
     pure $ w e'
 
@@ -315,7 +312,7 @@ check env (Lambda () li x e) t _eff = runReader li do
 
     -- We check the expression against the effect contained in its type, *not* against
     -- the environment effect (which is irrelevant since lambdas are values)
-    e' <- checkPoly (insertType x expectedArgTy env) e expectedResTy tEff 
+    e' <- check (insertType x expectedArgTy env) e expectedResTy tEff 
 
     pure $ w (Lambda (t, expectedArgTy, tEff) li x e')
 
@@ -371,7 +368,7 @@ infer env (App () li f x) = runReader li do
     traceM DebugVerbose $ "[infer env (FCall ...)] getType f' = " <> ppType (getType f') <> " | fDomTy = " <> ppType fDomTy <> " | fFunEff = " <> ppType fFunEff <> " | fCodomTy = " <> ppType fCodomTy
     fValEff !~ fFunEff
 
-    x' <- checkPoly env x fDomTy fFunEff
+    x' <- check env x fDomTy fFunEff
 
     (t, w) <- instantiate fCodomTy
 
@@ -421,7 +418,7 @@ infer env (Var () li x) = runReader li do
 
 infer env (Ascription () li e t) = runReader li do
     eff <- freshEffectRow
-    e' <- checkPoly env e t eff
+    e' <- check env e t eff
     (t2, w) <- instantiate t
     pure (w e', eff)
 
@@ -467,18 +464,6 @@ infer env (Lambda () li x e) = do
     -- effect type.
     lamEff <- freshEffectRow 
     pure (Lambda (TFun xTy eEff (getType e'), xTy, lamEff) li x e', lamEff)
-
-checkPoly :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo] r)
-          => TCEnv
-          -> Expr Typecheck
-          -> Type 
-          -> Effect
-          -> Sem r (Expr NextPass)
-checkPoly _ _ ty eff | trace DebugVerbose ("checkPoly " <> ppType ty) False = error "unreachable"
-checkPoly env expr (TForall tvs ty) eff = do
-    (ty', w) <- skolemize ty
-    w <$> checkPoly env expr ty' eff
-checkPoly env expr ty eff = check env expr ty eff
 
 correct :: Type -> Expr NextPass -> Expr NextPass
 correct = setType 
