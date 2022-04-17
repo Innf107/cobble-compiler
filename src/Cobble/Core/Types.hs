@@ -170,7 +170,7 @@ instance Pretty Type where
     pretty (TCon x k) = ppQName x -- We don't currently display the kinds of type constructors
     pretty (TFun t1 eff t2) = "(" <> pretty t1 <+> "-{" <> show eff <> "}>" <+> pretty t2 <> ")"
     pretty (TApp t1 t2) = "(" <> pretty t1 <+> pretty t2 <> ")"
-    pretty (TForall x k ty) = "(forall" <+> "(" <> ppQName x <+> ":" <+> pretty k <> ")." <+> pretty ty <> ")"
+    pretty (TForall x k ty) = "(∀" <+> "(" <> ppQName x <+> ":" <+> pretty k <> ")." <+> pretty ty <> ")"
     pretty (TRowNil) = "{}"
     pretty (TRowExtend tys row) = "{" <> fold (intersperse ", " (map pretty tys)) <> " | " <> pretty row <> "}"
     pretty TEffUR = "✶"

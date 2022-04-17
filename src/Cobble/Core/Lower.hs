@@ -117,6 +117,11 @@ lowerExpr (C.DictVarApp li e dv) = error $ "Invalid unsubstituted dictionary var
 lowerExpr (C.DictApp _ e dict) = F.App <$> lowerExpr e <*> pure (F.Var dict)
 
 lowerSaturated :: Members '[Fresh Text QualifiedName] r => F.Type -> (Seq F.Type -> Seq F.Expr -> F.Expr) -> Sem r F.Expr
+-- We simply don't apply effect variables for saturated types, since those should only have effect ✶ anyway.
+-- I hope this is sound...
+lowerSaturated (F.TForall a k@(F.KRow F.KEffect) ty) cont = do
+    a' <- freshVar (C.originalName a)
+    F.TyAbs a' k <$> lowerSaturated ty cont
 lowerSaturated (F.TForall a k ty) cont = do
     a' <- freshVar (C.originalName a)
     F.TyAbs a' k <$> lowerSaturated (F.replaceTVar a (F.TVar a' k) ty) (\tyArgs valArgs -> cont (F.TVar a' k <| tyArgs) valArgs)
