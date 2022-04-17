@@ -259,7 +259,7 @@ check env (App () li f x) t eff = runReader li do
     -- 'Practical Type inference for arbitrary rank types' suggests using `checkPoly` here, but if we actually did that,
     -- then this would also infer monomorphic arguments when a polymorphic one is expected. This is obviously wrong
     -- so we try to do the right thing here.
-    x' <- check env x fDomTy eff
+    x' <- checkPoly env x fDomTy eff
 
     w' <- checkInst fCodomTy t
 
@@ -475,8 +475,9 @@ checkPoly :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fre
           -> Effect
           -> Sem r (Expr NextPass)
 checkPoly _ _ ty eff | trace DebugVerbose ("checkPoly " <> ppType ty) False = error "unreachable"
-checkPoly env expr (TForall tvs ty) eff = ask >>= \li -> do
-    flip (foldr (TyAbs li)) tvs <$> checkPoly env expr ty eff
+checkPoly env expr (TForall tvs ty) eff = do
+    (ty', w) <- skolemize ty
+    w <$> checkPoly env expr ty' eff
 checkPoly env expr ty eff = check env expr ty eff
 
 correct :: Type -> Expr NextPass -> Expr NextPass
