@@ -1,3 +1,3 @@
 #!/usr/bin/bash
 
-cat <(echo "#lang racket") $@ > out.rkt
+cat <(echo "#lang racket") rts/cobble.rkt $@ > out.rkt

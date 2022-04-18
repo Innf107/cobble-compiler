@@ -8,6 +8,7 @@ dump-*
 test.zip
 test.lua
 test.rkt
+out.rkt
 tests.log
 cobble.iml
 .hidden/
