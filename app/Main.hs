@@ -7,9 +7,12 @@ import Cobble.Build
 
 import Cobble.Types
 
+import Cobble.Typechecker (TypeError(..), TypeContext(..)) -- Ugh
+
 import Options.Applicative
 import Cobble.Util.Polysemy.Time
 import Cobble.Util.Polysemy.FileSystem
+
 
 import Data.Binary (encodeFile)
 
@@ -81,9 +84,55 @@ failWithCompError :: CompilationError -> IO a
 failWithCompError (Panic msg) = do
     hPutStrLn stderr $ toString $ "\ESC[38;2;255;0;0m\STXPANIC (the 'impossible' happened):\n" <> msg <> "\ESC[0m\STX"
     exitFailure
+failWithCompError (TypeError err) = failWithTypeError err
 failWithCompError e = do
     hPutStrLn stderr $ "\ESC[38;2;255;0;0m\STXCompilation Error: " <> show e <> "\ESC[0m\STX"
     exitFailure
+
+failWithTypeError :: TypeError -> IO a
+failWithTypeError (DifferentTCon con1 con2 li cxt) = typeError [
+            "Cannot match type constructor '" <> originalName con1 <> "' with '" <> originalName con2 <> "'"
+        ] li cxt
+failWithTypeError (CannotUnify t1 t2 lexInfo context) = typeError [
+            "Unable to unify types"
+        ,   "    Expected: " <> ppType t1
+        ,   "      Actual: " <> ppType t2
+        ] lexInfo context
+failWithTypeError (Occurs tvar ty li cxt) = typeError [
+            "Unable to match an infinite type"
+        ,   "    Expected: " <> ppType (TVar tvar)
+        ,   "      Actual: " <> ppType ty
+        ] li cxt
+failWithTypeError (SkolBinding t1 t2 li context) = typeError [
+            "Unable to unify with a rigid type variable"
+        ,   "   Expected: " <> ppType t1
+        ,   "     Actual: " <> ppType t2
+        ] li context
+failWithTypeError (Impredicative tv ty li cxt) = typeError [
+            "Cannot instantiate type variable '" <> ppType (TVar tv) <> "' with the polymorphic type '" <> ppType ty <> "'"
+        ,   "Cobble does not support impredicative polymorphism."
+        ,   "Try wrapping your polymorphic type in a data constructor."
+        ] li cxt
+
+
+typeError :: Seq Text -> LexInfo -> Seq TypeContext -> IO a
+typeError texts li context = do
+    let msg = "\ESC[1m\STX" <> show li <> ": \ESC[38;2;255;0;0m\STXerror:\ESC[0m\ESC[1m\STX\n"
+            <> unlines (toList texts)
+            -- TODO: Include the actual code
+            <> "\n"
+            <> unlinesContext context
+    hPutStrLn stderr (toString msg)
+    exitFailure
+
+unlinesContext :: Seq TypeContext -> Text
+unlinesContext = unlines . toList . map (("• "<>) . showContext)
+
+showContext :: TypeContext -> Text
+showContext (WhenUnifying t1 t2) = "When unifying\n    Expected type:    " <> ppType t1
+                                             <> "\n    with actual type: " <> ppType t2
+showContext (WhenCheckingWanted c) = "When checking constraint: " <> show c
+showContext (InDefinitionFor x ty) = "In the definition of: " <> originalName x <> " :: " <> ppType ty 
 
 failWithBuildError :: BuildError -> IO a
 failWithBuildError e = do
