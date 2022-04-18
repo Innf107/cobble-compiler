@@ -122,6 +122,7 @@ import Control.Lens hiding (
     ,   (<.>)
     ,   op
     ,   (|>), (<|), (:>), (:<), Empty
+    ,   Context
     )
 
 import Data.Data hiding (Fixity)

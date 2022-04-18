@@ -6,6 +6,7 @@ import Cobble.Util
 import Cobble.Util.Bitraversable
 import Cobble.Util.Polysemy.Fresh
 import Cobble.Util.Polysemy.Dump
+import Cobble.Util.Polysemy.Context
 import Cobble.Util.TypeUtils
 import Cobble.Types
 import Cobble.Types qualified as C 
@@ -34,21 +35,35 @@ data TCEnv = TCEnv {
 makeLenses ''TCEnv
 
 
-data TypeError = DifferentTCon LexInfo QualifiedName QualifiedName
-               | CannotUnify LexInfo Type Type
-               | SkolBinding LexInfo Type Type
-               | Occurs LexInfo TVar Type
-               | Impredicative LexInfo TVar Type
-               | NoInstanceFor LexInfo Constraint
-               | InvalidRowHeadConstr LexInfo Type
-               | RemainingRowFields LexInfo (Seq (Type, QualifiedName, Seq Type)) Type Type 
-               | MissingRowField LexInfo QualifiedName Type Type
+data TypeError = DifferentTCon QualifiedName QualifiedName LexInfo (Seq TypeContext)
+               | CannotUnify Type Type LexInfo (Seq TypeContext)
+               | SkolBinding Type Type LexInfo (Seq TypeContext)
+               | Occurs TVar Type LexInfo (Seq TypeContext)
+               | Impredicative TVar Type LexInfo (Seq TypeContext)
+               | NoInstanceFor Constraint LexInfo (Seq TypeContext)
+               | InvalidRowHeadConstr Type LexInfo (Seq TypeContext)
+               | RemainingRowFields (Seq (Type, QualifiedName, Seq Type)) Type Type LexInfo (Seq TypeContext)
+               | MissingRowField QualifiedName Type Type LexInfo (Seq TypeContext)
                deriving (Show, Eq, Generic, Data)
 
+data TypeContext = WhenUnifying Type Type
+                 | WhenCheckingWanted Constraint
+                 | InDefinitionFor QualifiedName Type
+                 deriving (Show, Eq, Generic, Data)
+
+
+throwType :: Members '[Error TypeError, Context TypeContext, Reader LexInfo] r
+          => (LexInfo -> (Seq TypeContext) -> TypeError)
+          -> Sem r a
+throwType err = do
+    li <- ask
+    cxt <- getContext
+    throw (err li cxt)
 
 data TConstraint = MkTConstraint {
     getConstraint     :: TConstraintComp 
 ,   constraintLexInfo :: LexInfo
+,   constraintContext :: Seq TypeContext
 } deriving (Show, Eq, Generic, Data)
 
 data TConstraintComp = ConUnify Type Type      -- σ ~ ρ
@@ -58,14 +73,17 @@ data TConstraintComp = ConUnify Type Type      -- σ ~ ρ
                      --                    ^ dictionary
                      deriving (Show, Eq, Generic, Data)
 
-(!~) :: Members '[Output TConstraint, Reader LexInfo] r 
+(!~) :: Members '[Output TConstraint, Reader LexInfo, Context TypeContext] r 
      => Type 
      -> Type 
      -> Sem r ()
-t1 !~ t2 = ask >>= \li -> output (MkTConstraint (ConUnify t1 t2) li)
+t1 !~ t2 = do
+    li <- ask
+    cxt <- getContext
+    output (MkTConstraint (ConUnify t1 t2) li cxt)
 infix 1 !~
 
-subsume :: Members '[Output TConstraint, Reader LexInfo, Fresh Text QualifiedName, Fresh TVar TVar] r 
+subsume :: Members '[Output TConstraint, Reader LexInfo, Context TypeContext, Fresh Text QualifiedName, Fresh TVar TVar] r 
         => Type 
         -> Type 
         -> Sem r (Expr NextPass -> Expr NextPass)
@@ -75,17 +93,23 @@ subsume t1 t2 = do
     t1' !~ t2'
     pure (w' . w)
 
-wanted :: Members '[Output TConstraint, Reader LexInfo] r 
+wanted :: Members '[Output TConstraint, Context TypeContext, Reader LexInfo] r 
     => Constraint
     -> QualifiedName
     -> Sem r ()
-wanted c dv = ask >>= \li -> output (MkTConstraint (ConWanted c dv) li)
+wanted c dv = do
+    li <- ask
+    cxt <- getContext
+    output (MkTConstraint (ConWanted c dv) li cxt)
 
-given :: Members '[Output TConstraint, Reader LexInfo] r 
+given :: Members '[Output TConstraint, Context TypeContext, Reader LexInfo] r 
     => Constraint
     -> QualifiedName
     -> Sem r ()
-given c d = ask >>= \li -> output (MkTConstraint (ConGiven c d) li)
+given c d = do
+    li <- ask
+    cxt <- getContext
+    output (MkTConstraint (ConGiven c d) li cxt)
 
 data Substitution = Subst {
         substVarTys :: Map TVar Type
@@ -123,7 +147,7 @@ insertInstance className ty dictName = over tcInstances $ flip alter className \
     Nothing -> Just [(ty, dictName)]
     Just is -> Just (is :|> (ty, dictName))
 
-typecheck :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Error TypeError, Dump (Seq TConstraint)] r)
+typecheck :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Error TypeError, Context TypeContext, Dump (Seq TConstraint)] r)
           => TCEnv 
           -> Module Typecheck 
           -> Sem r (Module NextPass)
@@ -134,14 +158,14 @@ typecheckStatements :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedNa
                     -> (Seq (Statement Typecheck))
                     -> Sem r (Seq (Statement NextPass))
 typecheckStatements env (st :<| sts) = do
-    (constraints, (st', env')) <- runOutputSeq $ typecheckStatement env st
+    (constraints, (st', env')) <- runOutputSeq $ runContext $ typecheckStatement env st
     dump constraints
     subst <- solveConstraints (_tcInstances env') mempty constraints
     
     (applySubst subst st' <|) <$> typecheckStatements env' sts
 typecheckStatements env Empty = pure Empty
 
-typecheckStatement :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Output TConstraint, Reader (Tagged "ModName" Text)] r)
+typecheckStatement :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Output TConstraint, Reader (Tagged "ModName" Text), Context TypeContext] r)
                     => TCEnv
                     -> (Statement Typecheck)
                     -> Sem r (Statement NextPass, TCEnv)
@@ -204,13 +228,13 @@ forallFun vars result args = do
     argsAndEffs <- traverse (\x -> freshVar "μ" <&> \effName -> (x, MkTVar effName (KRow KEffect))) args
     pure $ TForall (vars <> map snd argsAndEffs) $ foldr (\(x, eff) r -> TFun x (TVar eff) r) result argsAndEffs
 
-checkTopLevelDecl :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Output TConstraint, Reader LexInfo] r)
+checkTopLevelDecl :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Output TConstraint, Reader LexInfo, Context TypeContext] r)
       => Bool
       -> TCEnv
       -> Decl Typecheck
       -> Type
       -> Sem r (Decl NextPass, TCEnv)
-checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = do
+checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = withContext (InDefinitionFor f expectedTy) do
     li <- ask
     (expectedTy', w) <- skolemize expectedTy
     (xs', eTy, mEff, w') <- decomposeParams expectedTy' xs
@@ -241,7 +265,7 @@ checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = do
             makeLambdas :: LexInfo -> Expr NextPass -> Seq (QualifiedName, Type, Effect) -> Expr NextPass
             makeLambdas li = foldr (\(x, ty, eff) e -> Lambda (TFun ty eff (getType e), ty, eff) li x e)
 
-check :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r)
+check :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Context TypeContext] r)
       => TCEnv
       -> Expr Typecheck 
       -> Type 
@@ -262,7 +286,7 @@ check env (App () li f x) t eff = runReader li do
     
     x' <- check env x fDomTy eff
 
-    w' <- checkInst fCodomTy t
+    w' <- subsume fCodomTy t
 
     pure $ w' (App t li (w f') x')
 
@@ -288,17 +312,17 @@ check env (Let () li decl@(Decl () f xs e1) e2) t eff = runReader li do
 
 check env (Var () li x) t _eff = runReader li do
     let xTy = lookupType x env
-    w <- checkInst xTy t
+    w <- subsume xTy t
     pure $ w (Var (t, []) li x)
 
 check env (Ascription () li e (coercePass -> t1)) t2 eff = runReader li do
     e' <- check env e t1 eff
-    w <- checkInst t1 t2
+    w <- subsume t1 t2
     pure $ w e'
 
 check env (VariantConstr (i, j) li c) t _eff = runReader li do
     let cTy = lookupType c env
-    w <- checkInst cTy t
+    w <- subsume cTy t
     pure $ w (VariantConstr (t, cTy, j) li c)
 
 check env (Case () li e branches) t eff = runReader li do
@@ -321,14 +345,14 @@ check env (Lambda () li x e) t _eff = runReader li do
     pure $ w (Lambda (t, expectedArgTy, tEff) li x e')
 
 
-checkPattern :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo] r 
+checkPattern :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Context TypeContext] r 
              => TCEnv
              -> Pattern Typecheck
              -> Type
              -> Sem r (Pattern NextPass, TCEnv -> TCEnv)
 checkPattern env pats ty = evalState mempty $ go Nothing env pats ty
     where
-        go :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, State (Map QualifiedName Type)] r
+        go :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Context TypeContext, State (Map QualifiedName Type)] r
            => Maybe (Map QualifiedName Type)
            -> TCEnv
            -> Pattern Typecheck
@@ -362,7 +386,7 @@ checkPattern env pats ty = evalState mempty $ go Nothing env pats ty
             pure (OrP (getType p') (p' :<| pats'), foldr (.) pWrapper wrappers)
         go _ _ (OrP () Empty) _ = error "checkPattern: Empty Or-Pattern"
 
-infer :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r )
+infer :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Context TypeContext] r )
       => TCEnv
       -> Expr Typecheck 
       -> Sem r (Expr NextPass, Effect)
@@ -447,7 +471,7 @@ infer env (Case () li e branches) = runReader li do
     (t, eff) <- checkEquiv (map (\(CaseBranch _ _ _ expr, eff) -> (getType expr, eff)) branches')
     pure (Case t li e' (map fst branches'), eff)
     where
-        checkEquiv :: forall r. Members '[Reader LexInfo, Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar] r 
+        checkEquiv :: forall r. Members '[Reader LexInfo, Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Context TypeContext] r 
                    => Seq (Type, Effect) 
                    -> Sem r (Type, Effect)
         checkEquiv Empty                = (,) <$> freshTV KStar <*> freshEffectRow -- the case expression is empty.
@@ -485,13 +509,8 @@ since even in Haskell, function signatures are strongly encouraged, it is ultima
 -}
 
 
-checkInst :: Members '[Output TConstraint, Reader LexInfo, Fresh Text QualifiedName, Fresh TVar TVar] r 
-          => Type 
-          -> Type 
-          -> Sem r (Expr NextPass -> Expr NextPass)
-checkInst = subsume
 
-instantiate :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Output TConstraint] r 
+instantiate :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Output TConstraint, Context TypeContext] r 
             => Type 
             -> Sem r (Type, Expr NextPass -> Expr NextPass)
 instantiate (TForall tvs ty) = ask >>= \li -> do
@@ -512,7 +531,7 @@ instantiate ty = do
     pure (ty, id)
 
 
-decomposeFun :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Output TConstraint] r 
+decomposeFun :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Output TConstraint, Context TypeContext] r 
           => Type 
           -> Sem r (Type, Effect, Type, Expr NextPass -> Expr NextPass)
 decomposeFun t@TForall{} = do
@@ -527,7 +546,7 @@ decomposeFun t = do
     w <- subsume t (TFun argTy effTy resTy)
     pure (argTy, effTy, resTy, w)
 
-decomposeParams :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Output TConstraint] r
+decomposeParams :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Output TConstraint, Context TypeContext] r
                 => Type
                 -> Seq a
                 -> Sem r (Seq (a, Type, Effect), Type, Maybe Effect, Expr NextPass -> Expr NextPass)
@@ -583,54 +602,61 @@ replaceTVars tvs (TRowSkol tys skol var) = TRowSkol (map (replaceTVars tvs) tys)
 solveConstraints :: (Trace, Members '[Error TypeError, Fresh Text QualifiedName, Fresh TVar TVar] r)
                  => Map QualifiedName (Seq (Type, QualifiedName))
                  --                              v^dict
-                 -> Seq (Constraint, QualifiedName, LexInfo)
+                 -> Seq (Constraint, QualifiedName, LexInfo, Seq TypeContext)
                  -> Seq TConstraint
                  -> Sem r Substitution
 solveConstraints givens wanteds Empty = solveWanteds givens wanteds
-solveConstraints givens wanteds ((MkTConstraint (ConUnify t1 t2) li) :<| constrs) = runReader li do
+solveConstraints givens wanteds ((MkTConstraint (ConUnify t1 t2) li cxt) :<| constrs) = runReader li do
             -- This is a bit inefficient (quadratic?).
             -- Let's make sure the constraint solver actually works, before we try to deal with that.
-            subst <- unify t1 t2
+            subst <- runContextInitial cxt $ unifyCxt t1 t2
             (subst <>) <$> solveConstraints (applySubst subst givens) (applySubst subst wanteds) (applySubst subst constrs)
-solveConstraints givens wanteds ((MkTConstraint (ConWanted c dictVar) li) :<| constrs) = runReader li do
-            solveConstraints givens ((c, dictVar, li) :<| wanteds) constrs
+solveConstraints givens wanteds ((MkTConstraint (ConWanted c dictVar) li cxt) :<| constrs) = runReader li do
+            solveConstraints givens ((c, dictVar, li, cxt) :<| wanteds) constrs
         
-solveConstraints givens wanteds ((MkTConstraint (ConGiven c@(MkConstraint cname k ty) dict) li) :<| constrs) = runReader li do
+solveConstraints givens wanteds ((MkTConstraint (ConGiven c@(MkConstraint cname k ty) dict) li cxt) :<| constrs) = runReader li do
             let givens' = alter (<> Just [(ty, dict)]) cname givens
             solveConstraints givens' wanteds constrs
 
 solveWanteds :: (Trace, Members '[Error TypeError, Fresh Text QualifiedName] r)
                 => Map QualifiedName (Seq (Type, QualifiedName))
                  --                              v^dict
-                -> Seq (Constraint, QualifiedName, LexInfo)
+                -> Seq (Constraint, QualifiedName, LexInfo, Seq TypeContext)
                 -> Sem r Substitution
 solveWanteds givens Empty = pure mempty
-solveWanteds givens ((c@(MkConstraint cname k ty), dictVar, li) :<| wanteds) = runReader li do
-    case lookup cname givens of
-        Just tys -> do
-            let trySolve Empty = throw $ NoInstanceFor li c
-                trySolve ((t2, d) :<| tys) = do
-                    runError @TypeError (unify ty t2) >>= \case
-                        Left err -> do
-                            traceM DebugVerbose $ "[solveWanteds] [W] " <> show c <> ": " <> show ty <> " ~ " <> show t2 <> ": " <> show err
-                            trySolve tys
-                        Right subst -> do
-                            traceM DebugVerbose $ "[solveWanteds] [W] " <> show c <> ": " <> show ty <> " ~ " <> show t2 <> " ✓"
-                            pure $ subst <> Subst mempty (one (dictVar, d)) -- Substitute the dictionary
-            -- We can rely on coherence and non-overlapping instances here and just pick the
-            -- first matching dictionary that we find.
-            -- TODO: Should we throw an ambiguity error if subst contains non-empty tyvar substitutions?
-            subst <- trySolve tys
-            (subst <>) <$> solveWanteds (applySubst subst givens) (applySubst subst wanteds)
-        Nothing -> throw $ NoInstanceFor li c
+solveWanteds givens ((c@(MkConstraint cname k ty), dictVar, li, cxt) :<| wanteds) = 
+    runContextInitial cxt $ runReader li $ withContext (WhenCheckingWanted c) do
+        case lookup cname givens of
+            Just tys -> do
+                let trySolve Empty = throwType $ NoInstanceFor c
+                    trySolve ((t2, d) :<| tys) = do
+                        runError @TypeError (unifyCxt ty t2) >>= \case
+                            Left err -> do
+                                traceM DebugVerbose $ "[solveWanteds] [W] " <> show c <> ": " <> show ty <> " ~ " <> show t2 <> ": " <> show err
+                                trySolve tys
+                            Right subst -> do
+                                traceM DebugVerbose $ "[solveWanteds] [W] " <> show c <> ": " <> show ty <> " ~ " <> show t2 <> " ✓"
+                                pure $ subst <> Subst mempty (one (dictVar, d)) -- Substitute the dictionary
+                -- We can rely on coherence and non-overlapping instances here and just pick the
+                -- first matching dictionary that we find.
+                -- TODO: Should we throw an ambiguity error if subst contains non-empty tyvar substitutions?
+                subst <- trySolve tys
+                (subst <>) <$> solveWanteds (applySubst subst givens) (applySubst subst wanteds)
+            Nothing -> throwType $ NoInstanceFor c
 
-unify :: Members '[Error TypeError, Reader LexInfo, Fresh Text QualifiedName] r
+unifyCxt :: Members '[Error TypeError, Context TypeContext, Reader LexInfo, Fresh Text QualifiedName] r
+         => Type
+         -> Type
+         -> Sem r Substitution
+unifyCxt t1 t2 = withContext (WhenUnifying t1 t2) $ unify t1 t2
+
+unify :: Members '[Error TypeError, Context TypeContext, Reader LexInfo, Fresh Text QualifiedName] r
       => Type
       -> Type
       -> Sem r Substitution
 unify t1@(TCon c1 _) t2@(TCon c2 _)
     | c1 == c2 = pure mempty
-    | otherwise = ask >>= \li -> throw $ DifferentTCon li c1 c2
+    | otherwise = throwType $ DifferentTCon c1 c2
 unify (TVar tv) t2 = bind tv t2
 unify t1 (TVar tv) = bind tv t1
 unify (TApp a1 b1) (TApp a2 b2) = do
@@ -650,7 +676,7 @@ unify t1 (TRowOpen Empty var) = unify t1 (TVar var)
 unify t1 (TRowSkol Empty skol var) = unify t1 (TSkol skol var)
 
 unify row1@(TRowClosed t1s) row2@(TRowClosed t2s) = 
-    unifyRows row1 row2 t1s t2s \remaining -> ask >>= \li -> throw $ RemainingRowFields li remaining row1 row2
+    unifyRows row1 row2 t1s t2s \remaining -> throwType $ RemainingRowFields remaining row1 row2
 unify row1@(TRowOpen t1s tvar) row2@(TRowClosed t2s) = 
     unifyRows row1 row2 t1s t2s \remaining -> bind tvar (TRowClosed (map (\(ty,_,_) -> ty) remaining))
 unify row1@TRowClosed{} row2@TRowOpen{} = unify row2 row1
@@ -659,7 +685,7 @@ unify row1@(TRowOpen t1s tvar) row2@(TRowSkol t2s skol tvar2) =
 unify row1@TRowSkol{} row2@TRowOpen{} = unify row2 row1
 
 unify row1@(TRowSkol t1s skol1 var1) row2@(TRowSkol t2s skol2 var2)
-    | skol1 == skol2 && var1 == var2 = unifyRows row1 row2 t1s t2s \remaining ->  ask >>= \li -> throw $ RemainingRowFields li remaining row1 row2 
+    | skol1 == skol2 && var1 == var2 = unifyRows row1 row2 t1s t2s \remaining -> throwType $ RemainingRowFields remaining row1 row2 
 
 
 unify row1@(TRowOpen t1s tvar1@(MkTVar _ kind)) row2@(TRowOpen t2s tvar2) = do
@@ -679,14 +705,14 @@ unify row1@(TRowOpen t1s tvar1@(MkTVar _ kind)) row2@(TRowOpen t2s tvar2) = do
                     <$> bind tvar1 (TRowOpen (map (\(_,(_,ty)) -> ty) remaining2) newRowVar) 
                     <*> bind tvar2 (TRowOpen remaining1 newRowVar)
 
-unify row1@TRowClosed{} row2@TRowSkol{} = ask >>= \li -> throw $ CannotUnify li row1 row2
-unify row1@TRowSkol{} row2@TRowClosed{} = ask >>= \li -> throw $ CannotUnify li row1 row2
+unify row1@TRowClosed{} row2@TRowSkol{} = throwType $ CannotUnify row1 row2
+unify row1@TRowSkol{} row2@TRowClosed{} = throwType $ CannotUnify row1 row2
 
-unify s@TSkol{} t2  = ask >>= \li -> throw $ SkolBinding li s t2
-unify t1 s@TSkol{}  = ask >>= \li -> throw $ SkolBinding li t1 s
-unify t1 t2         = ask >>= \li -> throw $ CannotUnify li t1 t2 
+unify s@TSkol{} t2  = throwType $ SkolBinding s t2
+unify t1 s@TSkol{}  = throwType $ SkolBinding t1 s
+unify t1 t2         = throwType $ CannotUnify t1 t2 
 
-unifyRows :: Members '[Reader LexInfo, Error TypeError, Fresh Text QualifiedName] r
+unifyRows :: Members '[Reader LexInfo, Error TypeError, Context TypeContext, Fresh Text QualifiedName] r
           => Type 
           -> Type
           -> (Seq Type)
@@ -700,7 +726,7 @@ unifyRows row1 row2 t1s t2s remainingCont = do
         where
             go ((con1, args1) :<| t1s) t2s = do
                 case lookupAndDelete con1 t2s of
-                    Nothing -> ask >>= \li -> throw $ MissingRowField li con1 row1 row2
+                    Nothing -> throwType $ MissingRowField con1 row1 row2
                     Just ((args2, _), t2s') -> do
                         subst <- unifyAll args1 args2
                         (subst<>) <$> go (applySubst subst t1s) (applySubst subst t2s')
@@ -708,7 +734,7 @@ unifyRows row1 row2 t1s t2s remainingCont = do
             go Empty t2s = remainingCont (map (\(x,(y,z)) -> (z, x, y)) t2s)
 
 
-unifyAll :: Members '[Reader LexInfo, Error TypeError, Fresh Text QualifiedName] r 
+unifyAll :: Members '[Reader LexInfo, Error TypeError, Context TypeContext, Fresh Text QualifiedName] r 
           => Seq Type 
           -> Seq Type 
           -> Sem r Substitution
@@ -718,14 +744,14 @@ unifyAll (t1 :<| t1s) (t2 :<| t2s) = do
     (subst <>) <$> unifyAll t1s t2s
 unifyAll t1s t2s = error $ "unifyAll: differently sized type seqs '" <> show t1s <> "' and '" <> show t2s <> "'"
 
-getHeadConstr :: Members '[Reader LexInfo, Error TypeError] r 
+getHeadConstr :: Members '[Reader LexInfo, Error TypeError, Context TypeContext] r 
               => Type 
               -> Sem r (QualifiedName, Seq Type)
 getHeadConstr (TCon qname k) = pure (qname, [])
 getHeadConstr (TApp t1 t2) = do
     (headC, args) <- getHeadConstr t1
     pure (headC, args |> t2)
-getHeadConstr ty = ask >>= \li -> throw $ InvalidRowHeadConstr li ty
+getHeadConstr ty = throwType $ InvalidRowHeadConstr ty
 
 lookupAndDelete :: (Eq a) => a -> Seq (a, b) -> Maybe (b, Seq (a, b))
 lookupAndDelete x Empty = Nothing
@@ -733,18 +759,18 @@ lookupAndDelete x ((k,v) :<| ys)
     | x == k    = Just (v, ys)
     | otherwise = second ((k,v) <|) <$> lookupAndDelete x ys
 
-bind :: Members '[Reader LexInfo, Error TypeError] r => TVar -> Type -> Sem r Substitution
+bind :: Members '[Reader LexInfo, Error TypeError, Context TypeContext] r => TVar -> Type -> Sem r Substitution
 bind tv ty
     | TVar tv == ty = pure mempty
-    | occurs tv ty = ask >>= \li -> throw (Occurs li tv ty)
-    | TForall{} <- ty = ask >>= \li -> throw (Impredicative li tv ty)
+    | occurs tv ty = throwType $ Occurs tv ty
+    | TForall{} <- ty = throwType $ Impredicative tv ty
     | otherwise = pure $ Subst (one (tv, ty)) mempty
 
 occurs :: TVar -> Type -> Bool
 occurs tv ty = tv `Set.member` freeTVs ty
 
 
-skolemize :: Members '[Fresh Text QualifiedName, Output TConstraint, Reader LexInfo] r 
+skolemize :: Members '[Fresh Text QualifiedName, Output TConstraint, Reader LexInfo, Context TypeContext] r 
           => Type 
           -> Sem r (Type, Expr NextPass -> Expr NextPass)
 skolemize (TForall tvs ty) = do
@@ -774,7 +800,7 @@ applySubst s@Subst{substVarTys, substDicts} = applyDictSubst . applyTySubst
 
 
 ppTC :: Seq TConstraint -> Text
-ppTC = unlines . toList . map (\(MkTConstraint c l) -> ppTConstraint c <> "    @" <> show l) 
+ppTC = unlines . toList . map (\(MkTConstraint c l _) -> ppTConstraint c <> "    @" <> show l) 
 
 ppWanteds :: Seq TWanted -> Text
 ppWanteds = unlines . toList . map (\(TWanted c li) -> ppConstraint c <> " @" <> show li)

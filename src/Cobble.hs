@@ -29,6 +29,7 @@ import Cobble.Util.Polysemy.FileSystem
 import Cobble.Util.Polysemy.Fresh
 import Cobble.Util.Polysemy.Dump
 import Cobble.Util.Polysemy.StackState
+import Cobble.Util.Polysemy.Context
 
 import Cobble.Prelude.Parser (ParseError, parse)
 
@@ -173,6 +174,7 @@ compileWithSig m = do
     
     tcMod <- dumpWhenWithM (asks ddumpTC) ppTC "dump-tc" 
            $ mapError TypeError 
+           $ runContext
            $ runFreshM (\(MkTVar n k) -> freshVar (originalName n) <&> \n' -> MkTVar n' k)
            $ typecheck tcEnv saMod -- TODO: provide environment from other modules
 

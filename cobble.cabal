@@ -59,6 +59,7 @@ library
       Cobble.Util.Bitraversable
       Cobble.Util.ListLike
       Cobble.Util.Maybe
+      Cobble.Util.Polysemy.Context
       Cobble.Util.Polysemy.Dump
       Cobble.Util.Polysemy.FileSystem
       Cobble.Util.Polysemy.Fresh
