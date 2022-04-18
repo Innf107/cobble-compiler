@@ -15,8 +15,9 @@ import Cobble.Util.Polysemy.FileSystem
 
 
 import Data.Binary (encodeFile)
+import Data.Text qualified as T
 
-import System.IO
+import System.IO as IO
 import System.Process
 
 main :: IO ()
@@ -113,13 +114,64 @@ failWithTypeError (Impredicative tv ty li cxt) = typeError [
         ,   "Cobble does not support impredicative polymorphism."
         ,   "Try wrapping your polymorphic type in a data constructor."
         ] li cxt
+failWithTypeError (NoInstanceFor constraint li cxt) = typeError [
+            "No instance for '" <> show constraint <> "'"
+        ] li cxt
+failWithTypeError (InvalidRowHeadConstr ty li cxt) = typeError [
+            "Invalid row head constructor '" <> show ty <> "'"
+        ,   "Effects have to be fully applied, monomorphic effect type constructors."
+        ] li cxt
+failWithTypeError (RemainingRowFields fields ty1 ty2 li cxt) = 
+        typeError (
+            ("Row is missing fields:"
+        <|  map (\(ty, _, _) -> "    " <> ppType ty) fields)
+        <> ["Trying to unify rows '" <> ppType ty1 <> "' and '" <> ppType ty2 <> "'"]
+        ) li cxt
+failWithTypeError (MissingRowField field ty1 ty2 li cxt) = typeError [
+            "Field '" <> originalName field <> "' is missing from row '" <> ppType ty2
+        ,   "When matching against row '" <> ppType ty1 <> "'"
+        ] li cxt
+
+readSourceAtLexInfo :: LexInfo -> IO Text
+readSourceAtLexInfo li@(LexInfo{startPos = SourcePos startLine startCol,endPos = SourcePos endLine endCol,file}) = do
+    contents <- toText <$> IO.readFile (toString file)
+    let contentLines :: Seq Text = fromList $ lines contents
+    let relevantLines = drop (startLine - 1) $ take endLine contentLines
+    
+
+    let remainingPrefix = "\ESC[0m\STX"
+    let importantPrefix = "\ESC[38;2;255;0;0m\ESC[1m\STX"
+    let linePrefix = "\ESC[38;2;72;89;254m\ESC[1m\STX|    "
+    case relevantLines of
+        [line] -> do
+            let initial = T.take (startCol - 1) line
+            let important = T.drop (startCol - 1) $ T.take (endCol - 1) line
+            let remaining = T.drop (endCol - 1) line
+            pure $ linePrefix <> remainingPrefix <> initial 
+                <> importantPrefix <> important 
+                <> remainingPrefix <> remaining <> "\n\ESC[1m\STX"
+        (firstLine :<| (lines :|> lastLine)) -> do
+            let initial = T.take (startCol - 1) firstLine
+            let importantFirst = T.drop (startCol - 1) $ firstLine
+            let importantLastLine = T.take (endCol - 1) lastLine
+            let remaining = T.drop (endCol - 1) lastLine
+            pure $ linePrefix <> remainingPrefix <> initial
+                <> importantPrefix <> importantFirst <> "\n"
+                <> unlines (toList $ map ((linePrefix <> importantPrefix) <>) lines)
+                <> linePrefix <> importantPrefix <> importantLastLine
+                <> remainingPrefix <> remaining <> "\n\ESC[1m\STX" 
+
+        _ -> pure $ "PANIC: UNABLE TO READ LINES FROM " <> show li
+
 
 
 typeError :: Seq Text -> LexInfo -> Seq TypeContext -> IO a
 typeError texts li context = do
+    source <- readSourceAtLexInfo li
     let msg = "\ESC[1m\STX" <> show li <> ": \ESC[38;2;255;0;0m\STXerror:\ESC[0m\ESC[1m\STX\n"
             <> unlines (toList texts)
-            -- TODO: Include the actual code
+            <> "\n"
+            <> source
             <> "\n"
             <> unlinesContext context
     hPutStrLn stderr (toString msg)
