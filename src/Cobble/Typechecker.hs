@@ -225,9 +225,13 @@ checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = do
             TForall tvs _ -> tvs
             _ -> []
 
-    eff <- case mEff of
-        Just e -> pure e
-        Nothing -> freshEffectRow
+    let eff = case mEff of
+            Just e -> e
+            -- Top level definitions have to be pure. This leaves the door open to potentially evaluating them lazily
+            -- in the future?
+            -- TODO: Not quite sure how to translate this to core though. If we just use a fresh skolem, that has to be bound
+            -- somewhere. Maybe we should have some sort of top-level bound effect variable?
+            Nothing -> TRowClosed []
 
     e' <- check (foldr (\(x,ty,_) -> insertType x ty) env' xs') e eTy eff
     let lambdas = w $ makeLambdas li e' xs'
