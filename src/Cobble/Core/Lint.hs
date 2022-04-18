@@ -235,6 +235,8 @@ lintExpr env (DictAccess e className tyArgs field) = do
         Nothing -> throwLint $ "Nonexistant dictionary field '" <> show field <> "'. In dictionary '" <> show className <> "', computed by '" <> show e <> "'."
         Just ty -> applyTypes ty tyArgs
 
+lintExpr env (Perform op tyArgs valARgs) = undefined
+
 lintSaturated :: Members '[Error CoreLintError] r => LintEnv -> Text -> Type -> Seq Type -> Seq Expr -> Sem r Type
 lintSaturated env x tyArgs valArgs = go tyArgs valArgs
     where

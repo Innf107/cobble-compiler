@@ -103,6 +103,7 @@ compileExpr (DictConstruct className tyArgs methods) = do
     fieldNames <- lookupDictFieldNames className
     RHash <$> zipWithM (\x expr -> (RSymbol x,) <$> compileExpr expr) fieldNames methods
 compileExpr (DictAccess expr _className _tyArgs field) = RHashRef <$> compileExpr expr <*> pure (RSymbol field)
+compileExpr (Perform op _tyArgs valArgs) = undefined
 
 compilePrimOp :: PrimOp -> Seq RacketExpr -> RacketExpr
 compilePrimOp True_ _       = RTrue

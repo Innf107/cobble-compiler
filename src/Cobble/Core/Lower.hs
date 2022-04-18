@@ -78,11 +78,26 @@ lowerStmnts (C.DefVariant _ _ x args clauses :<| sts) = do
             <*> traverse (\(x, tys, _) -> (x,) <$> traverse lowerType tys) clauses
     (def<|) <$> lowerStmnts sts
 lowerStmnts (C.DefEffect k li name tvs ops :<| sts) = do
-    def <- F.DefEffect name
-            <$> traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) tvs
-            <*> traverse (secondM lowerType) ops
+    tvs' <- traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) tvs
+    def <- F.DefEffect name tvs'
+            <$> traverse (secondM lowerType) ops
     -- TODO: Also generate fun defs for ops which just `perform` the effect.
-    (def<|) <$> lowerStmnts sts
+    opDefs <- forM ops \(opName, opTy) -> do
+        opTy' <- lowerType opTy
+        let (opTVs, argTy, effTy, _) = decomposeFunTy opTy'
+        argName <- freshVar "x"
+        let effectiveTVs = tvs' <> opTVs
+        pure $ F.Def opName opTy' 
+            (foldr (uncurry F.TyAbs) 
+                (F.Abs argName effTy argTy (F.Perform opName (map (uncurry F.TVar) effectiveTVs) [F.Var argName])) 
+                effectiveTVs)
+    ((def <| opDefs)<>) <$> lowerStmnts sts
+
+decomposeFunTy :: F.Type -> (Seq (QualifiedName, F.Kind), F.Type, F.Effect, F.Type)
+decomposeFunTy (F.TFun dom eff cod) = ([], dom, eff, cod)
+decomposeFunTy (F.TForall tv k ty) = let (tvs, dom, eff, cod) = decomposeFunTy ty
+                                   in ((tv, k) <| tvs, dom, eff, cod)
+decomposeFunTy ty = error $ "decomposeFunTy: Not a function or forall type: " <> show ty
 
 lowerExpr :: (Trace, Members '[Fresh Text QualifiedName] r) => CExpr -> Sem r F.Expr
 lowerExpr (C.VariantConstr (_ty, constrTy, ix) _ constrName) = do

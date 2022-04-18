@@ -43,6 +43,10 @@ data Expr = Var QualifiedName
           --              ^class name   ^class args ^fields
           | DictAccess Expr QualifiedName (Seq Type) QualifiedName
           --                ^class name   ^class args ^field
+          
+          -- 'perform' operations have to be fully applied, just like primOps. 
+          | Perform QualifiedName (Seq Type) (Seq Expr)
+          --                      ^ type args ^ value args
           deriving (Eq, Generic, Data)
 instance Binary Expr
 
@@ -159,6 +163,8 @@ instance Pretty Expr where
 
     pretty (DictAccess e cname args field) = pretty e <> encloseSep ".[" "]." " " (ppQName cname :<| map pretty args) 
                                                       <> show field
+    pretty (Perform op tyArgs valArgs) = "perform" <+> ppQName op <+> encloseSep "[" "]" ", " (map pretty tyArgs)
+                                                   <> encloseSep "{" "}" ", " (map pretty valArgs)
 
 instance Pretty Pattern where
     pretty (PInt i) = pretty i
