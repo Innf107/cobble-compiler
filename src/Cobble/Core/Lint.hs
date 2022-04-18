@@ -88,7 +88,7 @@ lint :: Members '[Error CoreLintError] r
 lint _ Empty = pure ()
 lint env (Def x ty e :<| ds) = do
     let env' = insertType x ty $ clearJPs env
-    eTy <- lintExpr env' e 
+    eTy <- lintExpr env' e TRowNil
     typeMatch eTy ty $ "Type mismatch in declaration for '" <> show x <> "'"
     lint env' ds
 lint env (DefVariant x args clauses :<| ds) = do
@@ -108,49 +108,50 @@ lint env (DefEffect x args fields :<| ds) = do
 lintExpr :: forall r. Members '[Error CoreLintError] r
          => LintEnv
          -> Expr
+         -> Effect
          -> Sem r Type
-lintExpr env (Var x) = lookupType x env
-lintExpr env (Abs x eff domTy body) = do
-    bodyTy <- lintExpr (insertType x domTy $ clearJPs env) body
-    pure (TFun domTy eff bodyTy)
+lintExpr env (Var x) eff = lookupType x env
+lintExpr env (Abs x lamEff domTy body) _eff = do
+    bodyTy <- lintExpr (insertType x domTy $ clearJPs env) body lamEff
+    pure (TFun domTy lamEff bodyTy)
 -- See note [clearJPs for App]
-lintExpr env (App e1 e2) = do
-    e1Ty <- lintExpr env e1
-    e2Ty <- lintExpr env e2
+lintExpr env (App e1 e2) eff = do
+    e1Ty <- lintExpr env e1 eff
+    e2Ty <- lintExpr env e2 eff
     case e1Ty of
-        TFun dom eff codom -> do
-            -- TODO: handle eff?
+        TFun dom funEff codom -> do
             typeMatch dom e2Ty $ "Function type mismatch.\n    Function: " <> show e1 <> "\n    Argument: " <> show e2
+            typeMatch funEff eff $ "Effect mismatch in application."
             pure codom
         _ -> throwLint $ "Application of value with non-function type '" <> show e1Ty <> "'\n    'Function' expression: " <> show e1 <> "\n    Argument type: " <> show e2Ty <> "\n    Argument expression: " <> show e2
-lintExpr env (TyApp e ty) = do
-    eTy <- lintExpr env e
+lintExpr env (TyApp e ty) eff = do
+    eTy <- lintExpr env e eff
     case eTy of
         TForall tv k eAppTy -> pure (replaceTVar tv ty eAppTy)
         _ -> throwLint $ "Type application at non-forall type '" <> show eTy <> "'\n    Expression: " <> show e <> "\n    Applied type: " <> show ty
-lintExpr env (TyAbs tv k e) = do
-    eTy <- lintExpr (clearJPs env) e
+lintExpr env (TyAbs tv k e) eff = do
+    eTy <- lintExpr (clearJPs env) e eff
     pure (TForall tv k eTy)
-lintExpr env (IntLit i) = pure intTy
-lintExpr env (Let x ty e1 e2) = do
-    e1Ty <- lintExpr env e1 -- See note [clearJPs for App].
+lintExpr env (IntLit i) _eff = pure intTy
+lintExpr env (Let x ty e1 e2) eff = do
+    e1Ty <- lintExpr env e1 eff -- See note [clearJPs for App].
     typeMatch ty e1Ty $ "let type mismatch in binding of '" <> show x <> "' to expression: " <> show e1
-    lintExpr (insertType x ty env) e2
-lintExpr env (If c th el) = do
-    cTy <- lintExpr env c
+    lintExpr (insertType x ty env) e2 eff
+lintExpr env (If c th el) eff = do
+    cTy <- lintExpr env c eff
     typeMatch cTy boolTy $ "Condition of if expression is not a boolean: " <> show c
-    thTy <- lintExpr env th
-    elTy <- lintExpr env el
+    thTy <- lintExpr env th eff
+    elTy <- lintExpr env el eff
     typeMatch thTy elTy $ "Branches of if expression have different types.\n    Branch 1: " <> show th <> "\n    Branch 2: " <> show el
     pure thTy
-lintExpr env (VariantConstr x i tyArgs valArgs) = do
+lintExpr env (VariantConstr x i tyArgs valArgs) eff = do
     xTy <- lookupType x env
-    lintSaturated env (show x) xTy tyArgs valArgs
-lintExpr env (Case scrut branches) = do
+    lintSaturated env (show x) xTy tyArgs valArgs eff
+lintExpr env (Case scrut branches) eff = do
     scrutTy <- lookupType scrut env
     resTys <- forM branches \(pat, e) -> do
         matchPatTy env pat scrutTy
-        lintExpr (bindPatVars pat env) e
+        lintExpr (bindPatVars pat env) e eff
     case resTys of
         Empty -> throwLint $ "Empty case on scrutinee '" <> show scrut <> "'. This should probably be supported at some point."
         (ty :<| tys) -> 
@@ -176,17 +177,17 @@ lintExpr env (Case scrut branches) = do
         bindPatVars (PConstr _ vars _) env  = foldr (uncurry insertType) env vars
 
 -- TODO: No kind checks yet
-lintExpr env (Join j tyParams valParams body e) = do
+lintExpr env (Join j tyParams valParams body e) eff = do
     let innerEnv = foldr (uncurry insertType) env valParams
-    bodyTy <- lintExpr innerEnv body
+    bodyTy <- lintExpr innerEnv body eff
 
     let remainingEnv = insertJP j tyParams (fmap snd valParams) env
-    eTy <- lintExpr remainingEnv e
+    eTy <- lintExpr remainingEnv e eff
     
     typeMatch bodyTy eTy $ "Jump point body type and return type do not match for join point '" <> show j <> "'"
     pure eTy
 
-lintExpr env (Jump j tyArgs valArgs retTy) = do
+lintExpr env (Jump j tyArgs valArgs retTy) eff = do
     (tyPars, valPars) <- lookupJP j env
     when (length tyPars /= length tyArgs) 
         $ throwLint $ "Mismatched type argument count for jump point '" <> show j <> "'.\n    Expected: " <> show tyPars <> "\n    Actual: " <> show tyArgs
@@ -197,14 +198,14 @@ lintExpr env (Jump j tyArgs valArgs retTy) = do
     when (length valPars /= length valArgs) 
         $ throwLint $ "Mismatched value argument count for jump point '" <> show j <> "'.\nExpected: " <> show valPars <> "\nActual: " <> show valArgs
     let appliedTypes = foldr (\((a, _), ty) rs -> fmap (replaceTVar a ty) rs) valPars $ zip tyPars tyArgs 
-    zipWithM_ (\expected expr -> lintExpr (clearJPs env) expr >>= \exprTy -> typeMatch expected exprTy $ "Argument mismatch for join point '" <> show j <> "' with body '" <> show expr <> "'")
+    zipWithM_ (\expected expr -> lintExpr (clearJPs env) expr eff >>= \exprTy -> typeMatch expected exprTy $ "Argument mismatch for join point '" <> show j <> "' with body '" <> show expr <> "'")
         appliedTypes
         valArgs
     pure retTy
 
-lintExpr env (PrimOp op ty tyArgs valArgs) = lintSaturated env (show op) ty tyArgs valArgs
+lintExpr env (PrimOp op ty tyArgs valArgs) eff = lintSaturated env (show op) ty tyArgs valArgs eff
 
-lintExpr env (DictConstruct className tyArgs fields) = do
+lintExpr env (DictConstruct className tyArgs fields) eff = do
     (tyParams, dictFieldTys) <- lookupDictTy className env
     when (length tyParams /= length tyArgs)
         $ throwLint $ "Mismatched type argument count at dict construction for '" <> show className <> "'.\nExpected: " <> show tyParams <> "\nActual: " <> show tyArgs
@@ -212,9 +213,10 @@ lintExpr env (DictConstruct className tyArgs fields) = do
         (\(_, k) ty -> getKind ty >>= \tyK -> when (k /= tyK) $ throwLint $ "Mismatched kinds for dict access arguments for dict '" <> show className <> "'.\n    Expected: " <> show k <> ".\n    Actual: (" <> show ty <> ":" <> show tyK <> ").")
         tyParams
         tyArgs
+        -- TODO: Couldn't this just use lintSaturated?
     zipWithM_
         (\expr (_, ty) -> do
-            exprTy <- lintExpr env expr
+            exprTy <- lintExpr env expr eff
             appliedTy <- applyTypes ty tyArgs 
             typeMatch exprTy appliedTy $ "Mismatched dictionary construction argument for class '" <> show className <> "'."
             )
@@ -223,7 +225,11 @@ lintExpr env (DictConstruct className tyArgs fields) = do
     let dictKind = foldr (KFun . snd) KType tyParams
     pure $ foldl' TApp (TCon className dictKind) tyArgs
 
-lintExpr env (DictAccess e className tyArgs field) = do
+lintExpr env (DictAccess e className tyArgs field) eff = do
+    eTy <- lintExpr env e eff
+    
+    -- TODO: ??? typeMatch eTy (foldl' TApp (TCon className undefined) (map (uncurry TVar) tyArgs)) $ "Type mismatch in dict access: "
+
     (tyParams, fieldTys) <- lookupDictTy className env
     when (length tyParams /= length tyArgs)
         $ throwLint $ "Mismatched type argument count at dict access for '" <> show className <> "', computed by '" <> show e <> "'.\nExpected: " <> show tyParams <> "\nActual: " <> show tyArgs
@@ -235,14 +241,14 @@ lintExpr env (DictAccess e className tyArgs field) = do
         Nothing -> throwLint $ "Nonexistant dictionary field '" <> show field <> "'. In dictionary '" <> show className <> "', computed by '" <> show e <> "'."
         Just ty -> applyTypes ty tyArgs
 
-lintExpr env (Perform op tyArgs valARgs) = undefined
+lintExpr env (Perform op tyArgs valArgs) eff = undefined
 
-lintSaturated :: Members '[Error CoreLintError] r => LintEnv -> Text -> Type -> Seq Type -> Seq Expr -> Sem r Type
-lintSaturated env x tyArgs valArgs = go tyArgs valArgs
+lintSaturated :: Members '[Error CoreLintError] r => LintEnv -> Text -> Type -> Seq Type -> Seq Expr -> Effect -> Sem r Type
+lintSaturated env x ty tyArgs valArgs eff = go ty tyArgs valArgs
     where
         go (TFun t1 eff t2) tyArgs (arg :<| valArgs) = do
             -- TODO: Handle eff
-            argTy <- lintExpr env arg
+            argTy <- lintExpr env arg eff
             typeMatch t1 argTy $ "Argument type mismatch for variant constructor or primop '" <> x <> "' with argument: " <> show arg
             go t2 tyArgs valArgs
         go (TFun t1 eff t2) tyArgs Empty = throwLint $ "Variant constructor or primop '" <> x <> "' is missing value arguments.\n    Remaining type: " <> show (TFun t1 eff t2) <> "\n    Applied value arguments: " <> show valArgs <> "\n    Not yet applied type arguments: " <> show tyArgs  
