@@ -103,7 +103,11 @@ compileExpr (DictConstruct className tyArgs methods) = do
     fieldNames <- lookupDictFieldNames className
     RHash <$> zipWithM (\x expr -> (RSymbol x,) <$> compileExpr expr) fieldNames methods
 compileExpr (DictAccess expr _className _tyArgs field) = RHashRef <$> compileExpr expr <*> pure (RSymbol field)
-compileExpr (Perform effName op _tyArgs valArgs) = undefined
+compileExpr (Perform effName op _tyArgs [valArg]) = do
+    valArg' <- compileExpr valArg
+    pure $ RApp (RBuiltin "perform") [RSymbol effName, RSymbol op, valArg']
+compileExpr e@(Perform _ _ _ valArgs) = do
+    error $ "Effect operations with multiple arguments NYI: " <> show e
 
 compilePrimOp :: PrimOp -> Seq RacketExpr -> RacketExpr
 compilePrimOp True_ _       = RTrue

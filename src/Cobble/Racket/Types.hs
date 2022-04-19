@@ -10,6 +10,7 @@ data RacketExpr =
     RDefine QualifiedName RacketExpr
   | RDefineF QualifiedName (Seq QualifiedName) (Seq RacketExpr)
   | RVar QualifiedName
+  | RBuiltin Text
   | RApp RacketExpr (Seq RacketExpr)
   | RLambda (Seq QualifiedName) (Seq RacketExpr)
   | RLet (Seq (QualifiedName, RacketExpr)) (Seq RacketExpr)
@@ -50,6 +51,7 @@ instance Pretty RacketExpr where
     pretty (RDefine x e) = list ["define", prettyQ x, nest 4 (pretty e)]
     pretty (RDefineF f xs es) = parens ("define" <+> list (prettyQ f <| map prettyQ xs) <> nest 4 (line <> prettyRacketExprs es))
     pretty (RVar x) = prettyQ x
+    pretty (RBuiltin x) = pretty x
     pretty (RApp f xs) = prettyApp (pretty f) (map pretty xs) 
     pretty (RLambda xs body) = parens ("lambda" <+> list (map prettyQ xs) <+> nest 4 (prettyRacketExprs body))
     pretty (RLet bindings body) = parens ("let*" <+> brackets (align (vsep (toList (map prettyBinding bindings)))) <+> nest 4 (line <> prettyRacketExprs body))
