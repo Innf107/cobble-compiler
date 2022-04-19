@@ -149,7 +149,7 @@ readSourceAtLexInfo li@(LexInfo{startPos = SourcePos startLine startCol,endPos =
             let remaining = T.drop (endCol - 1) line
             pure $ linePrefix <> remainingPrefix <> initial 
                 <> importantPrefix <> important 
-                <> remainingPrefix <> remaining <> "\n\ESC[1m\STX"
+                <> remainingPrefix <> remaining <> "\n"
         (firstLine :<| (lines :|> lastLine)) -> do
             let initial = T.take (startCol - 1) firstLine
             let importantFirst = T.drop (startCol - 1) $ firstLine
@@ -166,14 +166,14 @@ readSourceAtLexInfo li@(LexInfo{startPos = SourcePos startLine startCol,endPos =
 
 
 typeError :: Seq Text -> LexInfo -> Seq TypeContext -> IO a
-typeError texts li context = do
+typeError errorLines li context = do
     source <- readSourceAtLexInfo li
     let msg = "\ESC[1m\STX" <> show li <> ": \ESC[38;2;255;0;0m\STXerror:\ESC[0m\ESC[1m\STX\n"
-            <> unlines (toList texts)
-            <> "\n"
-            <> source
-            <> "\n"
+            <> unlines (toList errorLines)
             <> unlinesContext context
+            <> "\ESC[38;2;72;89;254m\ESC[1m\STX|\n"
+            <> source
+            <> "\ESC[38;2;72;89;254m\ESC[1m\STX|\ESC[0m\STX"
     hPutStrLn stderr (toString msg)
     exitFailure
 
