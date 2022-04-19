@@ -24,6 +24,8 @@ import Data.List.NonEmpty qualified as NE
 
 import Cobble.Core.Types qualified as F
 
+import Debug.Trace qualified as D
+
 type NextPass = Codegen
 
 data TCEnv = TCEnv {
@@ -171,7 +173,6 @@ typecheckStatement :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedNam
                     -> Sem r (Statement NextPass, TCEnv)
 typecheckStatement env (Def fixity li decl expectedTy) = runReader li do
     (decl', env') <- checkTopLevelDecl True env decl expectedTy
-
     pure (Def fixity li decl' expectedTy, env')
 
 typecheckStatement env (DefClass k li cname tvs methSigs) = do
@@ -243,11 +244,6 @@ checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = withContext (InDef
     let env' = if recursive
                then insertType f expectedTy env
                else env
-
-    -- Ugh, I really don't want to have to duplicate the logic for lambdas here
-    let tvs = case expectedTy of
-            TForall tvs _ -> tvs
-            _ -> []
 
     let eff = case mEff of
             Just e -> e

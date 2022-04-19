@@ -42,14 +42,6 @@ implicitEffectType = \case
 
 implicitClassConstraints :: Statement SemAnalysis -> Statement SemAnalysis
 implicitClassConstraints = \case
-    (DefClass k li cname ps meths) -> 
-        DefClass k li cname ps
-        $ map (\(n, t) -> (n, addConstraint t)) meths
-          where
-            addConstraint t = case ps of 
-                [p] -> TConstraint (MkConstraint cname k (TVar p)) t
-                _   -> error $ "SemAnalysis.implicitClassConstraints: multi-param typeclasses NYI: " <> show ps
-
     (DefInstance (classKind, defMeths, ps, isImported) li cname ty meths) -> 
         DefInstance (classKind, map (\(n, t) -> (n, coercePass $ addConstraint isImported t)) defMeths, ps, isImported) li cname ty meths
           where

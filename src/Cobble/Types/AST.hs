@@ -237,7 +237,7 @@ ppType (TRowOpen tys var)            = "⟨" <> intercalate ", " (map ppType tys
 ppType (TRowSkol tys skolName var)   = "⟨" <> intercalate ", " (map ppType tys) <> " | " <> ppType (TSkol skolName var) <> "⟩"
 
 ppConstraint :: Constraint -> Text
-ppConstraint (MkConstraint n k t) = "(" <> show n <> " : " <> show k <> ")" <> ppType t
+ppConstraint (MkConstraint n k t) = "(" <> show n <> " : " <> show k <> ppType t <> ")"
 
 -- See @Type@ for descriptions
 data UType = UTCon UnqualifiedName

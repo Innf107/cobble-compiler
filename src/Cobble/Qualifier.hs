@@ -83,22 +83,26 @@ qualifyStmnt (DefVariant () li n tvs constrs) = runReader li $ do
     zipWithM_ (\(cn, _, _) (cn', _, (ep, i)) -> addVariantConstr cn cn' ep i typeVariant) constrs constrs'
     pure (DefVariant k li n' tvs' constrs')
 
-qualifyStmnt (DefClass () li n tvs meths) = runReader li $ do
-    n' <- freshGlobal n
+qualifyStmnt (DefClass () li className tvs meths) = runReader li $ do
+    className' <- freshGlobal className
     tvs' <- traverse (uncurry qualifyTVar) tvs
     let k = foldr (\(MkTVar _ k) r -> k `KFun` r) KConstraint tvs'
     -- Again, the methods have to be stubbed out since we don't have them yet, but we
     -- need the tyclass type in order to qualify them
     meths' <- withFrame $ do
-        addType n n' k (TyClass (coercePass tvs') [])
+        addType className className' k (TyClass (coercePass tvs') [])
         zipWithM_ addTVar (map fst tvs) tvs'
         forM meths \(mn, mty) -> do
             mn' <- freshGlobal mn
-            mt' <- qualifyType True mty -- Type class methods *are* allowed to introduce new tyvars
-            pure (mn', insertInForall tvs' mt')
-    addType n n' k (TyClass tvs' meths')
+            methTy' <- qualifyType True (addConstraint mty) -- Type class methods *are* allowed to introduce new tyvars
+            pure (mn', insertInForall tvs' methTy')
+    addType className className' k (TyClass tvs' meths')
     zipWithM_ (\(methName,_) (methName',_) -> addVar methName methName') meths meths'
-    pure (DefClass k li n' tvs' meths')
+    pure (DefClass k li className' tvs' meths')
+        where
+            addConstraint ty = case tvs of
+                [(utv, _)] -> UTConstraint (MkUConstraint className (UTVar utv)) ty
+                _ -> error "qualifyStmnt: Multiparam typeclasses NYI"
 
 qualifyStmnt (DefInstance () li cname ty meths) = runReader li $ lookupType cname >>= \case
     (cname', k, TyClass tvs classMeths, isImported) -> withFrame do

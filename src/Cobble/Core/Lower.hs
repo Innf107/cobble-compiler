@@ -37,12 +37,14 @@ lowerStmnts (s@C.Def{} :<| sts) = error "lowerStmnts: Definition with arguments 
 lowerStmnts (C.DefClass k li cname tvs methSigs :<| sts) = do
     tvs' <- traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) tvs
     k' <- lowerKind k
+    let addForall ty = foldr (uncurry F.TForall) ty tvs'
 
     dictDef <- F.DefDict cname tvs' <$> traverse (secondM (lowerType . stripConstraint)) methSigs
 
     methImpls <- forM methSigs \(methName, methTy) -> do
         dictName <- freshVar "d"
         methTy' <- lowerType methTy
+
         let tvAbs e = foldr (uncurry F.TyAbs) e tvs'
         let dictTy = foldl' (\r (x, k) -> F.TApp r (F.TVar x k)) (F.TCon cname k') tvs'
         pure $ F.Def methName methTy'
