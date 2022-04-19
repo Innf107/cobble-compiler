@@ -136,7 +136,7 @@ lowerSaturated :: Members '[Fresh Text QualifiedName] r => F.Type -> (Seq F.Type
 -- I hope this is sound...
 lowerSaturated (F.TForall a k@(F.KRow F.KEffect) ty) cont = do
     a' <- freshVar (C.originalName a)
-    F.TyAbs a' k <$> lowerSaturated ty cont
+    F.TyAbs a' k <$> lowerSaturated (F.replaceTVar a (F.TVar a' k) ty) cont
 lowerSaturated (F.TForall a k ty) cont = do
     a' <- freshVar (C.originalName a)
     F.TyAbs a' k <$> lowerSaturated (F.replaceTVar a (F.TVar a' k) ty) (\tyArgs valArgs -> cont (F.TVar a' k <| tyArgs) valArgs)
