@@ -38,6 +38,7 @@ module Cobble.Prelude (
     , HSConstraint
     , unsafeLast
     , Binary
+    , lookupSeq
     ) where
 
 import qualified Relude
@@ -213,3 +214,9 @@ unsafeLast _ = error $ "unsafeLast: empty list"
 
 munion :: (Ord k, Semigroup v) => Map k v -> Map k v -> Map k v
 munion = M.unionWith (<>)
+
+lookupSeq :: Eq k => k -> Seq (k, v) -> Maybe v
+lookupSeq k Empty = Nothing
+lookupSeq k ((k', v) :<| rest)
+    | k == k'   = Just v
+    | otherwise = lookupSeq k rest

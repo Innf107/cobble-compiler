@@ -135,6 +135,7 @@ compileContents path content = do
             ,   jpArgTypes = mempty
             ,   dictTyDefs = coreModDictTyDefs
             ,   effDefs = coreModEffs
+            ,   opEffs = fromList $ toList $ foldMap (\(effName, (_, ops)) -> map (\(op, _) -> (op, effName)) ops) (M.toList coreModEffs)
             }
 
         lintError <- runError $ lint lintEnv core

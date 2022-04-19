@@ -79,18 +79,18 @@ lowerStmnts (C.DefVariant _ _ x args clauses :<| sts) = do
     (def<|) <$> lowerStmnts sts
 lowerStmnts (C.DefEffect k li name tvs ops :<| sts) = do
     tvs' <- traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) tvs
+    let addForalls ty = foldr (uncurry F.TForall) ty tvs'
+
     def <- F.DefEffect name tvs'
-            <$> traverse (secondM lowerType) ops
-    -- TODO: Also generate fun defs for ops which just `perform` the effect.
+            <$> traverse (secondM (fmap addForalls . lowerType)) ops
     opDefs <- forM ops \(opName, opTy) -> do
-        opTy' <- lowerType opTy
+        opTy' <- addForalls <$> lowerType opTy
         let (opTVs, argTy, effTy, _) = decomposeFunTy opTy'
         argName <- freshVar "x"
-        let effectiveTVs = tvs' <> opTVs
         pure $ F.Def opName opTy' 
             (foldr (uncurry F.TyAbs) 
-                (F.Abs argName effTy argTy (F.Perform opName (map (uncurry F.TVar) effectiveTVs) [F.Var argName])) 
-                effectiveTVs)
+                (F.Abs argName effTy argTy (F.Perform opName (map (uncurry F.TVar) opTVs) [F.Var argName])) 
+                opTVs)
     ((def <| opDefs)<>) <$> lowerStmnts sts
 
 decomposeFunTy :: F.Type -> (Seq (QualifiedName, F.Kind), F.Type, F.Effect, F.Type)

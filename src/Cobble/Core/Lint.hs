@@ -16,6 +16,7 @@ data LintEnv = LintEnv {
 ,   jpArgTypes :: Map QualifiedName (Seq (QualifiedName, Kind), Seq Type)
 ,   dictTyDefs :: Map QualifiedName (Seq (QualifiedName, Kind), Seq (QualifiedName, Type))
 ,   effDefs    :: Map QualifiedName (Seq (QualifiedName, Kind), Seq (QualifiedName, Type))
+,   opEffs     :: Map QualifiedName QualifiedName
 } deriving (Show, Eq)
 
 insertType :: QualifiedName -> Type -> LintEnv -> LintEnv
@@ -76,10 +77,27 @@ insertEff :: QualifiedName
           -> Seq (QualifiedName, Type)
           -> LintEnv
           -> LintEnv
-insertEff effName tvs ops env@LintEnv{effDefs} =
+insertEff effName tvs ops env@LintEnv{effDefs, opEffs} =
     env {
         effDefs = insert effName (tvs, ops) effDefs
+    ,   opEffs = foldr (\(op, _) r -> insert op effName r) opEffs ops
     }
+
+lookupOp :: Members '[Error CoreLintError] r
+          => QualifiedName
+          -> LintEnv
+          -> Sem r QualifiedName
+lookupOp opName env@LintEnv{opEffs} = case lookup opName opEffs of
+    Just effName -> pure effName
+    Nothing -> throwLint $ "Effect operation '" <> show opName <> "' not found.\nContext: " <> show env
+
+lookupEff :: Members '[Error CoreLintError] r
+          => QualifiedName
+          -> LintEnv
+          -> Sem r (Seq (QualifiedName, Kind), Seq (QualifiedName, Type))
+lookupEff effName env@LintEnv{effDefs} = case lookup effName effDefs of
+    Just def -> pure def
+    Nothing -> throwLint $ "Effect '" <> show effName <> "' not found.\nContext: " <> show env
 
 lint :: Members '[Error CoreLintError] r
      => LintEnv
@@ -121,7 +139,7 @@ lintExpr env (App e1 e2) eff = do
     case e1Ty of
         TFun dom funEff codom -> do
             typeMatch dom e2Ty $ "Function type mismatch.\n    Function: " <> show e1 <> "\n    Argument: " <> show e2
-            typeMatch funEff eff $ "Effect mismatch in application."
+            typeMatch funEff eff $ "Effect mismatch in application.\n    Function: " <> show e1 <> "\n    Argument: " <> show e2
             pure codom
         _ -> throwLint $ "Application of value with non-function type '" <> show e1Ty <> "'\n    'Function' expression: " <> show e1 <> "\n    Argument type: " <> show e2Ty <> "\n    Argument expression: " <> show e2
 lintExpr env (TyApp e ty) eff = do
@@ -146,7 +164,7 @@ lintExpr env (If c th el) eff = do
     pure thTy
 lintExpr env (VariantConstr x i tyArgs valArgs) eff = do
     xTy <- lookupType x env
-    lintSaturated env (show x) xTy tyArgs valArgs eff
+    lintSaturated env (show x) "variant constructor" xTy tyArgs valArgs eff
 lintExpr env (Case scrut branches) eff = do
     scrutTy <- lookupType scrut env
     resTys <- forM branches \(pat, e) -> do
@@ -203,7 +221,7 @@ lintExpr env (Jump j tyArgs valArgs retTy) eff = do
         valArgs
     pure retTy
 
-lintExpr env (PrimOp op ty tyArgs valArgs) eff = lintSaturated env (show op) ty tyArgs valArgs eff
+lintExpr env (PrimOp op ty tyArgs valArgs) eff = lintSaturated env "primop" (show op) ty tyArgs valArgs eff
 
 lintExpr env (DictConstruct className tyArgs fields) eff = do
     (tyParams, dictFieldTys) <- lookupDictTy className env
@@ -241,24 +259,29 @@ lintExpr env (DictAccess e className tyArgs field) eff = do
         Nothing -> throwLint $ "Nonexistant dictionary field '" <> show field <> "'. In dictionary '" <> show className <> "', computed by '" <> show e <> "'."
         Just ty -> applyTypes ty tyArgs
 
-lintExpr env (Perform op tyArgs valArgs) eff = undefined
+lintExpr env (Perform op tyArgs valArgs) eff = do
+    opEff <- lookupOp op env
+    (tvars, opTys) <- lookupEff opEff env
+    let opTy = fromMaybe (error "op not in opTys, this really shouldn't happen, what the hell did you do?!") 
+            $ lookupSeq op opTys
+    checkRowContainsEff opEff eff $ "Operation '" <> show op <> "' requires the effect '" <> show opEff <> "' which was not found in the current effect context '" <> show eff <> "'"
+    lintSaturated env (show op) "operation" opTy tyArgs valArgs eff
 
-lintSaturated :: Members '[Error CoreLintError] r => LintEnv -> Text -> Type -> Seq Type -> Seq Expr -> Effect -> Sem r Type
-lintSaturated env x ty tyArgs valArgs eff = go ty tyArgs valArgs
+lintSaturated :: Members '[Error CoreLintError] r => LintEnv -> Text -> Text -> Type -> Seq Type -> Seq Expr -> Effect -> Sem r Type
+lintSaturated env x source ty tyArgs valArgs eff = go ty tyArgs valArgs
     where
         go (TFun t1 eff t2) tyArgs (arg :<| valArgs) = do
-            -- TODO: Handle eff
             argTy <- lintExpr env arg eff
-            typeMatch t1 argTy $ "Argument type mismatch for variant constructor or primop '" <> x <> "' with argument: " <> show arg
+            typeMatch t1 argTy $ "Argument type mismatch for " <> source <> " '" <> x <> "' with argument: " <> show arg
             go t2 tyArgs valArgs
-        go (TFun t1 eff t2) tyArgs Empty = throwLint $ "Variant constructor or primop '" <> x <> "' is missing value arguments.\n    Remaining type: " <> show (TFun t1 eff t2) <> "\n    Applied value arguments: " <> show valArgs <> "\n    Not yet applied type arguments: " <> show tyArgs  
+        go (TFun t1 eff t2) tyArgs Empty = throwLint $ source <>  " '" <> x <> "' is missing value arguments.\n    Remaining type: " <> show (TFun t1 eff t2) <> "\n    Applied value arguments: " <> show valArgs <> "\n    Not yet applied type arguments: " <> show tyArgs  
 
         go (TForall a _k ty) (tyArg :<| tyArgs) valArgs = do
             let ty' = replaceTVar a tyArg ty
             go ty' tyArgs valArgs
-        go (TForall a k ty) Empty valArgs = throwLint $ "Variant constructor or primop '" <> x <> "' is missing type arguments.\n    Remaining type: " <> show (TForall a k ty) <> "\n    Not yet applied value arguments: " <> show valArgs <> "\n    Applied type arguments: " <> show tyArgs
+        go (TForall a k ty) Empty valArgs = throwLint $ source <> " '" <> x <> "' is missing type arguments.\n    Remaining type: " <> show (TForall a k ty) <> "\n    Not yet applied value arguments: " <> show valArgs <> "\n    Applied type arguments: " <> show tyArgs
         go ty Empty Empty = pure ty
-        go ty tyArgs valArgs = throwLint $ "Excessive arguments for variant constructor or primop '" <> x <> "'.\n    Remaining type: " <> show ty <> "\n    Not yet applied type arguments: " <> show tyArgs <> "\n    Mpt yet applied value arguments: " <> show valArgs
+        go ty tyArgs valArgs = throwLint $ "Excessive arguments for " <> source <> " '" <> x <> "'.\n    Remaining type: " <> show ty <> "\n    Not yet applied type arguments: " <> show tyArgs <> "\n    Mpt yet applied value arguments: " <> show valArgs
 
 {- note [clearJPs for App]
 In 'Compiling without continuations'[1], the rule for applications clearly states
@@ -306,8 +329,23 @@ typeMatch :: Members '[Error CoreLintError] r
           -> Text
           -> Sem r ()
 typeMatch t1 t2 msg
-    | t1 == t2  = pure ()
+    | t1 == t2  = pure () -- TODO: Actually check for row equivalence
     | otherwise = throw $ MkCoreLintError $ msg 
                                         <> "\n    Expected: " <> show t1
                                         <> "\n      Actual: " <> show t2
 
+checkRowContainsEff :: Members '[Error CoreLintError] r
+                    => QualifiedName 
+                    -> Effect 
+                    -> Text 
+                    -> Sem r ()
+checkRowContainsEff _ TEffUR _ = pure ()
+checkRowContainsEff _ TRowNil msg = throwLint msg
+checkRowContainsEff eff (TRowExtend tys row) msg = do
+    case find matchesEff (map headTyCon tys) of
+        Nothing -> checkRowContainsEff eff row msg
+        Just _ -> pure ()
+        where
+            matchesEff (TCon con _) | con == eff = True
+            matchesEff _ = False
+checkRowContainsEff eff ty _ = throwLint $ "Trying to look up effect '" <> show eff <> "' in non-row type '" <> show ty <> "'"
