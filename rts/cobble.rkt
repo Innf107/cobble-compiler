@@ -17,7 +17,7 @@
         ))
 )
 
-(define (perform l op)
+(define (perform l op argument)
     (lambda (v)
         (let* [
             (perform-evidence evidence)

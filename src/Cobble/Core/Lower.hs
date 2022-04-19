@@ -77,11 +77,11 @@ lowerStmnts (C.DefVariant _ _ x args clauses :<| sts) = do
             <$> traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) args
             <*> traverse (\(x, tys, _) -> (x,) <$> traverse lowerType tys) clauses
     (def<|) <$> lowerStmnts sts
-lowerStmnts (C.DefEffect k li name tvs ops :<| sts) = do
+lowerStmnts (C.DefEffect k li effName tvs ops :<| sts) = do
     tvs' <- traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) tvs
     let addForalls ty = foldr (uncurry F.TForall) ty tvs'
 
-    def <- F.DefEffect name tvs'
+    def <- F.DefEffect effName tvs'
             <$> traverse (secondM (fmap addForalls . lowerType)) ops
     opDefs <- forM ops \(opName, opTy) -> do
         opTy' <- addForalls <$> lowerType opTy
@@ -89,7 +89,7 @@ lowerStmnts (C.DefEffect k li name tvs ops :<| sts) = do
         argName <- freshVar "x"
         pure $ F.Def opName opTy' 
             (foldr (uncurry F.TyAbs) 
-                (F.Abs argName effTy argTy (F.Perform opName (map (uncurry F.TVar) opTVs) [F.Var argName])) 
+                (F.Abs argName effTy argTy (F.Perform effName opName (map (uncurry F.TVar) opTVs) [F.Var argName])) 
                 opTVs)
     ((def <| opDefs)<>) <$> lowerStmnts sts
 

@@ -259,8 +259,7 @@ lintExpr env (DictAccess e className tyArgs field) eff = do
         Nothing -> throwLint $ "Nonexistant dictionary field '" <> show field <> "'. In dictionary '" <> show className <> "', computed by '" <> show e <> "'."
         Just ty -> applyTypes ty tyArgs
 
-lintExpr env (Perform op tyArgs valArgs) eff = do
-    opEff <- lookupOp op env
+lintExpr env (Perform opEff op tyArgs valArgs) eff = do
     (tvars, opTys) <- lookupEff opEff env
     let opTy = fromMaybe (error "op not in opTys, this really shouldn't happen, what the hell did you do?!") 
             $ lookupSeq op opTys
