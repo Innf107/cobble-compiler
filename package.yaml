@@ -63,7 +63,6 @@ library:
   - -Werror=missing-fields
   - -Werror=missing-methods
   - -Werror=unused-do-bind
-  - -freverse-errors
 
 executables:
   cobble:

@@ -42,7 +42,7 @@ isIdentStart :: Char -> Bool
 isIdentStart c = isAlpha c || c `elem` "_"
 
 isIdentLetter :: Char -> Bool
-isIdentLetter c = isAlphaNum c || c `elem` "_#"
+isIdentLetter c = isAlphaNum c || c `elem` "_#'"
 
 reserved :: [String]
 reserved = ["let", "in", "if", "then", "else", "module", "import", "variant", "effect", "case", "of", "class", "instance", "infixl", "infixr", "forall"]

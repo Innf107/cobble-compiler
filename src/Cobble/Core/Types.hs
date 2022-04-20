@@ -56,14 +56,14 @@ data Pattern = PInt Int
              deriving (Eq, Generic, Data)
 instance Binary Pattern
 
-data Type = TVar QualifiedName Kind             -- α
-          | TCon QualifiedName Kind             -- C
-          | TFun Type Effect Type               -- σ -{ϵ}> σ
-          | TApp Type Type                      -- σ σ
-          | TForall QualifiedName Kind Type     -- ∀(α : κ). σ
-          | TRowNil                             -- ⟨⟩
-          | TRowExtend (Seq Type) Type          -- ⟨σ* | σ⟩
-          | TEffUR                              -- ✶
+data Type = TVar QualifiedName Kind             -- α            type variable
+          | TCon QualifiedName Kind             -- C            type constructor
+          | TFun Type Effect Type               -- σ -{ϵ}> σ    function type
+          | TApp Type Type                      -- σ σ          type application
+          | TForall QualifiedName Kind Type     -- ∀(α : κ). σ  forall types
+          | TRowNil                             -- ⟨⟩           empty row
+          | TRowExtend (Seq Type) Type          -- ⟨σ* | σ⟩     row extension
+          | TEffUR                              -- ∞            unrestricted effect type (kind: row effect)
           deriving (Eq, Generic, Data)
 instance Binary Type
 
@@ -179,7 +179,7 @@ instance Pretty Type where
     pretty (TForall x k ty) = "(∀" <+> "(" <> ppQName x <+> ":" <+> pretty k <> ")." <+> pretty ty <> ")"
     pretty (TRowNil) = "{}"
     pretty (TRowExtend tys row) = "{" <> fold (intersperse ", " (map pretty tys)) <> " | " <> pretty row <> "}"
-    pretty TEffUR = "✶"
+    pretty TEffUR = "∞"
 instance Pretty Kind where
     pretty KType = "*"
     pretty KEffect = "Effect"

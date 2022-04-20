@@ -323,15 +323,37 @@ getKind (TRowExtend tys row) = getKind row
 getKind TEffUR = pure $ KRow KEffect
 
 typeMatch :: Members '[Error CoreLintError] r 
-          => Type 
-          -> Type 
+          => Type
+          -> Type
           -> Text
           -> Sem r ()
-typeMatch t1 t2 msg
-    | t1 == t2  = pure () -- TODO: Actually check for row equivalence
-    | otherwise = throw $ MkCoreLintError $ msg 
+typeMatch t1 t2 msg = case typeEquiv t1 t2 of
+    Left err -> throw $ MkCoreLintError $ msg 
                                         <> "\n    Expected: " <> show t1
                                         <> "\n      Actual: " <> show t2
+                                        <> "\nSpecifically: " <> err
+    Right () -> pure ()
+typeEquiv :: Type -> Type -> Either Text ()
+typeEquiv (TVar v1 k1) (TVar v2 k2)
+    | v1 == v2 && k1 == k2 = pure ()
+typeEquiv (TCon con1 k1) (TCon con2 k2)
+    | con1 == con2 && k1 == k2 = pure ()
+typeEquiv (TFun dom1 eff1 cod1) (TFun dom2 eff2 cod2) = do
+    typeEquiv dom1 dom2
+    typeEquiv eff1 eff2
+    typeEquiv cod1 cod2
+typeEquiv (TApp tfun1 targ1) (TApp tfun2 targ2) = do
+    typeEquiv tfun1 tfun2
+    typeEquiv targ1 targ2
+typeEquiv (TForall a1 k1 ty1) (TForall a2 k2 ty2)
+    | k1 == k2 = typeEquiv ty1 (replaceTVar a2 (TVar a1 k1) ty2)
+typeEquiv TRowNil TRowNil = pure ()
+typeEquiv (TRowExtend tys1 row1) (TRowExtend tys2 row2) = undefined
+typeEquiv TEffUR _ = pure ()
+typeEquiv _ TEffUR = pure ()
+typeEquiv t1 t2 = Left $ "Unable to match: \n"
+                      <> "    Expected: " <> show t1 <> "\n    " 
+                      <> "      Actual: " <> show t2 
 
 checkRowContainsEff :: Members '[Error CoreLintError] r
                     => QualifiedName 

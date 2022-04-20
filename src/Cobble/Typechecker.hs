@@ -389,7 +389,7 @@ infer :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh T
 infer env (App () li f x) = runReader li do
     (f', fValEff) <- infer env f
     (fDomTy, fFunEff, fCodomTy, wF) <- decomposeFun (getType f') 
-    traceM DebugVerbose $ "[infer env (FCall ...)] getType f' = " <> ppType (getType f') <> " | fDomTy = " <> ppType fDomTy <> " | fFunEff = " <> ppType fFunEff <> " | fCodomTy = " <> ppType fCodomTy
+    traceM DebugVerbose $ "[infer env (App ...)] getType f' = " <> ppType (getType f') <> " | fDomTy = " <> ppType fDomTy <> " | fFunEff = " <> ppType fFunEff <> " | fCodomTy = " <> ppType fCodomTy
     fValEff !~ fFunEff
 
     x' <- check env x fDomTy fFunEff
@@ -664,6 +664,16 @@ unify (TFun a1 eff1 b1) (TFun a2 eff2 b2) = do
     (subst' <>) <$> unify (applySubst subst' b1) (applySubst subst' b2)
 unify t1@TSkol{} t2@TSkol{}
     | t1 == t2 = pure mempty
+-- TODO: What about '∀a.∀b. C ~ ∀a b. C'?
+unify poly1@(TForall tvs1 ty1) poly2@(TForall tvs2 ty2)
+    | length tvs1 /= length tvs2 = throwType $ CannotUnify poly1 poly2
+    -- Assuming the kinds of tvs1 and tvs2 are identical
+    | otherwise = do
+        -- We unify foralls up to α-equivalence
+        freshTvs <- traverse (\(MkTVar _ k) -> freshTV k) tvs1
+        unify 
+            (replaceTVars (fromList $ toList (zip tvs1 freshTvs)) ty1)
+            (replaceTVars (fromList $ toList (zip tvs2 freshTvs)) ty2)
 
 -- Open and skolem rows with an empty extension should be equivalent to the variables/skolems on their own.
 unify (TRowOpen Empty var) t2 = unify (TVar var) t2
