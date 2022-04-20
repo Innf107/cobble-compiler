@@ -39,3 +39,11 @@ copyFileOrDirectory parents from to =
                 forM_ files $ \file -> copyFileOrDirectory parents (from </> file) (to </> file)
             False -> fail $ "copyFileOrDirectory: File does not exist: " <> from
 
+lookupAndDeleteWith :: (a -> Maybe b) -> Seq a -> Maybe (b, Seq a)
+lookupAndDeleteWith f Empty = Nothing
+lookupAndDeleteWith f (a :<| as) = case f a of
+    Just b -> Just (b, as)
+    Nothing -> second (a <|) <$> lookupAndDeleteWith f as
+
+lookupAndDelete :: (Eq a) => a -> Seq (a, b) -> Maybe (b, Seq (a, b))
+lookupAndDelete x = lookupAndDeleteWith (\(x', y) -> if x == x' then Just y else Nothing)

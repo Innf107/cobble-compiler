@@ -4,6 +4,8 @@ import Cobble.Prelude
 import Cobble.Types.QualifiedName
 import Cobble.Core.Types
 
+import Cobble.Util
+
 newtype CoreLintError = MkCoreLintError Text deriving (Show, Eq)
 
 throwLint :: Members '[Error CoreLintError] r => Text -> Sem r a
@@ -348,7 +350,29 @@ typeEquiv (TApp tfun1 targ1) (TApp tfun2 targ2) = do
 typeEquiv (TForall a1 k1 ty1) (TForall a2 k2 ty2)
     | k1 == k2 = typeEquiv ty1 (replaceTVar a2 (TVar a1 k1) ty2)
 typeEquiv TRowNil TRowNil = pure ()
-typeEquiv (TRowExtend tys1 row1) (TRowExtend tys2 row2) = undefined
+-- Empty extensions should be irrelevant
+typeEquiv (TRowExtend Empty ty1) ty2 = typeEquiv ty1 ty2
+typeEquiv ty1 (TRowExtend Empty ty2) = typeEquiv ty1 ty2
+typeEquiv t1@TRowExtend{} t2@TRowExtend{} = do
+    let (tys1, end1) = collectRowExtensions t1
+    let (tys2, end2) = collectRowExtensions t2
+    typeEquiv end1 end2
+    go tys1 tys2
+        where
+            collectRowExtensions (TRowExtend tys row) = first (tys<>) $ collectRowExtensions row
+            collectRowExtensions ty = ([], ty)
+            go Empty Empty = pure ()
+            go (t1 :<| remaining1) t2s = 
+                -- We look up types by (==), not typeEquiv, since effect constructors should
+                -- be comparable by identity anyway.
+                case lookupAndDeleteWith (guard . (== t1)) t2s of
+                    Just ((), remaining2) -> go remaining1 remaining2
+                    Nothing -> Left $ "Row is missing field '" <> show t1
+                                <> "'\n    when matching '" <> show t1
+                                <> "'\n             with '" <> show t2 <> "'"
+            go remaining1 remaining2 = Left $ "Unable to match row extensions '" <> show remaining1 <> "' and '" <> show remaining2 
+                                             <> "'\n    Trying to match row type '" <> show t1 
+                                             <> "'\n                        with '" <> show t2 <> "'"
 typeEquiv TEffUR _ = pure ()
 typeEquiv _ TEffUR = pure ()
 typeEquiv t1 t2 = Left $ "Unable to match: \n"

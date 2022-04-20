@@ -759,11 +759,6 @@ getHeadConstr (TApp t1 t2) = do
     pure (headC, args |> t2)
 getHeadConstr ty = throwType $ InvalidRowHeadConstr ty
 
-lookupAndDelete :: (Eq a) => a -> Seq (a, b) -> Maybe (b, Seq (a, b))
-lookupAndDelete x Empty = Nothing
-lookupAndDelete x ((k,v) :<| ys)
-    | x == k    = Just (v, ys)
-    | otherwise = second ((k,v) <|) <$> lookupAndDelete x ys
 
 bind :: Members '[Reader LexInfo, Error TypeError, Context TypeContext] r => TVar -> Type -> Sem r Substitution
 bind tv ty
