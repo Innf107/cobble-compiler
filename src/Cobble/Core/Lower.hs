@@ -37,9 +37,8 @@ lowerStmnts (s@C.Def{} :<| sts) = error "lowerStmnts: Definition with arguments 
 lowerStmnts (C.DefClass k li cname tvs methSigs :<| sts) = do
     tvs' <- traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) tvs
     k' <- lowerKind k
-    let addForall ty = foldr (uncurry F.TForall) ty tvs'
 
-    dictDef <- F.DefDict cname tvs' <$> traverse (secondM (lowerType . stripConstraint)) methSigs
+    dictDef <- F.DefDict cname tvs' <$> traverse (secondM (lowerType . stripConstraintAndFirstArg)) methSigs
 
     methImpls <- forM methSigs \(methName, methTy) -> do
         dictName <- freshVar "d"
@@ -52,9 +51,10 @@ lowerStmnts (C.DefClass k li cname tvs methSigs :<| sts) = do
 
     ((dictDef :<| methImpls) <>) <$> lowerStmnts sts
         where
-            stripConstraint (C.TForall tvs ty) = C.TForall tvs (stripConstraint ty)
-            stripConstraint (C.TConstraint _ ty) = ty
-            stripConstraint ty = ty
+            stripConstraintAndFirstArg (C.TForall (tv:<|tvs) ty) = C.TForall tvs (stripConstraintAndFirstArg ty)
+            stripConstraintAndFirstArg (C.TForall [tv] ty) = stripConstraintAndFirstArg ty
+            stripConstraintAndFirstArg (C.TConstraint _ ty) = ty
+            stripConstraintAndFirstArg ty = ty
 
             tyAbsFor (0 :: Int) (F.TForall tv k ty) = F.TyAbs tv k . tyAbsFor 0 ty
             tyAbsFor n (F.TForall _ _ ty) = tyAbsFor (n - 1) ty
