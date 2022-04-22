@@ -76,7 +76,8 @@ lowerStmnts (C.DefInstance (classKind, _, tyParams, dictVar) li className tyArg 
     (def :<|) <$> lowerStmnts sts
     where
         stripDictAbs (C.DictAbs _ _ _ e) = e
-        stripDictAbs _ = error $ "lowerStmnts: No dict abstraction in instance definition"
+        stripDictAbs (C.TyAbs a k e) = C.TyAbs a k (stripDictAbs e)
+        stripDictAbs ty = error $ "lowerStmnts: No dict abstraction in instance definition: " <> show ty
 
 lowerStmnts (C.DefVariant _ _ x args clauses :<| sts) = do
     def <- F.DefVariant x 
