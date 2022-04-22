@@ -70,6 +70,7 @@ renderRacket = renameRacketChars . renderDebug
             '#' -> "?hash?"
             ';' -> "?semi?"
             ',' -> "?comma?"
+            '\''-> "?prime?"
             x   -> one x
 
 

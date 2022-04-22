@@ -532,7 +532,8 @@ decomposeFun :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexI
           -> Sem r (Type, Effect, Type, Expr NextPass -> Expr NextPass)
 decomposeFun t@TForall{} = do
     (t', w) <- instantiate t
-    (\(x, eff, y, w') -> (x, eff, y, w . w')) <$> decomposeFun t'
+    (x, eff, y, w') <- decomposeFun t'
+    pure (x, eff, y, w . w')
 
 decomposeFun (TFun a eff b) = pure (a, eff, b, id)
 decomposeFun t = do
@@ -778,14 +779,17 @@ skolemize (TForall tvs ty) = do
     li <- ask
     skolemMap <- M.fromList . toList <$> traverse (\tv@(MkTVar n _) -> (tv,) . flip TSkol tv <$> freshVar (originalName n)) tvs
     (ty', f) <- skolemize $ replaceTVars skolemMap ty
-    pure (ty', f . foldr (\tv r -> TyAbs li tv . r) id tvs)
+    pure (ty', foldr (\tv r -> TyAbs li tv . r) id tvs . f)
 skolemize (TConstraint c ty) = do
     li <- ask
     dictName <- freshVar "d"
     given c dictName
     (ty', f) <- skolemize ty
-    pure (ty', f . DictAbs li dictName c)
+    pure (ty', DictAbs li dictName c . f)
 skolemize ty = pure (ty, id)
+
+-- ∀a. C a => b
+-- Λa. λ(d : C a). e
 
 applySubst :: Data from => Substitution -> from -> from
 applySubst s@Subst{substVarTys, substDicts} = applyDictSubst . applyTySubst
