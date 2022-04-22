@@ -237,7 +237,7 @@ lintExpr env (DictConstruct className tyArgs fields) eff = do
     zipWithM_
         (\expr (_, ty) -> do
             exprTy <- lintExpr env expr eff
-            appliedTy <- applyTypes ty tyArgs 
+            appliedTy <- applyTypes (foldr (uncurry TForall) ty tyParams) tyArgs
             typeMatch exprTy appliedTy $ "Mismatched dictionary construction argument for class '" <> show className <> "'."
             )
         fields
@@ -250,6 +250,8 @@ lintExpr env (DictAccess e className tyArgs field) eff = do
     
     -- TODO: ??? typeMatch eTy (foldl' TApp (TCon className undefined) (map (uncurry TVar) tyArgs)) $ "Type mismatch in dict access: "
 
+    -- TODO: Add foralls of tyArgs to fieldTy before matching
+
     (tyParams, fieldTys) <- lookupDictTy className env
     when (length tyParams /= length tyArgs)
         $ throwLint $ "Mismatched type argument count at dict access for '" <> show className <> "', computed by '" <> show e <> "'.\nExpected: " <> show tyParams <> "\nActual: " <> show tyArgs
@@ -259,7 +261,7 @@ lintExpr env (DictAccess e className tyArgs field) eff = do
         tyArgs
     case snd <$> find ((== field) . fst) fieldTys of
         Nothing -> throwLint $ "Nonexistant dictionary field '" <> show field <> "'. In dictionary '" <> show className <> "', computed by '" <> show e <> "'."
-        Just ty -> applyTypes ty tyArgs
+        Just ty -> applyTypes (foldr (uncurry TForall) ty tyParams) tyArgs
 
 lintExpr env (Perform opEff op tyArgs valArgs) eff = do
     (tvars, opTys) <- lookupEff opEff env
