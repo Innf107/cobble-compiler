@@ -641,16 +641,17 @@ solveWanteds givens ((c@(MkConstraint cname k ty), dictVar, li, cxt) :<| wanteds
                 (subst <>) <$> solveWanteds (applySubst subst givens) (applySubst subst wanteds)
             Nothing -> throwType $ NoInstanceFor c
 
-unifyCxt :: Members '[Error TypeError, Context TypeContext, Reader LexInfo, Fresh Text QualifiedName] r
+unifyCxt :: (Trace, Members '[Error TypeError, Context TypeContext, Reader LexInfo, Fresh Text QualifiedName] r)
          => Type
          -> Type
          -> Sem r Substitution
 unifyCxt t1 t2 = withContext (WhenUnifying t1 t2) $ unify t1 t2
 
-unify :: Members '[Error TypeError, Context TypeContext, Reader LexInfo, Fresh Text QualifiedName] r
+unify :: (Trace, Members '[Error TypeError, Context TypeContext, Reader LexInfo, Fresh Text QualifiedName] r)
       => Type
       -> Type
       -> Sem r Substitution
+unify t1 t2 | trace TraceUnify ("[unify]: " <> show t1 <> " ~ " <> show t2) False = error "unreachable"
 unify t1@(TCon c1 _) t2@(TCon c2 _)
     | c1 == c2 = pure mempty
     | otherwise = throwType $ DifferentTCon c1 c2
@@ -683,16 +684,24 @@ unify t1 (TRowOpen Empty var) = unify t1 (TVar var)
 unify t1 (TRowSkol Empty skol var) = unify t1 (TSkol skol var)
 
 unify row1@(TRowClosed t1s) row2@(TRowClosed t2s) = 
-    unifyRows row1 row2 t1s t2s \remaining -> throwType $ RemainingRowFields remaining row1 row2
+    unifyRows row1 row2 t1s t2s \case
+        [] -> pure mempty
+        remaining -> throwType $ RemainingRowFields remaining row1 row2
 unify row1@(TRowOpen t1s tvar) row2@(TRowClosed t2s) = 
-    unifyRows row1 row2 t1s t2s \remaining -> bind tvar (TRowClosed (map (\(ty,_,_) -> ty) remaining))
+    unifyRows row1 row2 t1s t2s \case 
+        [] -> pure mempty
+        remaining -> bind tvar (TRowClosed (map (\(ty,_,_) -> ty) remaining))
 unify row1@TRowClosed{} row2@TRowOpen{} = unify row2 row1
 unify row1@(TRowOpen t1s tvar) row2@(TRowSkol t2s skol tvar2) = 
-    unifyRows row1 row2 t1s t2s \remaining -> bind tvar (TRowSkol (map (\(ty,_,_) -> ty) remaining) skol tvar2)
+    unifyRows row1 row2 t1s t2s \case
+        [] -> bind tvar (TSkol skol tvar2)
+        remaining -> bind tvar (TRowSkol (map (\(ty,_,_) -> ty) remaining) skol tvar2)
 unify row1@TRowSkol{} row2@TRowOpen{} = unify row2 row1
 
 unify row1@(TRowSkol t1s skol1 var1) row2@(TRowSkol t2s skol2 var2)
-    | skol1 == skol2 && var1 == var2 = unifyRows row1 row2 t1s t2s \remaining -> throwType $ RemainingRowFields remaining row1 row2 
+    | skol1 == skol2 && var1 == var2 = unifyRows row1 row2 t1s t2s \case
+        [] -> pure mempty
+        remaining -> throwType $ RemainingRowFields remaining row1 row2 
 
 
 unify row1@(TRowOpen t1s tvar1@(MkTVar _ kind)) row2@(TRowOpen t2s tvar2) = do
@@ -719,7 +728,7 @@ unify s@TSkol{} t2  = throwType $ SkolBinding s t2
 unify t1 s@TSkol{}  = throwType $ SkolBinding t1 s
 unify t1 t2         = throwType $ CannotUnify t1 t2 
 
-unifyRows :: Members '[Reader LexInfo, Error TypeError, Context TypeContext, Fresh Text QualifiedName] r
+unifyRows :: (Trace, Members '[Reader LexInfo, Error TypeError, Context TypeContext, Fresh Text QualifiedName] r)
           => Type 
           -> Type
           -> (Seq Type)
@@ -729,6 +738,7 @@ unifyRows :: Members '[Reader LexInfo, Error TypeError, Context TypeContext, Fre
 unifyRows row1 row2 t1s t2s remainingCont = do
     headT1s <- traverse getHeadConstr t1s
     headT2s <- traverse (\ty -> (\(name, tys) -> (name, (tys, ty))) <$> getHeadConstr ty) t2s
+    traceM TraceUnify $ "[unifyRows]: Unifying head constructors " <> show headT1s <> " and " <> show headT2s 
     go headT1s headT2s
         where
             go ((con1, args1) :<| t1s) t2s = do
@@ -737,11 +747,10 @@ unifyRows row1 row2 t1s t2s remainingCont = do
                     Just ((args2, _), t2s') -> do
                         subst <- unifyAll args1 args2
                         (subst<>) <$> go (applySubst subst t1s) (applySubst subst t2s')
-            go Empty Empty = pure mempty
             go Empty t2s = remainingCont (map (\(x,(y,z)) -> (z, x, y)) t2s)
 
 
-unifyAll :: Members '[Reader LexInfo, Error TypeError, Context TypeContext, Fresh Text QualifiedName] r 
+unifyAll :: (Trace, Members '[Reader LexInfo, Error TypeError, Context TypeContext, Fresh Text QualifiedName] r)
           => Seq Type 
           -> Seq Type 
           -> Sem r Substitution
@@ -761,12 +770,14 @@ getHeadConstr (TApp t1 t2) = do
 getHeadConstr ty = throwType $ InvalidRowHeadConstr ty
 
 
-bind :: Members '[Reader LexInfo, Error TypeError, Context TypeContext] r => TVar -> Type -> Sem r Substitution
+bind :: (Trace, Members '[Reader LexInfo, Error TypeError, Context TypeContext] r) => TVar -> Type -> Sem r Substitution
 bind tv ty
     | TVar tv == ty = pure mempty
     | occurs tv ty = throwType $ Occurs tv ty
     | TForall{} <- ty = throwType $ Impredicative tv ty
-    | otherwise = pure $ Subst (one (tv, ty)) mempty
+    | otherwise = do
+        traceM TraceSubst $ show tv <> " := " <> show ty
+        pure $ Subst (one (tv, ty)) mempty
 
 occurs :: TVar -> Type -> Bool
 occurs tv ty = tv `Set.member` freeTVs ty
@@ -788,8 +799,6 @@ skolemize (TConstraint c ty) = do
     pure (ty', DictAbs li dictName c . f)
 skolemize ty = pure (ty, id)
 
--- ∀a. C a => b
--- Λa. λ(d : C a). e
 
 applySubst :: Data from => Substitution -> from -> from
 applySubst s@Subst{substVarTys, substDicts} = applyDictSubst . applyTySubst

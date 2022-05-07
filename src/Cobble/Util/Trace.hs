@@ -11,6 +11,7 @@ import GHC.Read
 data TraceType = TraceTC
                | TraceSolver
                | TraceUnify
+               | TraceSubst
                | TraceLower
                | TraceCoreLint
                deriving (Show, Eq, Generic)
@@ -20,6 +21,7 @@ instance Read TraceType where
         "tc"     -> result TraceTC
         "solver" -> result TraceSolver
         "unify"  -> result TraceUnify
+        "subst"  -> result TraceSubst
         "lower"  -> result TraceLower
         _ -> []
         where

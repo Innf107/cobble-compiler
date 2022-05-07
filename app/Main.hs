@@ -76,6 +76,7 @@ runTracePretty traceTys = runTraceStderrWith pred pretty
         traceTC = TraceTC `elem` traceTys
         traceSolver = TraceSolver `elem` traceTys
         traceUnify = TraceUnify `elem` traceTys
+        traceSubst = TraceSubst `elem` traceTys
         traceLower = TraceLower `elem` traceTys
 
         pred = \case
@@ -83,6 +84,7 @@ runTracePretty traceTys = runTraceStderrWith pred pretty
             TraceTC -> traceTC
             TraceSolver -> traceSolver
             TraceUnify -> traceUnify
+            TraceSubst -> traceSubst
             TraceLower -> traceLower
 
         pretty ty msg = logPrefix ty <> msg <> "\ESC[0m"
@@ -96,6 +98,7 @@ runTracePretty traceTys = runTraceStderrWith pred pretty
             TraceTC -> infoPrefix "TYPE CHECKER"
             TraceSolver -> infoPrefix "CONSTRAINT SOLVER"
             TraceUnify -> infoPrefix "UNIFY"
+            TraceSubst -> infoPrefix "SUBST"
             TraceLower -> infoPrefix "LOWER"
 
 failWithCompError :: CompilationError -> IO a
