@@ -217,7 +217,7 @@ typecheckStatement env (DefVariant k li tyName tvs constrs) = do
     pure (DefVariant k li tyName tvs constrs', env')
         where
 typecheckStatement env (DefEffect k li effName tvs ops) = do
-    let env' = foldr (uncurry insertType) env ops
+    let env' = foldr (uncurry insertType . second (tforall tvs)) env ops
     pure (DefEffect k li effName tvs ops, env')
 
 tforall :: Seq TVar -> Type -> Type

@@ -30,7 +30,7 @@ implicitEffectType = \case
         DefEffect k li effName args <$> traverse (\(opName, opTy) -> (opName,) <$> insertEffect opTy) ops
             where
                 insertEffect (TForall tvs ty) = TForall tvs <$> insertEffect ty
-                insertEffect (TFun a effs b) = pure $ TFun a (consEff (foldl' TApp (TCon effName KEffect) (map TVar args)) effs) b
+                insertEffect (TFun a effs b) = pure $ TFun a (consEff (foldl' TApp (TCon effName k) (map TVar args)) effs) b
                 insertEffect ty = throw $ NonFunctionInEffectOp li ty
 
                 consEff eff (TRowClosed effs) = TRowClosed (eff <| effs)

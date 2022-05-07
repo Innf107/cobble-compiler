@@ -90,6 +90,7 @@ lowerStmnts (C.DefEffect k li effName tvs ops :<| sts) = do
 
     def <- F.DefEffect effName tvs'
             <$> traverse (secondM (fmap addForalls . lowerType)) ops
+            
     opDefs <- forM ops \(opName, opTy) -> do
         opTy' <- addForalls <$> lowerType opTy
         let (opTVs, argTy, effTy, _) = decomposeFunTy opTy'

@@ -364,12 +364,13 @@ typeEquiv t1@TRowExtend{} t2@TRowExtend{} = do
             collectRowExtensions (TRowExtend tys row) = first (tys<>) $ collectRowExtensions row
             collectRowExtensions ty = ([], ty)
             go Empty Empty = pure ()
-            go (t1 :<| remaining1) t2s = 
+            go (field1 :<| remaining1) t2s = 
                 -- We look up types by (==), not typeEquiv, since effect constructors should
                 -- be comparable by identity anyway.
-                case lookupAndDeleteWith (guard . (== t1)) t2s of
+                case lookupAndDeleteWith (guard . (== field1)) t2s of
                     Just ((), remaining2) -> go remaining1 remaining2
-                    Nothing -> Left $ "Row is missing field '" <> show t1
+                    Nothing -> Left $ "Row is missing field '" <> show field1
+                                <> "'\n       row fields: " <> show t2s
                                 <> "'\n    when matching '" <> show t1
                                 <> "'\n             with '" <> show t2 <> "'"
             go remaining1 remaining2 = Left $ "Unable to match row extensions '" <> show remaining1 <> "' and '" <> show remaining2 

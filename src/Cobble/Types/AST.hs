@@ -228,7 +228,7 @@ ppType (TFun a (TRowClosed Empty) b) = "(" <> ppType a <> " -> " <> ppType b <> 
 ppType (TFun a effs b)               = "(" <> ppType a <> " -{" <> ppType effs <> "}> " <> ppType b <> ")"
 ppType (TVar (MkTVar v _))           = show v
 ppType (TSkol v _)                   = "#" <> show v
-ppType (TCon v _)                    = show v
+ppType (TCon v k)                    = show v
 ppType (TApp a b)                    = "(" <> ppType a <> " " <> ppType b <> ")"
 ppType (TForall ps t)                = "(∀" <> T.intercalate " " (toList $ map (\(MkTVar v _) -> show v) ps) <> ". " <> ppType t <> ")"
 ppType (TConstraint c t)             = ppConstraint c <> " => " <> ppType t
