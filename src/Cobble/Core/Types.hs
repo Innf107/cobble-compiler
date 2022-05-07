@@ -107,7 +107,7 @@ prettyDecls ds = vsep (map ((<> line) . pretty) ds)
 
 instance Pretty Decl where
     pretty (Def x ty e) = ppQName x <+> ":" <+> pretty ty <> line <> ppQName x <+> "=" <+> align (pretty e)
-    pretty (DefVariant x args clauses) = "variant" <+> ppQName x <+> sep (map (\(x, k) -> "(" <> ppQName x <+> ":" <+> pretty k <> ")") args) <+> align ("="
+    pretty (DefVariant x args clauses) = "variant" <+> ppQName x <+> sep (map (\(x, k) -> prettyWithKind (ppQName x) k) args) <+> align ("="
                                     <+> (vsep (mapAfter1 False True (\bar (c, args) -> (if bar then ("|" <+>) else id) (ppQName c) <+> sep (map pretty args)) clauses)))
         where
             mapAfter1 :: a -> a -> (a -> b -> c) -> Seq b -> Seq c
@@ -121,7 +121,7 @@ instance Pretty Decl where
 instance Pretty Expr where
     pretty (Var x) = ppQName x
     pretty (App e1 e2) = "(" <> pretty e1 <+> pretty e2 <> ")"
-    pretty (TyAbs tv k e) = "(Λ(" <> ppQName tv <+> ":" <+> pretty k <> ")." <> softline <> align (pretty e) <> ")"
+    pretty (TyAbs tv k e) = "(Λ" <> prettyWithKind (ppQName tv) k <> "." <> softline <> align (pretty e) <> ")"
     pretty (TyApp e ty) = "(" <> pretty e <+> "@" <> pretty ty <> ")"
     pretty (Abs x eff ty e) = "(λ[" <> pretty eff <> "](" <> ppQName x <+> ":" <+> pretty ty <> ")." <> softline <> align (pretty e) <> ")"
     pretty (IntLit n) = pretty n
@@ -176,7 +176,7 @@ instance Pretty Type where
     pretty (TCon x k) = ppQName x -- We don't currently display the kinds of type constructors
     pretty (TFun t1 eff t2) = "(" <> pretty t1 <+> "-{" <> show eff <> "}>" <+> pretty t2 <> ")"
     pretty (TApp t1 t2) = "(" <> pretty t1 <+> pretty t2 <> ")"
-    pretty (TForall x k ty) = "(∀" <+> "(" <> ppQName x <+> ":" <+> pretty k <> ")." <+> pretty ty <> ")"
+    pretty (TForall x k ty) = "(∀" <> prettyWithKind (ppQName x) k <> "." <+> pretty ty <> ")"
     pretty (TRowNil) = "{}"
     pretty (TRowExtend tys row) = "{" <> fold (intersperse ", " (map pretty tys)) <> " | " <> pretty row <> "}"
     pretty TEffUR = "∞"
@@ -186,6 +186,10 @@ instance Pretty Kind where
     pretty (KRow k) = "(Row" <+> pretty k <> ")"
     pretty (KFun KType t2) = "*" <+> "->" <+> pretty t2
     pretty (KFun t1 t2) = "(" <> pretty t1 <> ")" <+> "->" <+> pretty t2
+
+prettyWithKind :: Doc ann -> Kind -> Doc ann
+prettyWithKind name KType = name
+prettyWithKind name k = "(" <> name <+> ":" <+> pretty k <> ")"
 
 instance S.Show Decl where
     show = show . pretty

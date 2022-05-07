@@ -198,7 +198,7 @@ typecheckStatement env (DefInstance (classKind, methDefs, params, _isImported) l
                     _ -> error $ "typecheckStatement: foralls were not properly inserted in instance method type. methTy: " <> show methTy
                 _ -> error "typecheckStatement: multi parameter typeclasses NYI"
 
-        traceM DebugVerbose $ "[typecheckStatement (instance " <> show cname <> " " <> show ty <> ")]: Γ ⊢ " <> show methName <> " : " <> show methTy <> " ====> " <> show methTy'
+        traceM TraceTC $ "[typecheckStatement (instance " <> show cname <> " " <> show ty <> ")]: Γ ⊢ " <> show methName <> " : " <> show methTy <> " ====> " <> show methTy'
 
         -- We discard the modified environment, since instance methods should really not be able to modify it.
         fst <$> checkTopLevelDecl False env' decl methTy'
@@ -239,7 +239,7 @@ checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = withContext (InDef
     li <- ask
     (expectedTy', w) <- skolemize expectedTy
     (xs', eTy, mEff, w') <- decomposeParams expectedTy' xs
-    traceM DebugVerbose $ "[checkTopLevelDecl env (" <> show f <> ")] expectedTy = " <> show expectedTy <> "| xs' = " <> show xs' <> " | mEff = " <> show mEff <> " | eTy = " <> show eTy
+    traceM TraceTC $ "[checkTopLevelDecl env (" <> show f <> ")]\n    expectedTy = " <> show expectedTy <> "\n    expectedTy' = " <> show expectedTy' <> "\n    xs' = " <> show xs' <> " | mEff = " <> show mEff <> " | eTy = " <> show eTy
 
     let env' = if recursive
                then insertType f expectedTy env
@@ -267,7 +267,7 @@ check :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh T
       -> Type 
       -> Effect
       -> Sem r (Expr NextPass)
-check env e t eff | trace DebugVerbose ("[check]: Γ ⊢ " <> show e <> " : " <> ppType t <> " | " <> ppType eff) False = error "unreachable"
+check env e t eff | trace TraceTC ("[check]: Γ ⊢ " <> show e <> " : " <> ppType t <> " | " <> ppType eff) False = error "unreachable"
 -- We need to 'correct' the extension field to resubstitute the skolems that were introduced by skolemize
 check env e t@TForall{} eff = runReader (getLexInfo e) do
     (t', w) <- skolemize t
@@ -278,7 +278,7 @@ check env (App () li f x) t eff = runReader li do
     (fDomTy, fFunEff, fCodomTy, w) <- decomposeFun (getType f')
     fValEff !~ fFunEff
     fValEff !~ eff
-    traceM DebugVerbose $ "[check env (App ...)] getType f' = " <> ppType (getType f') <> " | t = " <> ppType t <> " | fDomTy = " <> ppType fDomTy  <> " | fFunEff = " <> ppType fFunEff <> " | fCodomTy = " <> ppType fCodomTy
+    traceM TraceTC $ "[check env (App ...)] getType f' = " <> ppType (getType f') <> " | t = " <> ppType t <> " | fDomTy = " <> ppType fDomTy  <> " | fFunEff = " <> ppType fFunEff <> " | fCodomTy = " <> ppType fCodomTy
     
     x' <- check env x fDomTy eff
 
@@ -332,7 +332,7 @@ check env (Case () li e branches) t eff = runReader li do
 
 check env (Lambda () li x e) t _eff = runReader li do
     (expectedArgTy, tEff, expectedResTy, w) <- decomposeFun t
-    traceM DebugVerbose $ "[check env (Lambda ...)] t = " <> ppType t <> " | expectedArgTy = " <> ppType expectedArgTy <> " | expectedResTy = " <> ppType expectedResTy
+    traceM TraceTC $ "[check env (Lambda ...)] t = " <> ppType t <> " | expectedArgTy = " <> ppType expectedArgTy <> " | expectedResTy = " <> ppType expectedResTy
 
     -- We check the expression against the effect contained in its type, *not* against
     -- the environment effect (which is irrelevant since lambdas are values)
@@ -389,7 +389,7 @@ infer :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh T
 infer env (App () li f x) = runReader li do
     (f', fValEff) <- infer env f
     (fDomTy, fFunEff, fCodomTy, wF) <- decomposeFun (getType f') 
-    traceM DebugVerbose $ "[infer env (App ...)] getType f' = " <> ppType (getType f') <> " | fDomTy = " <> ppType fDomTy <> " | fFunEff = " <> ppType fFunEff <> " | fCodomTy = " <> ppType fCodomTy
+    traceM TraceTC $ "[infer env (App ...)] getType f' = " <> ppType (getType f') <> " | fDomTy = " <> ppType fDomTy <> " | fFunEff = " <> ppType fFunEff <> " | fCodomTy = " <> ppType fCodomTy
     fValEff !~ fFunEff
 
     x' <- check env x fDomTy fFunEff
@@ -629,10 +629,10 @@ solveWanteds givens ((c@(MkConstraint cname k ty), dictVar, li, cxt) :<| wanteds
                     trySolve ((t2, d) :<| tys) = do
                         runError @TypeError (unifyCxt ty t2) >>= \case
                             Left err -> do
-                                traceM DebugVerbose $ "[solveWanteds] [W] " <> show c <> ": " <> show ty <> " ~ " <> show t2 <> ": " <> show err
+                                traceM TraceSolver $ "[solveWanteds] [W] " <> show c <> ": " <> show ty <> " ~ " <> show t2 <> ": " <> show err
                                 trySolve tys
                             Right subst -> do
-                                traceM DebugVerbose $ "[solveWanteds] [W] " <> show c <> ": " <> show ty <> " ~ " <> show t2 <> " ✓"
+                                traceM TraceSolver $ "[solveWanteds] [W] " <> show c <> ": " <> show ty <> " ~ " <> show t2 <> " ✓"
                                 pure $ subst <> Subst mempty (one (dictVar, d)) -- Substitute the dictionary
                 -- We can rely on coherence and non-overlapping instances here and just pick the
                 -- first matching dictionary that we find.

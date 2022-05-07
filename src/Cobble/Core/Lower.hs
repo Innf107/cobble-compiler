@@ -270,7 +270,7 @@ reorderBy xs (y :<| ys) zs = runWithError $ do
 reorderBy _ Empty _ = Empty
 
 compilePMatrix :: forall r. (Trace, Members '[Fresh Text QualifiedName] r) => Seq QualifiedName -> PatternMatrix -> Sem r F.Expr
-compilePMatrix occs m | trace DebugVerbose ("compiling pattern matrix with args " <> show occs <> ":\n" <> show m) False = error "unreachable"
+compilePMatrix occs m | trace TraceLower ("compiling pattern matrix with args " <> show occs <> ":\n" <> show m) False = error "unreachable"
 compilePMatrix occs (MkPatternMatrix Empty) = error "Non-exhaustive patterns. (This should not be a panic)"
 compilePMatrix occs (MkPatternMatrix ((row, expr) :<| _))
     | all isWildcardLike row = pure $ expr (catMaybes $ zipWith (\occ pat -> if isVar pat then Just (F.Var occ) else Nothing) occs row)
@@ -284,7 +284,7 @@ compilePMatrix (occ :<| occs) m = do
         compileHeadConstr :: HeadConstr -> Sem r (F.Pattern, F.Expr)
         compileHeadConstr h@(IntHead i) = fmap (F.PInt i,) $ compilePMatrix occs =<< deconstructPM occ h m
         compileHeadConstr h@(ConstrHead c i argTys _) = do
-            traceM DebugVerbose $ "compiling pattern matrix with head constructor: " <> show c
+            traceM TraceLower $ "compiling pattern matrix with head constructor: " <> show c
             argVars <- traverse (\ty -> (,) <$> freshVar @_ @_ @r "c" <*> lowerType ty) argTys
             fmap (F.PConstr c (argVars) i,) $ compilePMatrix (fmap fst argVars <> occs) =<< deconstructPM occ h m
         
@@ -293,7 +293,7 @@ compilePMatrix (occ :<| occs) m = do
             (ConstrHead _ _ _ otherConstrs :<| _) 
                 | isComplete headConstrs otherConstrs -> pure cases
             _ -> do
-                traceM DebugVerbose "compiling default matrix"
+                traceM TraceLower "compiling default matrix"
                 defaultClause <- (F.PWildcard,) <$> compilePMatrix occs (defaultMatrix occ m)
                 pure (cases |> defaultClause)
         

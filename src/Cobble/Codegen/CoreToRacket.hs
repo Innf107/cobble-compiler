@@ -1,6 +1,6 @@
 module Cobble.Codegen.CoreToRacket where
 
-import Cobble.Prelude hiding (EQ, Debug)
+import Cobble.Prelude hiding (EQ)
 import Cobble.Core.Types as F
 import Cobble.Racket.Types as R
 import Cobble.Types.QualifiedName

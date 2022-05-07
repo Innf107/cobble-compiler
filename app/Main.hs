@@ -38,7 +38,7 @@ runCobble = \case
     Build buildOpts -> runBuild buildOpts
 
 runCompile :: CompileCmdOpts -> IO ()
-runCompile CompileCmdOpts{compFile, interfaceFiles, output, target, traceLevel, ddumpTC, ddumpCore, skipCoreLint} = do
+runCompile CompileCmdOpts{compFile, interfaceFiles, output, target, traceTypes, ddumpTC, ddumpCore, skipCoreLint} = do
     let opts = CompileOpts {
             target
         ,   interfaceFiles
@@ -48,7 +48,7 @@ runCompile CompileCmdOpts{compFile, interfaceFiles, output, target, traceLevel, 
         }
     case target of
         Racket -> do
-            eRacketFile <- runTracePretty traceLevel $ runControllerC opts (compileToRacketFile compFile)
+            eRacketFile <- runTracePretty traceTypes $ runControllerC opts (compileToRacketFile compFile)
             case eRacketFile of
                 Left e -> failWithCompError e
                 Right (racketFile, interface) -> do
@@ -68,18 +68,35 @@ runBuild BuildCmdOpts{projectFile, makeCommand, makeOptions} = do
         Left err -> failWithBuildError err
         Right makeWorkingDirectory -> callProcess (toString makeCommand) (fmap toString makeOptions <> ["-C", makeWorkingDirectory])
 
-runTracePretty :: TraceLevel -> (Trace => a) -> a
-runTracePretty lvl = runTraceStderrWith lvl pretty 
+runTracePretty :: Seq TraceType -> (Trace => a) -> a
+runTracePretty traceTys = runTraceStderrWith pred pretty
     where
-        pretty lvl msg = logPrefix lvl <> msg <> "\ESC[0m"
-        logPrefix = \case
-            Warning -> "\ESC[38;2;255;128;0m\STX[WARNING]\ESC[38;2;255;176;0m\STX "
-            Info    -> "\ESC[38;2;0;225;225m\STX[INFO]\ESC[38;2;136;225;225m\STX "
-            Verbose -> "\ESC[38;2;0;175;175m\STX[VERBOSE]\ESC[38;2;70;200;200m\STX "
-            Debug -> "\ESC[38;2;0;225;0m\STX[DEBUG]\ESC[38;2;140;255;140m\STX "
-            DebugVerbose -> "\ESC[38;2;0;128;0m\STX[DEBUG VERBOSE]\ESC[38;2;80;200;80m\STX "
-            DebugVeryVerbose -> "\ESC[38;2;0;100;0m\STX[DEBUG VERY VERBOSE]\ESC[38;2;40;145;40m\STX "
+        -- There is no reason to recompute tracing predicates everytime
+        -- so we cache them by binding them to variables.
+        traceTC = TraceTC `elem` traceTys
+        traceSolver = TraceSolver `elem` traceTys
+        traceUnify = TraceUnify `elem` traceTys
+        traceLower = TraceLower `elem` traceTys
+
+        pred = \case
+            TraceCoreLint -> True
+            TraceTC -> traceTC
+            TraceSolver -> traceSolver
+            TraceUnify -> traceUnify
+            TraceLower -> traceLower
+
+        pretty ty msg = logPrefix ty <> msg <> "\ESC[0m"
         
+        warningPrefix name = "\ESC[38;2;255;128;0m\STX[" <> name <> "]\ESC[38;2;255;176;0m\STX "        
+
+        infoPrefix name = "\ESC[38;2;0;128;0m\STX[" <> name <> "]\ESC[38;2;80;200;80m\STX "
+
+        logPrefix = \case
+            TraceCoreLint -> warningPrefix "CORE LINT"
+            TraceTC -> infoPrefix "TYPE CHECKER"
+            TraceSolver -> infoPrefix "CONSTRAINT SOLVER"
+            TraceUnify -> infoPrefix "UNIFY"
+            TraceLower -> infoPrefix "LOWER"
 
 failWithCompError :: CompilationError -> IO a
 failWithCompError (Panic msg) = do
@@ -199,7 +216,7 @@ data CompileCmdOpts = CompileCmdOpts {
       compFile :: FilePath
     , interfaceFiles :: Seq FilePath
     , output :: Maybe FilePath
-    , traceLevel :: TraceLevel
+    , traceTypes :: Seq TraceType
     , target :: Target
     , ddumpTC :: Bool
     , ddumpCore :: Bool
@@ -211,11 +228,12 @@ compileOpts = CompileCmdOpts
     <$> (argument str (metavar "SOURCEFILE"))
     <*> (fromList <$> many (argument str (metavar "INTERFACES")))
     <*> option (Just <$> str) (long "output" <>  short 'o' <> metavar "FILE" <> value Nothing <> help "Write the output to FILE. An interface file will be written to FILE.cbi")
-    <*> option auto (long "log-level" <> metavar "LEVEL" <> value Info <> help "Controls how much information is logged (LogWarning | LogInfo | LogVerbose | LogDebug | LogDebugVerbose)")
+    <*> (fromList <$> many (option auto (long "trace" <> metavar "TYPE" <> help "Enable tracing for a given trace type")))
     <*> option auto (long "target" <> metavar "TARGET" <> value Racket <> help "Possible targets: racket")
     <*> switch (long "ddump-tc" <> help "Write the typechecker constraints to a file")
     <*> switch (long "ddump-core" <> help "Write the intermediate language Core to a file")
     <*> switch (long "skip-core-lint" <> help "Skip type checks for the internal language. Unless the compiler has a bug, this should always be safe.")
+
 
 data BuildCmdOpts = BuildCmdOpts {
     projectFile :: FilePath

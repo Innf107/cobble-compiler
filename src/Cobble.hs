@@ -141,7 +141,7 @@ compileContents path content = do
         lintError <- runError $ lint lintEnv core
 
         case lintError of
-            Left (MkCoreLintError msg) -> traceM Warning $ "[CORE LINT ERROR]: " <> msg
+            Left (MkCoreLintError msg) -> traceM TraceCoreLint $ msg
             Right () -> pure () 
 
     result <- compileFromCore interfaces core
