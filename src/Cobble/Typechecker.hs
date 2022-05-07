@@ -523,8 +523,19 @@ instantiate (TConstraint c ty) = do
     wanted c dictVar
     (ty', w) <- instantiate ty
     pure (ty', \e -> w $ DictVarApp li e dictVar)
-instantiate ty = do
-    pure (ty, id)
+
+instantiate (TFun a eff b) = do
+    eff' <- openEffRow eff
+    pure (TFun a eff' b, id)
+instantiate ty = pure (ty, id)
+
+-- Instantiation 'opens' a closed effect row, by turning it into an extension of a fresh
+-- unification variable.
+openEffRow :: Members '[Fresh Text QualifiedName] r => Type -> Sem r Type
+openEffRow (TRowClosed tys) = do
+    effVar <- freshVar "μ"
+    pure (TRowOpen tys (MkTVar effVar (KRow KEffect)))
+openEffRow ty = pure ty
 
 
 decomposeFun :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Output TConstraint, Context TypeContext] r 
