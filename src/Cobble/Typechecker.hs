@@ -215,7 +215,7 @@ typecheckStatement env (DefVariant k li tyName tvs constrs) = do
     let env' = foldr (\(n,_,(t,_,_)) -> insertType n t) env constrs'
 
     pure (DefVariant k li tyName tvs constrs', env')
-        where
+        
 typecheckStatement env (DefEffect k li effName tvs ops) = do
     let env' = foldr (uncurry insertType) env ops
     pure (DefEffect k li effName tvs ops, env')

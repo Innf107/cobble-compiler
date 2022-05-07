@@ -178,6 +178,7 @@ instance Pretty Type where
     pretty (TApp t1 t2) = "(" <> pretty t1 <+> pretty t2 <> ")"
     pretty (TForall x k ty) = "(∀" <+> "(" <> ppQName x <+> ":" <+> pretty k <> ")." <+> pretty ty <> ")"
     pretty (TRowNil) = "{}"
+    pretty (TRowExtend [] row) = pretty row
     pretty (TRowExtend tys row) = "{" <> fold (intersperse ", " (map pretty tys)) <> " | " <> pretty row <> "}"
     pretty TEffUR = "∞"
 instance Pretty Kind where

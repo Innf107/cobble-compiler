@@ -308,10 +308,17 @@ qualifyType allowFreeVars uty = do
             pure (TConstraint constr' ty', conEffs <> tyEffs, conVars <> tyVars)
 
         go (UTRowClosed Empty) = do
+            {-
             tvar <- MkTVar <$> freshVar "μ" <*> pure (KRow KEffect)
             pure (TVar tvar, [tvar], Empty)
+            -}
+            pure (TRowClosed [], [], [])
 
         go (UTRowClosed tys) = do
+            -- TODO: Clean this up to remove the effect row opening logic
+            (tys', tyEffs, tyVars) <- goAll tys
+            pure (TRowClosed tys', tyEffs, tyVars)
+            {-
             -- TODO: We currently open *all* closed rows. If we ever use row polymorphism
             -- for anything other than effects (e.g. for extensible records), we have to make sure 
             -- to only do this if the row is part of a function type.
@@ -319,6 +326,8 @@ qualifyType allowFreeVars uty = do
             (tys', tyEffs, tyVars) <- goAll tys
             
             pure (TRowOpen tys' tvar, (tvar :<| tyEffs), tyVars)
+            -}
+
         go (UTRowOpen tys var) = do
             (tys', tyEffs, tyVars) <- goAll tys
             runError (lookupTVar var) >>= \case 
