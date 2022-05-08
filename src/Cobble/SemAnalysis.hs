@@ -19,7 +19,6 @@ data SemanticError = MissingField LexInfo UnqualifiedName
 runSemanticAnalysis :: Members '[Error SemanticError] r => Module SemAnalysis -> Sem r (Module NextPass)
 runSemanticAnalysis (Module x n sts) = fmap (coercePass . Module x n)
     $ transformBiM reorderAndCheckInstances 
-    =<< pure . transformBi implicitClassConstraints
     =<< transformBiM implicitEffectType sts
 
 
@@ -39,18 +38,6 @@ implicitEffectType = \case
                 consEff eff (TVar var) = TRowOpen [eff] var
                 consEff eff ty = error $ "implicitEffectType: consEff: Non-row type in function effect: " <> show ty
     x -> pure x
-
-implicitClassConstraints :: Statement SemAnalysis -> Statement SemAnalysis
-implicitClassConstraints = \case
-    (DefInstance (classKind, defMeths, ps, isImported) li cname ty meths) -> 
-        DefInstance (classKind, map (\(n, t) -> (n, coercePass $ addConstraint isImported t)) defMeths, ps, isImported) li cname ty meths
-          where
-            addConstraint True t = t
-            addConstraint False t = case ps of 
-                (p :<| Empty) -> insertAfterForalls (TConstraint (MkConstraint cname classKind (TVar p))) t
-                _   -> error $ "SemAnalysis.implicitClassConstraints: multi-param typeclasses NYI: " <> show ps
-    
-    x -> x
 
 addForall :: Type -> Type
 addForall t@TForall{} = t

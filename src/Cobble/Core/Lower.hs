@@ -71,13 +71,9 @@ lowerStmnts (C.DefInstance (classKind, _, tyParams, dictVar) li className tyArg 
 
     let dictType = F.TApp (F.TCon className dictKind) tyArg'
     def <- F.Def dictVar dictType . F.DictConstruct className [tyArg'] <$> forM methDecls \(C.Decl _ _ params expr) -> do 
-            expr' <- lowerExpr (stripDictAbs expr)
+            expr' <- lowerExpr expr
             foldrM (\(x, ty) r -> F.Abs x F.TEffUR <$> lowerType ty <*> pure r) expr' params
     (def :<|) <$> lowerStmnts sts
-    where
-        stripDictAbs (C.DictAbs _ _ _ e) = e
-        stripDictAbs (C.TyAbs a k e) = C.TyAbs a k (stripDictAbs e)
-        stripDictAbs ty = error $ "lowerStmnts: No dict abstraction in instance definition: " <> show ty
 
 lowerStmnts (C.DefVariant _ _ x args clauses :<| sts) = do
     def <- F.DefVariant x 
