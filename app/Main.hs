@@ -38,10 +38,12 @@ runCobble = \case
     Build buildOpts -> runBuild buildOpts
 
 runCompile :: CompileCmdOpts -> IO ()
-runCompile CompileCmdOpts{compFile, interfaceFiles, output, target, traceTypes, ddumpTC, ddumpCore, skipCoreLint} = do
+runCompile CompileCmdOpts{compFile, interfaceFiles, output, target, traceTypes, ddumpRenamed, ddumpPostProcessed, ddumpTC, ddumpCore, skipCoreLint} = do
     let opts = CompileOpts {
             target
         ,   interfaceFiles
+        ,   ddumpRenamed
+        ,   ddumpPostProcessed
         ,   ddumpTC
         ,   ddumpCore
         ,   skipCoreLint
@@ -221,6 +223,8 @@ data CompileCmdOpts = CompileCmdOpts {
     , output :: Maybe FilePath
     , traceTypes :: Seq TraceType
     , target :: Target
+    , ddumpRenamed :: Bool
+    , ddumpPostProcessed :: Bool
     , ddumpTC :: Bool
     , ddumpCore :: Bool
     , skipCoreLint :: Bool
@@ -233,6 +237,8 @@ compileOpts = CompileCmdOpts
     <*> option (Just <$> str) (long "output" <>  short 'o' <> metavar "FILE" <> value Nothing <> help "Write the output to FILE. An interface file will be written to FILE.cbi")
     <*> (fromList <$> many (option auto (long "trace" <> metavar "TYPE" <> help "Enable tracing for a given trace type")))
     <*> option auto (long "target" <> metavar "TARGET" <> value Racket <> help "Possible targets: racket")
+    <*> switch (long "ddump-renamed" <> help "Write the renamed AST to a file")
+    <*> switch (long "ddump-postprocessed" <> help "Write the postprocessed AST to a file")
     <*> switch (long "ddump-tc" <> help "Write the typechecker constraints to a file")
     <*> switch (long "ddump-core" <> help "Write the intermediate language Core to a file")
     <*> switch (long "skip-core-lint" <> help "Skip type checks for the internal language. Unless the compiler has a bug, this should always be safe.")

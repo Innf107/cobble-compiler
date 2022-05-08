@@ -1,3 +1,5 @@
+(require racket/control)
+
 (define evidence (hash))
 
 (define (handler l h)

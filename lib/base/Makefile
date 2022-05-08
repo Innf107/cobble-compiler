@@ -49,12 +49,13 @@ all: .cobble/out/Control/Functor.cbi .cobble/out/Data/Semigroup.cbi .cobble/out/
 	mkdir -p .cobble/out/Data
 	cobble compile  ./src/Data/Tuple.cb -o .cobble/out/Data/Tuple.rkt
 
-.cobble/out/Prelude.cbi: ./src/Prelude.cb .cobble/out/Data/Bool.cbi .cobble/out/Data/Eq.cbi .cobble/out/Data/Ord.cbi .cobble/out/Data/Semigroup.cbi .cobble/out/Data/List.cbi .cobble/out/Data/Tuple.cbi
+.cobble/out/Prelude.cbi: ./src/Prelude.cb .cobble/out/Control/Functor.cbi .cobble/out/Data/Arith.cbi .cobble/out/Data/Bool.cbi .cobble/out/Data/Eq.cbi .cobble/out/Data/Foldable.cbi .cobble/out/Data/Function.cbi .cobble/out/Data/List.cbi .cobble/out/Data/Maybe.cbi .cobble/out/Data/Ord.cbi .cobble/out/Data/Semigroup.cbi .cobble/out/Data/Tuple.cbi .cobble/out/Data/Unit.cbi
 	mkdir -p .cobble/out
-	cobble compile  ./src/Prelude.cb .cobble/out/Data/Bool.cbi .cobble/out/Data/Eq.cbi .cobble/out/Data/Ord.cbi .cobble/out/Data/Semigroup.cbi .cobble/out/Data/List.cbi .cobble/out/Data/Tuple.cbi -o .cobble/out/Prelude.rkt
+	cobble compile  ./src/Prelude.cb .cobble/out/Control/Functor.cbi .cobble/out/Data/Arith.cbi .cobble/out/Data/Bool.cbi .cobble/out/Data/Eq.cbi .cobble/out/Data/Foldable.cbi .cobble/out/Data/Function.cbi .cobble/out/Data/List.cbi .cobble/out/Data/Maybe.cbi .cobble/out/Data/Ord.cbi .cobble/out/Data/Semigroup.cbi .cobble/out/Data/Tuple.cbi .cobble/out/Data/Unit.cbi -o .cobble/out/Prelude.rkt
 
 
 .PHONY: clean
 clean:
-	rm -r .cobble/out
+	-rm -r .cobble/out
+	-rm -r .cobble/dependencies
 

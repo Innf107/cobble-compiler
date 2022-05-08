@@ -83,10 +83,12 @@ runControllerC opts r = handle
 
 data CompileOpts = CompileOpts {
       interfaceFiles :: Seq FilePath
-    , target::Target
-    , ddumpTC::Bool
-    , ddumpCore::Bool
-    , skipCoreLint::Bool
+    , target :: Target
+    , ddumpRenamed :: Bool
+    , ddumpPostProcessed :: Bool
+    , ddumpTC :: Bool
+    , ddumpCore :: Bool
+    , skipCoreLint :: Bool
     }
 
 data Target = Racket
@@ -173,8 +175,12 @@ compileWithSig m = do
                 modSigs
     qMod  <- mapError QualificationError $ evalStackStatePanic (fold qualScopes) $ qualify m
 
+    dumpWhenWithM (asks ddumpRenamed) (show . pretty) "dump-renamed" $ dump qMod
+
     saMod <- mapError SemanticError $ runSemanticAnalysis qMod
     
+    dumpWhenWithM (asks ddumpPostProcessed) (show . pretty) "dump-postprocessed" $ dump saMod
+
     tcMod <- dumpWhenWithM (asks ddumpTC) ppTC "dump-tc" 
            $ mapError TypeError 
            $ runContext

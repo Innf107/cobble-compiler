@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Cobble.Types  
     (
       module Export
@@ -18,6 +19,8 @@ import Cobble.Types.QualifiedName as Export
 import Cobble.Types.LexInfo as Export
 
 import Cobble.Prelude
+
+import Cobble.Util.Prettyprinter as P
 
 type NameSpace = Text
 
@@ -77,3 +80,80 @@ instance HasType (Pattern Codegen) where
 instance HasType Type where
     getType     = id
     setType t _ = t
+
+ppQName :: QualifiedName -> Doc ann
+ppQName = pretty . renderDebug
+
+line_ :: Doc ann
+line_ = P.line
+
+indent_ :: Doc ann -> Doc ann
+indent_ = indent 4
+
+instance Pretty (Module SemAnalysis) where
+    pretty (Module _ name statements) = "module" <+> pretty name <> ";" <> line_
+                                    <> vsep (map ((line_ <>) . pretty) statements)
+
+instance Pretty (Statement SemAnalysis) where
+    pretty (Def fixity _ d@(Decl _ f xs e) ty) = 
+            prettyFixity fixity <> ppQName f <+> "::" <+> pretty ty <> line_
+        <>  prettyDecl d
+        where
+            prettyFixity Nothing = ""
+            prettyFixity (Just (LeftFix f))  = "infixl" <+> pretty f <> line_
+            prettyFixity (Just (RightFix f)) = "infixr" <+> pretty f <> line_
+
+    pretty (DefClass k _ cname tvs meths) = 
+        "class (" <> ppQName cname <+> "::" <+> pretty k <> ")" <+> encloseSep "" "" " " (map pretty tvs) <+> "{" <> line_
+        <> indent_ (
+            vsep (map (\(x, ty) -> ppQName x <> " :: " <> pretty ty) meths)
+        ) <> line_ <> "}"
+    pretty (DefInstance (k, defMeths, defTVs, isImported) _ cname ty decls) =
+        "{-" <> line_ <> indent_ (
+           "[is imported]:" <+> pretty isImported <> line_
+        <> "[Definition]: class" <+> ppQName cname <+> encloseSep "" "" " " (map pretty defTVs) <+> "{" <> line_
+        <> indent_ (
+            vsep (map (\(x, ty) -> ppQName x <> " :: " <> pretty ty) defMeths)
+        ) <> line_ <> "}"
+        ) <> line_ <> "-}" <> line_
+        <> "instance (" <> ppQName cname <+> "::" <+> pretty k <> ")" <+> pretty ty <+> "{" <> line_
+        <> indent_ (
+            vsep (map prettyDecl decls)
+        ) <> line_ <> "}"
+    pretty (DefVariant k _ vname tvs constrs) =
+        "variant (" <> ppQName vname <+> "::" <+> pretty k <> ")" <+> encloseSep "" "" " " (map pretty tvs) <+> "{" <> line_ 
+        <> indent_ (
+            vsep (map (\(cname, ctys, (i, j)) -> 
+                ppQName cname <> "[" <> pretty i <> ", " <> pretty j <> "]" 
+                <+> encloseSep "" "" " " (map pretty ctys)) constrs)
+        ) <> "}"
+    pretty (DefEffect k _ effName tvs ops) =
+        "effect (" <> ppQName effName <+> "::" <+> pretty k <> ")" <+> encloseSep "" "" " " (map pretty tvs) <+> "{" <> line_
+        <> indent_ (
+            vsep (map (\(x, ty) -> ppQName x <> " :: " <> pretty ty) ops)
+        ) <> line_ <> "}"
+
+
+prettyDecl :: Decl SemAnalysis -> Doc ann
+prettyDecl (Decl _ f xs e) = ppQName f <+> encloseSep "" "" " " (map ppQName xs) <+> "=" <> line_ <> indent_ (pretty e)
+
+
+instance Pretty TVar where
+    pretty (MkTVar var k) = "(" <> ppQName var <+> "::" <+> pretty k <> ")"
+
+instance Pretty (Expr SemAnalysis) where
+    pretty _ = "{TODO: Prettyprint expresions}"
+
+instance Pretty Type where
+    pretty = pretty . ppType
+
+instance Pretty Kind where
+    pretty KStar = "*"
+    pretty KConstraint = "Constraint"
+    pretty KEffect = "Effect"
+    pretty (KRow k) = "KRow (" <> pretty k <> ")" 
+    pretty (KFun k1 k2) = "(" <> pretty k1 <> ") -> " <> pretty k2
+
+instance Pretty (Module Typecheck) where
+    pretty m = pretty (coercePass @(Module Typecheck) @(Module SemAnalysis) m)
+
