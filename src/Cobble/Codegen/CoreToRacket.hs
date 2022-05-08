@@ -6,9 +6,13 @@ import Cobble.Racket.Types as R
 import Cobble.Types.QualifiedName
 import Cobble.Interface
 
+import Cobble.Types qualified as C
+
+import Cobble.Util.Polysemy.Fresh
+
 import Cobble.Codegen.PrimOp
 
-compile :: Seq Interface -> Seq Decl -> Sem r (Seq RacketExpr) 
+compile :: Members '[Fresh Text QualifiedName] r =>  Seq Interface -> Seq Decl -> Sem r (Seq RacketExpr) 
 compile interfaces = evalState initialState . compile'
     where
         initialState = foldr insertInterface (CompState mempty mempty) interfaces
@@ -40,7 +44,7 @@ lookupDictFieldNames x = gets \CompState{dictFieldNames} -> case lookup x dictFi
     _ -> error $ "lookupDictFieldNames: core dictionary '" <> show x <> "' not found."
 
 
-compile' :: Members '[State CompState] r => Seq Decl -> Sem r (Seq RacketExpr)
+compile' :: Members '[Fresh Text QualifiedName, State CompState] r => Seq Decl -> Sem r (Seq RacketExpr)
 compile' Empty = pure []
 compile' (Def x _ty e :<| ds) = (<|) 
     <$> (RDefine x <$> compileExpr e) 
@@ -53,12 +57,12 @@ compile' (DefDict x args fields :<| ds) = do
 compile' (DefEffect x args fields :<| ds) = do
     compile' ds
 
-compileExpr :: Members '[State CompState] r => Expr -> Sem r RacketExpr
-compileExpr (Var x) = pure $ RVar x
+compileExpr :: Members '[Fresh Text QualifiedName, State CompState] r => Expr -> Sem r RacketExpr
+compileExpr e@Var{} = compileApp e []
 compileExpr (App e1 e2) = do
-    e1' <- compileExpr e1
     e2' <- compileExpr e2
-    pure (RApp e1' [e2'])
+    compileApp e1 [e2']
+
 compileExpr (TyApp e _ty) = compileExpr e
 compileExpr (Abs x _eff _ty e) = do
     e' <- compileExpr e
@@ -98,7 +102,7 @@ compileExpr (Join j _tys vals body e) = do
     body' <- compileExpr body
     RLet [(j, RLambda (map fst vals) [body'])] . pure <$> compileExpr e
 compileExpr (Jump j _tyArgs valArgs _resTy) = RApp (RVar j) <$> traverse compileExpr valArgs
-compileExpr (PrimOp op _ty _tyArgs valArgs) = compilePrimOp op <$> traverse compileExpr valArgs
+
 compileExpr (DictConstruct className tyArgs methods) = do
     fieldNames <- lookupDictFieldNames className
     RHash <$> zipWithM (\x expr -> (RSymbol x,) <$> compileExpr expr) fieldNames methods
@@ -108,6 +112,29 @@ compileExpr (Perform effName op _tyArgs [valArg]) = do
     pure $ RApp (RBuiltin "perform") [RSymbol effName, RSymbol op, valArg']
 compileExpr e@(Perform _ _ _ valArgs) = do
     error $ "Effect operations with multiple arguments NYI: " <> show e
+
+compileApp :: Members '[Fresh Text QualifiedName, State CompState] r => Expr -> Seq RacketExpr -> Sem r RacketExpr
+compileApp (App e1 e2) args = do
+    e2' <- compileExpr e2
+    compileApp e1 (e2' <| args)
+compileApp (TyApp e _ty) args = compileApp e args
+compileApp (Var x) args = case lookup x primOps of
+    Nothing -> pure (foldl' app (RVar x) args)
+    Just PrimOpInfo {primOp, primOpType} -> do
+        let remainingArgCount = countFunArgs primOpType - length args
+        remainingArgs <- replicateM remainingArgCount (freshVar "x")
+        pure $ foldr lambda (compilePrimOp primOp (args <> map RVar remainingArgs)) remainingArgs
+            where
+                lambda x e = RLambda [x] [e]
+                countFunArgs (C.TForall _ ty) = countFunArgs ty
+                countFunArgs (C.TFun _ _ b) = 1 + countFunArgs b
+                countFunArgs _ = 0
+compileApp e args = do
+    e' <- compileExpr e
+    pure (foldl' app e' args)
+
+app :: RacketExpr -> RacketExpr -> RacketExpr
+app e1 e2 = RApp e1 [e2]
 
 compilePrimOp :: PrimOp -> Seq RacketExpr -> RacketExpr
 compilePrimOp True_ _       = RTrue

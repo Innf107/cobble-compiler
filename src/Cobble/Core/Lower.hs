@@ -125,12 +125,8 @@ lowerExpr (C.Let () _ (C.Decl (ty, _) f xs e1) e2) = do
         <$> lowerType ty
         <*> (foldrM (\(x, t) r -> F.Abs x F.TEffUR <$> lowerType t <*> pure r) e1' xs)
         <*> lowerExpr e2
-lowerExpr (C.Var _ _ x) = do
-    case lookup x primOps of
-        Just (PrimOpInfo primOp primOpType) -> do
-            actualTy <- lowerType primOpType
-            lowerSaturated actualTy (F.PrimOp primOp actualTy)
-        Nothing -> pure $ F.Var x
+lowerExpr (C.Var _ _ x) = pure $ F.Var x
+
 lowerExpr (C.Case t li e branches) = lowerCase t e branches
 lowerExpr (C.Lambda (ty, argTy, eff) _ x e) = F.Abs x <$> lowerType eff <*> lowerType argTy <*> lowerExpr e
 lowerExpr (C.TyApp _ ty e) = F.TyApp <$> lowerExpr e <*> lowerType ty

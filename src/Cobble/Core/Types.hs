@@ -37,8 +37,6 @@ data Expr = Var QualifiedName
           | Jump QualifiedName (Seq Type) (Seq Expr) Type -- Tailcall into a join point (See note [Join Points])
           --                    ^         ^value args^           
           --                    | type args          | result type
-          | PrimOp PrimOp Type (Seq Type) (Seq Expr)
-
           | DictConstruct QualifiedName (Seq Type) (Seq Expr)
           --              ^class name   ^class args ^fields
           | DictAccess Expr QualifiedName (Seq Type) QualifiedName
@@ -154,10 +152,7 @@ instance Pretty Expr where
                                                                  <+> encloseSep "{" "}" ", " (map pretty valArgs)
                                                                  <+> pretty retTy
                                                                  <> ")"
-    -- the concrete primop type is not displayed since it should be obvious from the corresponding PrimOpInfo entry.
-    pretty (PrimOp op ty tyArgs valArgs) = show op <> "#" <> encloseSep "[" "]" ", " (map pretty tyArgs)
-                                                          <> encloseSep "{" "}" ", " (map pretty valArgs)
-
+                                                                 
     pretty (DictConstruct cname args fields) = ppQName cname <> encloseSep "[" "]" ", " (map pretty args)
                                                              <> encloseSep "{" "}" (line <> ", ") (map pretty fields)
 

@@ -129,7 +129,9 @@ compileContents path content = do
     (core, sig) <- compileWithSig modWithSigs
     
     whenM (asks (not . skipCoreLint)) do
-        let (CoreModSig{coreModVars, coreModDictTyDefs, coreModEffs}) = foldr (mergeCoreModSig . interfaceCoreModSig) emptyCoreModSig interfaces
+        
+        let (CoreModSig{coreModVars, coreModDictTyDefs, coreModEffs}) = foldr (mergeCoreModSig . interfaceCoreModSig) primCoreSig interfaces
+        
         let lintEnv = LintEnv {
                 varTypes = coreModVars
             ,   jpArgTypes = mempty
@@ -218,14 +220,19 @@ makePartialSig = \case
         }
 
 
+primCoreSig :: CoreModSig
+primCoreSig = CoreModSig {
+    coreModVars = fmap (run . lowerType . primOpType) $ primOps
+,   coreModDictTyDefs = mempty
+,   coreModEffs = mempty
+}
+
 primModSig :: ModSig
 primModSig = ModSig {
         exportedVars = fmap primOpType $ primOps
     ,   exportedVariantConstrs = mempty
-            -- The type application is only necessary to satisfy the type checker since the value depending on the type 'r' is ignored
     ,   exportedTypes = fromList [
               (internalQName "Int", (KStar, BuiltInType))
-            , (internalQName "->", (KStar `KFun` KStar `KFun` KStar, BuiltInType))
             ]
     ,   exportedFixities = mempty
     ,   exportedInstances = mempty

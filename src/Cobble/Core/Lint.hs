@@ -223,8 +223,6 @@ lintExpr env (Jump j tyArgs valArgs retTy) eff = do
         valArgs
     pure retTy
 
-lintExpr env (PrimOp op ty tyArgs valArgs) eff = lintSaturated env "primop" (show op) ty tyArgs valArgs eff
-
 lintExpr env (DictConstruct className tyArgs fields) eff = do
     (tyParams, dictFieldTys) <- lookupDictTy className env
     when (length tyParams /= length tyArgs)
