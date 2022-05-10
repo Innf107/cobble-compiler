@@ -92,7 +92,7 @@ qualifyStmnt (DefClass () li className tvs meths) = runReader li $ do
     meths' <- withFrame $ do
         addType className className' k (TyClass (coercePass tvs') [])
         zipWithM_ addTVar (map fst tvs) tvs'
-        forM meths \(mn, mty) -> do
+        forM meths \(mn, mty) -> withFrame do
             mn' <- freshGlobal mn
             methTy' <- qualifyType True (addConstraint mty) -- Type class methods *are* allowed to introduce new tyvars
             pure (mn', insertInForall tvs' methTy')

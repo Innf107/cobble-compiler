@@ -6,6 +6,7 @@ test.cb
 test2.cb
 dump-*
 test.rkt
+test2.rkt
 out.rkt
 cobble.iml
 .hidden/
