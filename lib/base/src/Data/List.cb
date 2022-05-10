@@ -1,4 +1,3 @@
---# OPTIONS: --ddump-core
 module Data.List;
 
 import Control.Functor;

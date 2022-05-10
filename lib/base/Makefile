@@ -35,7 +35,7 @@ all: .cobble/out/Control/Functor.cbi .cobble/out/Data/Semigroup.cbi .cobble/out/
 
 .cobble/out/Data/List.cbi: ./src/Data/List.cb .cobble/out/Control/Functor.cbi .cobble/out/Data/Bool.cbi .cobble/out/Data/Tuple.cbi .cobble/out/Data/Maybe.cbi .cobble/out/Data/Function.cbi .cobble/out/Data/Arith.cbi .cobble/out/Data/Ord.cbi .cobble/out/Data/Foldable.cbi
 	mkdir -p .cobble/out/Data
-	cobble compile  --ddump-core ./src/Data/List.cb .cobble/out/Control/Functor.cbi .cobble/out/Data/Bool.cbi .cobble/out/Data/Tuple.cbi .cobble/out/Data/Maybe.cbi .cobble/out/Data/Function.cbi .cobble/out/Data/Arith.cbi .cobble/out/Data/Ord.cbi .cobble/out/Data/Foldable.cbi -o .cobble/out/Data/List.rkt
+	cobble compile   ./src/Data/List.cb .cobble/out/Control/Functor.cbi .cobble/out/Data/Bool.cbi .cobble/out/Data/Tuple.cbi .cobble/out/Data/Maybe.cbi .cobble/out/Data/Function.cbi .cobble/out/Data/Arith.cbi .cobble/out/Data/Ord.cbi .cobble/out/Data/Foldable.cbi -o .cobble/out/Data/List.rkt
 
 .cobble/out/Data/Bool.cbi: ./src/Data/Bool.cb
 	mkdir -p .cobble/out/Data
