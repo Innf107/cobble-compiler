@@ -3,21 +3,10 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages:
-- completed:
-    name: mcrcon
-    version: 0.1.0.0
-    git: https://github.com/Innf107/mcrcon
-    pantry-tree:
-      size: 629
-      sha256: 977be6441874cbea16e1c7267611d0653c220d85953eac5c1e5481c76f4691e3
-    commit: 4178833e4610ed04dbb89f5d0e693ffb6f231afd
-  original:
-    git: https://github.com/Innf107/mcrcon
-    commit: 4178833e4610ed04dbb89f5d0e693ffb6f231afd
+packages: []
 snapshots:
 - completed:
+    sha256: e7e57649a12f6178d1158e4b6f1f1885ed56d210ae6174385271cecc9b1ea974
     size: 617368
     url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/19/2.yaml
-    sha256: e7e57649a12f6178d1158e4b6f1f1885ed56d210ae6174385271cecc9b1ea974
   original: lts-19.2

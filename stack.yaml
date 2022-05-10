@@ -34,9 +34,7 @@ packages:
 # These entries can reference officially published versions as well as
 # forks / in-progress versions pinned to a git hash. For example:
 #
-extra-deps:
-  - git: https://github.com/Innf107/mcrcon
-    commit: 4178833e4610ed04dbb89f5d0e693ffb6f231afd
+# extra-deps:
 # - git: https://github.com/commercialhaskell/stack.git
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #

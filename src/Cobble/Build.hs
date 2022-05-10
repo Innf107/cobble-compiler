@@ -8,6 +8,8 @@ import Cobble.Util
 
 import Data.Yaml as Y
 import Data.Aeson as A
+import Data.Text qualified as T
+import Data.Char (isSpace)
 
 import System.Directory as D
 import System.FilePath
@@ -26,6 +28,7 @@ data BuildError = ProjectParseError ParseException
                 | BuildLexicalError LexicalError
                 | BuildParseError ParseError
                 | BuildModuleSolverError S.ModuleError
+                | UnknownPragma Text
                 deriving (Show, Generic)
 
 data BuildOpts = BuildOpts {
@@ -62,8 +65,10 @@ importPackageDep baseDirectory dep = do
     embed $ createDirectoryIfMissing True targetPath
 
     forM_ sourceFiles \file -> embed do
-        exists <- (||) <$> D.doesDirectoryExist (targetPath </> takeFileName file) <*> D.doesFileExist (targetPath </> takeFileName file)
-        when (not exists) $ copyFileOrDirectory False (depSourceDir </> file) (targetPath </> takeFileName file)
+        exists <- (||) 
+                    <$> D.doesDirectoryExist (targetPath </> takeFileName file) 
+                    <*> D.doesFileExist (targetPath </> takeFileName file)
+        unless exists $ copyFileOrDirectory False (depSourceDir </> file) (targetPath </> takeFileName file)
     pure targetPath
     
 
@@ -73,31 +78,56 @@ findFileDependencies :: Members '[Embed IO, Error BuildError] r
 findFileDependencies sourceDirs = do
     sourceDirsWithFiles :: Seq (FilePath, Seq FilePath) <- embed $ traverse (\x -> (x,) <$> findFilesRecursive ((==".cb") . takeExtension) x) sourceDirs
     
-    moduleDependencies :: Seq (FilePath, FilePath, Text, Seq Text) <- concat <$> forM sourceDirsWithFiles \(sourceDir, files) -> forM files \file -> do
-        content <- embed $ readFileText (sourceDir </> file)
-        (modName, imports) <- parseImports (toText file) content
-        pure (sourceDir, file, modName, imports)
+    moduleDependencies :: Seq (FilePath, FilePath, Text, Seq Text, Seq Text) <- 
+        concat <$> 
+            forM sourceDirsWithFiles \(sourceDir, files) -> 
+            forM files \file -> do
+                content <- embed $ readFileText (sourceDir </> file)
+                (modName, imports) <- parseImports (toText file) content
+                options <- parseOptions content
+                pure (sourceDir, file, modName, imports, options)
 
-    let moduleMap :: Map Text Dependency = fromList $ toList $ map (\(sourceDir, fileName, modName, _) -> (modName, MkDependency sourceDir fileName)) moduleDependencies
+    let moduleMap :: Map Text Dependency = 
+            fromList $ toList $ map 
+                (\(sourceDir, fileName, modName, _, options) -> (modName, MkDependency sourceDir fileName options)) 
+                moduleDependencies
 
-    forM moduleDependencies \(sourceDir, file, _modName, imports) -> do
+    forM moduleDependencies \(sourceDir, file, _modName, imports, options) -> do
         imports' <- forM imports \importMod -> case lookup importMod moduleMap of
             Nothing -> throw $ ModuleNotFound importMod
             Just fp -> pure fp
-        pure (MkDependency sourceDir file, imports')
+        pure (MkDependency sourceDir file options, imports')
 
 data Dependency = MkDependency {
         depSourceDir    :: FilePath
     ,   depRelPath      :: FilePath
+    ,   depOptions      :: Seq Text
     } deriving (Show, Eq, Generic, Data)
 
 parseImports :: Members '[Error BuildError] r => Text -> Text -> Sem r (Text, Seq Text)
---                                                                      ^module name ^imports (as modules)
+--                                                                                ^     ^ imports (as modules)
+--                                                                                | module name
 parseImports path code = do
     tokens <- mapError BuildLexicalError $ tokenize path code
     ast@(Module _ modName sts) <- mapError BuildParseError $ fromEither $ parse module_ (toString path) tokens
     (imports, _) <- mapError BuildModuleSolverError $ S.collectImports sts
     pure (modName, imports)
+
+parseOptions :: forall r. Members '[Error BuildError] r => Text -> Sem r (Seq Text)
+parseOptions content = go (lines content)
+    where
+        go :: [Text] -> Sem r (Seq Text)
+        go [] = pure []
+        go (line : lines)
+            | Just pragma <- T.stripPrefix "--#" (T.strip line) = 
+                case T.stripPrefix "OPTIONS:" (T.strip pragma) of
+                    Just optText -> 
+                        let options = map T.strip (fromList (words optText)) in
+                        (options <>) <$> go lines
+                    Nothing ->
+                        throw (UnknownPragma pragma)
+            | T.all isSpace line = go lines
+            | otherwise = pure []
 
 findFilesRecursive :: (FilePath -> Bool) -> FilePath -> IO (Seq FilePath)
 findFilesRecursive pred = go ""
@@ -129,7 +159,8 @@ renderMakefile BuildOpts{projectFile} ProjectOpts{projectName, compiler, compile
         rules = unlines $ toList deps <&> \(dep, depDependencies) -> unlines [
                 sigFileAt dep <> ": " <> unwords (sourceFileAt dep : toList (map sigFileAt depDependencies))
             ,   "\tmkdir -p " <> toText (takeDirectory (toString $ outputFileAt dep))
-            ,   "\t" <> compiler <> " " <> compilerOpts <> " " <> unwords (sourceFileAt dep : toList (map sigFileAt depDependencies))
+            ,   "\t" <> compiler <> " " <> compilerOpts <> " " <> unwords (toList (depOptions dep)) 
+                    <> " " <> unwords (sourceFileAt dep : toList (map sigFileAt depDependencies))
                     <> " -o " <> outputFileAt dep
             ]
 

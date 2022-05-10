@@ -5,7 +5,7 @@ module Cobble.Types.AST.QualifyNames where
 import Cobble.Prelude
 import Cobble.Types.AST
     
-type instance XModule 'QualifyNames = Map Text ModSig
+type instance XModule QualifyNames = Map Text ModSig
 
 type instance XDef              QualifyNames = Maybe Fixity
 type instance XDecl             QualifyNames = ()
@@ -19,18 +19,18 @@ type instance XDefInstance      QualifyNames = ()
 type instance XStatement        QualifyNames = Void
 
 
-type instance XFCall            'QualifyNames = ()
-type instance XIntLit           'QualifyNames = ()
-type instance XIf               'QualifyNames = ()
-type instance XLet              'QualifyNames = ()
-type instance XVar              'QualifyNames = ()
-type instance XAscription       'QualifyNames = ()
-type instance XVariantConstr    'QualifyNames = ()
-type instance XCase             'QualifyNames = ()
+type instance XFCall            QualifyNames = ()
+type instance XIntLit           QualifyNames = ()
+type instance XIf               QualifyNames = ()
+type instance XLet              QualifyNames = ()
+type instance XVar              QualifyNames = ()
+type instance XAscription       QualifyNames = ()
+type instance XVariantConstr    QualifyNames = ()
+type instance XCase             QualifyNames = ()
 
 type instance XLambda           QualifyNames = ()
 
-type instance XExpr             'QualifyNames = Either (OperatorGroup QualifyNames NoFixity) UnitLit
+type instance XExpr             QualifyNames = Either (OperatorGroup QualifyNames NoFixity) UnitLit
 
 type instance XCaseBranch QualifyNames = ()
 
@@ -41,9 +41,9 @@ type instance XWildcardP    QualifyNames = ()
 type instance XOrP          QualifyNames = ()
 type instance XPattern      QualifyNames = Void
 
-type instance Name 'QualifyNames = Text
+type instance Name QualifyNames = Text
 
-type instance XKind 'QualifyNames = ()
+type instance XKind QualifyNames = ()
 
 type instance XType QualifyNames = UType
 type instance XTVar QualifyNames = (Text, Maybe Kind)
