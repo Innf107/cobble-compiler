@@ -40,9 +40,13 @@ type instance XCase             Typecheck = ()
 
 type instance XLambda           Typecheck = ()
 
+type instance XHandle           Typecheck = ()
+
 type instance XExpr             Typecheck = Void
 
 type instance XCaseBranch Typecheck = ()
+
+type instance XEffHandler Typecheck = ()
 
 type instance XIntP         Typecheck = ()
 type instance XVarP         Typecheck = ()

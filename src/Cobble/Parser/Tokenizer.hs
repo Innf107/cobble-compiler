@@ -45,7 +45,8 @@ isIdentLetter :: Char -> Bool
 isIdentLetter c = isAlphaNum c || c `elem` "_#'"
 
 reserved :: [String]
-reserved = ["let", "in", "if", "then", "else", "module", "import", "variant", "effect", "case", "of", "class", "instance", "infixl", "infixr", "forall"]
+reserved = [ "let", "in", "if", "then", "else", "module", "import", "variant", "effect", "handle"
+           , "case", "of", "class", "instance", "infixl", "infixr", "forall"]
 
 reservedOps :: [String]
 reservedOps = [".", "::", ";", ",", "=", "=>", "->", "|", "\\"]

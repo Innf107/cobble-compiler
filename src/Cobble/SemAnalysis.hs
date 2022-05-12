@@ -9,9 +9,7 @@ import Data.Set qualified as S
 
 type NextPass = Typecheck
 
-data SemanticError = MissingField LexInfo UnqualifiedName
-                   | NonExistantOrDuplicateFields LexInfo (Seq UnqualifiedName)
-                   | MissingTyClassMethod LexInfo QualifiedName Type
+data SemanticError = MissingTyClassMethod LexInfo QualifiedName Type
                    | DuplicateTyClassMethods LexInfo (Seq (Decl SemAnalysis))
                    | NonFunctionInEffectOp LexInfo Type
                    deriving (Show, Eq, Generic, Data)
@@ -48,22 +46,6 @@ addForall t = case freeTVsOrdered t of
 insertAfterForalls :: (Type -> Type) -> Type -> Type
 insertAfterForalls f (TForall tvs ty) = TForall tvs (insertAfterForalls f ty)
 insertAfterForalls f ty               = f ty
-
-reorderAndCheckFields :: forall a b r. Members '[Error SemanticError] r
-                      => LexInfo
-                      -> Seq (UnqualifiedName, a)
-                      -> Seq (UnqualifiedName, b)
-                      -> Sem r (Seq (UnqualifiedName, b))
-reorderAndCheckFields li dfs fs = forM dfs \(n, _) -> do
-        case lookup n fsMap of
-            Nothing -> throw (MissingField li n)
-            Just b -> pure (n, b)
-    <* case map fst fs \\ map fst dfs of
-        [] -> pure ()
-        mfs -> throw (NonExistantOrDuplicateFields li mfs)
-    where
-        fsMap :: Map UnqualifiedName b
-        fsMap = fromList $ toList fs
 
 
 -- Reorders the methods in a typeclass instance to have the same

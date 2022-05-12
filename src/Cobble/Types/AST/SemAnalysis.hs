@@ -40,9 +40,13 @@ type instance XCase             'SemAnalysis = ()
 
 type instance XLambda           SemAnalysis = ()
 
+type instance XHandle           SemAnalysis = ()
+
 type instance XExpr             'SemAnalysis = Void
 
 type instance XCaseBranch SemAnalysis = ()
+
+type instance XEffHandler SemAnalysis = ()
 
 type instance XIntP         SemAnalysis = ()
 type instance XVarP         SemAnalysis = ()

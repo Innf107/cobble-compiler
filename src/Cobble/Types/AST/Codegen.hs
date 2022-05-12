@@ -43,9 +43,13 @@ type instance XLambda            Codegen = (Type, Type, Type)
                                         -- |      parameter type
                                         -- full type
 
+type instance XHandle           Codegen = ()
+
 type instance XExpr              Codegen = CodegenExt
 
 type instance XCaseBranch Codegen = ()
+
+type instance XEffHandler Codegen = ()
 
 type instance XIntP         Codegen = ()
 type instance XVarP         Codegen = Type

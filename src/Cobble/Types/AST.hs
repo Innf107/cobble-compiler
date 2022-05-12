@@ -118,12 +118,13 @@ data Expr (p :: Pass) =
     | VariantConstr   (XVariantConstr p) LexInfo (Name p)
     | Case            (XCase p) LexInfo (Expr p) (Seq (CaseBranch p))
     | Lambda          (XLambda p) LexInfo (Name p) (Expr p)
+    | Handle          (XHandle p) LexInfo (Expr p) (Seq (EffHandler p))
     | ExprX           (XExpr p) LexInfo
 
 type instance InstanceRequirements (Expr p) = 
         [
             XFCall p, XIntLit p, XIf p, XLet p, Decl p, XVar p, XAscription p, XVariantConstr p, XCase p, CaseBranch p, 
-            Name p, XType p, XLambda p, XExpr p
+            Name p, XType p, XLambda p, XHandle p, EffHandler p, XExpr p
         ]
 
 type family XFCall           (p :: Pass)
@@ -135,6 +136,7 @@ type family XAscription      (p :: Pass)
 type family XVariantConstr   (p :: Pass)
 type family XCase            (p :: Pass)
 type family XLambda          (p :: Pass)
+type family XHandle          (p :: Pass)
 type family XExpr            (p :: Pass)
 
 data CaseBranch (p :: Pass) = CaseBranch (XCaseBranch p) LexInfo (Pattern p) (Expr p)
@@ -144,6 +146,14 @@ type instance InstanceRequirements (CaseBranch p) = [
     ]
 
 type family XCaseBranch (p :: Pass)
+
+data EffHandler (p :: Pass) = EffHandler (XEffHandler p) LexInfo (Name p) (Seq (Name p)) (Expr p)
+
+type instance InstanceRequirements (EffHandler p) = [
+        XEffHandler p, Name p, Expr p
+    ]
+
+type family XEffHandler (p :: Pass)
 
 data Pattern (p :: Pass) = IntP (XIntP p) Int
                          | VarP (XVarP p) (Name p)
@@ -421,6 +431,7 @@ deriveCoercePass ''Module
 deriveCoercePass ''Statement
 deriveCoercePass ''Expr
 deriveCoercePass ''CaseBranch
+deriveCoercePass ''EffHandler
 deriveCoercePass ''Pattern
 deriveCoercePass ''Decl
 
@@ -443,5 +454,6 @@ instance HasLexInfo (Expr p) where
         VariantConstr _ li _     -> li
         Case _ li _ _            -> li
         Lambda _ li _ _          -> li
+        Handle _ li _ _          -> li
         ExprX _ li               -> li
         

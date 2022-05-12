@@ -100,6 +100,22 @@ lambdaE = "lambda expression" <??> (\ls xs e -> foldr (Lambda () (mergeLexInfo l
     <*  reservedOp' "->"
     <*> expr
 
+handleE :: Parser (Expr NextPass)
+handleE = "handler expression" <??> (\ls expr handlers le -> Handle () (mergeLexInfo ls le) expr handlers)
+    <$> reserved "handle"
+    <*> expr
+    <*  paren "{"
+    <*> many effHandler
+    <*> paren "}"
+
+effHandler :: Parser (EffHandler NextPass)
+effHandler = (\(ls, c) xs e le -> EffHandler () (mergeLexInfo ls le) c xs e)
+    <$> ident
+    <*> many ident'
+    <*  reservedOp "->"
+    <*> expr
+    <*> reservedOp ";"
+
 letE :: Parser (Expr NextPass)
 letE = "let binding" <??> (\ls n ps e b -> Let () (mergeLexInfo ls (getLexInfo e)) (Decl () n ps e) b)
     <$> reserved "let"
@@ -166,6 +182,7 @@ expr' = "expression (no fcall)" <??>
         uncurry (IntLit ()) <$> intLit 
     <|> ExprX (Right UnitLit) <$> unitLit 
     <|> lambdaE 
+    <|> handleE
     <|> letE 
     <|> ifE 
     <|> caseE 

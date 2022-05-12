@@ -190,6 +190,7 @@ qualifyExpr (Lambda () li x e) = runReader li $
         x' <- freshVar x
         addVar x x'
         Lambda () li x' <$> qualifyExpr e
+qualifyExpr Handle{} = undefined
 qualifyExpr (ExprX (Right UnitLit) li) = pure $ VariantConstr (0, 0) li (UnsafeQualifiedName "Unit" (GlobalQName "Data.Unit"))
 qualifyExpr (ExprX (Left opGroup) li) = runReader li $ replaceOpGroup . reorderByFixity <$> qualifyWithFixity opGroup
     where
