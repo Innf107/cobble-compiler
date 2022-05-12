@@ -340,6 +340,8 @@ check env (Lambda () li x e) t _eff = runReader li do
 
     pure $ w (Lambda (t, expectedArgTy, tEff) li x e')
 check env Handle{} t eff = undefined
+check env Resume{} t eff = undefined
+
 
 
 checkPattern :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Context TypeContext] r 
@@ -490,6 +492,7 @@ infer env (Lambda () li x e) = do
     lamEff <- freshEffectRow 
     pure (Lambda (TFun xTy eEff (getType e'), xTy, lamEff) li x e', lamEff)
 infer env Handle{} = undefined
+infer env Resume{} = undefined
 
 correct :: Type -> Expr NextPass -> Expr NextPass
 correct = setType 

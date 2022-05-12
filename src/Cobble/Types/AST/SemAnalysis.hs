@@ -41,6 +41,7 @@ type instance XCase             'SemAnalysis = ()
 type instance XLambda           SemAnalysis = ()
 
 type instance XHandle           SemAnalysis = ()
+type instance XResume           SemAnalysis = ()
 
 type instance XExpr             'SemAnalysis = Void
 

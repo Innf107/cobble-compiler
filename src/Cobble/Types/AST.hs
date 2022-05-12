@@ -46,6 +46,7 @@ data ModSig = ModSig {
 ,   exportedTypes           :: Map QualifiedName (Kind, TypeVariant)
 ,   exportedFixities        :: Map QualifiedName Fixity
 ,   exportedInstances       :: Map QualifiedName (Seq (Type, QualifiedName))
+,   exportedEffOperations   :: Map QualifiedName Type
 } deriving (Show, Eq, Generic, Data, Typeable)
 
 instance Binary ModSig
@@ -61,15 +62,16 @@ instance Binary TypeVariant
 type Dependencies = Map QualifiedName ModSig
 
 instance Semigroup ModSig where 
-    ModSig vs cs ts fs is <> ModSig vs' cs' ts' fs' is' = 
+    ModSig vs cs ts fs is ops <> ModSig vs' cs' ts' fs' is' ops' = 
         ModSig 
             (vs <> vs') 
             (cs <> cs') 
             (ts <> ts') 
-            (fs <> fs') 
+            (fs <> fs')
             (is `munion` is')
+            (ops <> ops')
 
-instance Monoid ModSig where mempty = ModSig mempty mempty mempty mempty mempty
+instance Monoid ModSig where mempty = ModSig mempty mempty mempty mempty mempty mempty
 
 -- | A data kind representing the state of the AST at a certain Compiler pass.
 data Pass = SolveModules
@@ -119,12 +121,13 @@ data Expr (p :: Pass) =
     | Case            (XCase p) LexInfo (Expr p) (Seq (CaseBranch p))
     | Lambda          (XLambda p) LexInfo (Name p) (Expr p)
     | Handle          (XHandle p) LexInfo (Expr p) (Seq (EffHandler p))
+    | Resume          (XResume p) LexInfo (Expr p)
     | ExprX           (XExpr p) LexInfo
 
 type instance InstanceRequirements (Expr p) = 
         [
             XFCall p, XIntLit p, XIf p, XLet p, Decl p, XVar p, XAscription p, XVariantConstr p, XCase p, CaseBranch p, 
-            Name p, XType p, XLambda p, XHandle p, EffHandler p, XExpr p
+            Name p, XType p, XLambda p, XHandle p, EffHandler p, XResume p, XExpr p
         ]
 
 type family XFCall           (p :: Pass)
@@ -137,6 +140,7 @@ type family XVariantConstr   (p :: Pass)
 type family XCase            (p :: Pass)
 type family XLambda          (p :: Pass)
 type family XHandle          (p :: Pass)
+type family XResume          (p :: Pass)
 type family XExpr            (p :: Pass)
 
 data CaseBranch (p :: Pass) = CaseBranch (XCaseBranch p) LexInfo (Pattern p) (Expr p)
@@ -455,5 +459,6 @@ instance HasLexInfo (Expr p) where
         Case _ li _ _            -> li
         Lambda _ li _ _          -> li
         Handle _ li _ _          -> li
+        Resume _ li _            -> li
         ExprX _ li               -> li
         

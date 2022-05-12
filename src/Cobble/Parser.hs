@@ -168,13 +168,18 @@ exprOrOp = do
         Just (o, r) -> OpNode l (o, ()) r
 
 exprWithoutOp :: Parser (Expr NextPass)
-exprWithoutOp = "expression" <??> do
+exprWithoutOp = resume <|> ("expression" <??> do
         f <- expr'
         args <- many expr'
         case args of
             Empty       -> pure f
             (a :<| as)  -> let li = (getLexInfo f `mergeLexInfo` (getLexInfo (last (a :| (toList as))))) in
-                            pure $ foldl' (App () li) f (a :| (toList as))
+                            pure $ foldl' (App () li) f (a :| (toList as)))
+
+resume :: Parser (Expr NextPass)
+resume = (\ls e -> Resume () (mergeLexInfo ls (getLexInfo e)) e)
+    <$> reserved "resume"
+    <*> expr'
 
 
 expr' :: Parser (Expr NextPass)

@@ -126,6 +126,7 @@ lowerExpr (C.Var _ _ x) = pure $ F.Var x
 lowerExpr (C.Case t li e branches) = lowerCase t e branches
 lowerExpr (C.Lambda (ty, argTy, eff) _ x e) = F.Abs x <$> lowerType eff <*> lowerType argTy <*> lowerExpr e
 lowerExpr C.Handle{} = undefined
+lowerExpr C.Resume{} = undefined
 lowerExpr (C.TyApp _ ty e) = F.TyApp <$> lowerExpr e <*> lowerType ty
 lowerExpr (C.TyAbs _ (C.MkTVar tvName tvKind) e) = F.TyAbs tvName <$> lowerKind tvKind <*> lowerExpr e
 lowerExpr (C.DictAbs _ x c e) = F.Abs x F.TEffUR <$> lowerConstraint c <*> lowerExpr e

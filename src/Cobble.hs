@@ -195,12 +195,13 @@ compileWithSig m = do
 
 
 modSigToScope :: ModSig -> Scope
-modSigToScope (ModSig{exportedVars, exportedVariantConstrs, exportedTypes, exportedFixities}) = Scope {
+modSigToScope (ModSig{exportedVars, exportedVariantConstrs, exportedTypes, exportedFixities, exportedEffOperations}) = Scope {
                 _scopeVars              = fromList $ fmap (\(qn, _) -> (originalName qn, qn)) $ M.toList exportedVars
             ,   _scopeVariantConstrs    = fromList $ fmap (\(qn, (_, ep, i, v)) -> (originalName qn, (qn, ep, i, v))) $ M.toList exportedVariantConstrs
             ,   _scopeTypes             = fromList $ fmap (\(qn, (k, tv)) -> (originalName qn, (qn, k, tv, True))) $ M.toList exportedTypes
             ,   _scopeFixities          = M.mapKeys originalName exportedFixities
             ,   _scopeTVars             = mempty
+            ,   _scopeEffOperations     = fromList $ fmap (\(qn, _) -> (originalName qn, qn)) $ M.toList exportedEffOperations 
             }
 
 extractSig :: S.Module 'Codegen -> ModSig
@@ -223,6 +224,7 @@ makePartialSig = \case
     DefEffect k _ effName ps ops -> let tyVariant = TyEffect ps ops in
         mempty 
         {   exportedTypes = one (effName, (k, tyVariant))
+        ,   exportedEffOperations = fromList $ toList ops
         }
 
 
@@ -242,6 +244,7 @@ primModSig = ModSig {
             ]
     ,   exportedFixities = mempty
     ,   exportedInstances = mempty
+    ,   exportedEffOperations = mempty
     }
 
 readInterfaceFile :: Members '[FileSystem FilePath LByteString, Error CompilationError] r => FilePath -> Sem r Interface

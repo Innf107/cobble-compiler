@@ -30,6 +30,7 @@ type instance XCase             'SolveModules = ()
 
 type instance XLambda           SolveModules = ()
 type instance XHandle           SolveModules = ()
+type instance XResume           SolveModules = ()
 
 type instance XExpr             'SolveModules = Either (OperatorGroup SolveModules NoFixity) UnitLit
 

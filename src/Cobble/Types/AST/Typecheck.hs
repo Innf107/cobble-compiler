@@ -41,6 +41,7 @@ type instance XCase             Typecheck = ()
 type instance XLambda           Typecheck = ()
 
 type instance XHandle           Typecheck = ()
+type instance XResume           Typecheck = ()
 
 type instance XExpr             Typecheck = Void
 

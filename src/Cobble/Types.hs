@@ -41,6 +41,7 @@ instance HasType (Expr 'Codegen) where
         Let _ _ _ b                         -> getType b
         Lambda (t, _, _) _ _ _              -> t
         Handle _ _ e _                      -> getType e
+        Resume t _ _                        -> t
         TyAbs _ tv e                        -> TForall [tv] (getType e)
         TyApp _ targ e                      -> getType e -- TODO: Should apply arg type
         DictAbs _ _ c e                     -> TConstraint c (getType e)
@@ -56,6 +57,7 @@ instance HasType (Expr 'Codegen) where
         Let x y z b                         -> Let x y z (setType t b)
         Lambda (_, x, a) y z w              -> Lambda (t, x, a) y z w
         Handle x y e z                      -> Handle x y (setType t e) z
+        Resume _ li e                       -> Resume t li e
         TyAbs li ty e                       -> TyAbs li ty (setType t e)
         TyApp li targ e                     -> TyApp li targ (setType t e)
         DictAbs li x c e                    -> DictAbs li x c (setType t e)

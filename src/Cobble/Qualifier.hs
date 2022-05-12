@@ -17,6 +17,7 @@ data QualificationError = VarNotFound LexInfo Text
                         | TypeNotFound LexInfo Text
                         | TVarNotFound LexInfo UnqualifiedName
                         | TVarsNotFound LexInfo (Seq TVar)
+                        | EffOpNotFound LexInfo UnqualifiedName
                         | InstanceForNonClass LexInfo QualifiedName Kind TypeVariant
                         | NonClassInConstraint LexInfo QualifiedName Kind TypeVariant
                         | StructConstructNotAStruct LexInfo QualifiedName Kind TypeVariant
@@ -30,6 +31,7 @@ data Scope = Scope {
 ,   _scopeTVars :: Map Text (QualifiedName, Kind)
 ,   _scopeVariantConstrs :: Map Text (QualifiedName, Int, Int, TypeVariant)
 ,   _scopeFixities :: Map Text Fixity
+,   _scopeEffOperations :: Map Text QualifiedName
 }
 
 instance Semigroup Scope where
@@ -39,10 +41,11 @@ instance Semigroup Scope where
     ,   _scopeTVars = _scopeTVars s1 <> _scopeTVars s2
     ,   _scopeVariantConstrs = _scopeVariantConstrs s1 <> _scopeVariantConstrs s2
     ,   _scopeFixities = _scopeFixities s1 <> _scopeFixities s2
+    ,   _scopeEffOperations = _scopeEffOperations s1 <> _scopeEffOperations s2
     }
 
 instance Monoid Scope where
-    mempty = Scope mempty mempty mempty mempty mempty
+    mempty = Scope mempty mempty mempty mempty mempty mempty
 
 makeLenses ''Scope
 
@@ -130,6 +133,8 @@ qualifyStmnt (DefEffect () li effName tvs ops) = runReader li do
             pure (opName', opTy')
 
     addType effName effName' k (TyEffect tvs' ops')
+    zipWithM (\(op, _) (op', _) -> addEffOp op op') ops ops'
+
     zipWithM (\(opName, _) (opName', _) -> addVar opName opName') ops ops'
     pure (DefEffect k li effName' tvs' ops')
 
@@ -190,7 +195,23 @@ qualifyExpr (Lambda () li x e) = runReader li $
         x' <- freshVar x
         addVar x x'
         Lambda () li x' <$> qualifyExpr e
-qualifyExpr Handle{} = undefined
+qualifyExpr (Handle () li expr cases) = runReader li $
+    Handle () li
+    <$> qualifyExpr expr
+    <*> traverse qualifyEffHandler cases
+    where
+        qualifyEffHandler :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r
+                          => EffHandler QualifyNames
+                          -> Sem r (EffHandler NextPass)
+        qualifyEffHandler (EffHandler () li eff args expr) =
+            withFrame do
+                eff' <- lookupEffOp eff
+                args' <- traverse (freshVar @Text @QualifiedName) args
+                zipWithM addEffOp args args'
+                expr' <- qualifyExpr expr
+                pure (EffHandler () li eff' args' expr')
+qualifyExpr (Resume () li expr) = Resume () li <$> qualifyExpr expr
+
 qualifyExpr (ExprX (Right UnitLit) li) = pure $ VariantConstr (0, 0) li (UnsafeQualifiedName "Unit" (GlobalQName "Data.Unit"))
 qualifyExpr (ExprX (Left opGroup) li) = runReader li $ replaceOpGroup . reorderByFixity <$> qualifyWithFixity opGroup
     where
@@ -228,6 +249,7 @@ qualifyCaseBranch (CaseBranch () li pat expr) = runReader li $
     withFrame $ CaseBranch () li
         <$> qualifyPattern pat
         <*> qualifyExpr expr
+
 
 qualifyPattern :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r
                => Pattern QualifyNames
@@ -378,6 +400,9 @@ addType n n' k tv = smodify (scopeTypes %~ insert n (n', k, tv, False))
 addTVar :: Members '[StackState Scope] r => UnqualifiedName -> TVar -> Sem r ()
 addTVar n (MkTVar n' k) = smodify (scopeTVars %~ insert n (n', k))
 
+addEffOp :: Members '[StackState Scope] r => Text -> QualifiedName -> Sem r ()
+addEffOp n n' = smodify (scopeEffOperations %~ insert n n')
+
 lookupVar :: Members '[StackState Scope, Error QualificationError, Reader LexInfo] r => Text -> Sem r QualifiedName
 lookupVar n = sgets (lookup n . _scopeVars) >>= \case
     Just n' -> pure n'
@@ -402,6 +427,11 @@ lookupTVar :: Members '[StackState Scope, Error QualificationError, Reader LexIn
 lookupTVar n = sgets (lookup n . _scopeTVars) >>= \case
     Just (n', k) -> pure (MkTVar n' k)
     Nothing -> ask >>= \li -> throw $ TVarNotFound li n
+
+lookupEffOp :: Members '[StackState Scope, Error QualificationError, Reader LexInfo] r => UnqualifiedName -> Sem r QualifiedName
+lookupEffOp n = sgets (lookup n . _scopeEffOperations) >>= \case
+    Just n' -> pure n'
+    Nothing -> ask >>= \li -> throw $ EffOpNotFound li n
 
 getTyConKind :: Seq TVar -> Kind
 getTyConKind = foldr (\(MkTVar _ k) r -> k `KFun` r) KStar 

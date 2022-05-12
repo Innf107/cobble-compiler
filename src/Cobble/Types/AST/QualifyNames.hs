@@ -31,6 +31,7 @@ type instance XCase             QualifyNames = ()
 type instance XLambda           QualifyNames = ()
 
 type instance XHandle           QualifyNames = ()
+type instance XResume           QualifyNames = ()
 
 type instance XExpr             QualifyNames = Either (OperatorGroup QualifyNames NoFixity) UnitLit
 

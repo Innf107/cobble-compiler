@@ -44,6 +44,7 @@ type instance XLambda            Codegen = (Type, Type, Type)
                                         -- full type
 
 type instance XHandle           Codegen = ()
+type instance XResume           Codegen = Type
 
 type instance XExpr              Codegen = CodegenExt
 
