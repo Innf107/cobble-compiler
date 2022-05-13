@@ -558,7 +558,15 @@ infer env (Lambda () li x e) = do
     lamEff <- freshEffectRow 
     pure (Lambda (TFun xTy eEff (getType e'), xTy, lamEff) li x e', lamEff)
 infer env Handle{} = undefined
-infer env Resume{} = undefined
+infer env (Resume () li arg) = do
+    (resumeArgTy, resumeResTy) <- fromMaybe (error "resume outside of handle expr") <$> asks unTagged
+    
+    eff <- freshEffectRow
+    
+    arg' <- check env arg resumeArgTy eff
+    
+    pure (Resume resumeResTy li arg', eff)
+
 
 correct :: Type -> Expr NextPass -> Expr NextPass
 correct = setType 
