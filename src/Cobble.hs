@@ -170,8 +170,9 @@ compileWithSig m = do
     let tcEnv = foldr (\dsig r -> TCEnv {
                     _varTypes = fmap coercePass (exportedVars dsig <> (view _1 <$> exportedVariantConstrs dsig)) <> _varTypes r
                 ,   _tcInstances = coercePass (exportedInstances dsig) <> _tcInstances r
+                ,   _effOpTypes = exportedEffOperations dsig <> _effOpTypes r
                 })
-                (TCEnv mempty mempty)
+                (TCEnv mempty mempty mempty)
                 modSigs
     qMod  <- mapError QualificationError $ evalStackStatePanic (fold qualScopes) $ qualify m
 

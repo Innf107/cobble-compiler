@@ -32,6 +32,7 @@ data TCEnv = TCEnv {
     _varTypes :: M.Map QualifiedName Type
 ,   _tcInstances :: M.Map QualifiedName (Seq (Type, QualifiedName))
     -- ^ Once multiparam typeclasses are implemented, this will have to be @M.Map QualfiedName (Seq (Seq Type))@
+,   _effOpTypes :: M.Map QualifiedName Type
 } deriving (Show, Eq, Generic, Data)
 
 makeLenses ''TCEnv
@@ -149,6 +150,14 @@ insertInstance className ty dictName = over tcInstances $ flip alter className \
     Nothing -> Just [(ty, dictName)]
     Just is -> Just (is :|> (ty, dictName))
 
+insertEffOpType :: QualifiedName -> Type -> TCEnv -> TCEnv
+insertEffOpType effName effTy env = env & effOpTypes %~ insert effName effTy
+
+lookupEffOpType :: QualifiedName -> TCEnv -> Type
+lookupEffOpType effName env = case lookup effName (_effOpTypes env) of
+    Just ty -> ty
+    Nothing -> error $ "lookupEffOpType: No such effect operation: " <> show effName
+
 typecheck :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Error TypeError, Context TypeContext, Dump (Seq TConstraint)] r)
           => TCEnv 
           -> Module Typecheck 
@@ -217,8 +226,11 @@ typecheckStatement env (DefVariant k li tyName tvs constrs) = do
     pure (DefVariant k li tyName tvs constrs', env')
         where
 typecheckStatement env (DefEffect k li effName tvs ops) = do
-    let env' = foldr (uncurry insertType . second (tforall tvs)) env ops
+    let env' = foldr insertOpTy env ops
+
     pure (DefEffect k li effName tvs ops, env')
+        where
+            insertOpTy (opName, ty) env = insertEffOpType opName ty $ insertType opName (tforall tvs ty) env 
 
 tforall :: Seq TVar -> Type -> Type
 tforall Empty ty = ty
@@ -229,7 +241,15 @@ forallFun vars result args = do
     argsAndEffs <- traverse (\x -> freshVar "μ" <&> \effName -> (x, MkTVar effName (KRow KEffect))) args
     pure $ TForall (vars <> map snd argsAndEffs) $ foldr (\(x, eff) r -> TFun x (TVar eff) r) result argsAndEffs
 
-checkTopLevelDecl :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Output TConstraint, Reader LexInfo, Context TypeContext] r)
+checkTopLevelDecl :: 
+      ( Trace
+      , Members 
+      '[ Fresh TVar TVar
+       , Fresh Text QualifiedName
+       , Output TConstraint
+       , Reader LexInfo
+       , Context TypeContext
+       ] r)
       => Bool
       -> TCEnv
       -> Decl Typecheck
@@ -253,7 +273,7 @@ checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = withContext (InDef
             -- somewhere. Maybe we should have some sort of top-level bound effect variable?
             Nothing -> TRowClosed []
 
-    e' <- check (foldr (\(x,ty,_) -> insertType x ty) env' xs') e eTy eff
+    e' <- runReader (MkTagged Nothing) $ check (foldr (\(x,ty,_) -> insertType x ty) env' xs') e eTy eff
     let lambdas = w $ makeLambdas li e' xs'
 
     pure (Decl (expectedTy, []) f [] lambdas, env')
@@ -261,7 +281,17 @@ checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = withContext (InDef
             makeLambdas :: LexInfo -> Expr NextPass -> Seq (QualifiedName, Type, Effect) -> Expr NextPass
             makeLambdas li = foldr (\(x, ty, eff) e -> Lambda (TFun ty eff (getType e), ty, eff) li x e)
 
-check :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Context TypeContext] r)
+check :: 
+    ( Trace, 
+      Members 
+      '[ Output TConstraint
+       , Fresh Text QualifiedName
+       , Fresh TVar TVar
+       , Context TypeContext
+       , Reader (Tagged "resumeTy" (Maybe (Type, Type)))
+       --                                  ^     ^ resume result
+       --                                  | resume arg
+       ] r)
       => TCEnv
       -> Expr Typecheck 
       -> Type 
@@ -339,10 +369,38 @@ check env (Lambda () li x e) t _eff = runReader li do
     e' <- check (insertType x expectedArgTy env) e expectedResTy tEff 
 
     pure $ w (Lambda (t, expectedArgTy, tEff) li x e')
-check env Handle{} t eff = undefined
-check env Resume{} t eff = undefined
+check env (Handle () li expr handlers) t eff = runReader li do
+    (handlerEffs, handlers') <- unzip <$> forM handlers \h@(EffHandler () li opName args e) -> do
+        let opType = lookupEffOpType opName env
+
+        -- TODO: What should we do about w here?
+        (argsWithEffs', resTy, mresEff, _w) <- decomposeParams opType args
+        let args' = map (\(x, ty, _) -> (x, ty)) argsWithEffs'
+        
+        let resEff = case mresEff of
+                Nothing -> error $ "parameterless effect operation in handle expressions"
+                Just resEff -> resEff
+
+        let env' = foldr (uncurry insertType) env args'
+
+        -- Handler expressions run in the *parent's* effect context (obviously)
+        e' <- runReader (MkTagged @"resumeTy" (Just (resTy, t))) $ check env' e t eff
+
+        pure (resEff, EffHandler () li opName args' e')
 
 
+    expr' <- check env expr t (foldr rowExtend eff handlerEffs)
+        
+    pure (Handle () li expr' handlers')
+
+check env (Resume () li arg) t eff = runReader li do
+    (resumeArgTy, resumeResTy) <- fromMaybe (error "resume outside of handle expr") <$> asks unTagged
+    
+    w <- subsume resumeResTy t
+
+    arg' <- check env arg resumeArgTy eff
+
+    pure $ w (Resume t li arg')
 
 checkPattern :: Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Context TypeContext] r 
              => TCEnv
@@ -385,7 +443,15 @@ checkPattern env pats ty = evalState mempty $ go Nothing env pats ty
             pure (OrP (getType p') (p' :<| pats'), foldr (.) pWrapper wrappers)
         go _ _ (OrP () Empty) _ = error "checkPattern: Empty Or-Pattern"
 
-infer :: (Trace, Members '[Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Context TypeContext] r )
+infer :: 
+    (Trace, 
+     Members 
+     '[ Output TConstraint
+      , Fresh Text QualifiedName
+      , Fresh TVar TVar
+      , Context TypeContext
+      , Reader (Tagged "resumeTy" (Maybe (Type, Type)))
+      ] r )
       => TCEnv
       -> Expr Typecheck 
       -> Sem r (Expr NextPass, Effect)
@@ -572,6 +638,16 @@ freshEffectRow = freshTV (KRow KEffect)
 
 freshTV :: Members '[Fresh Text QualifiedName] r => Kind -> Sem r Type
 freshTV k = freshVar "u" <&> \u -> TVar (MkTVar u k) 
+
+-- | @rowExtend@ extends the second row with the
+-- types from the first one, disregarding the first ones row variable.
+-- It therefore has the same effect as instantiating the first type variable
+-- with the second row type *IFF* the first type variable is not used anywhere else.
+rowExtend :: Type -> Type -> Type
+rowExtend (TRowOpen tys1 _) (TRowOpen tys2 var2) = TRowOpen (tys1 <> tys2) var2
+rowExtend (TRowOpen tys1 _) (TRowClosed tys2) = TRowClosed (tys1 <> tys2)
+rowExtend (TRowOpen tys1 _) (TRowSkol tys2 skol2 var2) = TRowSkol (tys1 <> tys2) skol2 var2
+rowExtend t1 t2 = error $ "rowExtend: Trying to extend invalid types:\n    t1: " <> show t1 <> "\n    t2: " <> show t2
 
 replaceTVar :: TVar -> Type -> Type -> Type
 replaceTVar tv ty = replaceTVars (one (tv, ty))

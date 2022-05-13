@@ -151,10 +151,10 @@ type instance InstanceRequirements (CaseBranch p) = [
 
 type family XCaseBranch (p :: Pass)
 
-data EffHandler (p :: Pass) = EffHandler (XEffHandler p) LexInfo (Name p) (Seq (Name p)) (Expr p)
+data EffHandler (p :: Pass) = EffHandler (XEffHandler p) LexInfo (Name p) (XParam p) (Expr p)
 
 type instance InstanceRequirements (EffHandler p) = [
-        XEffHandler p, Name p, Expr p
+        XEffHandler p, Name p, XParam p, Expr p
     ]
 
 type family XEffHandler (p :: Pass)
