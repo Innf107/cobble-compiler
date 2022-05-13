@@ -47,3 +47,15 @@ lookupAndDeleteWith f (a :<| as) = case f a of
 
 lookupAndDelete :: (Eq a) => a -> Seq (a, b) -> Maybe (b, Seq (a, b))
 lookupAndDelete x = lookupAndDeleteWith (\(x', y) -> if x == x' then Just y else Nothing)
+
+
+-- Applies a monadic operation pairwise to every element from left to right and ignores the result
+-- Example:
+-- > pairwiseM_ f [1, 2, 3, 4] = f 1 2 >> f 2 3 >> f 3 4
+pairwiseM_ :: Monad m => (a -> a -> m ()) -> Seq a -> m ()
+pairwiseM_ f Empty = pure ()
+pairwiseM_ f (x :<| _) = pure ()
+pairwiseM_ f (x :<| y :<| ys) = f x y >> pairwiseM_ f (y :<| ys)
+
+toSeq :: Foldable f => f a -> Seq a
+toSeq = fromList . toList

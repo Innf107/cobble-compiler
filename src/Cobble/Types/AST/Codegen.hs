@@ -43,7 +43,7 @@ type instance XLambda            Codegen = (Type, Type, Type)
                                         -- |      parameter type
                                         -- full type
 
-type instance XHandle           Codegen = ()
+type instance XHandle           Codegen = Type
 type instance XResume           Codegen = Type
 
 type instance XExpr              Codegen = CodegenExt

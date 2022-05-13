@@ -371,7 +371,7 @@ check env (Lambda () li x e) t _eff = runReader li do
     pure $ w (Lambda (t, expectedArgTy, tEff) li x e')
 check env (Handle () li scrut handlers mreturnClause) t eff = runReader li do
     -- Check handlers
-    (handlerEffs, handlers') <- unzip <$> forM handlers \h@(EffHandler () li opName args e) -> do
+    (handlerEffs, handlers') <- unzip <$> forM handlers \h@(EffHandler () li opName args e) -> runReader li do
         let opType = lookupEffOpType opName env
 
         -- TODO: What should we do about w here?
@@ -412,7 +412,7 @@ check env (Handle () li scrut handlers mreturnClause) t eff = runReader li do
             pure (id, Just (var, expr'))
 
         
-    pure (w (Handle () li scrut' handlers' mreturnClause'))
+    pure (w (Handle t li scrut' handlers' mreturnClause'))
 
 check env (Resume () li arg) t eff = runReader li do
     (resumeArgTy, resumeResTy) <- fromMaybe (error "resume outside of handle expr") <$> asks unTagged
@@ -578,7 +578,51 @@ infer env (Lambda () li x e) = do
     -- effect type.
     lamEff <- freshEffectRow 
     pure (Lambda (TFun xTy eEff (getType e'), xTy, lamEff) li x e', lamEff)
-infer env Handle{} = undefined
+infer env (Handle () li scrut handlers mreturnClause) = runReader li do
+    (scrut', scrutEff) <- infer env scrut
+    
+    (mreturnClause', returnTy, mreturnEff) <- case mreturnClause of
+        Nothing -> do
+            -- If there is no return clause, the result of the expression itself
+            -- has to match the type we are matching against
+            pure (Nothing, getType scrut', Nothing)
+        Just (var, expr) -> do
+            
+            let env' = insertType var (getType scrut') env
+
+            (expr', exprEff) <- infer env' expr
+
+            pure (Just (var, expr'), getType expr', Just exprEff)
+
+    -- Check handlers
+    (handlerEffs, handlers', handlerExprEffs) <- unzip3 <$> forM handlers \h@(EffHandler () li opName args e) -> runReader li do
+        let opType = lookupEffOpType opName env
+
+        -- TODO: What should we do about w here?
+        (argsWithEffs', resTy, mresEff, _w) <- decomposeParams opType args
+        let args' = map (\(x, ty, _) -> (x, ty)) argsWithEffs'
+        
+        let resEff = case mresEff of
+                Nothing -> error $ "parameterless effect operation in handle expressions"
+                Just resEff -> resEff
+
+        let env' = foldr (uncurry insertType) env args'
+
+        -- Handler expressions run in the *parent's* effect context (obviously)
+        (e', eEff) <- runReader (MkTagged @"resumeTy" (Just (resTy, returnTy))) $ infer env' e
+
+        pure (resEff, EffHandler () li opName args' e', eEff)
+
+    eff <- freshEffectRow
+
+    scrutEff !~ (foldr rowExtend eff handlerEffs)
+
+    -- Check the return clause
+
+    pairwiseM_ (!~) (toSeq mreturnEff <> handlerExprEffs)
+        
+    pure (Handle returnTy li scrut' handlers' mreturnClause', eff)
+
 infer env (Resume () li arg) = do
     (resumeArgTy, resumeResTy) <- fromMaybe (error "resume outside of handle expr") <$> asks unTagged
     
@@ -676,6 +720,8 @@ rowExtend :: Type -> Type -> Type
 rowExtend (TRowOpen tys1 _) (TRowOpen tys2 var2) = TRowOpen (tys1 <> tys2) var2
 rowExtend (TRowOpen tys1 _) (TRowClosed tys2) = TRowClosed (tys1 <> tys2)
 rowExtend (TRowOpen tys1 _) (TRowSkol tys2 skol2 var2) = TRowSkol (tys1 <> tys2) skol2 var2
+rowExtend (TRowOpen tys1 _) (TVar var2) = TRowOpen tys1 var2
+rowExtend (TRowOpen tys1 _) (TSkol skol2 var2) = TRowSkol tys1 skol2 var2
 rowExtend t1 t2 = error $ "rowExtend: Trying to extend invalid types:\n    t1: " <> show t1 <> "\n    t2: " <> show t2
 
 replaceTVar :: TVar -> Type -> Type -> Type

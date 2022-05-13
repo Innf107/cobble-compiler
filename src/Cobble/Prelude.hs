@@ -39,6 +39,7 @@ module Cobble.Prelude (
     , unsafeLast
     , Binary
     , lookupSeq
+    , unzip3
     ) where
 
 import qualified Relude
@@ -72,7 +73,7 @@ import Relude hiding (
     , trace, traceM, traceId, traceShow, traceShowId, traceShowM, traceShowWith
     , unfoldr
     , map, concatMap, concat, tails, inits, sortOn, sort, intersperse, zip3, splitAt, scanr, scanr1, scanl, scanl1
-    , replicateM, take, reverse, replicate, drop, length, sortBy, zip, unzip, null
+    , replicateM, take, reverse, replicate, drop, length, sortBy, zip, unzip, unzip3, null
     , mapMaybe, mapMaybeM, catMaybes
     , ordNub, ordNubOn, hashNub
     , filter
@@ -220,3 +221,9 @@ lookupSeq k Empty = Nothing
 lookupSeq k ((k', v) :<| rest)
     | k == k'   = Just v
     | otherwise = lookupSeq k rest
+
+unzip3 :: Seq (a, b, c) -> (Seq a, Seq b, Seq c)
+unzip3 Empty = ([], [], [])
+unzip3 ((x, y, z) :<| ts) = let (xs, ys, zs) = unzip3 ts in
+                            (x <| xs, y <| ys, z <| zs)
+
