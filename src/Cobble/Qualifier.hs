@@ -195,10 +195,11 @@ qualifyExpr (Lambda () li x e) = runReader li $
         x' <- freshVar x
         addVar x x'
         Lambda () li x' <$> qualifyExpr e
-qualifyExpr (Handle () li expr cases) = runReader li $
+qualifyExpr (Handle () li expr cases mreturnClause) = runReader li $
     Handle () li
     <$> qualifyExpr expr
     <*> traverse qualifyEffHandler cases
+    <*> qualifiedReturnClause
     where
         qualifyEffHandler :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r
                           => EffHandler QualifyNames
@@ -210,6 +211,13 @@ qualifyExpr (Handle () li expr cases) = runReader li $
                 zipWithM addEffOp args args'
                 expr' <- qualifyExpr expr
                 pure (EffHandler () li eff' args' expr')
+        qualifiedReturnClause = case mreturnClause of
+            Nothing -> pure Nothing
+            Just (var, expr) -> withFrame do
+                var' <- freshVar var
+                addVar var var'
+                Just . (var',) <$> qualifyExpr expr
+                
 qualifyExpr (Resume () li expr) = Resume () li <$> qualifyExpr expr
 
 qualifyExpr (ExprX (Right UnitLit) li) = pure $ VariantConstr (0, 0) li (UnsafeQualifiedName "Unit" (GlobalQName "Data.Unit"))

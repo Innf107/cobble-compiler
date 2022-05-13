@@ -369,7 +369,8 @@ check env (Lambda () li x e) t _eff = runReader li do
     e' <- check (insertType x expectedArgTy env) e expectedResTy tEff 
 
     pure $ w (Lambda (t, expectedArgTy, tEff) li x e')
-check env (Handle () li expr handlers) t eff = runReader li do
+check env (Handle () li scrut handlers mreturnClause) t eff = runReader li do
+    -- Check handlers
     (handlerEffs, handlers') <- unzip <$> forM handlers \h@(EffHandler () li opName args e) -> do
         let opType = lookupEffOpType opName env
 
@@ -389,9 +390,29 @@ check env (Handle () li expr handlers) t eff = runReader li do
         pure (resEff, EffHandler () li opName args' e')
 
 
-    expr' <- check env expr t (foldr rowExtend eff handlerEffs)
+    -- We have to infer the scrutinee, since the actual return type
+    -- might be changed by a return clause
+    (scrut', scrutEff) <- infer env scrut
+
+    scrutEff !~ (foldr rowExtend eff handlerEffs)
+
+    -- Check the return clause
+    (w, mreturnClause') <- case mreturnClause of
+        Nothing -> do
+            -- If there is no return clause, the result of the expression itself
+            -- has to match the type we are matching against
+            w <- subsume (getType scrut') t
+            pure (w, Nothing)
+        Just (var, expr) -> do
+            
+            let env' = insertType var (getType scrut') env
+
+            expr' <- check env' expr t eff
+
+            pure (id, Just (var, expr'))
+
         
-    pure (Handle () li expr' handlers')
+    pure (w (Handle () li scrut' handlers' mreturnClause'))
 
 check env (Resume () li arg) t eff = runReader li do
     (resumeArgTy, resumeResTy) <- fromMaybe (error "resume outside of handle expr") <$> asks unTagged

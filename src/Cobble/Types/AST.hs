@@ -120,7 +120,8 @@ data Expr (p :: Pass) =
     | VariantConstr   (XVariantConstr p) LexInfo (Name p)
     | Case            (XCase p) LexInfo (Expr p) (Seq (CaseBranch p))
     | Lambda          (XLambda p) LexInfo (Name p) (Expr p)
-    | Handle          (XHandle p) LexInfo (Expr p) (Seq (EffHandler p))
+    | Handle          (XHandle p) LexInfo (Expr p) (Seq (EffHandler p)) (Maybe (Name p, Expr p))
+    --                                                                   ^ return clause
     | Resume          (XResume p) LexInfo (Expr p)
     | ExprX           (XExpr p) LexInfo
 
@@ -458,7 +459,7 @@ instance HasLexInfo (Expr p) where
         VariantConstr _ li _     -> li
         Case _ li _ _            -> li
         Lambda _ li _ _          -> li
-        Handle _ li _ _          -> li
+        Handle _ li _ _ _        -> li
         Resume _ li _            -> li
         ExprX _ li               -> li
         

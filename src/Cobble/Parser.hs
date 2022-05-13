@@ -101,12 +101,32 @@ lambdaE = "lambda expression" <??> (\ls xs e -> foldr (Lambda () (mergeLexInfo l
     <*> expr
 
 handleE :: Parser (Expr NextPass)
-handleE = "handler expression" <??> (\ls expr handlers le -> Handle () (mergeLexInfo ls le) expr handlers)
+handleE = ("handler expression" <??>) $ join $ (\ls expr handlers le -> separateHandlers handlers <&> \(mreturn, handlers) -> 
+                                                                           Handle () (mergeLexInfo ls le) expr handlers mreturn)
     <$> reserved "handle"
     <*> expr
     <*  paren "{"
-    <*> many effHandler
+    <*> many (fmap Left effHandler <|> fmap Right returnHandler)
     <*> paren "}"
+    where
+        separateHandlers :: Seq (Either (EffHandler NextPass) (UnqualifiedName, Expr NextPass)) 
+                         -> Parser (Maybe (UnqualifiedName, Expr NextPass), Seq (EffHandler NextPass))
+        separateHandlers Empty = pure (Nothing, [])
+        separateHandlers (Left effHandler :<| hs) = second (effHandler <|) <$> separateHandlers hs
+        separateHandlers (Right returnHandler :<| hs) = do
+            (mretHandler, effHandlers) <- separateHandlers hs
+            case mretHandler of
+                Nothing -> pure (Just returnHandler, effHandlers)
+                Just h -> fail $ "Duplicate return clause in handler expression"
+
+
+returnHandler :: Parser (UnqualifiedName, Expr NextPass)
+returnHandler = (,)
+    <$  reserved "return"
+    <*> ident'
+    <*  reservedOp "->"
+    <*> expr
+    <*  reservedOp ";"
 
 effHandler :: Parser (EffHandler NextPass)
 effHandler = (\(ls, c) xs e le -> EffHandler () (mergeLexInfo ls le) c xs e)
