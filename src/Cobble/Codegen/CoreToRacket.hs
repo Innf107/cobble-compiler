@@ -112,6 +112,7 @@ compileExpr (Perform effName op _tyArgs [valArg]) = do
     pure $ RApp (RBuiltin "perform") [RSymbol effName, RSymbol op, valArg']
 compileExpr e@(Perform _ _ _ valArgs) = do
     error $ "Effect operations with multiple arguments NYI: " <> show e
+compileExpr Handle{} = undefined
 
 compileApp :: Members '[Fresh Text QualifiedName, State CompState] r => Expr -> Seq RacketExpr -> Sem r RacketExpr
 compileApp (App e1 e2) args = do

@@ -45,6 +45,8 @@ data Expr = Var QualifiedName
           -- 'perform' operations have to be fully applied, just like primOps. 
           | Perform QualifiedName QualifiedName (Seq Type) (Seq Expr)
           --        ^effect       ^operation    ^type args ^value args 
+          | Handle Expr (Seq (QualifiedName, Seq QualifiedName, Expr)) (QualifiedName, Expr)
+          --            ^ handlers                                      ^return clause
           deriving (Eq, Generic, Data)
 instance Binary Expr
 
@@ -160,6 +162,17 @@ instance Pretty Expr where
                                                       <> show field
     pretty (Perform effect op tyArgs valArgs) = "perform[" <> ppQName effect <> "]" <+> ppQName op <+> encloseSep "[" "]" ", " (map pretty tyArgs)
                                                    <> encloseSep "{" "}" ", " (map pretty valArgs)
+    pretty (Handle e handlers (retVar, retExpr)) = "(handle" <+> pretty e <+> "with" 
+                                    <> line <> align (indent 4 (
+                                            vsep (map prettyHandler handlers)
+                                        <>  line <> "return" <+> ppQName retVar <+> "->" <> pretty retExpr
+                                    )) <> ")" 
+                                    where
+                                        prettyHandler (op, args, expr) = 
+                                            ppQName op <+> encloseSep "" "" " " (map ppQName args)
+                                            <+> "->" <+> pretty expr
+
+
 
 instance Pretty Pattern where
     pretty (PInt i) = pretty i

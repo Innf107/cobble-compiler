@@ -267,6 +267,7 @@ lintExpr env (Perform opEff op tyArgs valArgs) eff = do
             $ lookupSeq op opTys
     checkRowContainsEff opEff eff $ "Operation '" <> show op <> "' requires the effect '" <> show opEff <> "' which was not found in the current effect context '" <> show eff <> "'"
     lintSaturated env (show op) "operation" opTy tyArgs valArgs eff
+lintExpr env Handle{} eff = undefined
 
 lintSaturated :: Members '[Error CoreLintError] r => LintEnv -> Text -> Text -> Type -> Seq Type -> Seq Expr -> Effect -> Sem r Type
 lintSaturated env x source ty tyArgs valArgs eff = go ty tyArgs valArgs
