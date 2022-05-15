@@ -208,7 +208,7 @@ qualifyExpr (Handle () li expr cases mreturnClause) = runReader li $
             withFrame do
                 eff' <- lookupEffOp eff
                 args' <- traverse (freshVar @Text @QualifiedName) args
-                zipWithM addEffOp args args'
+                zipWithM addVar args args'
                 expr' <- qualifyExpr expr
                 pure (EffHandler () li eff' args' expr')
         qualifiedReturnClause = case mreturnClause of
