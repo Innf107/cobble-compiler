@@ -2,7 +2,7 @@ module Cobble.Codegen.PrimOp where
 
 import Cobble.Prelude hiding (EQ)
 import Cobble.Util
-import Cobble.Types
+import Cobble.Syntax
 
 import Data.Map qualified as M
 import qualified GHC.Exts

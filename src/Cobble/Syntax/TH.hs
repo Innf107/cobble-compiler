@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# LANGUAGE TemplateHaskell, NoOverloadedLists #-}
-module Cobble.Types.TH where
+module Cobble.Syntax.TH where
 
 import Relude hiding (Type, last)-- Not importing Cobble.Prelude to avoid unnecessary name conflicts
 import Relude.Extra

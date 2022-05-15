@@ -14,7 +14,7 @@ import Data.Char (isSpace)
 import System.Directory as D
 import System.FilePath
 
-import Cobble.Types
+import Cobble.Syntax
 
 import Cobble.Parser
 import Cobble.Prelude.Parser (parse, ParseError)

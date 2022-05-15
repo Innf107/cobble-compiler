@@ -1,7 +1,7 @@
-module Cobble.Core.Types where
+module Cobble.Core.Syntax where
 
 import Cobble.Prelude
-import Cobble.Types.QualifiedName
+import Cobble.Syntax.QualifiedName
 
 import Cobble.Codegen.PrimOp
 

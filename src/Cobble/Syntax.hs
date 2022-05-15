@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
-module Cobble.Types  
+module Cobble.Syntax  
     (
       module Export
     , NameSpace
@@ -7,16 +7,16 @@ module Cobble.Types
     )
     where
 
-import Cobble.Types.Lens as Export
-import Cobble.Types.AST as Export
-import Cobble.Types.AST.SolveModules as Export
-import Cobble.Types.AST.QualifyNames as Export
-import Cobble.Types.AST.SemAnalysis as Export
-import Cobble.Types.AST.Typecheck as Export
-import Cobble.Types.AST.Codegen as Export
-import Cobble.Types.Instances as Export
-import Cobble.Types.QualifiedName as Export
-import Cobble.Types.LexInfo as Export
+import Cobble.Syntax.Lens as Export
+import Cobble.Syntax.AST as Export
+import Cobble.Syntax.AST.SolveModules as Export
+import Cobble.Syntax.AST.QualifyNames as Export
+import Cobble.Syntax.AST.SemAnalysis as Export
+import Cobble.Syntax.AST.Typecheck as Export
+import Cobble.Syntax.AST.Codegen as Export
+import Cobble.Syntax.Instances as Export
+import Cobble.Syntax.QualifiedName as Export
+import Cobble.Syntax.LexInfo as Export
 
 import Cobble.Prelude
 

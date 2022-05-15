@@ -5,7 +5,7 @@ import Cobble.Prelude hiding (argument, output)
 import Cobble
 import Cobble.Build
 
-import Cobble.Types
+import Cobble.Syntax
 
 import Cobble.Typechecker (TypeError(..), TypeContext(..)) -- Ugh
 

@@ -1,7 +1,7 @@
 module Cobble.Racket.Types where
 
 import Cobble.Prelude
-import Cobble.Types.QualifiedName
+import Cobble.Syntax.QualifiedName
 
 import Prettyprinter as P hiding (list)
 import Data.Text qualified as T

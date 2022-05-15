@@ -3,7 +3,7 @@ module Cobble.Parser.Tokenizer where
 
 import Cobble.Prelude hiding ((|>))
 
-import Cobble.Types
+import Cobble.Syntax
 
 import Data.Char
 import Data.DList as D

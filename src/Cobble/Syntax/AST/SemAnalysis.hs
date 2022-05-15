@@ -1,14 +1,14 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE TemplateHaskell, UndecidableInstances #-}
-module Cobble.Types.AST.SemAnalysis where
+module Cobble.Syntax.AST.SemAnalysis where
 
 import Cobble.Prelude
 
 import Data.Data hiding (Fixity)
 import Data.Generics.Uniplate.Data
 
-import Cobble.Types.AST
-import Cobble.Types.QualifiedName
+import Cobble.Syntax.AST
+import Cobble.Syntax.QualifiedName
 
 type instance XModule 'SemAnalysis = (Map Text ModSig)
   

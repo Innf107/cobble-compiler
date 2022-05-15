@@ -1,5 +1,5 @@
 {-#LANGUAGE TemplateHaskell#-}
-module Cobble.Types.QualifiedName (
+module Cobble.Syntax.QualifiedName (
     QualifiedName (..)
 ,   QNameSpecifier(..)
 ,   UnqualifiedName
@@ -13,7 +13,7 @@ module Cobble.Types.QualifiedName (
 
 import Cobble.Prelude
 
-import Cobble.Types.LexInfo
+import Cobble.Syntax.LexInfo
 
 import Data.Data
 import Data.Char

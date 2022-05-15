@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.34.5.
 --
 -- see: https://github.com/sol/hpack
 
@@ -31,7 +31,7 @@ library
       Cobble.Codegen.PrimOp
       Cobble.Core.Lint
       Cobble.Core.Lower
-      Cobble.Core.Types
+      Cobble.Core.Syntax
       Cobble.Interface
       Cobble.ModuleSolver
       Cobble.Parser
@@ -41,20 +41,20 @@ library
       Cobble.Qualifier
       Cobble.Racket.Types
       Cobble.SemAnalysis
+      Cobble.Syntax
+      Cobble.Syntax.AST
+      Cobble.Syntax.AST.Codegen
+      Cobble.Syntax.AST.QualifyNames
+      Cobble.Syntax.AST.SemAnalysis
+      Cobble.Syntax.AST.SolveModules
+      Cobble.Syntax.AST.Typecheck
+      Cobble.Syntax.Instances
+      Cobble.Syntax.Lens
+      Cobble.Syntax.LexInfo
+      Cobble.Syntax.PrettyPrint
+      Cobble.Syntax.QualifiedName
+      Cobble.Syntax.TH
       Cobble.Typechecker
-      Cobble.Types
-      Cobble.Types.AST
-      Cobble.Types.AST.Codegen
-      Cobble.Types.AST.QualifyNames
-      Cobble.Types.AST.SemAnalysis
-      Cobble.Types.AST.SolveModules
-      Cobble.Types.AST.Typecheck
-      Cobble.Types.Instances
-      Cobble.Types.Lens
-      Cobble.Types.LexInfo
-      Cobble.Types.PrettyPrint
-      Cobble.Types.QualifiedName
-      Cobble.Types.TH
       Cobble.Util
       Cobble.Util.Bitraversable
       Cobble.Util.ListLike

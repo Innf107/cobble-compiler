@@ -1,8 +1,8 @@
 module Cobble.Core.Lint where
 
 import Cobble.Prelude
-import Cobble.Types.QualifiedName
-import Cobble.Core.Types
+import Cobble.Syntax.QualifiedName
+import Cobble.Core.Syntax
 
 import Cobble.Util
 

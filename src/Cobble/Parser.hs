@@ -1,8 +1,8 @@
 module Cobble.Parser where
 
 import Cobble.Prelude.Parser hiding (assign)
-import Cobble.Types
-import Cobble.Types.PrettyPrint
+import Cobble.Syntax
+import Cobble.Syntax.PrettyPrint
 import Cobble.Parser.Tokenizer (Token(..), TokenData(..))
 
 import Data.Text qualified as T

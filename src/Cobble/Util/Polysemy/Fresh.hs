@@ -12,8 +12,8 @@ module Cobble.Util.Polysemy.Fresh (
 ) where
 
 import Cobble.Prelude
-import Cobble.Types.QualifiedName
-import Cobble.Types.LexInfo
+import Cobble.Syntax.QualifiedName
+import Cobble.Syntax.LexInfo
 
 data Fresh u q m a where
     FreshVar :: u -> Fresh u q m q

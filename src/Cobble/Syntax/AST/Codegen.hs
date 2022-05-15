@@ -1,15 +1,15 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE TemplateHaskell, UndecidableInstances #-}
-module Cobble.Types.AST.Codegen where
+module Cobble.Syntax.AST.Codegen where
   
 import Data.Data hiding (Fixity)
 import Data.Generics.Uniplate.Data
   
 import Cobble.Prelude
 
-import Cobble.Types.AST
-import Cobble.Types.Instances
-import Cobble.Types.QualifiedName
+import Cobble.Syntax.AST
+import Cobble.Syntax.Instances
+import Cobble.Syntax.QualifiedName
 
 type instance XModule Codegen = Map Text ModSig
 

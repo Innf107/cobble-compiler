@@ -1,11 +1,11 @@
 {-#OPTIONS_GHC -Wno-orphans#-}
 {-#LANGUAGE TemplateHaskell, UndecidableInstances#-}
-module Cobble.Types.Instances where
+module Cobble.Syntax.Instances where
 
 import Cobble.Prelude
 
-import Cobble.Types.AST
-import Cobble.Types.TH
+import Cobble.Syntax.AST
+import Cobble.Syntax.TH
 
 deriveInstanceReqs
 

@@ -1,4 +1,4 @@
-module Cobble.Types.LexInfo where
+module Cobble.Syntax.LexInfo where
 
 import Cobble.Prelude
 

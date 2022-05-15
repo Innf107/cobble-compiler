@@ -1,14 +1,14 @@
 {-# LANGUAGE UndecidableInstances, TemplateHaskell #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints#-}
-module Cobble.Types.AST where
+module Cobble.Syntax.AST where
 
 import Cobble.Prelude
 import Cobble.Util.TypeUtils
 
-import Cobble.Types.TH
+import Cobble.Syntax.TH
 
-import Cobble.Types.LexInfo
-import Cobble.Types.QualifiedName
+import Cobble.Syntax.LexInfo
+import Cobble.Syntax.QualifiedName
 
 import Data.Generics.Uniplate.Data
 

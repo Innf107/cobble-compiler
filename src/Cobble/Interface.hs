@@ -1,8 +1,8 @@
 module Cobble.Interface where
 
 import Cobble.Prelude
-import Cobble.Types as C
-import Cobble.Core.Types as F
+import Cobble.Syntax as C
+import Cobble.Core.Syntax as F
 
 import Data.Binary
 

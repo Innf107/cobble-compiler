@@ -18,7 +18,7 @@ import Cobble.Prelude hiding ((<.>), readFile, writeFile, combine)
 
 import Cobble.Util.Trace
 
-import Cobble.Types as S
+import Cobble.Syntax as S
 import Cobble.Parser.Tokenizer as S
 import Cobble.Parser as S
 import Cobble.Qualifier as S
@@ -42,7 +42,7 @@ import Cobble.Core.Lint
 import Cobble.Codegen.CoreToRacket as CoreToRacket
 
 import Cobble.Racket.Types as Racket
-import Cobble.Core.Types qualified as Core
+import Cobble.Core.Syntax qualified as Core
 
 import Cobble.Interface
 

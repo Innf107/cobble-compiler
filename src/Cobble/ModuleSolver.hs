@@ -2,7 +2,7 @@ module Cobble.ModuleSolver where
 
 import Cobble.Prelude
 
-import Cobble.Types
+import Cobble.Syntax
 import Cobble.Interface
 
 data ModuleError = ModuleNotFound (Name 'SolveModules)

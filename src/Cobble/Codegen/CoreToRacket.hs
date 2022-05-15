@@ -1,12 +1,12 @@
 module Cobble.Codegen.CoreToRacket where
 
 import Cobble.Prelude hiding (EQ)
-import Cobble.Core.Types as F
+import Cobble.Core.Syntax as F
 import Cobble.Racket.Types as R
-import Cobble.Types.QualifiedName
+import Cobble.Syntax.QualifiedName
 import Cobble.Interface
 
-import Cobble.Types qualified as C
+import Cobble.Syntax qualified as C
 
 import Cobble.Util.Polysemy.Fresh
 

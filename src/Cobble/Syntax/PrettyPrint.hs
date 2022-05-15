@@ -1,8 +1,8 @@
 {-# LANGUAGE UndecidableInstances #-}
-module Cobble.Types.PrettyPrint where
+module Cobble.Syntax.PrettyPrint where
 
 import Cobble.Prelude
-import Cobble.Types
+import Cobble.Syntax
 import Cobble.Parser.Tokenizer (Token(..), TokenData(..))
 import Cobble.Util.Maybe
 

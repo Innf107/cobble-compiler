@@ -8,10 +8,10 @@ import Cobble.Util.Polysemy.Fresh
 import Cobble.Util.Polysemy.Dump
 import Cobble.Util.Polysemy.Context
 import Cobble.Util.TypeUtils
-import Cobble.Types
-import Cobble.Types qualified as C 
-import Cobble.Types.Lens
-import Cobble.Core.Types qualified as Core
+import Cobble.Syntax
+import Cobble.Syntax qualified as C 
+import Cobble.Syntax.Lens
+import Cobble.Core.Syntax qualified as Core
 
 import qualified Data.Text as T
 
@@ -22,7 +22,7 @@ import qualified Data.Set as Set
 
 import Data.List.NonEmpty qualified as NE
 
-import Cobble.Core.Types qualified as F
+import Cobble.Core.Syntax qualified as F
 
 import Debug.Trace qualified as D
 
@@ -971,12 +971,6 @@ applySubst s@Subst{substVarTys, substDicts} = applyDictSubst . applyTySubst
 
 ppTC :: Seq TConstraint -> Text
 ppTC = unlines . toList . map (\(MkTConstraint c l _) -> ppTConstraint c <> "    @" <> show l) 
-
-ppWanteds :: Seq TWanted -> Text
-ppWanteds = unlines . toList . map (\(TWanted c li) -> ppConstraint c <> " @" <> show li)
-
-ppGivens :: Seq TGiven -> Text
-ppGivens = unlines . toList . map (\(TGiven c li) -> ppConstraint c <> " @" <> show li)
 
 
 ppTConstraint :: TConstraintComp -> Text

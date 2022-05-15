@@ -2,7 +2,7 @@
 module Cobble.Qualifier where
 
 import Cobble.Prelude
-import Cobble.Types
+import Cobble.Syntax
 
 import Cobble.Util.Polysemy.StackState
 import Cobble.Util.Polysemy.Fresh

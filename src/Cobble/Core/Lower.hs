@@ -3,10 +3,10 @@ module Cobble.Core.Lower where
 
 import Cobble.Prelude
 
-import Cobble.Types (QualifiedName)
-import Cobble.Types qualified as C
+import Cobble.Syntax (QualifiedName)
+import Cobble.Syntax qualified as C
 
-import Cobble.Core.Types qualified as F
+import Cobble.Core.Syntax qualified as F
 import Cobble.Util.Bitraversable (secondM)
 
 import Cobble.Codegen.PrimOp

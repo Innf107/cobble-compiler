@@ -1,9 +1,9 @@
 {-#OPTIONS_GHC -Wno-orphans#-}
 {-# LANGUAGE TemplateHaskell, UndecidableInstances#-}
-module Cobble.Types.AST.SolveModules where
+module Cobble.Syntax.AST.SolveModules where
     
 import Cobble.Prelude
-import Cobble.Types.AST
+import Cobble.Syntax.AST
     
 type instance XModule 'SolveModules = ()
   

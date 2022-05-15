@@ -1,9 +1,9 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE TemplateHaskell, UndecidableInstances #-}
-module Cobble.Types.AST.QualifyNames where
+module Cobble.Syntax.AST.QualifyNames where
     
 import Cobble.Prelude
-import Cobble.Types.AST
+import Cobble.Syntax.AST
     
 type instance XModule QualifyNames = Map Text ModSig
 

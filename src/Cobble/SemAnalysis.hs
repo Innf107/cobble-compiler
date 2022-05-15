@@ -2,8 +2,8 @@ module Cobble.SemAnalysis where
 
 import Cobble.Prelude
 
-import Cobble.Types
-import Cobble.Types.Lens
+import Cobble.Syntax
+import Cobble.Syntax.Lens
 
 import Data.Set qualified as S
 
