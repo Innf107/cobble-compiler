@@ -387,7 +387,7 @@ check env (Handle () li scrut handlers mreturnClause) t eff = runReader li do
         -- Handler expressions run in the *parent's* effect context (obviously)
         e' <- runReader (MkTagged @"resumeTy" (Just (resTy, t))) $ check env' e t eff
 
-        pure (resEff, EffHandler resEff li opName args' e')
+        pure (resEff, EffHandler (removeRow resEff) li opName args' e')
 
 
     -- We have to infer the scrutinee, since the actual return type
@@ -413,6 +413,7 @@ check env (Handle () li scrut handlers mreturnClause) t eff = runReader li do
 
         
     pure (w (Handle t li scrut' handlers' mreturnClause'))
+
 
 check env (Resume () li arg) t eff = runReader li do
     (resumeArgTy, resumeResTy) <- fromMaybe (error "resume outside of handle expr") <$> asks unTagged
@@ -611,7 +612,7 @@ infer env (Handle () li scrut handlers mreturnClause) = runReader li do
         -- Handler expressions run in the *parent's* effect context (obviously)
         (e', eEff) <- runReader (MkTagged @"resumeTy" (Just (resTy, returnTy))) $ infer env' e
 
-        pure (resEff, EffHandler resEff li opName args' e', eEff)
+        pure (resEff, EffHandler (removeRow resEff) li opName args' e', eEff)
 
     eff <- freshEffectRow
 
@@ -925,6 +926,11 @@ getHeadConstr (TApp t1 t2) = do
     pure (headC, args |> t2)
 getHeadConstr ty = throwType $ InvalidRowHeadConstr ty
 
+removeRow :: HasCallStack => Type -> Type
+removeRow (TRowOpen [ty] _) = ty
+removeRow (TRowClosed [ty]) = ty
+removeRow (TRowSkol [ty] _ _) = ty
+removeRow ty = error $ "removeRow: Expected a row with a single element: " <> show ty
 
 bind :: (Trace, Members '[Reader LexInfo, Error TypeError, Context TypeContext] r) => TVar -> Type -> Sem r Substitution
 bind tv ty
