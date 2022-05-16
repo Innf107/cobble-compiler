@@ -387,7 +387,7 @@ check env (Handle () li scrut handlers mreturnClause) t eff = runReader li do
         -- Handler expressions run in the *parent's* effect context (obviously)
         e' <- runReader (MkTagged @"resumeTy" (Just (resTy, t))) $ check env' e t eff
 
-        pure (resEff, EffHandler () li opName args' e')
+        pure (resEff, EffHandler resEff li opName args' e')
 
 
     -- We have to infer the scrutinee, since the actual return type
@@ -611,7 +611,7 @@ infer env (Handle () li scrut handlers mreturnClause) = runReader li do
         -- Handler expressions run in the *parent's* effect context (obviously)
         (e', eEff) <- runReader (MkTagged @"resumeTy" (Just (resTy, returnTy))) $ infer env' e
 
-        pure (resEff, EffHandler () li opName args' e', eEff)
+        pure (resEff, EffHandler resEff li opName args' e', eEff)
 
     eff <- freshEffectRow
 

@@ -50,7 +50,7 @@ type instance XExpr              Codegen = CodegenExt
 
 type instance XCaseBranch Codegen = ()
 
-type instance XEffHandler Codegen = ()
+type instance XEffHandler Codegen = Effect
 
 type instance XIntP         Codegen = ()
 type instance XVarP         Codegen = Type

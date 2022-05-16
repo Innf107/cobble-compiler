@@ -204,13 +204,13 @@ qualifyExpr (Handle () li expr cases mreturnClause) = runReader li $
         qualifyEffHandler :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r
                           => EffHandler QualifyNames
                           -> Sem r (EffHandler NextPass)
-        qualifyEffHandler (EffHandler () li eff args expr) =
+        qualifyEffHandler (EffHandler () li op args expr) =
             withFrame do
-                eff' <- lookupEffOp eff
+                op' <- lookupEffOp op
                 args' <- traverse (freshVar @Text @QualifiedName) args
                 zipWithM addVar args args'
                 expr' <- qualifyExpr expr
-                pure (EffHandler () li eff' args' expr')
+                pure (EffHandler () li op' args' expr')
         qualifiedReturnClause = case mreturnClause of
             Nothing -> pure Nothing
             Just (var, expr) -> withFrame do
