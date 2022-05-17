@@ -112,7 +112,23 @@ compileExpr (Perform effName op _tyArgs [valArg]) = do
     pure $ RApp (RBuiltin "perform") [RSymbol effName, RSymbol op, valArg']
 compileExpr e@(Perform _ _ _ valArgs) = do
     error $ "Effect operations with multiple arguments NYI: " <> show e
-compileExpr Handle{} = undefined
+compileExpr e@(Handle expr eff handlers retClause) = do
+    expr' <- compileExpr expr
+    let effName = getConstrName eff
+
+    handlerHash <- RHash <$> forM handlers \(op, args, expr) -> do
+        case args of 
+            [(arg, _argTy)] -> do
+                expr' <- compileExpr expr
+                pure (RSymbol op, RLambda [internalQName "resumption", arg] [expr'])
+            _ -> error $ "Effect operations with multiple arguments NYI: " <> show e
+
+    pure $ RApp (RBuiltin "handler") [RSymbol effName, handlerHash, RLambda [] [expr']]
+        where
+            getConstrName (TCon name _) = name
+            getConstrName (TApp ty _) = getConstrName ty
+            getConstrName _ = error $ "CoreToRacket.compileExpr: Not a valid effect type: " <> show eff
+
 
 compileApp :: Members '[Fresh Text QualifiedName, State CompState] r => Expr -> Seq RacketExpr -> Sem r RacketExpr
 compileApp (App e1 e2) args = do
