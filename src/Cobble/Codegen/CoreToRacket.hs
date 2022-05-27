@@ -120,7 +120,7 @@ compileExpr e@(Handle expr eff handlers retClause) = do
         case args of 
             [(arg, _argTy)] -> do
                 expr' <- compileExpr expr
-                pure (RSymbol op, RLambda [internalQName "resumption", arg] [expr'])
+                pure (RSymbol op, RLambda [arg, resumptionVar] [expr'])
             _ -> error $ "Effect operations with multiple arguments NYI: " <> show e
 
     pure $ RApp (RBuiltin "handler") [RSymbol effName, handlerHash, RLambda [] [expr']]
@@ -128,6 +128,11 @@ compileExpr e@(Handle expr eff handlers retClause) = do
             getConstrName (TCon name _) = name
             getConstrName (TApp ty _) = getConstrName ty
             getConstrName _ = error $ "CoreToRacket.compileExpr: Not a valid effect type: " <> show eff
+compileExpr (Resume expr) = do
+    RApp (RVar resumptionVar) . pure <$> compileExpr expr
+
+resumptionVar :: QualifiedName
+resumptionVar = internalQName "resumption"
 
 
 compileApp :: Members '[Fresh Text QualifiedName, State CompState] r => Expr -> Seq RacketExpr -> Sem r RacketExpr

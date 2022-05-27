@@ -47,6 +47,7 @@ data Expr = Var QualifiedName
           --        ^effect       ^operation    ^type args ^value args 
           | Handle Expr Effect (Seq (QualifiedName, Seq (QualifiedName, Type), Expr)) (QualifiedName, Expr)
           --                   ^ handlers                                      ^return clause
+          | Resume Expr -- TODO: Probably needs some type annotations somewhere?
           deriving (Eq, Generic, Data)
 instance Binary Expr
 
@@ -171,7 +172,7 @@ instance Pretty Expr where
                                         prettyHandler (op, args, expr) = 
                                             ppQName op <+> encloseSep "" "" " " (map (parens . prettyTyped) args)
                                             <+> "->" <+> pretty expr
-
+    pretty (Resume expr) = "(resume" <+> pretty expr <> ")"
 
 
 instance Pretty Pattern where

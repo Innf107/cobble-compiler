@@ -27,6 +27,6 @@
     ]
     ; the semantics really *look like* those of shift0-at, but cobble-prompt also sets the evidence
     ; vector, so we have to add the prompt manually
-    (control0-at m k (f argument (lambda (x) (cobble-prompt m l h (lambda (_) (k x))))))
+    (control0-at m k (f argument (lambda (x) (cobble-prompt m l h (lambda () (k x))))))
 ))
 

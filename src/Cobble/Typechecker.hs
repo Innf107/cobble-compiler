@@ -11,7 +11,6 @@ import Cobble.Util.TypeUtils
 import Cobble.Syntax
 import Cobble.Syntax qualified as C 
 import Cobble.Syntax.Lens
-import Cobble.Core.Syntax qualified as Core
 
 import qualified Data.Text as T
 
@@ -21,8 +20,6 @@ import Data.Traversable (for)
 import qualified Data.Set as Set
 
 import Data.List.NonEmpty qualified as NE
-
-import Cobble.Core.Syntax qualified as F
 
 import Debug.Trace qualified as D
 
