@@ -40,7 +40,7 @@ instance HasType (Expr 'Codegen) where
         If _ _ _ th _                       -> getType th
         Let _ _ _ b                         -> getType b
         Lambda (t, _, _) _ _ _              -> t
-        Handle t _ _ _ _                    -> t
+        Handle (t, _) _ _ _ _               -> t
         Resume t _ _                        -> t
         TyAbs _ tv e                        -> TForall [tv] (getType e)
         TyApp _ targ e                      -> getType e -- TODO: Should apply arg type
@@ -56,7 +56,7 @@ instance HasType (Expr 'Codegen) where
         If x y z th el                      -> If x y z (setType t th) (setType t el)
         Let x y z b                         -> Let x y z (setType t b)
         Lambda (_, x, a) y z w              -> Lambda (t, x, a) y z w
-        Handle _ y e z r                    -> Handle t y e z r
+        Handle (_, eff) y e z r             -> Handle (t, eff) y e z r
         Resume _ li e                       -> Resume t li e
         TyAbs li ty e                       -> TyAbs li ty (setType t e)
         TyApp li targ e                     -> TyApp li targ (setType t e)

@@ -386,12 +386,16 @@ check env (Handle () li scrut handlers mreturnClause) t eff = runReader li do
 
         pure (resEff, EffHandler (removeRow resEff) li opName args' e')
 
+    handlerEff <- case (map rowHead handlerEffs) of
+        (e1 :<| effs) -> foldrM (\eff1 eff2 -> (eff1 !~ eff2) $> eff2) e1 effs
+        Empty -> error $ "check ... (Handle ...): empty handler list"
+
 
     -- We have to infer the scrutinee, since the actual return type
     -- might be changed by a return clause
     (scrut', scrutEff) <- infer env scrut
 
-    scrutEff !~ (foldr rowExtend eff handlerEffs)
+    scrutEff !~ rowInsert handlerEff eff
 
     -- Check the return clause
     (w, mreturnClause') <- case mreturnClause of
@@ -409,7 +413,7 @@ check env (Handle () li scrut handlers mreturnClause) t eff = runReader li do
             pure (id, Just (var, expr'))
 
         
-    pure (w (Handle t li scrut' handlers' mreturnClause'))
+    pure (w (Handle (t, handlerEff) li scrut' handlers' mreturnClause'))
 
 
 check env (Resume () li arg) t eff = runReader li do
@@ -576,50 +580,12 @@ infer env (Lambda () li x e) = do
     -- effect type.
     lamEff <- freshEffectRow 
     pure (Lambda (TFun xTy eEff (getType e'), xTy, lamEff) li x e', lamEff)
-infer env (Handle () li scrut handlers mreturnClause) = runReader li do
-    (scrut', scrutEff) <- infer env scrut
-    
-    (mreturnClause', returnTy, mreturnEff) <- case mreturnClause of
-        Nothing -> do
-            -- If there is no return clause, the result of the expression itself
-            -- has to match the type we are matching against
-            pure (Nothing, getType scrut', Nothing)
-        Just (var, expr) -> do
-            
-            let env' = insertType var (getType scrut') env
-
-            (expr', exprEff) <- infer env' expr
-
-            pure (Just (var, expr'), getType expr', Just exprEff)
-
-    -- Check handlers
-    (handlerEffs, handlers', handlerExprEffs) <- unzip3 <$> forM handlers \h@(EffHandler () li opName args e) -> runReader li do
-        let opType = lookupEffOpType opName env
-
-        -- TODO: What should we do about w here?
-        (argsWithEffs', resTy, mresEff, _w) <- decomposeParams opType args
-        let args' = map (\(x, ty, _) -> (x, ty)) argsWithEffs'
-        
-        let resEff = case mresEff of
-                Nothing -> error $ "parameterless effect operation in handle expressions"
-                Just resEff -> resEff
-
-        let env' = foldr (uncurry insertType) env args'
-
-        -- Handler expressions run in the *parent's* effect context (obviously)
-        (e', eEff) <- runReader (MkTagged @"resumeTy" (Just (resTy, returnTy))) $ infer env' e
-
-        pure (resEff, EffHandler (removeRow resEff) li opName args' e', eEff)
-
-    eff <- freshEffectRow
-
-    scrutEff !~ (foldr rowExtend eff handlerEffs)
-
-    -- Check the return clause
-
-    pairwiseM_ (!~) (toSeq mreturnEff <> handlerExprEffs)
-        
-    pure (Handle returnTy li scrut' handlers' mreturnClause', eff)
+infer env expr@(Handle () li scrut handlers mreturnClause) = runReader li do
+    -- Defer to checking against a type variable here
+    resTy <- freshTV KStar
+    resEff <- freshEffectRow
+    expr' <- check env expr resTy resEff
+    pure (expr', resEff)
 
 infer env (Resume () li arg) = do
     (resumeArgTy, resumeResTy) <- fromMaybe (error "resume outside of handle expr") <$> asks unTagged
@@ -696,7 +662,7 @@ decomposeParams ty (x :<| xs) = do
     pure ((x,argTy, eff) <| restArgTys, restResTy, mEff <|> Just eff, w . w')
 
 
-lambdasToDecl :: LexInfo -> QualifiedName -> Expr NextPass -> Int -> Decl NextPass
+lambdasToDecl :: HasCallStack => LexInfo -> QualifiedName -> Expr NextPass -> Int -> Decl NextPass
 lambdasToDecl li f = go []
     where
         go :: Seq (QualifiedName, Type) -> Expr NextPass -> Int -> Decl NextPass
@@ -710,11 +676,19 @@ freshEffectRow = freshTV (KRow KEffect)
 freshTV :: Members '[Fresh Text QualifiedName] r => Kind -> Sem r Type
 freshTV k = freshVar "u" <&> \u -> TVar (MkTVar u k) 
 
+rowInsert :: Type -> Type -> Type
+rowInsert ty (TRowOpen tys var) = TRowOpen (ty <| tys) var
+rowInsert ty (TRowClosed tys) = TRowClosed (ty <| tys)
+rowInsert ty (TRowSkol tys var skol) = TRowSkol (ty <| tys) var skol
+rowInsert ty (TVar tv) = TRowOpen [ty] tv
+rowInsert ty (TSkol tv skol) = TRowSkol [ty] tv skol
+rowInsert ty rowTy = error $ "rowInsert: Trying to insert into non-row type: " <> show rowTy <> "\n    Type to insert: " <> show ty
+
 -- | @rowExtend@ extends the second row with the
 -- types from the first one, disregarding the first ones row variable.
 -- It therefore has the same effect as instantiating the first type variable
 -- with the second row type *IFF* the first type variable is not used anywhere else.
-rowExtend :: Type -> Type -> Type
+rowExtend :: HasCallStack => Type -> Type -> Type
 rowExtend (TRowOpen tys1 _) (TRowOpen tys2 var2) = TRowOpen (tys1 <> tys2) var2
 rowExtend (TRowOpen tys1 _) (TRowClosed tys2) = TRowClosed (tys1 <> tys2)
 rowExtend (TRowOpen tys1 _) (TRowSkol tys2 skol2 var2) = TRowSkol (tys1 <> tys2) skol2 var2
@@ -722,10 +696,16 @@ rowExtend (TRowOpen tys1 _) (TVar var2) = TRowOpen tys1 var2
 rowExtend (TRowOpen tys1 _) (TSkol skol2 var2) = TRowSkol tys1 skol2 var2
 rowExtend t1 t2 = error $ "rowExtend: Trying to extend invalid types:\n    t1: " <> show t1 <> "\n    t2: " <> show t2
 
+rowHead :: HasCallStack => Type -> Type
+rowHead (TRowOpen (ty :<| _) _) = ty
+rowHead (TRowClosed (ty :<| _)) = ty
+rowHead (TRowSkol (ty :<| _) _ _) = ty
+rowHead ty = error $ "rowHead: Not a non-empty row type: " <> show ty
+
 replaceTVar :: TVar -> Type -> Type -> Type
 replaceTVar tv ty = replaceTVars (one (tv, ty))
 
-replaceTVars :: Map TVar Type -> Type -> Type
+replaceTVars :: HasCallStack => Map TVar Type -> Type -> Type
 replaceTVars tvs ty@(TVar tv) = case lookup tv tvs of
                 Just ty' -> ty'
                 Nothing -> ty

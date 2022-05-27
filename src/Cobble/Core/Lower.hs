@@ -126,7 +126,25 @@ lowerExpr (C.Var _ _ x) = pure $ F.Var x
 
 lowerExpr (C.Case t li e branches) = lowerCase t e branches
 lowerExpr (C.Lambda (ty, argTy, eff) _ x e) = F.Abs x <$> lowerType eff <*> lowerType argTy <*> lowerExpr e
-lowerExpr (C.Handle ty li e handlers retClause) = lowerHandle li e handlers retClause
+lowerExpr (C.Handle (ty, eff) li e handlers mretClause) = do
+    handlers' <- forM handlers \(C.EffHandler _ _ con params expr) -> do
+        (,,)
+        <$> pure con
+        <*> traverse (secondM lowerType) params
+        <*> lowerExpr expr
+
+    retClause' <- case mretClause of
+        Just (name, body) -> (name,) <$> lowerExpr body
+        Nothing -> do
+            name <- freshVar "r"
+            pure (name, F.Var name)
+
+    eff' <- lowerType eff
+
+    e' <- lowerExpr e
+
+    pure (F.Handle e' eff' handlers' retClause')
+
 lowerExpr (C.Resume ty li expr) = F.Resume <$> lowerExpr expr
 lowerExpr (C.TyApp _ ty e) = F.TyApp <$> lowerExpr e <*> lowerType ty
 lowerExpr (C.TyAbs _ (C.MkTVar tvName tvKind) e) = F.TyAbs tvName <$> lowerKind tvKind <*> lowerExpr e
@@ -148,69 +166,8 @@ lowerSaturated (F.TFun t1 eff t2) cont = do
     F.Abs x eff t1 <$> lowerSaturated t2 (\tyArgs valArgs -> cont tyArgs (F.Var x <| valArgs))
 lowerSaturated ty cont = pure $ cont [] []
 
-lowerHandle :: forall r. (Trace, Members '[Fresh Text QualifiedName] r)
-            => C.LexInfo 
-            -> C.Expr C.Codegen 
-            -> Seq (C.EffHandler C.Codegen) 
-            -> Maybe (QualifiedName, C.Expr C.Codegen) 
-            -> Sem r F.Expr
-lowerHandle li scrut handlers mreturn = do
-    --  * Group effects by operations
-    --  * nested handles for each effect
-    --  * return clause in the innermost handler, all outer handlers just contain 'return x -> x'
-
-    let effOpGroups = groupHandlers handlers
-    
-    scrut' <- lowerExpr scrut
-    scrutTy' <- lowerType (C.getType scrut)
-
-    case effOpGroups of
-        -- The case where we don't have any handlers is easy
-        Empty -> case mreturn of
-            Nothing -> pure scrut'
-            Just (name, expr) -> 
-                F.Let name scrutTy' scrut' <$> lowerExpr expr
-        
-        _ -> do
-            addHandlers mreturn scrut' effOpGroups
-            where
-                addHandlers :: Maybe (QualifiedName, C.Expr C.Codegen) 
-                            -> F.Expr
-                            -> Seq (C.Type, Seq (C.EffHandler C.Codegen))
-                            -> Sem r F.Expr
-                addHandlers _ _ Empty = error $ "addHandlers: Empty handler seq"
-                addHandlers mretClause handlerScrut ((eff, handlers) :<| groups) = do
-                    returnClause <- case mretClause of
-                        Nothing -> do
-                            x <- freshVar "x"
-                            pure (x, F.Var x)
-                        Just (name, expr) ->
-                            (name,) <$> lowerExpr expr
-
-                    eff' <- lowerType eff
-
-                    handlers' <- forM handlers \(C.EffHandler _ _ op args e) -> do
-                        e' <- lowerExpr e
-                        args' <- traverse (secondM lowerType) args
-                        pure (op, args', e')
-
-
-                    let handleExpr = F.Handle handlerScrut eff' handlers' returnClause
-                    case groups of
-                        Empty -> pure handleExpr
-                        _ -> addHandlers Nothing handleExpr groups
-
 
             
-
-groupHandlers :: Seq (C.EffHandler C.Codegen) -> Seq (C.Effect, Seq (C.EffHandler C.Codegen))
-groupHandlers = fromList . M.toList . foldr insertByEff mempty
-    where
-        insertByEff h@(C.EffHandler eff _ _ _ _) m = alter f eff m
-            where
-                f = \case
-                    Nothing -> Just [h]
-                    Just hs -> Just (h <| hs)
 
 newtype PatternMatrix = MkPatternMatrix (Seq PMatrixRow) deriving (Generic, Data)
 
