@@ -266,8 +266,6 @@ checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = withContext (InDef
             Just e -> e
             -- Top level definitions have to be pure. This leaves the door open to potentially evaluating them lazily
             -- in the future?
-            -- TODO: Not quite sure how to translate this to core though. If we just use a fresh skolem, that has to be bound
-            -- somewhere. Maybe we should have some sort of top-level bound effect variable?
             Nothing -> TRowClosed []
 
     e' <- runReader (MkTagged Nothing) $ check (foldr (\(x,ty,_) -> insertType x ty) env' xs') e eTy eff
@@ -372,7 +370,10 @@ check env (Handle () li scrut handlers mreturnClause) t eff = runReader li do
         let opType = lookupEffOpType opName env
 
         -- TODO: What should we do about w here?
-        (argsWithEffs', resTy, mresEff, _w) <- decomposeParams opType args
+        (argsWithEffs', resTy, mresEff, w) <- decomposeParams opType args
+
+        -- _ <- error (show (w (IntLit () InternalLexInfo 5)))
+
         let args' = map (\(x, ty, _) -> (x, ty)) argsWithEffs'
         
         let resEff = case mresEff of

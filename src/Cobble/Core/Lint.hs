@@ -19,6 +19,7 @@ data LintEnv = LintEnv {
 ,   dictTyDefs :: Map QualifiedName (Seq (QualifiedName, Kind), Seq (QualifiedName, Type))
 ,   effDefs    :: Map QualifiedName (Seq (QualifiedName, Kind), Seq (QualifiedName, Type))
 ,   opEffs     :: Map QualifiedName QualifiedName
+,   resumeTy   :: Maybe (Type, Type)
 } deriving (Show, Eq)
 
 insertType :: QualifiedName -> Type -> LintEnv -> LintEnv
@@ -100,6 +101,12 @@ lookupEff :: Members '[Error CoreLintError] r
 lookupEff effName env@LintEnv{effDefs} = case lookup effName effDefs of
     Just def -> pure def
     Nothing -> throwLint $ "Effect '" <> show effName <> "' not found.\nContext: " <> show env
+
+insertResumeTy :: (Type, Type) -> LintEnv -> LintEnv
+insertResumeTy ty env = env {resumeTy = Just ty}
+
+lookupResumeTy :: LintEnv -> Maybe (Type, Type)
+lookupResumeTy LintEnv{resumeTy} = resumeTy
 
 lint :: Members '[Error CoreLintError] r
      => LintEnv
@@ -267,8 +274,47 @@ lintExpr env (Perform opEff op tyArgs valArgs) eff = do
             $ lookupSeq op opTys
     checkRowContainsEff opEff eff $ "Operation '" <> show op <> "' requires the effect '" <> show opEff <> "' which was not found in the current effect context '" <> show eff <> "'"
     lintSaturated env (show op) "operation" opTy tyArgs valArgs eff
-lintExpr env Handle{} eff = undefined
-lintExpr env Resume{} eff = undefined
+lintExpr env (Handle scrut handledEff handlers (retVar, retBody)) eff = do
+    exprEff <- insertRow handledEff eff 
+    
+    scrutTy <- lintExpr env scrut exprEff
+
+    -- Check return clause
+    retBodyTy <- lintExpr (insertType retVar scrutTy $ clearJPs env) retBody eff
+
+    -- Check handlers
+    handlerTys <- forM handlers \(opName, args, body) -> do
+        -- TODO: Check argument types against effect definition
+
+        -- TODO: Get opResultTy from the effect definition
+        opResultTy <- undefined
+
+        let bodyEnv = insertResumeTy (opResultTy, retBodyTy) $ foldr (uncurry insertType) env args
+
+        -- Handler bodies are checked against the outer effect
+        bodyTy <- lintExpr bodyEnv body eff
+
+        pure (bodyTy, opName)
+    
+
+    for_ handlerTys \(handlerTy, handlerOp) -> do
+        typeMatch handlerTy retBodyTy 
+            $ "Handler result type mismatch when handling effect '" <> show handledEff
+            <> "\n    Return clause has type: " <> show retBodyTy
+            <> "\n    But handler for operation '" <> show handlerOp <> "' has type: " <> show handlerTy
+
+    pure retBodyTy
+
+
+lintExpr env (Resume arg) eff = do
+    case lookupResumeTy env of
+        Nothing -> throwLint $ "Resume outside of handler expression.\n    Argument: " <> show arg
+        Just (argTy, resTy) -> do
+            actualArgTy <- lintExpr env arg eff
+
+            typeMatch argTy actualArgTy $ "Type mismatch in resume operation"
+
+            pure resTy
 
 lintSaturated :: Members '[Error CoreLintError] r => LintEnv -> Text -> Text -> Type -> Seq Type -> Seq Expr -> Effect -> Sem r Type
 lintSaturated env x source ty tyArgs valArgs eff = go ty tyArgs valArgs
@@ -397,3 +443,9 @@ checkRowContainsEff eff (TRowExtend tys row) msg = do
             matchesEff (TCon con _) | con == eff = True
             matchesEff _ = False
 checkRowContainsEff eff ty _ = throwLint $ "Trying to look up effect '" <> show eff <> "' in non-row type '" <> show ty <> "'"
+
+insertRow :: Members '[Error CoreLintError] r => Type -> Type -> Sem r Type
+insertRow ty (TRowExtend tys row) = pure $ TRowExtend (ty <| tys) row
+insertRow ty TRowNil = pure $ TRowExtend [ty] TRowNil
+insertRow ty row@TVar{} = pure $ TRowExtend [ty] row
+insertRow ty rowTy = throwLint $ "insertRow: Trying to insert into no-row type: " <> show rowTy <> "\n    Type: " <> show ty 

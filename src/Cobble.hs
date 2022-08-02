@@ -140,6 +140,7 @@ compileContents path content = do
             ,   dictTyDefs = coreModDictTyDefs
             ,   effDefs = coreModEffs
             ,   opEffs = fromList $ toList $ foldMap (\(effName, (_, ops)) -> map (\(op, _) -> (op, effName)) ops) (M.toList coreModEffs)
+            ,   resumeTy = Nothing
             }
 
         lintError <- runError $ lint lintEnv core
