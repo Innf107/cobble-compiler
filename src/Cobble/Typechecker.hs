@@ -1,4 +1,3 @@
-{-#LANGUAGE TemplateHaskell#-}
 module Cobble.Typechecker where
 
 import Cobble.Prelude hiding (subsume)
@@ -10,7 +9,6 @@ import Cobble.Util.Polysemy.Context
 import Cobble.Util.TypeUtils
 import Cobble.Syntax
 import Cobble.Syntax qualified as C 
-import Cobble.Syntax.Lens
 
 import qualified Data.Text as T
 
@@ -31,8 +29,6 @@ data TCEnv = TCEnv {
     -- ^ Once multiparam typeclasses are implemented, this will have to be @M.Map QualfiedName (Seq (Seq Type))@
 ,   _effOpTypes :: M.Map QualifiedName Type
 } deriving (Show, Eq, Generic, Data)
-
-makeLenses ''TCEnv
 
 
 data TypeError = DifferentTCon QualifiedName QualifiedName LexInfo (Seq TypeContext)
@@ -140,15 +136,17 @@ lookupType :: HasCallStack => QualifiedName -> TCEnv -> Type
 lookupType v TCEnv{_varTypes} = lookup v _varTypes & fromMaybe (error $ "lookupType: Typechecker cannot find variable: " <> show v)
 
 insertType :: QualifiedName -> Type -> TCEnv -> TCEnv
-insertType x t env = env & varTypes %~ insert x t
+insertType x t env@TCEnv{_varTypes} = env { _varTypes = insert x t _varTypes }
 
 insertInstance :: QualifiedName -> Type -> QualifiedName -> TCEnv -> TCEnv
-insertInstance className ty dictName = over tcInstances $ flip alter className \case
+insertInstance className ty dictName env@TCEnv{_tcInstances} = env {
+    _tcInstances = _tcInstances & flip alter className \case
     Nothing -> Just [(ty, dictName)]
     Just is -> Just (is :|> (ty, dictName))
+}
 
 insertEffOpType :: QualifiedName -> Type -> TCEnv -> TCEnv
-insertEffOpType effName effTy env = env & effOpTypes %~ insert effName effTy
+insertEffOpType effName effTy env@TCEnv{_effOpTypes} = env { _effOpTypes = insert effName effTy _effOpTypes }
 
 lookupEffOpType :: QualifiedName -> TCEnv -> Type
 lookupEffOpType effName env = case lookup effName (_effOpTypes env) of
