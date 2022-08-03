@@ -91,6 +91,7 @@ data CompileOpts = CompileOpts {
     , ddumpCore :: Bool
     , skipCoreLint :: Bool
     , lintAsError :: Bool
+    , keepCoreResiduals :: Bool
     }
 
 data Target = Racket
@@ -195,7 +196,8 @@ compileWithSig m = do
            $ runFreshM (\(MkTVar n k) -> freshVar (originalName n) <&> \n' -> MkTVar n' k)
            $ typecheck tcEnv saMod -- TODO: provide environment from other modules
 
-    core <- lower tcMod
+    keepCoreResiduals <- asks Cobble.keepCoreResiduals
+    core <- runReader LowerOptions{ Lower.keepCoreResiduals = keepCoreResiduals } $ lower tcMod
 
     dumpWhenWithM (asks ddumpCore) (show . Core.prettyDecls) "dump-core" $ dump core
 
@@ -238,7 +240,7 @@ makePartialSig = \case
 
 primCoreSig :: CoreModSig
 primCoreSig = CoreModSig {
-    coreModVars = fmap (run . lowerType . primOpType) $ primOps
+    coreModVars = fmap (run . runReader defaultLowerOptions . lowerType . primOpType) $ primOps
 ,   coreModDictTyDefs = mempty
 ,   coreModEffs = mempty
 }

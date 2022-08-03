@@ -129,7 +129,7 @@ qualifyStmnt (DefEffect () li effName tvs ops) = runReader li do
         zipWithM_ addTVar (map fst tvs) tvs'
         forM ops \(opName, opTy) -> do
             opName' <- freshGlobal opName
-            opTy' <- addForall tvs' <$> qualifyType True opTy -- Effect operations *are* allowed to introduce new tyvars
+            opTy' <- qualifyType True opTy -- Effect operations *are* allowed to introduce new tyvars
             traceM TraceQualify $ "[qualifyStmnt (DefEffect " <> show effName <> ")]: " <> show opName' <> " : " <> show opTy'
             pure (opName', opTy')
 

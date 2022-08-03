@@ -225,10 +225,11 @@ typecheckStatement env (DefEffect k li effName tvs ops) = do
 
     pure (DefEffect k li effName tvs ops, env')
         where
-            insertOpTy (opName, ty) env = insertEffOpType opName ty $ insertType opName (tforall tvs ty) env 
+            insertOpTy (opName, ty) env = insertEffOpType opName (tforall tvs ty) $ insertType opName (tforall tvs ty) env 
 
 tforall :: Seq TVar -> Type -> Type
 tforall Empty ty = ty
+tforall ps (TForall ps' ty) = TForall (ps <> ps') ty
 tforall ps ty = TForall ps ty
 
 forallFun :: Members '[Fresh Text QualifiedName] r => Seq TVar -> Type -> Seq Type -> Sem r Type
@@ -367,8 +368,6 @@ check env (Handle () li scrut handlers mreturnClause) t eff = runReader li do
     (handlerEffs, handlers') <- unzip <$> forM handlers \h@(EffHandler () li opName args e) -> runReader li do
         let opType = lookupEffOpType opName env
 
-        traceM TraceTC $ "[check handle '" <> show opName <> "']: opType = " <> show opType
-
         -- TODO: What should we do about w here?
         (argsWithEffs', resTy, mresEff, w) <- decomposeParams opType args
 
@@ -384,6 +383,8 @@ check env (Handle () li scrut handlers mreturnClause) t eff = runReader li do
 
         -- Handler expressions run in the *parent's* effect context (obviously)
         e' <- runReader (MkTagged @"resumeTy" (Just (resTy, t))) $ check env' e t eff
+
+        traceM TraceTC $ "[check handle '" <> show opName <> "']: opType = " <> show opType <> " | resEff = " <> show resEff
 
         pure (resEff, EffHandler (removeRow resEff) li opName args' e')
 

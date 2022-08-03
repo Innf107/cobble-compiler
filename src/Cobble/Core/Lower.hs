@@ -23,10 +23,19 @@ type CExpr = C.Expr C.Codegen
 type CStatement = C.Statement C.Codegen
 type CModule = C.Module C.Codegen
 
-lower :: (Trace, Members '[Fresh Text QualifiedName] r) => CModule -> Sem r (Seq F.Decl)
+data LowerOptions = LowerOptions {
+    keepCoreResiduals :: Bool
+} deriving (Show, Eq, Generic, Data)
+
+defaultLowerOptions :: LowerOptions
+defaultLowerOptions = LowerOptions {
+    keepCoreResiduals = False
+}
+
+lower :: (Trace, Members '[Fresh Text QualifiedName, Reader LowerOptions] r) => CModule -> Sem r (Seq F.Decl)
 lower (C.Module _deps mname sts) = lowerStmnts sts
 
-lowerStmnts :: (Trace, Members '[Fresh Text QualifiedName] r) => (Seq CStatement) -> Sem r (Seq F.Decl)
+lowerStmnts :: (Trace, Members '[Fresh Text QualifiedName, Reader LowerOptions] r) => (Seq CStatement) -> Sem r (Seq F.Decl)
 lowerStmnts Empty = pure []
 lowerStmnts (C.Def _ _ (C.Decl _ x [] e) ty :<| sts) = (<|)
     <$> do
@@ -104,7 +113,7 @@ decomposeFunTy (F.TForall tv k ty) = let (tvs, dom, eff, cod) = decomposeFunTy t
                                    in ((tv, k) <| tvs, dom, eff, cod)
 decomposeFunTy ty = error $ "decomposeFunTy: Not a function or forall type: " <> show ty
 
-lowerExpr :: (Trace, Members '[Fresh Text QualifiedName] r) => CExpr -> Sem r F.Expr
+lowerExpr :: (Trace, Members '[Fresh Text QualifiedName, Reader LowerOptions] r) => CExpr -> Sem r F.Expr
 lowerExpr (C.VariantConstr (_ty, constrTy, ix) _ constrName) = do
     ty <- lowerType constrTy 
     lowerSaturated ty (F.VariantConstr constrName ix)
@@ -286,7 +295,7 @@ reorderBy xs (y :<| ys) zs = runWithError $ do
             runWithError (Just r) = r
 reorderBy _ Empty _ = Empty
 
-compilePMatrix :: forall r. (Trace, Members '[Fresh Text QualifiedName] r) => Seq QualifiedName -> PatternMatrix -> Sem r F.Expr
+compilePMatrix :: forall r. (Trace, Members '[Fresh Text QualifiedName, Reader LowerOptions] r) => Seq QualifiedName -> PatternMatrix -> Sem r F.Expr
 compilePMatrix occs m | trace TraceLower ("compiling pattern matrix with args " <> show occs <> ":\n" <> show m) False = error "unreachable"
 compilePMatrix occs (MkPatternMatrix Empty) = error "Non-exhaustive patterns. (This should not be a panic)"
 compilePMatrix occs (MkPatternMatrix ((row, expr) :<| _))
@@ -323,7 +332,7 @@ compilePMatrix occs m = error $ "lowerCase: compilePMatrix: Invalid occurance/pa
                                 <> "\n    " <> show occs 
                                 <> "\n    " <> show m
 
-collectVarPatTypes :: C.Pattern C.Codegen -> Sem r (Seq (QualifiedName, F.Type))
+collectVarPatTypes :: Members '[Reader LowerOptions] r => C.Pattern C.Codegen -> Sem r (Seq (QualifiedName, F.Type))
 collectVarPatTypes (C.VarP ty x) = lowerType ty <&> \ty' -> [(x, ty')]
 collectVarPatTypes C.IntP{} = pure []
 collectVarPatTypes (C.ConstrP _ _ pats) = fold <$> traverse collectVarPatTypes pats
@@ -334,7 +343,7 @@ collectVarPatTypes (C.OrP _ (p :<| _)) = collectVarPatTypes p
 collectVarPatTypes (C.OrP _ Empty) = error "collectVarPatTypes: empty or pattern"
 
 -- Case desugaring is based on https://www.cs.tufts.edu/~nr/cs257/archive/luc-maranget/jun08.pdf
-lowerCase :: forall r. (Trace, Members '[Fresh Text QualifiedName] r)
+lowerCase :: forall r. (Trace, Members '[Fresh Text QualifiedName, Reader LowerOptions] r)
           => C.Type 
           -> C.Expr C.Codegen 
           -> Seq (C.CaseBranch C.Codegen)
@@ -358,9 +367,11 @@ lowerCase ty expr branches = do
     caseExpr <- F.Let scrutName exprTy' expr' <$> compilePMatrix [scrutName] pmatrix
     pure $ foldr ($) caseExpr jpDefs -- prepend join point definitions
 
-lowerType :: C.Type -> Sem r F.Type
+lowerType :: Members '[Reader LowerOptions] r => C.Type -> Sem r F.Type
 lowerType (C.TTyVar (C.MkTVar tvName tvKind)) = F.TVar tvName <$> lowerKind tvKind
-lowerType ty@C.TUnif{} = error $ "lowerType: Residual unification variable: " <> show ty
+lowerType ty@(C.TUnif (C.MkTVar tvName tvKind)) = asks keepCoreResiduals >>= \case
+    True -> F.TVar tvName <$> lowerKind tvKind
+    False -> error $ "lowerType: Residual unification variable: " <> show ty
 lowerType (C.TCon tcName tcKind) = F.TCon tcName <$> lowerKind tcKind
 lowerType (C.TApp t1 t2) = F.TApp <$> lowerType t1 <*> lowerType t2
 lowerType (C.TSkol _ (C.MkTVar tvName tvKind)) = F.TVar tvName <$> lowerKind tvKind
@@ -382,7 +393,7 @@ lowerType (C.TRowSkol tys _ (C.MkTVar var kind)) = do
     kind' <- lowerKind kind
     pure (F.TRowExtend tys' (F.TVar var kind'))
 
-lowerConstraint :: C.Constraint -> Sem r F.Type
+lowerConstraint :: Members '[Reader LowerOptions] r => C.Constraint -> Sem r F.Type
 lowerConstraint (C.MkConstraint cname k ty) = do
     k' <- lowerKind k
     F.TApp (F.TCon cname k') <$> lowerType ty

@@ -39,7 +39,7 @@ runCobble = \case
     Build buildOpts -> runBuild buildOpts
 
 runCompile :: CompileCmdOpts -> IO ()
-runCompile CompileCmdOpts{compFile, interfaceFiles, output, target, traceTypes, ddumpRenamed, ddumpPostProcessed, ddumpTC, ddumpCore, skipCoreLint, lintAsError} = do
+runCompile CompileCmdOpts{compFile, interfaceFiles, output, target, traceTypes, ddumpRenamed, ddumpPostProcessed, ddumpTC, ddumpCore, skipCoreLint, lintAsError, keepCoreResiduals} = do
     let opts = CompileOpts {
             target
         ,   interfaceFiles
@@ -49,6 +49,7 @@ runCompile CompileCmdOpts{compFile, interfaceFiles, output, target, traceTypes, 
         ,   ddumpCore
         ,   skipCoreLint
         ,   lintAsError
+        ,   keepCoreResiduals
         }
     case target of
         Racket -> do
@@ -237,6 +238,7 @@ data CompileCmdOpts = CompileCmdOpts {
     , ddumpCore :: Bool
     , skipCoreLint :: Bool
     , lintAsError :: Bool
+    , keepCoreResiduals :: Bool
     } deriving (Show, Eq)
 
 compileOpts :: Parser CompileCmdOpts
@@ -252,6 +254,7 @@ compileOpts = CompileCmdOpts
     <*> switch (long "ddump-core" <> help "Write the intermediate language Core to a file")
     <*> switch (long "skip-core-lint" <> help "Skip type checks for the internal language. Unless the compiler has a bug, this should always be safe.")
     <*> switch (long "lint-as-error" <> help "Treat core lint errors as compiler errors instead of warnings.")
+    <*> switch (long "keep-core-residuals" <> help "Treat residual unification variables as type variables in core instead of throwing an error. This is definitely incorrect, but might be useful for debugging.")
 
 data BuildCmdOpts = BuildCmdOpts {
     projectFile :: FilePath
