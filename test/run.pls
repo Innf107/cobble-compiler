@@ -38,6 +38,7 @@ let compile(file) = {
         ("stack exec cobble -- compile '" 
         ~ file 
         ~ "' -o '" ~ (scriptLocal(".output/out.rkt")) ~ "' " 
+        ~ " --lint-as-error "
         ~ join(" ", compilerFlags))
         ~ " 2>&1"
     [output, status() == 0]

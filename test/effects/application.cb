@@ -1,0 +1,30 @@
+module Test;
+
+variant U = U;
+
+effect Reader a {
+    ask :: U -> a;
+};
+
+effect Error e {
+    throw :: e -> a;
+};
+
+f :: Int -{Reader Int}> Int;
+f x = ask U;
+
+g :: Int -> Int;
+g x = x;
+
+test :: Int;
+test = g 5;
+
+ignore :: a -> U;
+ignore _ = U;
+
+main :: U;
+main = ignore (debug# (handle f 5 {
+        ask _ -> resume 5;
+        return x -> add# x 1;
+    }));
+

@@ -62,6 +62,7 @@ data CompilationError = LexError LexicalError
                       | ModuleError ModuleError
                       | Panic Text
                       | InterfaceDecodeError Text FilePath
+                      | CoreLintError CoreLintError
                       deriving (Show, Eq)
 
 
@@ -89,6 +90,7 @@ data CompileOpts = CompileOpts {
     , ddumpTC :: Bool
     , ddumpCore :: Bool
     , skipCoreLint :: Bool
+    , lintAsError :: Bool
     }
 
 data Target = Racket
@@ -144,9 +146,13 @@ compileContents path content = do
             }
 
         lintError <- runError $ lint lintEnv core
-
+        
+        asError <- asks lintAsError
         case lintError of
-            Left (MkCoreLintError msg) -> traceM TraceCoreLint $ msg
+            Left err@(MkCoreLintError msg) ->
+                if asError 
+                then throw (CoreLintError err)
+                else traceM TraceCoreLint $ msg
             Right () -> pure () 
 
     result <- compileFromCore interfaces core

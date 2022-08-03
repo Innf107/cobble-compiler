@@ -8,6 +8,7 @@ import Cobble.Build
 import Cobble.Syntax
 
 import Cobble.Typechecker (TypeError(..), TypeContext(..)) -- Ugh
+import Cobble.Core.Lint (CoreLintError(..))
 
 import Options.Applicative
 import Cobble.Util.Polysemy.Time
@@ -38,7 +39,7 @@ runCobble = \case
     Build buildOpts -> runBuild buildOpts
 
 runCompile :: CompileCmdOpts -> IO ()
-runCompile CompileCmdOpts{compFile, interfaceFiles, output, target, traceTypes, ddumpRenamed, ddumpPostProcessed, ddumpTC, ddumpCore, skipCoreLint} = do
+runCompile CompileCmdOpts{compFile, interfaceFiles, output, target, traceTypes, ddumpRenamed, ddumpPostProcessed, ddumpTC, ddumpCore, skipCoreLint, lintAsError} = do
     let opts = CompileOpts {
             target
         ,   interfaceFiles
@@ -47,6 +48,7 @@ runCompile CompileCmdOpts{compFile, interfaceFiles, output, target, traceTypes, 
         ,   ddumpTC
         ,   ddumpCore
         ,   skipCoreLint
+        ,   lintAsError
         }
     case target of
         Racket -> do
@@ -108,6 +110,9 @@ failWithCompError (Panic msg) = do
     hPutStrLn stderr $ toString $ "\ESC[38;2;255;0;0m\STXPANIC (the 'impossible' happened):\n" <> msg <> "\ESC[0m\STX"
     exitFailure
 failWithCompError (TypeError err) = failWithTypeError err
+failWithCompError (CoreLintError (MkCoreLintError msg)) = do
+    hPutStrLn stderr $ toString $ "\ESC[38;2;255;0;0m\STXCore Lint Error:\n" <> msg <> "\ESC[0m\STX"
+    exitFailure
 failWithCompError e = do
     hPutStrLn stderr $ "\ESC[38;2;255;0;0m\STXCompilation Error: " <> show e <> "\ESC[0m\STX"
     exitFailure
@@ -228,6 +233,7 @@ data CompileCmdOpts = CompileCmdOpts {
     , ddumpTC :: Bool
     , ddumpCore :: Bool
     , skipCoreLint :: Bool
+    , lintAsError :: Bool
     } deriving (Show, Eq)
 
 compileOpts :: Parser CompileCmdOpts
@@ -242,7 +248,7 @@ compileOpts = CompileCmdOpts
     <*> switch (long "ddump-tc" <> help "Write the typechecker constraints to a file")
     <*> switch (long "ddump-core" <> help "Write the intermediate language Core to a file")
     <*> switch (long "skip-core-lint" <> help "Skip type checks for the internal language. Unless the compiler has a bug, this should always be safe.")
-
+    <*> switch (long "lint-as-error" <> help "Treat core lint errors as compiler errors instead of warnings.")
 
 data BuildCmdOpts = BuildCmdOpts {
     projectFile :: FilePath
