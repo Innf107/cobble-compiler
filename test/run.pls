@@ -90,7 +90,7 @@ for(files, \file -> {
 if failures == 0 then {
     !echo "-e" "\e[32mAll tests passed.\e[0m"
 } else {
-    !echo "-e" ("\e[31m" ~ failures ~ " TEST(S) FAILED!\e[0m")
+    !echo "-e" ("\e[31m" ~ failures ~ "/" ~ List.length(files) ~ " TEST(S) FAILED!\e[0m")
     exit(failures)
 }
 

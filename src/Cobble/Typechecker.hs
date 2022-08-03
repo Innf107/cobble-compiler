@@ -975,7 +975,7 @@ skolemize :: Members '[Fresh Text QualifiedName, Output TConstraint, Reader LexI
 skolemize (TForall tvs ty) = do
     li <- ask
     skolemMap <- M.fromList . toList <$> traverse (\tv@(MkTVar n _) -> (tv,) . flip TSkol tv <$> freshVar (originalName n)) tvs
-    (ty', f) <- skolemize $ replaceUnifs skolemMap ty
+    (ty', f) <- skolemize $ replaceTyVars skolemMap ty
     pure (ty', foldr (\tv r -> TyAbs li tv . r) id tvs . f)
 skolemize (TConstraint c ty) = do
     li <- ask

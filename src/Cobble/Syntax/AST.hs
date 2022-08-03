@@ -228,7 +228,7 @@ instance Binary Type
 type Effect = Type
 
 instance S.Show Type where 
-    show = toString . (<>")") . ("(Type " <>) . ppType
+    show t = toString $ "(Type " <> ppType t <> ")"
 
 ppType :: Type -> Text
 ppType (TFun a (TRowClosed Empty) b) = "(" <> ppType a <> " -> " <> ppType b <> ")"
