@@ -1,0 +1,12 @@
+module test;
+
+variant Bool = False | True;
+
+apply :: (a -> b) -> a -> b;
+apply f x = f x;
+
+f :: Bool -> Int;
+f x = case x of { True -> 1; False -> 0; };
+
+test :: Int;
+test = apply f True;

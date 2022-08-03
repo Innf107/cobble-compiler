@@ -1,0 +1,10 @@
+module test;
+
+id :: a -> a;
+id x = x;
+
+check :: Int -> Int;
+check x = x;
+
+x :: Int;
+x = check (id 5);

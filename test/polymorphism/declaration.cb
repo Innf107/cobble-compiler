@@ -1,0 +1,7 @@
+module test;
+
+f :: a -> a;
+f x = x;
+
+y :: Int;
+y = f 5;

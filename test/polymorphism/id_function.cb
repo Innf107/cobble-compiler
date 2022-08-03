@@ -1,0 +1,13 @@
+module test;
+
+id :: a -> a;
+id x = x;
+
+f :: Int -> Int;
+f x = x;
+
+g :: Int -> Int;
+g = id f;
+
+test :: Int;
+test = g 25;

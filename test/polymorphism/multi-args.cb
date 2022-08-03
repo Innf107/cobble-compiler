@@ -1,0 +1,12 @@
+module test;
+
+variant Bool = False | True;
+
+const :: a -> b -> a;
+const x y = x;
+
+check :: Int -> Int;
+check x = x;
+
+test :: Int;
+test = check (const 71 True);

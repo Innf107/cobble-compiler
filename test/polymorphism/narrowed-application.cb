@@ -1,0 +1,13 @@
+module test;
+
+variant Bool = True | False;
+
+id :: a -> a;
+id x = x;
+
+check :: Bool -> Bool;
+check x = x;
+
+-- TypeError : Could not match Int with Bool
+test :: Bool;
+test = check (id 5);

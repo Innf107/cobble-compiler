@@ -1,0 +1,9 @@
+$FILE:13:15-13:19: error:
+Cannot match type constructor 'Int' with 'Bool'
+• When unifying
+    Expected type:    Internal.Int
+    with actual type: test.Bool
+• In the definition of: test :: test.Bool
+|
+|    test = check (id 5);
+|

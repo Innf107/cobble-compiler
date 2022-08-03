@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.5.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 
@@ -248,24 +248,6 @@ test-suite cobble-test
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
-      FullScale.FileTest
-      Language.Cobble.Codegen.BasicCPSToTopLevelCPSSpec
-      Language.Cobble.Codegen.LCToBasicCPSSpec
-      Language.Cobble.Codegen.MCAsmToMCFunctionSpec
-      Language.Cobble.Codegen.TestShared
-      Language.Cobble.Codegen.TopLevelCPSToMCAsmSpec
-      Language.Cobble.CPS.TopLevel.TypesSpec
-      Language.Cobble.PackagerSpec
-      Language.Cobble.Parser.TokenizerSpec
-      Language.Cobble.ParserSpec
-      Language.Cobble.QualifierSpec
-      Language.Cobble.TestUtil
-      Language.Cobble.TypecheckerSpec
-      Language.Cobble.Types.PrettyPrintSpec
-      Language.Cobble.TypesSpec
-      Language.CobbleSpec
-      Server
-      Spec
       Paths_cobble
   hs-source-dirs:
       test
