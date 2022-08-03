@@ -367,6 +367,8 @@ check env (Handle () li scrut handlers mreturnClause) t eff = runReader li do
     (handlerEffs, handlers') <- unzip <$> forM handlers \h@(EffHandler () li opName args e) -> runReader li do
         let opType = lookupEffOpType opName env
 
+        traceM TraceTC $ "[check handle '" <> show opName <> "']: opType = " <> show opType
+
         -- TODO: What should we do about w here?
         (argsWithEffs', resTy, mresEff, w) <- decomposeParams opType args
 
@@ -395,6 +397,8 @@ check env (Handle () li scrut handlers mreturnClause) t eff = runReader li do
     (scrut', scrutEff) <- infer env scrut
 
     scrutEff !~ rowInsert handlerEff eff
+
+    traceM TraceTC $ "[check (Handle ...)]: handlerEffs = " <> show handlerEffs <> " | handlerEff = " <> show handlerEff <> " | eff = " <> show eff
 
     -- Check the return clause
     (w, mreturnClause') <- case mreturnClause of

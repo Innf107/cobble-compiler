@@ -8,7 +8,8 @@ import Debug.Trace qualified as T
 
 import GHC.Read
 
-data TraceType = TraceTC
+data TraceType = TraceQualify
+               | TraceTC
                | TraceSolver
                | TraceUnify
                | TraceSubst
@@ -18,6 +19,7 @@ data TraceType = TraceTC
 
 instance Read TraceType where
     readsPrec _ = \case
+        "qualify"-> result TraceQualify
         "tc"     -> result TraceTC
         "solver" -> result TraceSolver
         "unify"  -> result TraceUnify

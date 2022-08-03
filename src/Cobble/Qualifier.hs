@@ -49,12 +49,12 @@ instance Monoid Scope where
 
 makeLenses ''Scope
 
-qualify :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError] r 
+qualify :: (Trace, Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError] r)
         => Module QualifyNames 
         -> Sem r (Module NextPass)
 qualify (Module deps name stmnts) = runReader (MkTagged name) $ Module deps name <$> traverse qualifyStmnt stmnts
 
-qualifyStmnt :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader (Tagged "ModName" Text)] r 
+qualifyStmnt :: (Trace, Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader (Tagged "ModName" Text)] r)
              => Statement QualifyNames
              -> Sem r (Statement NextPass)
 qualifyStmnt (Def mfixity li d@(Decl _ n _ _) ty) = runReader li do 
@@ -129,7 +129,8 @@ qualifyStmnt (DefEffect () li effName tvs ops) = runReader li do
         zipWithM_ addTVar (map fst tvs) tvs'
         forM ops \(opName, opTy) -> do
             opName' <- freshGlobal opName
-            opTy' <- qualifyType True opTy -- Effect operations *are* allowed to introduce new tyvars
+            opTy' <- addForall tvs' <$> qualifyType True opTy -- Effect operations *are* allowed to introduce new tyvars
+            traceM TraceQualify $ "[qualifyStmnt (DefEffect " <> show effName <> ")]: " <> show opName' <> " : " <> show opTy'
             pure (opName', opTy')
 
     addType effName effName' k (TyEffect tvs' ops')
@@ -140,7 +141,7 @@ qualifyStmnt (DefEffect () li effName tvs ops) = runReader li do
 
 -- | Same as qualifyDecl, but takes the already qualified name as an argument
 -- instead of recomputing it
-qualifyDeclWithName :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r
+qualifyDeclWithName :: (Trace, Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r)
             => QualifiedName
             -> Decl 'QualifyNames 
             -> Sem r (Decl NextPass)
@@ -151,7 +152,7 @@ qualifyDeclWithName n' (Decl () _ ps e) = withFrame do
     e' <- qualifyExpr e
     pure (Decl () n' ps' e')
 
-qualifyRecursiveLocalDecl :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r
+qualifyRecursiveLocalDecl :: (Trace, Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r)
                      => Decl 'QualifyNames 
                      -> Sem r (Decl NextPass)
 qualifyRecursiveLocalDecl d@(Decl _ n _ _) = do
@@ -160,7 +161,7 @@ qualifyRecursiveLocalDecl d@(Decl _ n _ _) = do
     addVar n n'
     qualifyDeclWithName n' d
 
-qualifyExpr :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError] r
+qualifyExpr :: (Trace, Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError] r)
             => Expr QualifyNames
             -> Sem r (Expr NextPass)
 qualifyExpr (App () li f e) =
@@ -250,7 +251,7 @@ qualifyExpr (ExprX (Left opGroup) li) = runReader li $ replaceOpGroup . reorderB
             | otherwise                        = OpNode l op (OpNode l' op' r')
         reorderByFixity _ = error "unreachable"
 
-qualifyCaseBranch :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError] r
+qualifyCaseBranch :: (Trace, Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError] r)
                   => CaseBranch QualifyNames
                   -> Sem r (CaseBranch NextPass)
 qualifyCaseBranch (CaseBranch () li pat expr) = runReader li $
@@ -293,7 +294,7 @@ qualifyPattern = evalState mempty . go Nothing
 
         go _ (WildcardP ()) = pure (WildcardP ())
 
-qualifyType :: forall r. Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r 
+qualifyType :: forall r. (Trace, Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r)
             => Bool
             -> UType
             -> Sem r Type
@@ -323,7 +324,9 @@ qualifyType allowFreeVars uty = do
             (b', bEffs, bVars) <- go b
             pure (TFun (addForall aEffs a') effs' b', effEffs <> bEffs, aVars <> effVars <> bVars)
         go (UTTyVar tv) = runError (lookupTVar tv) >>= \case
-            Right tv' -> pure (TTyVar tv', Empty, Empty)
+            Right tv' -> do
+                traceM TraceQualify $ "[qualifyType (" <> show uty <> ")]: " <> show tv <> " ==> " <> show tv'
+                pure (TTyVar tv', Empty, Empty)
             Left err -> do
                     tv' <- qualifyTVar tv Nothing
                     addTVar tv tv'
@@ -373,9 +376,10 @@ qualifyType allowFreeVars uty = do
                 pure (MkConstraint className' k ty', tyEffs, tyVars)
             (className', k, tv, _) -> ask >>= \li -> throw $ NonClassInConstraint li className' k tv
 
-        addForall :: Seq TVar -> Type -> Type
-        addForall Empty ty = ty
-        addForall tvs ty = TForall tvs ty 
+addForall :: Seq TVar -> Type -> Type
+addForall Empty ty = ty
+addForall tvs (TForall tvs' ty) = TForall (tvs <> tvs') ty
+addForall tvs ty = TForall tvs ty 
 
 
 qualifyTVar :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r 

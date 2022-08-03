@@ -77,6 +77,7 @@ runTracePretty traceTys = runTraceStderrWith pred pretty
     where
         -- There is no reason to recompute tracing predicates everytime
         -- so we cache them by binding them to variables.
+        traceQualify = TraceQualify `elem` traceTys
         traceTC = TraceTC `elem` traceTys
         traceSolver = TraceSolver `elem` traceTys
         traceUnify = TraceUnify `elem` traceTys
@@ -84,6 +85,7 @@ runTracePretty traceTys = runTraceStderrWith pred pretty
         traceLower = TraceLower `elem` traceTys
 
         pred = \case
+            TraceQualify -> traceQualify
             TraceCoreLint -> True
             TraceTC -> traceTC
             TraceSolver -> traceSolver
@@ -98,6 +100,7 @@ runTracePretty traceTys = runTraceStderrWith pred pretty
         infoPrefix name = "\ESC[38;2;0;128;0m\STX[" <> name <> "]\ESC[38;2;80;200;80m\STX "
 
         logPrefix = \case
+            TraceQualify -> infoPrefix "QUALIFY"
             TraceCoreLint -> warningPrefix "CORE LINT"
             TraceTC -> infoPrefix "TYPE CHECKER"
             TraceSolver -> infoPrefix "CONSTRAINT SOLVER"
@@ -241,7 +244,7 @@ compileOpts = CompileCmdOpts
     <$> (argument str (metavar "SOURCEFILE"))
     <*> (fromList <$> many (argument str (metavar "INTERFACES")))
     <*> option (Just <$> str) (long "output" <>  short 'o' <> metavar "FILE" <> value Nothing <> help "Write the output to FILE. An interface file will be written to FILE.cbi")
-    <*> (fromList <$> many (option auto (long "trace" <> metavar "TYPE" <> help "Enable tracing for a given trace type")))
+    <*> (fromList <$> many (option auto (long "trace" <> metavar "TYPE" <> help "Enable tracing for a given trace type. Possible values: tc, solver, unify, subst, lower")))
     <*> option auto (long "target" <> metavar "TARGET" <> value Racket <> help "Possible targets: racket")
     <*> switch (long "ddump-renamed" <> help "Write the renamed AST to a file")
     <*> switch (long "ddump-postprocessed" <> help "Write the postprocessed AST to a file")
