@@ -27,19 +27,19 @@ implicitEffectType = \case
         DefEffect k li effName args <$> traverse (\(opName, opTy) -> (opName,) <$> insertEffect opTy) ops
             where
                 insertEffect (TForall tvs ty) = TForall tvs <$> insertEffect ty
-                insertEffect (TFun a effs b) = pure $ TFun a (consEff (foldl' TApp (TCon effName k) (map TVar args)) effs) b
+                insertEffect (TFun a effs b) = pure $ TFun a (consEff (foldl' TApp (TCon effName k) (map TTyVar args)) effs) b
                 insertEffect ty = throw $ NonFunctionInEffectOp li ty
 
                 consEff eff (TRowClosed effs) = TRowClosed (eff <| effs)
-                consEff eff (TRowOpen effs var) = TRowOpen (eff <| effs) var
+                consEff eff (TRowVar effs var) = TRowVar (eff <| effs) var
                 consEff eff (TRowSkol effs skol var) = TRowSkol (eff <| effs) skol var
-                consEff eff (TVar var) = TRowOpen [eff] var
+                consEff eff (TTyVar var) = TRowVar [eff] var
                 consEff eff ty = error $ "implicitEffectType: consEff: Non-row type in function effect: " <> show ty
     x -> pure x
 
 addForall :: Type -> Type
 addForall t@TForall{} = t
-addForall t = case freeTVsOrdered t of
+addForall t = case freeTyVarsOrdered t of
     []      -> t
     freeTVs -> TForall freeTVs t
 

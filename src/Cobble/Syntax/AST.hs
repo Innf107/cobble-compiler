@@ -210,28 +210,20 @@ type family XPattern    (p :: Pass)
 
 data Type = TCon QualifiedName Kind                 -- c
           | TApp Type Type                          -- σ σ
-          | TVar TVar                               -- α
+          | TTyVar TVar                             -- a
+          | TUnif TVar                              -- $α
           | TSkol QualifiedName TVar                -- #α
           --      ^             ^original
           --      |skolem
-          | TForall (Seq TVar) Type                 -- ∀α*. σ
+          | TForall (Seq TVar) Type                 -- ∀a*. σ
           | TFun Type Effect Type                   -- σ -{ϵ}> σ
-          | TConstraint Constraint Type             -- Q => σ
+          | TConstraint Constraint Type             -- Q \=> σ
           | TRowClosed (Seq Type)                   -- ⟨σ*⟩
-          | TRowOpen (Seq Type) TVar                -- ⟨σ* | α⟩
+          | TRowVar (Seq Type) TVar                 -- ⟨σ* | a⟩
+          | TRowUnif (Seq Type) TVar                -- ⟨σ* | $α⟩
           | TRowSkol (Seq Type) QualifiedName TVar  -- ⟨σ* | #α⟩
           deriving (Eq, Ord, Generic, Data)
 instance Binary Type
-
-isTRowAny :: Type -> Bool
-isTRowAny TRowClosed{} = True
-isTRowAny TRowOpen{} = True
-isTRowAny TRowSkol{} = True
-isTRowAny _ = False
-
-pattern TRowAny :: Type
-pattern TRowAny <- (isTRowAny -> True)
-
 
 type Effect = Type
 
@@ -241,14 +233,16 @@ instance S.Show Type where
 ppType :: Type -> Text
 ppType (TFun a (TRowClosed Empty) b) = "(" <> ppType a <> " -> " <> ppType b <> ")"
 ppType (TFun a effs b)               = "(" <> ppType a <> " -{" <> ppType effs <> "}> " <> ppType b <> ")"
-ppType (TVar (MkTVar v _))           = show v
+ppType (TTyVar (MkTVar v _))         = show v
+ppType (TUnif (MkTVar v _))          = "$" <> show v
 ppType (TSkol v _)                   = "#" <> show v
 ppType (TCon v k)                    = show v
 ppType (TApp a b)                    = "(" <> ppType a <> " " <> ppType b <> ")"
 ppType (TForall ps t)                = "(∀" <> T.intercalate " " (toList $ map (\(MkTVar v _) -> show v) ps) <> ". " <> ppType t <> ")"
 ppType (TConstraint c t)             = ppConstraint c <> " => " <> ppType t
 ppType (TRowClosed tys)              = "⟨" <> intercalate ", " (map ppType tys) <> "⟩"
-ppType (TRowOpen tys var)            = "⟨" <> intercalate ", " (map ppType tys) <> " | " <> show var <> "⟩"
+ppType (TRowVar tys var)            = "⟨" <> intercalate ", " (map ppType tys) <> " | " <> show var <> "⟩"
+ppType (TRowUnif tys var)            = "⟨" <> intercalate ", " (map ppType tys) <> " | $" <> show var <> "⟩"
 ppType (TRowSkol tys skolName var)   = "⟨" <> intercalate ", " (map ppType tys) <> " | " <> ppType (TSkol skolName var) <> "⟩"
 
 ppConstraint :: Constraint -> Text
@@ -257,22 +251,60 @@ ppConstraint (MkConstraint n k t) = "(" <> show n <> " : " <> show k <> ppType t
 -- See @Type@ for descriptions
 data UType = UTCon UnqualifiedName
            | UTApp UType UType
-           | UTVar UnqualifiedName
+           | UTTyVar UnqualifiedName
            | UTForall (Seq (UnqualifiedName, Maybe Kind)) UType
            | UTFun UType UType UType
            | UTConstraint UConstraint UType
            | UTRowClosed (Seq UType)
-           | UTRowOpen (Seq UType) UnqualifiedName
+           | UTRowVar (Seq UType) UnqualifiedName
            deriving (Show, Eq, Generic, Data)
 
 type family XType (p :: Pass) :: HSType
 
-freeTVs :: Type -> Set TVar
-freeTVs = go mempty
+freeTVars :: Type -> Set TVar
+freeTVars = go mempty
     where
         go bound (TCon _ _)         = mempty
         go bound (TApp a b)         = go bound a <> go bound b
-        go bound (TVar tv) 
+        go bound (TTyVar tv) 
+            | tv `Set.member` bound = mempty
+            | otherwise             = one tv
+        go bound (TUnif _)          = mempty
+        go bound (TSkol _ _)        = mempty
+        go bound (TForall tvs ty)   = go (bound <> Set.fromList (toList tvs)) ty
+        go bound (TFun a eff b)     = go bound a <> go bound eff <> go bound b 
+        go bound (TConstraint (MkConstraint _ _ t1) t2) = go bound t1 <> go bound t2
+        go bound (TRowClosed tys)   = foldMap (go bound) tys
+        go bound (TRowVar tys var)  = foldMap (go bound) tys <> go bound (TTyVar var)
+        go bound (TRowUnif tys var) = foldMap (go bound) tys <> go bound (TUnif var)
+        go bound (TRowSkol tys _ _) = foldMap (go bound) tys
+
+-- Like freeTVs, but preserves the order of free ty vars
+freeTyVarsOrdered :: Type -> Seq TVar
+freeTyVarsOrdered = ordNub . go mempty
+    where
+        go bound (TCon _ _)         = mempty
+        go bound (TApp a b)         = go bound a <> go bound b
+        go bound (TTyVar tv) 
+            | tv `Set.member` bound = mempty
+            | otherwise             = one tv
+        go bound (TUnif _)          = mempty
+        go bound (TSkol _ _)        = mempty
+        go bound (TForall tvs ty)   = go (bound <> Set.fromList (toList tvs)) ty
+        go bound (TFun a effs b)    = go bound a <> go bound effs <> go bound b 
+        go bound (TConstraint (MkConstraint _ _ t1) t2) = go bound t1 <> go bound t2
+        go bound (TRowClosed tys)   = foldMap (go bound) tys
+        go bound (TRowVar tys var)  = foldMap (go bound) tys <> go bound (TTyVar var)
+        go bound (TRowUnif tys var) = foldMap (go bound) tys <> go bound (TUnif var)
+        go bound (TRowSkol tys _ _) = foldMap (go bound) tys
+
+freeUnifs :: Type -> Set TVar
+freeUnifs = go mempty
+    where
+        go bound (TCon _ _)         = mempty
+        go bound (TApp a b)         = go bound a <> go bound b
+        go bound (TTyVar _)         = mempty
+        go bound (TUnif tv) 
             | tv `Set.member` bound = mempty
             | otherwise             = one tv
         go bound (TSkol _ _)        = mempty
@@ -280,16 +312,18 @@ freeTVs = go mempty
         go bound (TFun a eff b)     = go bound a <> go bound eff <> go bound b 
         go bound (TConstraint (MkConstraint _ _ t1) t2) = go bound t1 <> go bound t2
         go bound (TRowClosed tys)   = foldMap (go bound) tys
-        go bound (TRowOpen tys var) = foldMap (go bound) tys <> go bound (TVar var)
+        go bound (TRowVar tys var)  = foldMap (go bound) tys <> go bound (TTyVar var)
+        go bound (TRowUnif tys var) = foldMap (go bound) tys <> go bound (TUnif var)
         go bound (TRowSkol tys _ _) = foldMap (go bound) tys
 
 -- Like freeTVs, but preserves the order of free ty vars
-freeTVsOrdered :: Type -> Seq TVar
-freeTVsOrdered = ordNub . go mempty
+freeUnifsOrdered :: Type -> Seq TVar
+freeUnifsOrdered = ordNub . go mempty
     where
         go bound (TCon _ _)         = mempty
         go bound (TApp a b)         = go bound a <> go bound b
-        go bound (TVar tv) 
+        go bound (TTyVar _)         = mempty
+        go bound (TUnif tv) 
             | tv `Set.member` bound = mempty
             | otherwise             = one tv
         go bound (TSkol _ _)        = mempty
@@ -297,11 +331,15 @@ freeTVsOrdered = ordNub . go mempty
         go bound (TFun a effs b)    = go bound a <> go bound effs <> go bound b 
         go bound (TConstraint (MkConstraint _ _ t1) t2) = go bound t1 <> go bound t2
         go bound (TRowClosed tys)   = foldMap (go bound) tys
-        go bound (TRowOpen tys var) = foldMap (go bound) tys <> go bound (TVar var)
+        go bound (TRowVar tys var) = foldMap (go bound) tys <> go bound (TTyVar var)
+        go bound (TRowUnif tys var) = foldMap (go bound) tys <> go bound (TUnif var)
         go bound (TRowSkol tys _ _) = foldMap (go bound) tys
 
 data TVar = MkTVar QualifiedName Kind
-          deriving (Show, Eq, Ord, Generic, Data)
+    deriving (Eq, Ord, Generic, Data)
+
+instance Show TVar where
+    show (MkTVar name _) = show name
 
 instance Binary TVar
 
@@ -395,7 +433,8 @@ instance HasKind TVar where
 
 instance HasKind Type where
     kind = \case
-        TVar v -> kind v
+        TTyVar v -> kind v
+        TUnif v -> kind v
         TSkol _ v -> kind v
         TCon _ k -> pure k
         TApp t1 t2 -> bisequence (kind t1, kind t2) >>= \case
@@ -406,7 +445,8 @@ instance HasKind Type where
         TForall _ t -> kind t
         TConstraint _ t -> kind t 
         TRowClosed _   -> Right KEffect -- TODO: Should we really hardcode row kinds to be effects here?
-        TRowOpen _ tv -> kind tv
+        TRowVar _ tv -> kind tv
+        TRowUnif _ tv -> kind tv
         TRowSkol _ _ tv -> kind tv
 
 instance HasKind Constraint where

@@ -104,7 +104,7 @@ qualifyStmnt (DefClass () li className tvs meths) = runReader li $ do
     pure (DefClass k li className' tvs' meths')
         where
             addConstraint ty = case tvs of
-                [(utv, _)] -> UTConstraint (MkUConstraint className (UTVar utv)) ty
+                [(utv, _)] -> UTConstraint (MkUConstraint className (UTTyVar utv)) ty
                 _ -> error "qualifyStmnt: Multiparam typeclasses NYI"
 
 qualifyStmnt (DefInstance () li cname ty meths) = runReader li $ lookupType cname >>= \case
@@ -322,12 +322,12 @@ qualifyType allowFreeVars uty = do
             (effs', effEffs, effVars) <- go effs
             (b', bEffs, bVars) <- go b
             pure (TFun (addForall aEffs a') effs' b', effEffs <> bEffs, aVars <> effVars <> bVars)
-        go (UTVar tv) = runError (lookupTVar tv) >>= \case
-            Right tv' -> pure (TVar tv', Empty, Empty)
+        go (UTTyVar tv) = runError (lookupTVar tv) >>= \case
+            Right tv' -> pure (TTyVar tv', Empty, Empty)
             Left err -> do
                     tv' <- qualifyTVar tv Nothing
                     addTVar tv tv'
-                    pure (TVar tv', [], [tv'])
+                    pure (TTyVar tv', [], [tv'])
         go (UTForall ps ty) = do
             ps' <- traverse (uncurry qualifyTVar) ps
             zipWithM_ addTVar (map fst ps) ps'
@@ -340,7 +340,7 @@ qualifyType allowFreeVars uty = do
 
         go (UTRowClosed Empty) = do
             tvar <- MkTVar <$> freshVar "μ" <*> pure (KRow KEffect)
-            pure (TVar tvar, [tvar], Empty)
+            pure (TTyVar tvar, [tvar], Empty)
 
         go (UTRowClosed tys) = do
             -- TODO: We currently open *all* closed rows. If we ever use row polymorphism
@@ -349,15 +349,15 @@ qualifyType allowFreeVars uty = do
             tvar <- MkTVar <$> freshVar "μ" <*> pure (KRow KEffect)
             (tys', tyEffs, tyVars) <- goAll tys
             
-            pure (TRowOpen tys' tvar, (tvar :<| tyEffs), tyVars)
-        go (UTRowOpen tys var) = do
+            pure (TRowVar tys' tvar, (tvar :<| tyEffs), tyVars)
+        go (UTRowVar tys var) = do
             (tys', tyEffs, tyVars) <- goAll tys
             runError (lookupTVar var) >>= \case 
-                Right tv' -> pure (TRowOpen tys' tv', tyEffs, tyVars)
+                Right tv' -> pure (TRowVar tys' tv', tyEffs, tyVars)
                 Left err -> do
                         tv' <- qualifyTVar var (Just (KRow KEffect)) -- TODO: Do we want to hardcode effect kinds here?
                         addTVar var tv'
-                        pure (TRowOpen tys' tv', tyEffs, tyVars |> tv')
+                        pure (TRowVar tys' tv', tyEffs, tyVars |> tv')
 
         goAll :: Seq UType -> Sem r (Seq Type, Seq TVar, Seq TVar)
         goAll tys = do

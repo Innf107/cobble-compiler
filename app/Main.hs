@@ -128,7 +128,7 @@ failWithTypeError (CannotUnify t1 t2 lexInfo context) = typeError [
         ] lexInfo context
 failWithTypeError (Occurs tvar ty li cxt) = typeError [
             "Unable to match an infinite type"
-        ,   "    Expected: " <> ppType (TVar tvar)
+        ,   "    Expected: " <> ppType (TUnif tvar)
         ,   "      Actual: " <> ppType ty
         ] li cxt
 failWithTypeError (SkolBinding t1 t2 li context) = typeError [
@@ -137,9 +137,9 @@ failWithTypeError (SkolBinding t1 t2 li context) = typeError [
         ,   "     Actual: " <> ppType t2
         ] li context
 failWithTypeError (Impredicative tv ty li cxt) = typeError [
-            "Cannot instantiate type variable '" <> ppType (TVar tv) <> "' with the polymorphic type '" <> ppType ty <> "'"
+            "Cannot instantiate type variable '" <> ppType (TUnif tv) <> "' with the polymorphic type '" <> ppType ty <> "'"
         ,   "Cobble does not support impredicative polymorphism."
-        ,   "Try wrapping your polymorphic type in a data constructor."
+        ,   "Try wrapping the polymorphic type in a data constructor."
         ] li cxt
 failWithTypeError (NoInstanceFor constraint li cxt) = typeError [
             "No instance for '" <> show constraint <> "'"

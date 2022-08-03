@@ -124,7 +124,7 @@ instance Semigroup Substitution where
             (M.filterWithKey notIdentical $ fmap (applySubst (Subst s2 d2)) s1 <> s2)
             (fmap (applySubst (Subst s2 d2)) d1 <> d2)
         where
-            notIdentical tv (TVar tv') | tv == tv' = False
+            notIdentical tv (TUnif tv') | tv == tv' = False
             notIdentical _ _ = True
 
 instance Monoid Substitution where
@@ -200,7 +200,7 @@ typecheckStatement env (DefInstance (classKind, methDefs, params, _isImported) l
         let methTy' = case params of
                 [p] -> case methTy of
                     TForall (p' :<| ps) actualMethTy
-                        | p == p' -> stripConstraint (MkConstraint cname classKind ty) $ replaceTVar p ty (tforall ps actualMethTy)
+                        | p == p' -> stripConstraint (MkConstraint cname classKind ty) $ replaceTyVar p ty (tforall ps actualMethTy)
                     _ -> error $ "typecheckStatement: foralls were not properly inserted in instance method type. methTy: " <> show methTy
                 _ -> error "typecheckStatement: multi parameter typeclasses NYI"
 
@@ -215,7 +215,7 @@ typecheckStatement env (DefInstance (classKind, methDefs, params, _isImported) l
             stripConstraint c _ = error $ "typecheckStatement: non-constrained instance method at " <> show li
 
 typecheckStatement env (DefVariant k li tyName tvs constrs) = do
-    let resTy = foldl' (\x y -> TApp x (TVar y)) (TCon tyName k) tvs
+    let resTy = foldl' (\x y -> TApp x (TTyVar y)) (TCon tyName k) tvs
     let constrTy ps = forallFun tvs resTy ps
     constrs' <- traverse (\(n, ps, (i, j)) -> (\psTy -> (n, ps, (psTy, i, j))) <$> constrTy ps) constrs
     let env' = foldr (\(n,_,(t,_,_)) -> insertType n t) env constrs'
@@ -236,7 +236,7 @@ tforall ps ty = TForall ps ty
 forallFun :: Members '[Fresh Text QualifiedName] r => Seq TVar -> Type -> Seq Type -> Sem r Type
 forallFun vars result args = do
     argsAndEffs <- traverse (\x -> freshVar "μ" <&> \effName -> (x, MkTVar effName (KRow KEffect))) args
-    pure $ TForall (vars <> map snd argsAndEffs) $ foldr (\(x, eff) r -> TFun x (TVar eff) r) result argsAndEffs
+    pure $ TForall (vars <> map snd argsAndEffs) $ foldr (\(x, eff) r -> TFun x (TTyVar eff) r) result argsAndEffs
 
 checkTopLevelDecl :: 
       ( Trace
@@ -322,7 +322,7 @@ check env (If () li c th el) t eff = do
     pure (If t li c' th' el')
 
 check env (Let () li decl@(Decl () f xs e1) e2) t eff = runReader li do
-    xs' <- traverse (\x -> (x,) <$> freshTV KStar) xs
+    xs' <- traverse (\x -> (x,) <$> freshUnif KStar) xs
 
     (e1', e1Eff) <- infer (foldr (uncurry insertType) env xs') e1
 
@@ -517,7 +517,7 @@ infer env (If () li c th el) = runReader li do
     pure (If (getType th') li c' (w1 th') (w2 el'), cEff)
 
 infer env (Let () li decl@(Decl () f xs e1) e2) = runReader li do
-    xs' <- traverse (\x -> (x,) <$> freshTV KStar) xs
+    xs' <- traverse (\x -> (x,) <$> freshUnif KStar) xs
 
     (e1', e1Eff) <- infer (foldr (uncurry insertType) env xs') e1
     (e2', e2Eff) <- infer (insertType f (getType e1') env) e2
@@ -563,7 +563,7 @@ infer env (Case () li e branches) = runReader li do
         checkEquiv :: forall r. Members '[Reader LexInfo, Output TConstraint, Fresh Text QualifiedName, Fresh TVar TVar, Context TypeContext] r 
                    => Seq (Type, Effect) 
                    -> Sem r (Type, Effect)
-        checkEquiv Empty                = (,) <$> freshTV KStar <*> freshEffectRow -- the case expression is empty.
+        checkEquiv Empty                = (,) <$> freshUnif KStar <*> freshEffectRow -- the case expression is empty.
         checkEquiv ((t, eff) :<| Empty) = pure (t, eff)
         checkEquiv ((t1, eff1):<|(t2, eff2):<|ts) = do
             w1 <- subsume t1 t2 -- TODO: apply wrapping?
@@ -573,7 +573,7 @@ infer env (Case () li e branches) = runReader li do
 
 
 infer env (Lambda () li x e) = do
-    xTy <- freshTV KStar
+    xTy <- freshUnif KStar
 
     (e', eEff) <- infer (insertType x xTy env) e
 
@@ -583,7 +583,7 @@ infer env (Lambda () li x e) = do
     pure (Lambda (TFun xTy eEff (getType e'), xTy, lamEff) li x e', lamEff)
 infer env expr@(Handle () li scrut handlers mreturnClause) = runReader li do
     -- Defer to checking against a type variable here
-    resTy <- freshTV KStar
+    resTy <- freshUnif KStar
     resEff <- freshEffectRow
     expr' <- check env expr resTy resEff
     pure (expr', resEff)
@@ -621,9 +621,9 @@ instantiate :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexIn
 instantiate (TForall tvs ty) = ask >>= \li -> do
     -- The substitution is not immediately converted to a Map, since the order
     -- of tyvars is important
-    tvSubst <- traverse (\tv -> (tv,) . TVar <$> freshVar tv) tvs
+    tvSubst <- traverse (\tv -> (tv,) . TUnif <$> freshVar tv) tvs
     
-    (ty', w) <- instantiate (replaceTVars (M.fromList (toList tvSubst)) ty)
+    (ty', w) <- instantiate (replaceTyVars (M.fromList (toList tvSubst)) ty)
 
     pure (ty', foldr (\(_,x) r -> r . TyApp li x) w tvSubst)
 instantiate (TConstraint c ty) = do
@@ -646,9 +646,9 @@ decomposeFun t@TForall{} = do
 
 decomposeFun (TFun a eff b) = pure (a, eff, b, id)
 decomposeFun t = do
-    argTy <- freshTV KStar
+    argTy <- freshUnif KStar
     effTy <- freshEffectRow
-    resTy <- freshTV KStar
+    resTy <- freshUnif KStar
     w <- subsume t (TFun argTy effTy resTy)
     pure (argTy, effTy, resTy, w)
 
@@ -672,16 +672,18 @@ lambdasToDecl li f = go []
         go args e n                         = error $ "Typechecker.lambdasToDecl: suppplied lambda did not have enough parameters.\n  Remaining parameters: " <> show n <> "\n  Expression: " <> show e
 
 freshEffectRow :: Members '[Fresh Text QualifiedName] r => Sem r Type
-freshEffectRow = freshTV (KRow KEffect)
+freshEffectRow = freshUnif (KRow KEffect)
 
-freshTV :: Members '[Fresh Text QualifiedName] r => Kind -> Sem r Type
-freshTV k = freshVar "u" <&> \u -> TVar (MkTVar u k) 
+freshUnif :: Members '[Fresh Text QualifiedName] r => Kind -> Sem r Type
+freshUnif k = freshVar "u" <&> \u -> TUnif (MkTVar u k) 
 
 rowInsert :: Type -> Type -> Type
-rowInsert ty (TRowOpen tys var) = TRowOpen (ty <| tys) var
+rowInsert ty (TRowUnif tys var) = TRowUnif (ty <| tys) var
+rowInsert ty (TRowVar tys var) = TRowVar (ty <| tys) var
 rowInsert ty (TRowClosed tys) = TRowClosed (ty <| tys)
 rowInsert ty (TRowSkol tys var skol) = TRowSkol (ty <| tys) var skol
-rowInsert ty (TVar tv) = TRowOpen [ty] tv
+rowInsert ty (TTyVar tv)     = TRowVar [ty] tv
+rowInsert ty (TUnif tv)      = TRowVar [ty] tv
 rowInsert ty (TSkol tv skol) = TRowSkol [ty] tv skol
 rowInsert ty rowTy = error $ "rowInsert: Trying to insert into non-row type: " <> show rowTy <> "\n    Type to insert: " <> show ty
 
@@ -690,46 +692,85 @@ rowInsert ty rowTy = error $ "rowInsert: Trying to insert into non-row type: " <
 -- It therefore has the same effect as instantiating the first type variable
 -- with the second row type *IFF* the first type variable is not used anywhere else.
 rowExtend :: HasCallStack => Type -> Type -> Type
-rowExtend (TRowOpen tys1 _) (TRowOpen tys2 var2) = TRowOpen (tys1 <> tys2) var2
-rowExtend (TRowOpen tys1 _) (TRowClosed tys2) = TRowClosed (tys1 <> tys2)
-rowExtend (TRowOpen tys1 _) (TRowSkol tys2 skol2 var2) = TRowSkol (tys1 <> tys2) skol2 var2
-rowExtend (TRowOpen tys1 _) (TVar var2) = TRowOpen tys1 var2
-rowExtend (TRowOpen tys1 _) (TSkol skol2 var2) = TRowSkol tys1 skol2 var2
+rowExtend (TRowUnif tys1 _) (TRowVar tys2 var2)        = TRowVar (tys1 <> tys2) var2
+rowExtend (TRowUnif tys1 _) (TRowUnif tys2 var2)       = TRowUnif (tys1 <> tys2) var2
+rowExtend (TRowUnif tys1 _) (TRowClosed tys2)          = TRowClosed (tys1 <> tys2)
+rowExtend (TRowUnif tys1 _) (TRowSkol tys2 skol2 var2) = TRowSkol (tys1 <> tys2) skol2 var2
+rowExtend (TRowUnif tys1 _) (TTyVar var2)              = TRowVar tys1 var2
+rowExtend (TRowUnif tys1 _) (TUnif var2)               = TRowUnif tys1 var2
+rowExtend (TRowUnif tys1 _) (TSkol skol2 var2)         = TRowSkol tys1 skol2 var2
 rowExtend t1 t2 = error $ "rowExtend: Trying to extend invalid types:\n    t1: " <> show t1 <> "\n    t2: " <> show t2
 
 rowHead :: HasCallStack => Type -> Type
-rowHead (TRowOpen (ty :<| _) _) = ty
+rowHead (TRowVar (ty :<| _) _) = ty
+rowHead (TRowUnif (ty :<| _) _) = ty
 rowHead (TRowClosed (ty :<| _)) = ty
 rowHead (TRowSkol (ty :<| _) _ _) = ty
 rowHead ty = error $ "rowHead: Not a non-empty row type: " <> show ty
 
-replaceTVar :: TVar -> Type -> Type -> Type
-replaceTVar tv ty = replaceTVars (one (tv, ty))
+replaceUnif :: TVar -> Type -> Type -> Type
+replaceUnif tv ty = replaceUnifs (one (tv, ty))
 
-replaceTVars :: HasCallStack => Map TVar Type -> Type -> Type
-replaceTVars tvs ty@(TVar tv) = case lookup tv tvs of
+replaceUnifs :: HasCallStack => Map TVar Type -> Type -> Type
+replaceUnifs tvs ty@TTyVar{} = ty
+replaceUnifs tvs ty@(TUnif tv) = case lookup tv tvs of
                 Just ty' -> ty'
                 Nothing -> ty
-replaceTVars tvs ty@TCon{} = ty
-replaceTVars tvs ty@TSkol{} = ty
-replaceTVars tvs ty@(TApp t1 t2) = TApp (replaceTVars tvs t1) (replaceTVars tvs t2)
-replaceTVars tvs ty@(TFun a eff b) = TFun (replaceTVars tvs a) (replaceTVars tvs eff) (replaceTVars tvs b)
-replaceTVars tvs (TForall forallTVs ty) =
+replaceUnifs tvs ty@TCon{} = ty
+replaceUnifs tvs ty@TSkol{} = ty
+replaceUnifs tvs ty@(TApp t1 t2) = TApp (replaceUnifs tvs t1) (replaceUnifs tvs t2)
+replaceUnifs tvs ty@(TFun a eff b) = TFun (replaceUnifs tvs a) (replaceUnifs tvs eff) (replaceUnifs tvs b)
+replaceUnifs tvs (TForall forallTVs ty) =
                 let remainingTVs = foldr (M.delete) tvs forallTVs in
-                TForall forallTVs $ replaceTVars remainingTVs ty
-replaceTVars tvs (TConstraint (MkConstraint constrName k constrTy) ty) =
-                TConstraint (MkConstraint constrName k (replaceTVars tvs constrTy)) (replaceTVars tvs ty)
-replaceTVars tvs (TRowClosed tys)   = TRowClosed (map (replaceTVars tvs) tys)
-replaceTVars tvs (TRowOpen tys var) = let replacedTys = map (replaceTVars tvs) tys in case lookup var tvs of
-    Nothing                         -> TRowOpen replacedTys var
-    Just (TVar var')                -> TRowOpen replacedTys var'
+                TForall forallTVs $ replaceUnifs remainingTVs ty
+replaceUnifs tvs (TConstraint (MkConstraint constrName k constrTy) ty) =
+                TConstraint (MkConstraint constrName k (replaceUnifs tvs constrTy)) (replaceUnifs tvs ty)
+replaceUnifs tvs (TRowClosed tys)   = TRowClosed (map (replaceUnifs tvs) tys)
+replaceUnifs tvs (TRowUnif tys var) = let replacedTys = map (replaceUnifs tvs) tys in case lookup var tvs of
+    Nothing                         -> TRowUnif replacedTys var
+    Just (TTyVar var')              -> TRowVar replacedTys var'
+    Just (TUnif var')               -> TRowUnif replacedTys var'
     Just (TSkol skol var')          -> TRowSkol replacedTys skol var'
     Just (TRowClosed tys')          -> TRowClosed (replacedTys <> tys')
-    Just (TRowOpen tys' var')       -> TRowOpen (replacedTys <> tys') var'
+    Just (TRowUnif tys' var')       -> TRowUnif (replacedTys <> tys') var'
+    Just (TRowVar tys' var')        -> TRowVar (replacedTys <> tys') var'
     Just (TRowSkol tys' skol var')  -> TRowSkol (replacedTys <> tys') skol var'
-    Just ty -> error $ "replaceTVars: Trying to replace variable '" <> show var <> "' in open row type '" <> show (TRowOpen tys var)
+    Just ty -> error $ "replaceTVars: Trying to replace variable '" <> show var <> "' in open row type '" <> show (TRowUnif tys var)
                         <> "' with non-row type: " <> show ty
-replaceTVars tvs (TRowSkol tys skol var) = TRowSkol (map (replaceTVars tvs) tys) skol var
+replaceUnifs tvs (TRowVar tys var) = TRowVar (map (replaceUnifs tvs) tys) var
+replaceUnifs tvs (TRowSkol tys skol var) = TRowSkol (map (replaceUnifs tvs) tys) skol var
+
+replaceTyVar :: TVar -> Type -> Type -> Type
+replaceTyVar tv ty = replaceTyVars (one (tv, ty))
+
+replaceTyVars :: HasCallStack => Map TVar Type -> Type -> Type
+replaceTyVars tvs ty@(TTyVar tv) = case lookup tv tvs of
+                Just ty' -> ty'
+                Nothing -> ty
+replaceTyVars tvs ty@TUnif{} = ty
+replaceTyVars tvs ty@TCon{} = ty
+replaceTyVars tvs ty@TSkol{} = ty
+replaceTyVars tvs ty@(TApp t1 t2) = TApp (replaceTyVars tvs t1) (replaceTyVars tvs t2)
+replaceTyVars tvs ty@(TFun a eff b) = TFun (replaceTyVars tvs a) (replaceTyVars tvs eff) (replaceTyVars tvs b)
+replaceTyVars tvs (TForall forallTVs ty) =
+                let remainingTVs = foldr (M.delete) tvs forallTVs in
+                TForall forallTVs $ replaceTyVars remainingTVs ty
+replaceTyVars tvs (TConstraint (MkConstraint constrName k constrTy) ty) =
+                TConstraint (MkConstraint constrName k (replaceTyVars tvs constrTy)) (replaceTyVars tvs ty)
+replaceTyVars tvs (TRowClosed tys)   = TRowClosed (map (replaceTyVars tvs) tys)
+replaceTyVars tvs row@(TRowVar tys var) = let replacedTys = map (replaceTyVars tvs) tys in case lookup var tvs of
+    Nothing                         -> TRowUnif replacedTys var
+    Just (TTyVar var')              -> TRowVar replacedTys var'
+    Just (TUnif var')               -> TRowUnif replacedTys var'
+    Just (TSkol skol var')          -> TRowSkol replacedTys skol var'
+    Just (TRowClosed tys')          -> TRowClosed (replacedTys <> tys')
+    Just (TRowUnif tys' var')       -> TRowUnif (replacedTys <> tys') var'
+    Just (TRowVar tys' var')        -> TRowVar (replacedTys <> tys') var'
+    Just (TRowSkol tys' skol var')  -> TRowSkol (replacedTys <> tys') skol var'
+    Just ty -> error $ "replaceTVars: Trying to replace variable '" <> show var <> "' in open row type '" <> show row
+                        <> "' with non-row type: " <> show ty
+replaceTyVars tvs (TRowUnif tys var) = TRowUnif (map (replaceTyVars tvs) tys) var
+replaceTyVars tvs (TRowSkol tys skol var) = TRowSkol (map (replaceTyVars tvs) tys) skol var
 
 solveConstraints :: (Trace, Members '[Error TypeError, Fresh Text QualifiedName, Fresh TVar TVar] r)
                  => Map QualifiedName (Seq (Type, QualifiedName))
@@ -790,8 +831,8 @@ unify t1 t2 | trace TraceUnify ("[unify]: " <> show t1 <> " ~ " <> show t2) Fals
 unify t1@(TCon c1 _) t2@(TCon c2 _)
     | c1 == c2 = pure mempty
     | otherwise = throwType $ DifferentTCon c1 c2
-unify (TVar tv) t2 = bind tv t2
-unify t1 (TVar tv) = bind tv t1
+unify (TUnif tv) t2 = bind tv t2
+unify t1 (TUnif tv) = bind tv t1
 unify (TApp a1 b1) (TApp a2 b2) = do
     subst <- unify a1 a2
     (subst <>) <$> unify (applySubst subst b1) (applySubst subst b2)
@@ -806,32 +847,33 @@ unify poly1@(TForall tvs1 ty1) poly2@(TForall tvs2 ty2)
     | length tvs1 /= length tvs2 = throwType $ CannotUnify poly1 poly2
     -- Assuming the kinds of tvs1 and tvs2 are identical
     | otherwise = do
+        -- TODO: I think this is going to break with separated unifs and tyvars?
         -- We unify foralls up to α-equivalence
-        freshTvs <- traverse (\(MkTVar _ k) -> freshTV k) tvs1
+        freshUnifs <- traverse (\(MkTVar _ k) -> freshUnif k) tvs1
         unify 
-            (replaceTVars (fromList $ toList (zip tvs1 freshTvs)) ty1)
-            (replaceTVars (fromList $ toList (zip tvs2 freshTvs)) ty2)
+            (replaceUnifs (fromList $ toList (zip tvs1 freshUnifs)) ty1)
+            (replaceUnifs (fromList $ toList (zip tvs2 freshUnifs)) ty2)
 
 -- Open and skolem rows with an empty extension should be equivalent to the variables/skolems on their own.
-unify (TRowOpen Empty var) t2 = unify (TVar var) t2
+unify (TRowUnif Empty var) t2 = unify (TUnif var) t2
 unify (TRowSkol Empty skol var) t2 = unify (TSkol skol var) t2
-unify t1 (TRowOpen Empty var) = unify t1 (TVar var)
+unify t1 (TRowUnif Empty var) = unify t1 (TUnif var)
 unify t1 (TRowSkol Empty skol var) = unify t1 (TSkol skol var)
 
 unify row1@(TRowClosed t1s) row2@(TRowClosed t2s) = 
     unifyRows row1 row2 t1s t2s \case
         [] -> pure mempty
         remaining -> throwType $ RemainingRowFields remaining row1 row2
-unify row1@(TRowOpen t1s tvar) row2@(TRowClosed t2s) = 
+unify row1@(TRowUnif t1s tvar) row2@(TRowClosed t2s) = 
     unifyRows row1 row2 t1s t2s \case 
         [] -> pure mempty
         remaining -> bind tvar (TRowClosed (map (\(ty,_,_) -> ty) remaining))
-unify row1@TRowClosed{} row2@TRowOpen{} = unify row2 row1
-unify row1@(TRowOpen t1s tvar) row2@(TRowSkol t2s skol tvar2) = 
+unify row1@TRowClosed{} row2@TRowUnif{} = unify row2 row1
+unify row1@(TRowUnif t1s tvar) row2@(TRowSkol t2s skol tvar2) = 
     unifyRows row1 row2 t1s t2s \case
         [] -> bind tvar (TSkol skol tvar2)
         remaining -> bind tvar (TRowSkol (map (\(ty,_,_) -> ty) remaining) skol tvar2)
-unify row1@TRowSkol{} row2@TRowOpen{} = unify row2 row1
+unify row1@TRowSkol{} row2@TRowUnif{} = unify row2 row1
 
 unify row1@(TRowSkol t1s skol1 var1) row2@(TRowSkol t2s skol2 var2)
     | skol1 == skol2 && var1 == var2 = unifyRows row1 row2 t1s t2s \case
@@ -839,7 +881,7 @@ unify row1@(TRowSkol t1s skol1 var1) row2@(TRowSkol t2s skol2 var2)
         remaining -> throwType $ RemainingRowFields remaining row1 row2 
 
 
-unify row1@(TRowOpen t1s tvar1@(MkTVar _ kind)) row2@(TRowOpen t2s tvar2) = do
+unify row1@(TRowUnif t1s tvar1@(MkTVar _ kind)) row2@(TRowUnif t2s tvar2) = do
     headT1s <- traverse (\ty -> (\(name, tys) -> (name, (tys, ty))) <$> getHeadConstr ty) t1s
     headT2s <- traverse (\ty -> (\(name, tys) -> (name, (tys, ty))) <$> getHeadConstr ty) t2s
     go headT1s headT2s []
@@ -853,11 +895,16 @@ unify row1@(TRowOpen t1s tvar1@(MkTVar _ kind)) row2@(TRowOpen t2s tvar2) = do
             go Empty remaining2 remaining1 = do
                 newRowVar <- freshVar "μ" <&> \mu -> MkTVar mu kind
                 (<>)
-                    <$> bind tvar1 (TRowOpen (map (\(_,(_,ty)) -> ty) remaining2) newRowVar) 
-                    <*> bind tvar2 (TRowOpen remaining1 newRowVar)
+                    <$> bind tvar1 (TRowUnif (map (\(_,(_,ty)) -> ty) remaining2) newRowVar) 
+                    <*> bind tvar2 (TRowUnif remaining1 newRowVar)
 
 unify row1@TRowClosed{} row2@TRowSkol{} = throwType $ CannotUnify row1 row2
 unify row1@TRowSkol{} row2@TRowClosed{} = throwType $ CannotUnify row1 row2
+
+unify row@TRowVar{} ty = error $ "Uninstantiated TRowVar in unification: '" <> show row <> " ~ " <> show ty <> "'"
+unify ty row@TRowVar{} = error $ "Uninstantiated TRowVar in unification: '" <> show ty <> " ~ " <> show row <> "'"
+unify var@TTyVar{} ty  = error $ "Uninstantiated TTyVar in unification: '" <> show var <> " ~ " <> show ty <> "'"
+unify ty var@TTyVar{}  = error $ "Uninstantiated TTyVar in unification: '" <> show ty <> " ~ " <> show var <> "'"
 
 unify s@TSkol{} t2  = throwType $ SkolBinding s t2
 unify t1 s@TSkol{}  = throwType $ SkolBinding t1 s
@@ -905,14 +952,15 @@ getHeadConstr (TApp t1 t2) = do
 getHeadConstr ty = throwType $ InvalidRowHeadConstr ty
 
 removeRow :: HasCallStack => Type -> Type
-removeRow (TRowOpen [ty] _) = ty
+removeRow (TRowVar [ty] _) = ty
+removeRow (TRowUnif [ty] _) = ty
 removeRow (TRowClosed [ty]) = ty
 removeRow (TRowSkol [ty] _ _) = ty
 removeRow ty = error $ "removeRow: Expected a row with a single element: " <> show ty
 
 bind :: (Trace, Members '[Reader LexInfo, Error TypeError, Context TypeContext] r) => TVar -> Type -> Sem r Substitution
 bind tv ty
-    | TVar tv == ty = pure mempty
+    | TUnif tv == ty = pure mempty
     | occurs tv ty = throwType $ Occurs tv ty
     | TForall{} <- ty = throwType $ Impredicative tv ty
     | otherwise = do
@@ -920,7 +968,7 @@ bind tv ty
         pure $ Subst (one (tv, ty)) mempty
 
 occurs :: TVar -> Type -> Bool
-occurs tv ty = tv `Set.member` freeTVs ty
+occurs tv ty = tv `Set.member` freeUnifs ty
 
 
 skolemize :: Members '[Fresh Text QualifiedName, Output TConstraint, Reader LexInfo, Context TypeContext] r 
@@ -929,7 +977,7 @@ skolemize :: Members '[Fresh Text QualifiedName, Output TConstraint, Reader LexI
 skolemize (TForall tvs ty) = do
     li <- ask
     skolemMap <- M.fromList . toList <$> traverse (\tv@(MkTVar n _) -> (tv,) . flip TSkol tv <$> freshVar (originalName n)) tvs
-    (ty', f) <- skolemize $ replaceTVars skolemMap ty
+    (ty', f) <- skolemize $ replaceUnifs skolemMap ty
     pure (ty', foldr (\tv r -> TyAbs li tv . r) id tvs . f)
 skolemize (TConstraint c ty) = do
     li <- ask
@@ -944,7 +992,7 @@ applySubst :: Data from => Substitution -> from -> from
 applySubst s@Subst{substVarTys, substDicts} = applyDictSubst . applyTySubst
     where
         applyTySubst = transformBi \case
-            TVar a' | Just t' <- lookup a' substVarTys -> t'
+            TUnif a' | Just t' <- lookup a' substVarTys -> t'
             x -> x
         applyDictSubst = transformBi \case
             -- GHC's type checking doesn't terminate if we omit the type signature

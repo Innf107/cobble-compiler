@@ -35,9 +35,9 @@ primOps = M.mapKeys (\k -> internalQName k) $ fromList [
     ,   ("mod#",    PrimOpInfo Mod      let (e1, f1) = internalEffFun "μ1" in let (e2, f2) = internalEffFun "μ2" in TForall [e1, e2] (intT `f1` (intT `f2` intT)))
     ,   ("le#",     PrimOpInfo LE       let (e1, f1) = internalEffFun "μ1" in let (e2, f2) = internalEffFun "μ2" in TForall [e1, e2] (intT `f1` (intT `f2` boolT)))
     ,   ("eq#",     PrimOpInfo EQ       let (e1, f1) = internalEffFun "μ1" in let (e2, f2) = internalEffFun "μ2" in TForall [e1, e2] (intT `f1` (intT `f2` boolT)))
-    ,   ("debug#",  PrimOpInfo Debug    let debugArg = MkTVar (internalQName "debugArg") KStar in let (e, f) = internalEffFun "μ" in (TForall [debugArg, e] $ TVar debugArg `f` unitT))
+    ,   ("debug#",  PrimOpInfo Debug    let debugArg = MkTVar (internalQName "debugArg") KStar in let (e, f) = internalEffFun "μ" in (TForall [debugArg, e] $ TTyVar debugArg `f` unitT))
     ] where
         internalEff x = MkTVar (internalQName x) (KRow KEffect)
-        internalEffFun effName = let effVar = internalEff effName in (effVar, \x y -> TFun x (TVar effVar) y)
+        internalEffFun effName = let effVar = internalEff effName in (effVar, \x y -> TFun x (TTyVar effVar) y)
 
 

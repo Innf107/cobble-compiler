@@ -359,7 +359,8 @@ lowerCase ty expr branches = do
     pure $ foldr ($) caseExpr jpDefs -- prepend join point definitions
 
 lowerType :: C.Type -> Sem r F.Type
-lowerType (C.TVar (C.MkTVar tvName tvKind)) = F.TVar tvName <$> lowerKind tvKind
+lowerType (C.TTyVar (C.MkTVar tvName tvKind)) = F.TVar tvName <$> lowerKind tvKind
+lowerType ty@C.TUnif{} = error $ "lowerType: Residual unification variable: " <> show ty
 lowerType (C.TCon tcName tcKind) = F.TCon tcName <$> lowerKind tcKind
 lowerType (C.TApp t1 t2) = F.TApp <$> lowerType t1 <*> lowerType t2
 lowerType (C.TSkol _ (C.MkTVar tvName tvKind)) = F.TVar tvName <$> lowerKind tvKind
@@ -371,10 +372,11 @@ lowerType (C.TConstraint c ty) = F.TFun <$> lowerConstraint c <*> pure F.TEffUR 
 lowerType (C.TRowClosed tys) = do
     tys' <- traverse lowerType tys
     pure (F.TRowExtend tys' F.TRowNil)
-lowerType (C.TRowOpen tys (C.MkTVar var kind)) = do
+lowerType (C.TRowVar tys (C.MkTVar var kind)) = do
     tys' <- traverse lowerType tys
     kind' <- lowerKind kind
     pure (F.TRowExtend tys' (F.TVar var kind'))
+lowerType ty@C.TRowUnif{} = error $ "lowerType: Residual unification variable in row type: " <> show ty
 lowerType (C.TRowSkol tys _ (C.MkTVar var kind)) = do
     tys' <- traverse lowerType tys
     kind' <- lowerKind kind

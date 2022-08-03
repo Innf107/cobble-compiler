@@ -446,7 +446,7 @@ namedType :: Parser (LexInfo, UType)
 namedType = withParen typeP <|> do
     (li, i) <- ident
     pure $ if isLower (T.head $ T.takeWhileEnd (/='.') i)
-        then (li, UTVar i)
+        then (li, UTTyVar i)
         else (li, UTCon i)
 
 functionType :: LexInfo -> UType -> Parser (LexInfo, UType)
@@ -468,14 +468,14 @@ functionType li tyA = simpleFunction <|> effFunction
 effectRow :: Parser UType
 effectRow = effVar <|> effRow 
     where
-        effVar = UTVar . snd <$> identWhere (isLower . T.head)
+        effVar = UTTyVar . snd <$> identWhere (isLower . T.head)
 
         effRow = do
             tys <- typeP' `sepBy` reservedOp' ","
             mOpenVar <- optionMaybe (reservedOp' "|" *> ident')
             pure case mOpenVar of
                 Nothing -> UTRowClosed tys
-                Just var -> UTRowOpen tys var
+                Just var -> UTRowVar tys var
 
 withParen :: Parser a -> Parser a
 withParen a = paren "(" *> a <* paren ")"
