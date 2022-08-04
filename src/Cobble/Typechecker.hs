@@ -868,9 +868,8 @@ unify row1@(TRowClosed t1s) row2@(TRowClosed t2s) =
         [] -> pure mempty
         remaining -> throwType $ RemainingRowFields remaining row1 row2
 unify row1@(TRowUnif t1s tvar) row2@(TRowClosed t2s) = 
-    unifyRows row1 row2 t1s t2s \case 
-        [] -> pure mempty
-        remaining -> bind tvar (TRowClosed (map (\(ty,_,_) -> ty) remaining))
+    unifyRows row1 row2 t1s t2s 
+        \remaining -> bind tvar (TRowClosed (map (\(ty,_,_) -> ty) remaining))
 unify row1@TRowClosed{} row2@TRowUnif{} = unify row2 row1
 unify row1@(TRowUnif t1s tvar) row2@(TRowSkol t2s skol tvar2) = 
     unifyRows row1 row2 t1s t2s \case
