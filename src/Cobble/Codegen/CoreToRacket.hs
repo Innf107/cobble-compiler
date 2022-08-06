@@ -118,7 +118,7 @@ compileExpr e@(Handle expr eff handlers retClause) = do
 
     handlerHash <- RHash <$> forM handlers \(op, args, expr) -> do
         case args of 
-            [(arg, _argTy)] -> do
+            [arg] -> do
                 expr' <- compileExpr expr
                 pure (RSymbol op, RLambda [arg, resumptionVar] [expr'])
             _ -> error $ "Effect operations with multiple arguments NYI: " <> show e

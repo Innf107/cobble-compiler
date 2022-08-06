@@ -287,7 +287,6 @@ lintExpr env (Handle scrut handledEff handlers (retVar, retBody)) eff = do
 
     -- Check handlers
     handlerTys <- forM handlers \(opName, args, body) -> do
-        -- TODO: Check argument types against effect definition
 
         opEffName <- lookupOp opName env
         (effTyVars, effOps) <- lookupEff opEffName env
@@ -300,8 +299,13 @@ lintExpr env (Handle scrut handledEff handlers (retVar, retBody)) eff = do
                     (TFun arg eff result) -> pure (arg, eff, result)
                     ty -> throwLint $ "Operation '" <> show opName <> "' applied to type arguments '" <> show effectTyArgs <> "' has a non-function type: '" <> show ty <> "'"
 
-        -- TODO: Check operation argument types
-        let bodyEnv = insertResumeTy (opResultTy, retBodyTy) $ foldr (uncurry insertType) env args
+
+        arg <- case args of
+            [x] -> pure x
+            xs -> throwLint $ "Multi argument effects are NYI"
+
+
+        let bodyEnv = insertResumeTy (opResultTy, retBodyTy) $ insertType arg opArgTy env
 
         -- Handler bodies are checked against the outer effect
         bodyTy <- lintExpr bodyEnv body eff

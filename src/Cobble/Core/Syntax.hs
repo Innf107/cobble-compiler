@@ -45,8 +45,9 @@ data Expr = Var QualifiedName
           -- 'perform' operations have to be fully applied, just like primOps. 
           | Perform QualifiedName QualifiedName (Seq Type) (Seq Expr)
           --        ^effect       ^operation    ^type args ^value args 
-          | Handle Expr Effect (Seq (QualifiedName, Seq (QualifiedName, Type), Expr)) (QualifiedName, Expr)
-          --                   ^ handlers                                      ^return clause
+          | Handle Expr Effect (Seq (QualifiedName, Seq QualifiedName, Expr)) (QualifiedName, Expr)
+          --                   ^     ^operation     ^args              ^body  ^return clause
+          --                   | handlers
           | Resume Expr -- TODO: Probably needs some type annotations somewhere?
           deriving (Eq, Generic, Data)
 instance Binary Expr
@@ -170,7 +171,7 @@ instance Pretty Expr where
                                     )) <> ")" 
                                     where
                                         prettyHandler (op, args, expr) = 
-                                            ppQName op <+> encloseSep "" "" " " (map (parens . prettyTyped) args)
+                                            ppQName op <+> encloseSep "" "" " " (map ppQName args)
                                             <+> "->" <+> pretty expr
     pretty (Resume expr) = "(resume" <+> pretty expr <> ")"
 

@@ -137,10 +137,7 @@ lowerExpr (C.Case t li e branches) = lowerCase t e branches
 lowerExpr (C.Lambda (ty, argTy, eff) _ x e) = F.Abs x <$> lowerType eff <*> lowerType argTy <*> lowerExpr e
 lowerExpr (C.Handle (ty, eff) li e handlers mretClause) = do
     handlers' <- forM handlers \(C.EffHandler _ _ con params expr) -> do
-        (,,)
-        <$> pure con
-        <*> traverse (secondM lowerType) params
-        <*> lowerExpr expr
+        (con, map fst params,) <$> lowerExpr expr
 
     retClause' <- case mretClause of
         Just (name, body) -> (name,) <$> lowerExpr body
