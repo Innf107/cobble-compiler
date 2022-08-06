@@ -504,7 +504,8 @@ infer env (If () li c th el) = runReader li do
     (c', cEff)  <- infer env c
     (th', thEff) <- infer env th
     (el', elEff) <- infer env el
-    
+
+    -- Effects cannot be polytypes, so (!~) is fine here.
     cEff !~ thEff
     cEff !~ elEff
 

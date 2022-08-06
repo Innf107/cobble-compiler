@@ -18,6 +18,7 @@ data LintEnv = LintEnv {
 ,   jpArgTypes :: Map QualifiedName (Seq (QualifiedName, Kind), Seq Type)
 ,   dictTyDefs :: Map QualifiedName (Seq (QualifiedName, Kind), Seq (QualifiedName, Type))
 ,   effDefs    :: Map QualifiedName (Seq (QualifiedName, Kind), Seq (QualifiedName, Type))
+--                                   ^ type parameters          ^ method types
 ,   opEffs     :: Map QualifiedName QualifiedName
 ,   resumeTy   :: Maybe (Type, Type)
 } deriving (Show, Eq)
@@ -277,6 +278,8 @@ lintExpr env (Perform opEff op tyArgs valArgs) eff = do
 lintExpr env (Handle scrut handledEff handlers (retVar, retBody)) eff = do
     exprEff <- insertRow handledEff eff 
     
+    let (_effectConstr, effectTyArgs) = splitTyArgs handledEff
+
     scrutTy <- lintExpr env scrut exprEff
 
     -- Check return clause
@@ -286,9 +289,18 @@ lintExpr env (Handle scrut handledEff handlers (retVar, retBody)) eff = do
     handlerTys <- forM handlers \(opName, args, body) -> do
         -- TODO: Check argument types against effect definition
 
-        -- TODO: Get opResultTy from the effect definition
-        opResultTy <- undefined
+        opEffName <- lookupOp opName env
+        (effTyVars, effOps) <- lookupEff opEffName env
 
+        (opArgTy, opEffTy, opResultTy) <- case find (\(x, ty) -> x == opName) effOps of
+                Nothing -> throwLint $ "Operation '" <> show opName <> "' is associated with effect '" <> show opEffName <> "' but not included in the list of operations"
+                -- We apply the type variables from the applied effect
+                -- as well as the currently running effect row
+                Just (_, ty) -> applyTypes ty (effectTyArgs :|> eff) >>= \case
+                    (TFun arg eff result) -> pure (arg, eff, result)
+                    ty -> throwLint $ "Operation '" <> show opName <> "' applied to type arguments '" <> show effectTyArgs <> "' has a non-function type: '" <> show ty <> "'"
+
+        -- TODO: Check operation argument types
         let bodyEnv = insertResumeTy (opResultTy, retBodyTy) $ foldr (uncurry insertType) env args
 
         -- Handler bodies are checked against the outer effect
@@ -345,17 +357,23 @@ The same reasoning applies to let expressions, which behave more like single-bra
 -}
 
 applyTypes :: Members '[Error CoreLintError] r => Type -> Seq Type -> Sem r Type
-applyTypes ty args = foldrM applyType ty args
+applyTypes ty args = foldlM applyType ty args
 
 applyType :: Members '[Error CoreLintError] r => Type -> Type -> Sem r Type
-applyType ty (TForall a _ ty') = pure $ replaceTVar a ty ty'
-applyType ty ty' = throwLint $ "Excessive application with argument '" <> show ty <> "' in application of type '" <> show ty' <> "'"
+applyType (TForall a _ ty') ty = pure $ replaceTVar a ty ty'
+applyType ty' ty = throwLint $ "Excessive application with argument '" <> show ty <> "' in application of type '" <> show ty' <> "'"
 
 headTyCon :: Type -> Type
 headTyCon (TForall _ _ ty) = headTyCon ty
 headTyCon (TFun a eff b) = headTyCon b
 headTyCon (TApp a b) = headTyCon a 
 headTyCon ty = ty
+
+-- | Split a type into it's first non-app constructor and arguments 
+-- Example: splitTyArgs (Either Int Bool) = (Either, [Int, Bool])
+splitTyArgs :: Type -> (Type, Seq Type)
+splitTyArgs (TApp base arg) = let (base', args) = splitTyArgs base in (base', args :|> arg)
+splitTyArgs ty = (ty, [])
 
 getKind :: Members '[Error CoreLintError] r => Type -> Sem r Kind
 getKind TFun{}           = pure KType
