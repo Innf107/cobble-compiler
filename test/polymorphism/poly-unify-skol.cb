@@ -1,0 +1,11 @@
+module test;
+
+-- This is a regression test for a previous flaw in the type checker that treated
+-- type variables in foralls as unification variables when unifying.
+-- The correct behaviour is to treat these as skolems.
+
+f :: (forall a b. a) -> Int;
+f _ = 5;
+
+g :: (forall c d. d) -> Int;
+g = f;

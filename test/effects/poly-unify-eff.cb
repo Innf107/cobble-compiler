@@ -1,0 +1,14 @@
+module test;
+
+variant Bool = False | True;
+
+variant T2 a b = T2 a b;
+
+variant List a = Nil | Cons a (List a);
+
+partition_acc :: List a -> (a -> Bool) -> List a -> List a;
+partition_acc acc pred l = acc;
+ 
+partition :: (a -> Bool) -> List a -> List a;
+partition = partition_acc Nil;
+

@@ -851,12 +851,12 @@ unify poly1@(TForall tvs1 ty1) poly2@(TForall tvs2 ty2)
     | length tvs1 /= length tvs2 = throwType $ CannotUnify poly1 poly2
     -- Assuming the kinds of tvs1 and tvs2 are identical
     | otherwise = do
-        -- TODO: I think this is going to break with separated unifs and tyvars?
-        -- We unify foralls up to α-equivalence
-        freshUnifs <- traverse (\(MkTVar _ k) -> freshUnif k) tvs1
+        -- We unify foralls up to α-equivalence by substituting the forall variables
+        -- with fresh skolems
+        freshSkols <- traverse freshSkol tvs1
         unify 
-            (replaceUnifs (fromList $ toList (zip tvs1 freshUnifs)) ty1)
-            (replaceUnifs (fromList $ toList (zip tvs2 freshUnifs)) ty2)
+            (replaceTyVars (fromList $ toList (zip tvs1 freshSkols)) ty1)
+            (replaceTyVars (fromList $ toList (zip tvs2 freshSkols)) ty2)
 
 -- Open and skolem rows with an empty extension should be equivalent to the variables/skolems on their own.
 unify (TRowUnif Empty var) t2 = unify (TUnif var) t2
@@ -979,7 +979,7 @@ skolemize :: Members '[Fresh Text QualifiedName, Output TConstraint, Reader LexI
           -> Sem r (Type, Expr NextPass -> Expr NextPass)
 skolemize (TForall tvs ty) = do
     li <- ask
-    skolemMap <- M.fromList . toList <$> traverse (\tv@(MkTVar n _) -> (tv,) . flip TSkol tv <$> freshVar (originalName n)) tvs
+    skolemMap <- M.fromList . toList <$> traverse (\tv -> (tv,) <$> freshSkol tv) tvs
     (ty', f) <- skolemize $ replaceTyVars skolemMap ty
     pure (ty', foldr (\tv r -> TyAbs li tv . r) id tvs . f)
 skolemize (TConstraint c ty) = do
@@ -990,6 +990,8 @@ skolemize (TConstraint c ty) = do
     pure (ty', DictAbs li dictName c . f)
 skolemize ty = pure (ty, id)
 
+freshSkol :: Members '[Fresh Text QualifiedName] r => TVar -> Sem r Type
+freshSkol tv@(MkTVar n _) = flip TSkol tv <$> freshVar (originalName n)
 
 applySubst :: Data from => Substitution -> from -> from
 applySubst s@Subst{substVarTys, substDicts} = applyDictSubst . applyTySubst

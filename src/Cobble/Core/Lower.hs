@@ -152,7 +152,9 @@ lowerExpr (C.Handle (ty, eff) li e handlers mretClause) = do
     pure (F.Handle e' eff' handlers' retClause')
 
 lowerExpr (C.Resume ty li expr) = F.Resume <$> lowerExpr expr
-lowerExpr (C.TyApp _ ty e) = F.TyApp <$> lowerExpr e <*> lowerType ty
+lowerExpr (C.TyApp _ ty e) = do
+    traceM TraceLower $ "[lowerExpr (TyApp _ " <> show ty <> " " <> show e <> ")]"
+    F.TyApp <$> lowerExpr e <*> lowerType ty
 lowerExpr (C.TyAbs _ (C.MkTVar tvName tvKind) e) = F.TyAbs tvName <$> lowerKind tvKind <*> lowerExpr e
 lowerExpr (C.DictAbs _ x c e) = F.Abs x F.TEffUR <$> lowerConstraint c <*> lowerExpr e
 lowerExpr (C.DictVarApp li e dv) = error $ "Invalid unsubstituted dictionary variable application during lowering at " <> show li <> ".\nApplication of dict variable '" <> show dv <> "'\nOn Expression: " <> show e
@@ -364,7 +366,7 @@ lowerCase ty expr branches = do
     caseExpr <- F.Let scrutName exprTy' expr' <$> compilePMatrix [scrutName] pmatrix
     pure $ foldr ($) caseExpr jpDefs -- prepend join point definitions
 
-lowerType :: Members '[Reader LowerOptions] r => C.Type -> Sem r F.Type
+lowerType :: (HasCallStack, Members '[Reader LowerOptions] r) => C.Type -> Sem r F.Type
 lowerType (C.TTyVar (C.MkTVar tvName tvKind)) = F.TVar tvName <$> lowerKind tvKind
 lowerType ty@(C.TUnif (C.MkTVar tvName tvKind)) = asks keepCoreResiduals >>= \case
     True -> F.TVar tvName <$> lowerKind tvKind
