@@ -197,8 +197,8 @@ typecheckStatement env (DefInstance (classKind, methDefs, params, _isImported) l
         
         let methTy' = case params of
                 [p] -> case methTy of
-                    TForall (p' :<| ps) actualMethTy
-                        | p == p' -> stripConstraint (MkConstraint cname classKind ty) $ replaceTyVar p ty (tforall ps actualMethTy)
+                    TForall p' actualMethTy
+                        | p == p' -> stripConstraint (MkConstraint cname classKind ty) $ replaceTyVar p ty actualMethTy
                     _ -> error $ "typecheckStatement: foralls were not properly inserted in instance method type. methTy: " <> show methTy
                 _ -> error "typecheckStatement: multi parameter typeclasses NYI"
 
@@ -208,7 +208,7 @@ typecheckStatement env (DefInstance (classKind, methDefs, params, _isImported) l
         fst <$> checkTopLevelDecl False env' decl methTy'
     pure (DefInstance (classKind, methDefs, params, dictName) li cname ty meths', env')
         where
-            stripConstraint c (TForall ps ty) = TForall ps (stripConstraint c ty)
+            stripConstraint c (TForall tv ty) = TForall tv (stripConstraint c ty)
             stripConstraint c (TConstraint c' ty) | c == c' = ty
             stripConstraint c _ = error $ "typecheckStatement: non-constrained instance method at " <> show li
 
@@ -228,14 +228,14 @@ typecheckStatement env (DefEffect k li effName tvs ops) = do
             insertOpTy (opName, ty) env = insertEffOpType opName (tforall tvs ty) $ insertType opName (tforall tvs ty) env 
 
 tforall :: Seq TVar -> Type -> Type
-tforall Empty ty = ty
-tforall ps (TForall ps' ty) = TForall (ps <> ps') ty
-tforall ps ty = TForall ps ty
+tforall = flip (foldr TForall)
 
+-- | Creates an effect-polymorphic function type consisting of the type variables @vars@ and
+-- the argument types @args@ and a return type @result@
 forallFun :: Members '[Fresh Text QualifiedName] r => Seq TVar -> Type -> Seq Type -> Sem r Type
 forallFun vars result args = do
     argsAndEffs <- traverse (\x -> freshVar "μ" <&> \effName -> (x, MkTVar effName (KRow KEffect))) args
-    pure $ TForall (vars <> map snd argsAndEffs) $ foldr (\(x, eff) r -> TFun x (TTyVar eff) r) result argsAndEffs
+    pure $ tforall (vars <> map snd argsAndEffs) $ foldr (\(x, eff) r -> TFun x (TTyVar eff) r) result argsAndEffs
 
 checkTopLevelDecl :: 
       ( Trace
@@ -622,14 +622,10 @@ since even in Haskell, function signatures are strongly encouraged, it is ultima
 instantiate :: Members '[Fresh Text QualifiedName, Fresh TVar TVar, Reader LexInfo, Output TConstraint, Context TypeContext] r 
             => Type 
             -> Sem r (Type, Expr NextPass -> Expr NextPass)
-instantiate (TForall tvs ty) = ask >>= \li -> do
-    -- The substitution is not immediately converted to a Map, since the order
-    -- of tyvars is important
-    tvSubst <- traverse (\tv -> (tv,) . TUnif <$> freshVar tv) tvs
-    
-    (ty', w) <- instantiate (replaceTyVars (M.fromList (toList tvSubst)) ty)
-
-    pure (ty', foldr (\(_,x) r -> r . TyApp li x) w tvSubst)
+instantiate (TForall tv ty) = ask >>= \li -> do
+    unif <- TUnif <$> freshVar tv
+    (ty', w) <- instantiate (replaceTyVar tv unif ty)
+    pure (ty', w . TyApp li unif)
 instantiate (TConstraint c ty) = do
     li <- ask
     dictVar <- freshVar "dv"
@@ -724,9 +720,9 @@ replaceUnifs tvs ty@TCon{} = ty
 replaceUnifs tvs ty@TSkol{} = ty
 replaceUnifs tvs ty@(TApp t1 t2) = TApp (replaceUnifs tvs t1) (replaceUnifs tvs t2)
 replaceUnifs tvs ty@(TFun a eff b) = TFun (replaceUnifs tvs a) (replaceUnifs tvs eff) (replaceUnifs tvs b)
-replaceUnifs tvs (TForall forallTVs ty) =
-                let remainingTVs = foldr (M.delete) tvs forallTVs in
-                TForall forallTVs $ replaceUnifs remainingTVs ty
+replaceUnifs tvs (TForall forallTV ty) =
+                let remainingTVs = M.delete forallTV tvs in
+                TForall forallTV $ replaceUnifs remainingTVs ty
 replaceUnifs tvs (TConstraint (MkConstraint constrName k constrTy) ty) =
                 TConstraint (MkConstraint constrName k (replaceUnifs tvs constrTy)) (replaceUnifs tvs ty)
 replaceUnifs tvs (TRowClosed tys)   = TRowClosed (map (replaceUnifs tvs) tys)
@@ -756,9 +752,9 @@ replaceTyVars tvs ty@TCon{} = ty
 replaceTyVars tvs ty@TSkol{} = ty
 replaceTyVars tvs ty@(TApp t1 t2) = TApp (replaceTyVars tvs t1) (replaceTyVars tvs t2)
 replaceTyVars tvs ty@(TFun a eff b) = TFun (replaceTyVars tvs a) (replaceTyVars tvs eff) (replaceTyVars tvs b)
-replaceTyVars tvs (TForall forallTVs ty) =
-                let remainingTVs = foldr (M.delete) tvs forallTVs in
-                TForall forallTVs $ replaceTyVars remainingTVs ty
+replaceTyVars tvs (TForall forallTV ty) =
+                let remainingTVs = M.delete forallTV tvs in
+                TForall forallTV $ replaceTyVars remainingTVs ty
 replaceTyVars tvs (TConstraint (MkConstraint constrName k constrTy) ty) =
                 TConstraint (MkConstraint constrName k (replaceTyVars tvs constrTy)) (replaceTyVars tvs ty)
 replaceTyVars tvs (TRowClosed tys)   = TRowClosed (map (replaceTyVars tvs) tys)
@@ -846,17 +842,12 @@ unify (TFun a1 eff1 b1) (TFun a2 eff2 b2) = do
     (subst' <>) <$> unify (applySubst subst' b1) (applySubst subst' b2)
 unify t1@TSkol{} t2@TSkol{}
     | t1 == t2 = pure mempty
--- TODO: What about '∀a.∀b. C ~ ∀a b. C'?
-unify poly1@(TForall tvs1 ty1) poly2@(TForall tvs2 ty2)
-    | length tvs1 /= length tvs2 = throwType $ CannotUnify poly1 poly2
-    -- Assuming the kinds of tvs1 and tvs2 are identical
+unify poly1@(TForall tv1 ty1) poly2@(TForall tv2 ty2)
     | otherwise = do
-        -- We unify foralls up to α-equivalence by substituting the forall variables
-        -- with fresh skolems
-        freshSkols <- traverse freshSkol tvs1
-        unify 
-            (replaceTyVars (fromList $ toList (zip tvs1 freshSkols)) ty1)
-            (replaceTyVars (fromList $ toList (zip tvs2 freshSkols)) ty2)
+        -- We unify foralls up to α-equivalence by substituting the forall variables in both polytypes
+        -- with a shared fresh skolem (We arbitrarily build this skolem out of the variable from @poly1@)
+        skol <- freshSkol tv1
+        unify (replaceTyVar tv1 skol ty1) (replaceTyVar tv2 skol ty2)
 
 -- Open and skolem rows with an empty extension should be equivalent to the variables/skolems on their own.
 unify (TRowUnif Empty var) t2 = unify (TUnif var) t2
@@ -977,11 +968,11 @@ occurs tv ty = tv `Set.member` freeUnifs ty
 skolemize :: Members '[Fresh Text QualifiedName, Output TConstraint, Reader LexInfo, Context TypeContext] r 
           => Type 
           -> Sem r (Type, Expr NextPass -> Expr NextPass)
-skolemize (TForall tvs ty) = do
+skolemize (TForall tv ty) = do
     li <- ask
-    skolemMap <- M.fromList . toList <$> traverse (\tv -> (tv,) <$> freshSkol tv) tvs
-    (ty', f) <- skolemize $ replaceTyVars skolemMap ty
-    pure (ty', foldr (\tv r -> TyAbs li tv . r) id tvs . f)
+    skolem <- freshSkol tv
+    (ty', f) <- skolemize (replaceTyVar tv skolem ty)
+    pure (ty', TyAbs li tv . f)
 skolemize (TConstraint c ty) = do
     li <- ask
     dictName <- freshVar "d"

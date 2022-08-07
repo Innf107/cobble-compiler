@@ -215,9 +215,9 @@ data Type = TCon QualifiedName Kind                 -- c
           | TSkol QualifiedName TVar                -- #α
           --      ^             ^original
           --      |skolem
-          | TForall (Seq TVar) Type                 -- ∀a*. σ
+          | TForall TVar Type                       -- ∀a. σ
           | TFun Type Effect Type                   -- σ -{ϵ}> σ
-          | TConstraint Constraint Type             -- Q \=> σ
+          | TConstraint Constraint Type             -- Q => σ
           | TRowClosed (Seq Type)                   -- ⟨σ*⟩
           | TRowVar (Seq Type) TVar                 -- ⟨σ* | a⟩
           | TRowUnif (Seq Type) TVar                -- ⟨σ* | $α⟩
@@ -225,7 +225,7 @@ data Type = TCon QualifiedName Kind                 -- c
           deriving (Eq, Ord, Generic, Data)
 instance Binary Type
 
-type Effect = Type
+type Effect = Type -- ϵ
 
 instance S.Show Type where 
     show t = toString $ "(Type " <> ppType t <> ")"
@@ -238,7 +238,7 @@ ppType (TUnif (MkTVar v _))          = "$" <> show v
 ppType (TSkol v _)                   = "#" <> show v
 ppType (TCon v k)                    = show v
 ppType (TApp a b)                    = "(" <> ppType a <> " " <> ppType b <> ")"
-ppType (TForall ps t)                = "(∀" <> T.intercalate " " (toList $ map (\(MkTVar v _) -> show v) ps) <> ". " <> ppType t <> ")"
+ppType (TForall tv t)                = "(∀" <> show tv <> ". " <> ppType t <> ")"
 ppType (TConstraint c t)             = ppConstraint c <> " => " <> ppType t
 ppType (TRowClosed tys)              = "⟨" <> intercalate ", " (map ppType tys) <> "⟩"
 ppType (TRowVar tys var)            = "⟨" <> intercalate ", " (map ppType tys) <> " | " <> show var <> "⟩"
@@ -271,7 +271,7 @@ freeTVars = go mempty
             | otherwise             = one tv
         go bound (TUnif _)          = mempty
         go bound (TSkol _ _)        = mempty
-        go bound (TForall tvs ty)   = go (bound <> Set.fromList (toList tvs)) ty
+        go bound (TForall tv ty)   = go (bound <> one tv) ty
         go bound (TFun a eff b)     = go bound a <> go bound eff <> go bound b 
         go bound (TConstraint (MkConstraint _ _ t1) t2) = go bound t1 <> go bound t2
         go bound (TRowClosed tys)   = foldMap (go bound) tys
@@ -290,7 +290,7 @@ freeTyVarsOrdered = ordNub . go mempty
             | otherwise             = one tv
         go bound (TUnif _)          = mempty
         go bound (TSkol _ _)        = mempty
-        go bound (TForall tvs ty)   = go (bound <> Set.fromList (toList tvs)) ty
+        go bound (TForall tv ty)   = go (bound <> one tv) ty
         go bound (TFun a effs b)    = go bound a <> go bound effs <> go bound b 
         go bound (TConstraint (MkConstraint _ _ t1) t2) = go bound t1 <> go bound t2
         go bound (TRowClosed tys)   = foldMap (go bound) tys
@@ -308,7 +308,7 @@ freeUnifs = go mempty
             | tv `Set.member` bound = mempty
             | otherwise             = one tv
         go bound (TSkol _ _)        = mempty
-        go bound (TForall tvs ty)   = go (bound <> Set.fromList (toList tvs)) ty
+        go bound (TForall tv ty)   = go (bound <> one tv) ty
         go bound (TFun a eff b)     = go bound a <> go bound eff <> go bound b 
         go bound (TConstraint (MkConstraint _ _ t1) t2) = go bound t1 <> go bound t2
         go bound (TRowClosed tys)   = foldMap (go bound) tys
@@ -327,7 +327,7 @@ freeUnifsOrdered = ordNub . go mempty
             | tv `Set.member` bound = mempty
             | otherwise             = one tv
         go bound (TSkol _ _)        = mempty
-        go bound (TForall tvs ty)   = go (bound <> Set.fromList (toList tvs)) ty
+        go bound (TForall tv ty)   = go (bound <> one tv) ty
         go bound (TFun a effs b)    = go bound a <> go bound effs <> go bound b 
         go bound (TConstraint (MkConstraint _ _ t1) t2) = go bound t1 <> go bound t2
         go bound (TRowClosed tys)   = foldMap (go bound) tys

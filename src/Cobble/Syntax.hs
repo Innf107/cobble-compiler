@@ -42,7 +42,7 @@ instance HasType (Expr 'Codegen) where
         Lambda (t, _, _) _ _ _              -> t
         Handle (t, _) _ _ _ _               -> t
         Resume t _ _                        -> t
-        TyAbs _ tv e                        -> TForall [tv] (getType e)
+        TyAbs _ tv e                        -> TForall tv (getType e)
         TyApp _ targ e                      -> getType e -- TODO: Should apply arg type
         DictAbs _ _ c e                     -> TConstraint c (getType e)
         DictVarApp _ e _                    -> getType e -- TODO: Should apply dictionary

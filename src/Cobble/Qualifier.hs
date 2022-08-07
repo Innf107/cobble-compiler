@@ -98,7 +98,7 @@ qualifyStmnt (DefClass () li className tvs meths) = runReader li $ do
         forM meths \(mn, mty) -> withFrame do
             mn' <- freshGlobal mn
             methTy' <- qualifyType True (addConstraint mty) -- Type class methods *are* allowed to introduce new tyvars
-            pure (mn', insertInForall tvs' methTy')
+            pure (mn', foldr TForall methTy' tvs')
     addType className className' k (TyClass tvs' meths')
     zipWithM_ (\(methName,_) (methName',_) -> addVar methName methName') meths meths'
     pure (DefClass k li className' tvs' meths')
@@ -302,7 +302,7 @@ qualifyType allowFreeVars uty = do
     (ty, effVars, freeVars) <- go uty
     case (allowFreeVars, freeVars) of
         (False, (_:<|_)) -> ask >>= \li -> throw $ TVarsNotFound li freeVars
-        _ -> pure $ addForall (freeVars <> effVars) ty
+        _ -> pure $ foldr TForall ty (freeVars <> effVars)
     where
         -- @go@ returns two distinct sequences of tvars.
         -- The second one captures all free type variables *that have been explicitly written by the user*.
@@ -322,7 +322,7 @@ qualifyType allowFreeVars uty = do
             (a', aEffs, aVars) <- go a
             (effs', effEffs, effVars) <- go effs
             (b', bEffs, bVars) <- go b
-            pure (TFun (addForall aEffs a') effs' b', effEffs <> bEffs, aVars <> effVars <> bVars)
+            pure (TFun (foldr TForall a' aEffs) effs' b', effEffs <> bEffs, aVars <> effVars <> bVars)
         go (UTTyVar tv) = runError (lookupTVar tv) >>= \case
             Right tv' -> do
                 traceM TraceQualify $ "[qualifyType (" <> show uty <> ")]: " <> show tv <> " ==> " <> show tv'
@@ -335,7 +335,7 @@ qualifyType allowFreeVars uty = do
             ps' <- traverse (uncurry qualifyTVar) ps
             zipWithM_ addTVar (map fst ps) ps'
             (ty', tyEffs, tyVars) <- go ty
-            pure (TForall ps' ty', tyEffs, tyVars)
+            pure (foldr TForall ty' ps', tyEffs, tyVars)
         go (UTConstraint constr ty) = do
             (constr', conEffs, conVars) <- goConstraint constr
             (ty', tyEffs, tyVars) <- go ty
@@ -375,11 +375,6 @@ qualifyType allowFreeVars uty = do
                 (ty', tyEffs, tyVars) <- go ty
                 pure (MkConstraint className' k ty', tyEffs, tyVars)
             (className', k, tv, _) -> ask >>= \li -> throw $ NonClassInConstraint li className' k tv
-
-addForall :: Seq TVar -> Type -> Type
-addForall Empty ty = ty
-addForall tvs (TForall tvs' ty) = TForall (tvs <> tvs') ty
-addForall tvs ty = TForall tvs ty 
 
 
 qualifyTVar :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r 
@@ -447,11 +442,6 @@ lookupEffOp n = sgets (lookup n . _scopeEffOperations) >>= \case
 
 getTyConKind :: Seq TVar -> Kind
 getTyConKind = foldr (\(MkTVar _ k) r -> k `KFun` r) KStar 
-
-insertInForall :: Seq TVar -> Type -> Type
-insertInForall Empty ty = ty
-insertInForall tvs (TForall tvs' ty) = TForall (tvs <> tvs') ty
-insertInForall tvs ty = TForall tvs ty
 
 forM2 :: (Applicative f, ListLike l, Traversable l) => l a -> l b -> (a -> b -> f c) -> f (l c)
 forM2 xs ys f = zipWithM f xs ys

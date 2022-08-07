@@ -61,8 +61,7 @@ lowerStmnts (C.DefClass k li cname tvs methSigs :<| sts) = do
 
     ((dictDef :<| methImpls) <>) <$> lowerStmnts sts
         where
-            stripConstraintAndFirstArg (C.TForall (tv:<|tvs) ty) = C.TForall tvs (stripConstraintAndFirstArg ty)
-            stripConstraintAndFirstArg (C.TForall [tv] ty) = stripConstraintAndFirstArg ty
+            stripConstraintAndFirstArg (C.TForall tv ty) = stripConstraintAndFirstArg ty
             stripConstraintAndFirstArg (C.TConstraint _ ty) = ty
             stripConstraintAndFirstArg ty = ty
 
@@ -374,9 +373,7 @@ lowerType ty@(C.TUnif (C.MkTVar tvName tvKind)) = asks keepCoreResiduals >>= \ca
 lowerType (C.TCon tcName tcKind) = F.TCon tcName <$> lowerKind tcKind
 lowerType (C.TApp t1 t2) = F.TApp <$> lowerType t1 <*> lowerType t2
 lowerType (C.TSkol _ (C.MkTVar tvName tvKind)) = F.TVar tvName <$> lowerKind tvKind
-lowerType (C.TForall tvs ty) = do
-    ty' <- lowerType ty
-    foldrM (\(C.MkTVar tvName tvKind) r -> lowerKind tvKind <&> \k' -> F.TForall tvName k' r) ty' tvs
+lowerType (C.TForall (C.MkTVar tvName tvKind) ty) = F.TForall tvName <$> lowerKind tvKind <*> lowerType ty
 lowerType (C.TFun t1 eff t2) = F.TFun <$> lowerType t1 <*> lowerType eff <*> lowerType t2
 lowerType (C.TConstraint c ty) = F.TFun <$> lowerConstraint c <*> pure F.TEffUR <*> lowerType ty -- Constraints are desugard to dictionary applications
 lowerType (C.TRowClosed tys) = do

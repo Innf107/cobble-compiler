@@ -41,7 +41,7 @@ addForall :: Type -> Type
 addForall t@TForall{} = t
 addForall t = case freeTyVarsOrdered t of
     []      -> t
-    freeTVs -> TForall freeTVs t
+    freeTVs -> foldr TForall t freeTVs
 
 insertAfterForalls :: (Type -> Type) -> Type -> Type
 insertAfterForalls f (TForall tvs ty) = TForall tvs (insertAfterForalls f ty)

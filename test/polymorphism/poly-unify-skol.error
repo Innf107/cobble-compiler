@@ -3,9 +3,9 @@ Unable to unify with a rigid type variable
    Expected: #a_10
      Actual: #b_11
 • When unifying
-    Expected type:    ((∀a_0 b_1. a_0) -{$μ_9}> Internal.Int)
-    with actual type: ((∀c_4 d_5. d_5) -{#μ_8}> Internal.Int)
-• In the definition of: g :: (∀μ_6. ((∀c_4 d_5. d_5) -{μ_6}> Internal.Int))
+    Expected type:    ((∀a_0. (∀b_1. a_0)) -{$μ_9}> Internal.Int)
+    with actual type: ((∀c_4. (∀d_5. d_5)) -{#μ_8}> Internal.Int)
+• In the definition of: g :: (∀μ_6. ((∀c_4. (∀d_5. d_5)) -{μ_6}> Internal.Int))
 |
 |    g = f;
 |
