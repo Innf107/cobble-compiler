@@ -185,7 +185,7 @@ pattern TyApp li ty e = ExprX (TyApp_ ty e) li
 
 pattern TyAbs :: (XExpr p ~ CodegenExt) => LexInfo -> TVar -> Expr Codegen -> Expr p
 pattern TyAbs li tv e = ExprX (TyAbs_ tv e) li
--- makeCompleteX ''Expr ['TyApp, 'TyAbs] is defined at the bottom of this file.
+-- makeCompleteX ''Expr ['TyApp, 'TyAbs, 'DictAbs, 'DictVarApp, 'DictApp] is defined at the bottom of this file.
 
 pattern DictAbs :: (XExpr p ~ CodegenExt) => LexInfo -> QualifiedName -> Constraint -> Expr Codegen -> Expr p
 pattern DictAbs li x c e = ExprX (DictAbs_ x c e) li
@@ -367,9 +367,6 @@ data Kind = KStar
 infixr 5 `KFun`
 
 instance Binary Kind
-
-data TGiven  = TGiven  Constraint LexInfo deriving (Show, Eq, Generic, Data, Typeable)
-data TWanted = TWanted Constraint LexInfo deriving (Show, Eq, Generic, Data, Typeable)
 
 type family XKind (p :: Pass)
 

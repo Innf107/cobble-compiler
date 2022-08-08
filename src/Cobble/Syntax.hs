@@ -33,7 +33,7 @@ class HasType t where
 instance HasType (Expr 'Codegen) where
     getType = \case
         App t _ _ _                         -> t
-        Var (t, _) _ _                      -> t
+        Var t _ _                           -> t
         VariantConstr (t,_,_) _ _           -> t
         Case t _ _ _                        -> t
         IntLit _ _ _                        -> intT
@@ -49,7 +49,7 @@ instance HasType (Expr 'Codegen) where
         DictApp _ e _                       -> getType e -- TODO: Should apply dictionary
     setType t = \case
         App _ x y z                         -> App t x y z
-        Var (_, x) y z                      -> Var (t, x) y z
+        Var _ y z                           -> Var t y z
         VariantConstr (_,x,y) z w           -> VariantConstr (t, x, y) z w
         Case _ x y z                        -> Case t x y z
         i@IntLit{}                          -> i
@@ -65,8 +65,8 @@ instance HasType (Expr 'Codegen) where
         DictApp li e arg                    -> DictVarApp li (setType t e) arg
 
 instance HasType (Decl Codegen) where
-    getType (Decl (t, _) _ _ _)   = t
-    setType t (Decl (_, x) y z w) = Decl (t, x) y z w
+    getType (Decl t _ _ _)   = t
+    setType t (Decl _ y z w) = Decl t y z w
 
 instance HasType (Pattern Codegen) where
     getType (IntP () n)              = intT

@@ -124,7 +124,7 @@ lowerExpr (C.If ty _ c th el) = F.If
                                 <$> lowerExpr c
                                 <*> lowerExpr th
                                 <*> lowerExpr el
-lowerExpr (C.Let () _ (C.Decl (ty, _) f xs e1) e2) = do
+lowerExpr (C.Let () _ (C.Decl ty f xs e1) e2) = do
     e1' <- lowerExpr e1
     F.Let f
         <$> lowerType ty

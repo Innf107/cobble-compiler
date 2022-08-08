@@ -122,3 +122,21 @@ makeCompleteX tyName pats = reify tyName >>= \case
                 | last (nameBase name) == 'X' -> Nothing
                 | otherwise                   -> Just name
             c -> error $ "makeCompleteX: non-standard constructor: " <> show c
+
+-- This is currently unused. It would be quite nice to automatically generate concrete substitutable instances in the future
+deriveSubstitutable :: Name -> Q [Dec]
+deriveSubstitutable tyName = reify tyName >>= \case
+    (TyConI (DataD [] _ _ _ constrs _)) -> do
+        let matches :: [MatchQ] = constrs & map \case
+                NormalC conName (map snd -> argTys) -> do
+                    let vars = zipWith const var_supply argTys
+                    let withApplySubst var = AppE (AppE (VarE (mkName "applySubst")) (VarE (mkName "subst"))) (VarE var)
+                    let body = foldl' AppE (ConE conName) (map withApplySubst vars)
+                    pure $ Match (ConP conName (fmap VarP vars)) (NormalB body) []
+                con -> fail $ "deriveSubstitutable: non-standard data constructor: " <> show con
+        let case_expr :: ExpQ = caseE [|x|] matches
+        methods :: [Dec] <- [d|applySubst subst x = $case_expr |]
+        pure <$> instanceD (pure []) (appT (conT (mkName "Substitutable")) (conT tyName)) (map pure methods)
+        where
+            var_supply = [mkName ("x" <> show i) | i <- [(0 :: Integer)..]]
+    ty -> fail $ "deriveSubstitutable: non-standard data type: " <> show ty

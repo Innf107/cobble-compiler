@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 module Cobble.Typechecker where
 
 import Cobble.Prelude hiding (subsume)
@@ -270,7 +271,7 @@ checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = withContext (InDef
     e' <- runReader (MkTagged Nothing) $ check (foldr (\(x,ty,_) -> insertType x ty) env' xs') e eTy eff
     let lambdas = w $ makeLambdas li e' xs'
 
-    pure (Decl (expectedTy, []) f [] lambdas, env')
+    pure (Decl expectedTy f [] lambdas, env')
         where
             makeLambdas :: LexInfo -> Expr NextPass -> Seq (QualifiedName, Type, Effect) -> Expr NextPass
             makeLambdas li = foldr (\(x, ty, eff) e -> Lambda (TFun ty eff (getType e), ty, eff) li x e)
@@ -327,13 +328,13 @@ check env (Let () li decl@(Decl () f xs e1) e2) t eff = runReader li do
 
     eff !~ e1Eff
 
-    Let () li (Decl (getType e1', []) f xs' e1') <$> check (insertType f (getType e1') env) e2 t eff
+    Let () li (Decl (getType e1') f xs' e1') <$> check (insertType f (getType e1') env) e2 t eff
 
 
 check env (Var () li x) t _eff = runReader li do
     let xTy = lookupType x env
     w <- subsume xTy t
-    pure $ w (Var (t, []) li x)
+    pure $ w (Var t li x)
 
 check env (Ascription () li e (coercePass -> t1)) t2 eff = runReader li do
     e' <- check env e t1 eff
@@ -528,14 +529,14 @@ infer env (Let () li decl@(Decl () f xs e1) e2) = runReader li do
 
     e1Eff !~ e2Eff
 
-    pure (Let () li (Decl (getType e1', []) f xs' e1') e2', e1Eff)
+    pure (Let () li (Decl (getType e1') f xs' e1') e2', e1Eff)
 
 infer env (Var () li x) = runReader li do
     let xTy = lookupType x env
     (ty, w) <- instantiate xTy
 
     eff <- freshEffectRow
-    pure (w (Var (ty, []) li x), eff)
+    pure (w (Var ty li x), eff)
 
 infer env (Ascription () li e t) = runReader li do
     eff <- freshEffectRow
@@ -667,7 +668,7 @@ lambdasToDecl :: HasCallStack => LexInfo -> QualifiedName -> Expr NextPass -> In
 lambdasToDecl li f = go []
     where
         go :: Seq (QualifiedName, Type) -> Expr NextPass -> Int -> Decl NextPass
-        go args e 0                         = Decl (getType e, []) f (reverse args) e
+        go args e 0                         = Decl (getType e) f (reverse args) e
         go args (Lambda (_, t, _) _ x e) n  = go ((x,t)<|args) e (n - 1)
         go args e n                         = error $ "Typechecker.lambdasToDecl: suppplied lambda did not have enough parameters.\n  Remaining parameters: " <> show n <> "\n  Expression: " <> show e
 
@@ -984,16 +985,169 @@ skolemize ty = pure (ty, id)
 freshSkol :: Members '[Fresh Text QualifiedName] r => TVar -> Sem r Type
 freshSkol tv@(MkTVar n _) = flip TSkol tv <$> freshVar (originalName n)
 
-applySubst :: Data from => Substitution -> from -> from
-applySubst s@Subst{substVarTys, substDicts} = applyDictSubst . applyTySubst
-    where
-        applyTySubst = transformBi \case
-            TUnif a' | Just t' <- lookup a' substVarTys -> t'
-            x -> x
-        applyDictSubst = transformBi \case
-            -- GHC's type checking doesn't terminate if we omit the type signature
-            ExprX (DictVarApp_ e dictVar) li :: Expr Codegen | Just dict <- lookup dictVar substDicts -> DictApp li e dict
-            x -> x
+-- The @ignoreSubst@ method is used for type instances that don't actually do anything 
+-- but are only used to allow recursion (e.g. the one for QualifiedName). 
+-- The method instructs recursive instances (such as the one for Seq) to ignore
+-- these completely, thereby saving potentially expensive traversals at runtime and improving asymptotics
+class Substitutable a where
+    applySubst :: Substitution -> a -> a
+    ignoreSubst :: Bool
+    ignoreSubst = False
+
+-- The main instances
+instance Substitutable Type where
+    applySubst (Subst {
+        substVarTys, substDicts
+    }) = replaceUnifs substVarTys
+    ignoreSubst = False
+
+instance Substitutable (Expr NextPass) where
+    applySubst subst = \case
+        -- The interesting case
+        DictVarApp li e dictVar 
+            | Just dict <- lookup dictVar (substDicts subst) -> DictApp li (applySubst subst e) dict
+            | otherwise -> DictVarApp li (applySubst subst e) dictVar
+        -- Recursive boilerplate
+        App x li e1 e2 -> App (applySubst subst x) li (applySubst subst e1) (applySubst subst e2)
+        IntLit x li i -> IntLit (applySubst subst x) li i
+        If x li cond th el -> If (applySubst subst x) li (applySubst subst cond) (applySubst subst th) (applySubst subst el)
+        Let x li decl rest -> Let (applySubst subst x) li (applySubst subst decl) (applySubst subst rest)
+        Var x li var -> Var (applySubst subst x) li (applySubst subst var)
+        VariantConstr x li constr -> VariantConstr (applySubst subst x) li (applySubst subst constr)
+        Case x li scrut cases -> Case (applySubst subst x) li (applySubst subst scrut) (applySubst subst cases)
+        Lambda x li var expr -> Lambda (applySubst subst x) li (applySubst subst var) (applySubst subst expr)
+        Handle x li scrut handlers ret -> Handle (applySubst subst x) li (applySubst subst scrut) (applySubst subst handlers) (applySubst subst ret)
+        Resume x li expr -> Resume (applySubst subst x) li (applySubst subst expr)
+        TyApp li ty expr -> TyApp li (applySubst subst ty) (applySubst subst expr)
+        TyAbs li tv expr -> TyAbs li tv (applySubst subst expr)
+        DictAbs li dv constr expr -> DictAbs li (applySubst subst dv) (applySubst subst constr) (applySubst subst expr)
+        DictApp li e dv -> DictApp li (applySubst subst e) (applySubst subst dv)
+
+
+-- Concrete recursive instances
+instance Substitutable (Statement NextPass) where
+    applySubst subst = \case
+        Def x li decl ty -> Def (applySubst subst x) li (applySubst subst decl) (applySubst subst ty)
+        Import x li n -> Import (applySubst subst x) li (applySubst subst n)
+        DefClass x li n tvs def -> DefClass (applySubst subst x) li (applySubst subst n) (applySubst subst tvs) (applySubst subst def)
+        DefInstance x li n ty defs -> DefInstance (applySubst subst x) li (applySubst subst n) (applySubst subst ty) (applySubst subst defs)
+        DefVariant x li n tvs defs -> DefVariant (applySubst subst x) li (applySubst subst n) (applySubst subst tvs) (applySubst subst defs)
+        DefEffect x li n tvs defs -> DefEffect (applySubst subst x) li (applySubst subst n) (applySubst subst tvs) (applySubst subst defs)
+
+instance Substitutable Constraint where
+    applySubst subst (MkConstraint cname kind ty) = MkConstraint cname kind (applySubst subst ty)
+
+instance Substitutable TypeContext where
+    applySubst subst = \case
+        WhenUnifying t1 t2 -> WhenUnifying (applySubst subst t1) (applySubst subst t2)
+        WhenCheckingWanted c -> WhenCheckingWanted (applySubst subst c)
+        InDefinitionFor x ty -> InDefinitionFor x (applySubst subst ty)
+
+instance Substitutable TConstraint where
+    applySubst subst (MkTConstraint constr li cxt) = MkTConstraint (applySubst subst constr) li (applySubst subst cxt)
+
+instance Substitutable TConstraintComp where
+    applySubst subst = \case
+        ConUnify ty1 ty2 -> ConUnify (applySubst subst ty1) (applySubst subst ty1)
+        ConWanted con dictVar
+            | Just dictVar' <- lookup dictVar (substDicts subst) -> ConWanted (applySubst subst con) dictVar'
+            | otherwise -> ConWanted (applySubst subst con) dictVar
+        ConGiven con dictVar            
+            | Just dictVar' <- lookup dictVar (substDicts subst) -> ConGiven (applySubst subst con) dictVar'
+            | otherwise -> ConGiven (applySubst subst con) dictVar
+
+
+instance Substitutable (Pattern NextPass) where
+    applySubst subst = \case
+        IntP x n -> IntP (applySubst subst x) (applySubst subst n)
+        VarP x var -> VarP (applySubst subst x) (applySubst subst var)
+        ConstrP x constr args -> ConstrP (applySubst subst x) (applySubst subst constr) (applySubst subst args)
+        WildcardP x -> WildcardP (applySubst subst x)
+        OrP x pats -> OrP (applySubst subst x) (applySubst subst pats)
+
+instance Substitutable TypeVariant where
+    applySubst subst = \case
+        VariantType tvs defs -> VariantType (applySubst subst tvs) (applySubst subst defs)
+        BuiltInType -> BuiltInType
+        TyClass tvs defs -> TyClass (applySubst subst tvs) (applySubst subst defs)
+        TyEffect tvs defs -> TyEffect (applySubst subst tvs) (applySubst subst defs)
+
+instance Substitutable (EffHandler NextPass) where
+    applySubst subst (EffHandler x li opName param expr) = EffHandler (applySubst subst x) li (applySubst subst opName) (applySubst subst param) (applySubst subst expr)
+
+instance Substitutable (CaseBranch NextPass) where
+    applySubst subst (CaseBranch x li p expr) = CaseBranch (applySubst subst x) li (applySubst subst p) (applySubst subst expr)
+
+
+instance Substitutable (Decl NextPass) where
+    applySubst subst (Decl x n ps e) = Decl (applySubst subst x) (applySubst subst n) (applySubst subst ps) (applySubst subst e)
+
+-- Generic recursive instances
+instance Substitutable a => Substitutable (Seq a) where
+    applySubst s = if ignoreSubst @a then id else map (applySubst s)
+    ignoreSubst = ignoreSubst @a
+
+instance Substitutable a => Substitutable (Maybe a) where
+    applySubst s = if ignoreSubst @a then id else fmap (applySubst s)
+    ignoreSubst = ignoreSubst @a
+
+instance (Substitutable a) => Substitutable (Map k a) where
+    applySubst s = if ignoreSubst @a then id else fmap (applySubst s)
+    ignoreSubst = ignoreSubst @a
+
+instance (Substitutable a, Substitutable b) => Substitutable (a, b) where
+    -- Actually branching on @ignoreSubst@ here is not going to save any performance, 
+    -- since functions with @ignoreSubst@ set should not perform any work anyway
+    applySubst s (x, y) = (applySubst s x, applySubst s y)
+    ignoreSubst = ignoreSubst @a && ignoreSubst @b
+
+instance (Substitutable a, Substitutable b, Substitutable c) => Substitutable (a, b, c) where
+    applySubst s (x, y, z) = (applySubst s x, applySubst s y, applySubst s z)
+    ignoreSubst = ignoreSubst @a && ignoreSubst @b && ignoreSubst @c
+
+instance (Substitutable a, Substitutable b, Substitutable c, Substitutable d) => Substitutable (a, b, c, d) where
+    applySubst s (x, y, z, w) = (applySubst s x, applySubst s y, applySubst s z, applySubst s w)
+    ignoreSubst = ignoreSubst @a && ignoreSubst @b && ignoreSubst @c && ignoreSubst @d
+
+-- These instances are not actually meaningful at all, but they
+-- might allow other recursive instances to fire (especially the one for (,)),
+-- so they are often useful in practice
+instance Substitutable QualifiedName where
+    applySubst _ = id
+    ignoreSubst = True
+instance Substitutable LexInfo where
+    applySubst _ = id
+    ignoreSubst = True
+instance Substitutable () where
+    applySubst _ = id
+    ignoreSubst = True
+instance Substitutable Void where
+    applySubst _ = id
+    ignoreSubst = True
+instance Substitutable Int where
+    applySubst _ = id
+    ignoreSubst = True
+instance Substitutable TVar where
+    applySubst _ = id
+    ignoreSubst = True
+-- This one might change with polykinds!
+instance Substitutable Kind where
+    applySubst _ = id
+    ignoreSubst = True
+instance Substitutable Fixity where
+    applySubst _ = id
+    ignoreSubst = True
+
+-- applySubst :: Data from => Substitution -> from -> from
+-- applySubst s@Subst{substVarTys, substDicts} = applyDictSubst . applyTySubst
+--     where
+--         applyTySubst = transformBi \case
+--             TUnif a' | Just t' <- lookup a' substVarTys -> t'
+--             x -> x
+--         applyDictSubst = transformBi \case
+--             -- GHC's type checking doesn't terminate if we omit the type signature
+--             ExprX (DictVarApp_ e dictVar) li :: Expr Codegen | Just dict <- lookup dictVar substDicts -> DictApp li e dict
+--             x -> x
 
 
 

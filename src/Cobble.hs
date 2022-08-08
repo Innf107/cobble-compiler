@@ -219,7 +219,7 @@ extractSig (S.Module _deps _n sts) = foldMap makePartialSig sts
 
 makePartialSig :: S.Statement 'Codegen -> ModSig
 makePartialSig = \case
-    Def mfixity _ (Decl (_, gs) n _ _) t -> mempty {exportedVars = one (n, t), exportedFixities = fromList $ (n,) <$> toList mfixity} -- TODO: what about gs?
+    Def mfixity _ (Decl _ n _ _) t -> mempty {exportedVars = one (n, t), exportedFixities = fromList $ (n,) <$> toList mfixity} -- TODO: what about gs?
     DefClass k _ n ps meths   -> mempty 
         {   exportedTypes = one (n, (k, TyClass ps meths))
         ,   exportedVars  = fromList $ 

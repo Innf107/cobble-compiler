@@ -13,7 +13,7 @@ import Cobble.Syntax.QualifiedName
 
 type instance XModule Codegen = Map Text ModSig
 
-type instance XDecl      Codegen = (Type, (Seq TGiven))
+type instance XDecl      Codegen = Type
 type instance XParam     Codegen = (Seq (Name Codegen, Type))
 
 type instance XDef              Codegen = Maybe Fixity
@@ -32,7 +32,7 @@ type instance XFCall            Codegen = Type
 type instance XIntLit           Codegen = ()
 type instance XIf               Codegen = Type
 type instance XLet              Codegen = ()
-type instance XVar              Codegen = (Type, (Seq TWanted))
+type instance XVar              Codegen = (Type)
 type instance XAscription       Codegen = Void
 type instance XVariantConstr    Codegen = (Type, Type, Int)
 type instance XCase             Codegen = Type
