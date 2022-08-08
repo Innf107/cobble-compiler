@@ -169,6 +169,8 @@ typecheckStatements env (st :<| sts) = do
     dump constraints
     subst <- solveConstraints (_tcInstances env') mempty constraints
     
+    traceM TraceSubst (show subst)
+
     (applySubst subst st' <|) <$> typecheckStatements env' sts
 typecheckStatements env Empty = pure Empty
 
@@ -736,7 +738,7 @@ replaceUnifs tvs (TRowUnif tys var) = let replacedTys = map (replaceUnifs tvs) t
     Just (TRowUnif tys' var')       -> TRowUnif (replacedTys <> tys') var'
     Just (TRowVar tys' var')        -> TRowVar (replacedTys <> tys') var'
     Just (TRowSkol tys' skol var')  -> TRowSkol (replacedTys <> tys') skol var'
-    Just ty -> error $ "replaceTVars: Trying to replace variable '" <> show var <> "' in open row type '" <> show (TRowUnif tys var)
+    Just ty -> error $ "replaceUnifs: Trying to replace variable '" <> show var <> "' in open row type '" <> show (TRowUnif tys var)
                         <> "' with non-row type: " <> show ty
 replaceUnifs tvs (TRowVar tys var) = TRowVar (map (replaceUnifs tvs) tys) var
 replaceUnifs tvs (TRowSkol tys skol var) = TRowSkol (map (replaceUnifs tvs) tys) skol var
@@ -999,7 +1001,6 @@ instance Substitutable Type where
     applySubst (Subst {
         substVarTys, substDicts
     }) = replaceUnifs substVarTys
-    ignoreSubst = False
 
 instance Substitutable (Expr NextPass) where
     applySubst subst = \case
@@ -1028,7 +1029,6 @@ instance Substitutable (Expr NextPass) where
 instance Substitutable (Statement NextPass) where
     applySubst subst = \case
         Def x li decl ty -> Def (applySubst subst x) li (applySubst subst decl) (applySubst subst ty)
-        Import x li n -> Import (applySubst subst x) li (applySubst subst n)
         DefClass x li n tvs def -> DefClass (applySubst subst x) li (applySubst subst n) (applySubst subst tvs) (applySubst subst def)
         DefInstance x li n ty defs -> DefInstance (applySubst subst x) li (applySubst subst n) (applySubst subst ty) (applySubst subst defs)
         DefVariant x li n tvs defs -> DefVariant (applySubst subst x) li (applySubst subst n) (applySubst subst tvs) (applySubst subst defs)
