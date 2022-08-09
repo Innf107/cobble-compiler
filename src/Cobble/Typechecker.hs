@@ -672,7 +672,7 @@ lambdasToDecl li f = go []
         go :: Seq (QualifiedName, Type) -> Expr NextPass -> Int -> Decl NextPass
         go args e 0                         = Decl (getType e) f (reverse args) e
         go args (Lambda (_, t, _) _ x e) n  = go ((x,t)<|args) e (n - 1)
-        go args e n                         = error $ "Typechecker.lambdasToDecl: suppplied lambda did not have enough parameters.\n  Remaining parameters: " <> show n <> "\n  Expression: " <> show e
+        go _ e n                         = error $ "Typechecker.lambdasToDecl: suppplied lambda did not have enough parameters.\n  Remaining parameters: " <> show n <> "\n  Expression: " <> show e
 
 freshEffectRow :: Members '[Fresh Text QualifiedName] r => Sem r Type
 freshEffectRow = freshUnif (KRow KEffect)
@@ -715,14 +715,14 @@ replaceUnif :: TVar -> Type -> Type -> Type
 replaceUnif tv ty = replaceUnifs (one (tv, ty))
 
 replaceUnifs :: HasCallStack => Map TVar Type -> Type -> Type
-replaceUnifs tvs ty@TTyVar{} = ty
+replaceUnifs _ ty@TTyVar{} = ty
 replaceUnifs tvs ty@(TUnif tv) = case lookup tv tvs of
                 Just ty' -> ty'
                 Nothing -> ty
-replaceUnifs tvs ty@TCon{} = ty
-replaceUnifs tvs ty@TSkol{} = ty
-replaceUnifs tvs ty@(TApp t1 t2) = TApp (replaceUnifs tvs t1) (replaceUnifs tvs t2)
-replaceUnifs tvs ty@(TFun a eff b) = TFun (replaceUnifs tvs a) (replaceUnifs tvs eff) (replaceUnifs tvs b)
+replaceUnifs _ ty@TCon{} = ty
+replaceUnifs _ ty@TSkol{} = ty
+replaceUnifs tvs (TApp t1 t2) = TApp (replaceUnifs tvs t1) (replaceUnifs tvs t2)
+replaceUnifs tvs (TFun a eff b) = TFun (replaceUnifs tvs a) (replaceUnifs tvs eff) (replaceUnifs tvs b)
 replaceUnifs tvs (TForall forallTV ty) =
                 let remainingTVs = M.delete forallTV tvs in
                 TForall forallTV $ replaceUnifs remainingTVs ty
@@ -750,11 +750,11 @@ replaceTyVars :: HasCallStack => Map TVar Type -> Type -> Type
 replaceTyVars tvs ty@(TTyVar tv) = case lookup tv tvs of
                 Just ty' -> ty'
                 Nothing -> ty
-replaceTyVars tvs ty@TUnif{} = ty
-replaceTyVars tvs ty@TCon{} = ty
-replaceTyVars tvs ty@TSkol{} = ty
-replaceTyVars tvs ty@(TApp t1 t2) = TApp (replaceTyVars tvs t1) (replaceTyVars tvs t2)
-replaceTyVars tvs ty@(TFun a eff b) = TFun (replaceTyVars tvs a) (replaceTyVars tvs eff) (replaceTyVars tvs b)
+replaceTyVars _tvs ty@TUnif{} = ty
+replaceTyVars _tvs ty@TCon{} = ty
+replaceTyVars _tvs ty@TSkol{} = ty
+replaceTyVars tvs (TApp t1 t2) = TApp (replaceTyVars tvs t1) (replaceTyVars tvs t2)
+replaceTyVars tvs (TFun a eff b) = TFun (replaceTyVars tvs a) (replaceTyVars tvs eff) (replaceTyVars tvs b)
 replaceTyVars tvs (TForall forallTV ty) =
                 let remainingTVs = M.delete forallTV tvs in
                 TForall forallTV $ replaceTyVars remainingTVs ty
@@ -799,7 +799,7 @@ solveWanteds :: (Trace, Members '[Error TypeError, Fresh Text QualifiedName] r)
                  --                              v^dict
                 -> Seq (Constraint, QualifiedName, LexInfo, Seq TypeContext)
                 -> Sem r Substitution
-solveWanteds givens Empty = pure mempty
+solveWanteds _givens Empty = pure mempty
 solveWanteds givens ((c@(MkConstraint cname k ty), dictVar, li, cxt) :<| wanteds) = 
     runContextInitial cxt $ runReader li $ withContext (WhenCheckingWanted c) do
         case lookup cname givens of
@@ -831,7 +831,7 @@ unify :: (Trace, Members '[Error TypeError, Context TypeContext, Reader LexInfo,
       -> Type
       -> Sem r Substitution
 unify t1 t2 | trace TraceUnify ("[unify]: " <> show t1 <> " ~ " <> show t2) False = error "unreachable"
-unify t1@(TCon c1 _) t2@(TCon c2 _)
+unify (TCon c1 _) (TCon c2 _)
     | c1 == c2 = pure mempty
     | otherwise = throwType $ DifferentTCon c1 c2
 unify (TUnif tv) t2 = bind tv t2
@@ -845,8 +845,7 @@ unify (TFun a1 eff1 b1) (TFun a2 eff2 b2) = do
     (subst' <>) <$> unify (applySubst subst' b1) (applySubst subst' b2)
 unify t1@TSkol{} t2@TSkol{}
     | t1 == t2 = pure mempty
-unify poly1@(TForall tv1 ty1) poly2@(TForall tv2 ty2)
-    | otherwise = do
+unify (TForall tv1 ty1) (TForall tv2 ty2) = do
         -- We unify foralls up to α-equivalence by substituting the forall variables in both polytypes
         -- with a shared fresh skolem (We arbitrarily build this skolem out of the variable from @poly1@)
         skol <- freshSkol tv1
@@ -878,14 +877,14 @@ unify row1@(TRowSkol t1s skol1 var1) row2@(TRowSkol t2s skol2 var2)
         remaining -> throwType $ RemainingRowFields remaining row1 row2 
 
 
-unify row1@(TRowUnif t1s tvar1@(MkTVar _ kind)) row2@(TRowUnif t2s tvar2) = do
+unify (TRowUnif t1s tvar1@(MkTVar _ kind)) (TRowUnif t2s tvar2) = do
     headT1s <- traverse (\ty -> (\(name, tys) -> (name, (tys, ty))) <$> getHeadConstr ty) t1s
     headT2s <- traverse (\ty -> (\(name, tys) -> (name, (tys, ty))) <$> getHeadConstr ty) t2s
     go headT1s headT2s []
         where
             go ((con1, (args1, ty1)) :<| t1s) t2s remaining1 = do
                 case lookupAndDelete con1 t2s of
-                    Nothing -> ask >>= \li -> go t1s t2s (ty1 <| remaining1) -- TODO: prepend or append? This is probably important with duplicate labels.
+                    Nothing -> go t1s t2s (ty1 <| remaining1) -- TODO: prepend or append? This is probably important with duplicate labels.
                     Just ((args2, _), t2s') -> do
                         subst <- unifyAll args1 args2
                         (subst<>) <$> go (applySubst subst t1s) (applySubst subst t2s') remaining1
@@ -942,7 +941,7 @@ unifyAll t1s t2s = error $ "unifyAll: differently sized type seqs '" <> show t1s
 getHeadConstr :: Members '[Reader LexInfo, Error TypeError, Context TypeContext] r 
               => Type 
               -> Sem r (QualifiedName, Seq Type)
-getHeadConstr (TCon qname k) = pure (qname, [])
+getHeadConstr (TCon qname _k) = pure (qname, [])
 getHeadConstr (TApp t1 t2) = do
     (headC, args) <- getHeadConstr t1
     pure (headC, args |> t2)
@@ -999,7 +998,7 @@ class Substitutable a where
 -- The main instances
 instance Substitutable Type where
     applySubst (Subst {
-        substVarTys, substDicts
+        substVarTys, substDicts=_substDicts
     }) = replaceUnifs substVarTys
 
 instance Substitutable (Expr NextPass) where
@@ -1048,7 +1047,7 @@ instance Substitutable TConstraint where
 
 instance Substitutable TConstraintComp where
     applySubst subst = \case
-        ConUnify ty1 ty2 -> ConUnify (applySubst subst ty1) (applySubst subst ty1)
+        ConUnify ty1 ty2 -> ConUnify (applySubst subst ty1) (applySubst subst ty2)
         ConWanted con dictVar
             | Just dictVar' <- lookup dictVar (substDicts subst) -> ConWanted (applySubst subst con) dictVar'
             | otherwise -> ConWanted (applySubst subst con) dictVar

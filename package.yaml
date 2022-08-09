@@ -56,7 +56,6 @@ ghc-options:
 - -Wincomplete-uni-patterns
 - -Wno-unused-imports
 - -Wno-unticked-promoted-constructors
-- -Wno-unused-matches
 - -Wno-name-shadowing
 - -Wredundant-constraints
 - -Werror=incomplete-patterns
