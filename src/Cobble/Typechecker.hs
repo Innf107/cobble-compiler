@@ -588,8 +588,8 @@ infer env (Lambda () li x e) = do
     -- effect type.
     lamEff <- freshEffectRow 
     pure (Lambda (TFun xTy eEff (getType e'), xTy, lamEff) li x e', lamEff)
-infer env expr@(Handle () li scrut handlers mreturnClause) = runReader li do
-    -- Defer to checking against a type variable here
+infer env expr@(Handle () li _ _ _) = runReader li do
+    -- Defer to checking against a type variable here. TODO: I think this cannot infer polytypes, so that might be an issue
     resTy <- freshUnif KStar
     resEff <- freshEffectRow
     expr' <- check env expr resTy resEff
@@ -664,15 +664,6 @@ decomposeParams ty (x :<| xs) = do
     (argTy, eff, resTy, w) <- decomposeFun ty 
     (restArgTys, restResTy, mEff, w') <- decomposeParams resTy xs
     pure ((x,argTy, eff) <| restArgTys, restResTy, mEff <|> Just eff, w . w')
-
-
-lambdasToDecl :: HasCallStack => LexInfo -> QualifiedName -> Expr NextPass -> Int -> Decl NextPass
-lambdasToDecl li f = go []
-    where
-        go :: Seq (QualifiedName, Type) -> Expr NextPass -> Int -> Decl NextPass
-        go args e 0                         = Decl (getType e) f (reverse args) e
-        go args (Lambda (_, t, _) _ x e) n  = go ((x,t)<|args) e (n - 1)
-        go _ e n                         = error $ "Typechecker.lambdasToDecl: suppplied lambda did not have enough parameters.\n  Remaining parameters: " <> show n <> "\n  Expression: " <> show e
 
 freshEffectRow :: Members '[Fresh Text QualifiedName] r => Sem r Type
 freshEffectRow = freshUnif (KRow KEffect)
