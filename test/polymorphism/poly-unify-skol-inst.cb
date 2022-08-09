@@ -1,7 +1,0 @@
-module test;
-
-f :: (forall a b. a) -> Int;
-f _ = 5;
-
-g :: (forall c d. d) -> Int;
-g h = f h;

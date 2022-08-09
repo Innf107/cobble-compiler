@@ -1,0 +1,19 @@
+module test;
+
+f :: (forall a b. a) -> Int;
+f _ = 5;
+
+-- This is hard, because in Core, we have to insert type abstractions and applications
+-- for h. Building up abstractions and applications is not an issue. The generated Core
+-- looks something like this
+--
+--    g h = f (/\a. /\b. h @??? @a)
+--
+-- The issue here is figuring out which type to insert for ???.
+-- The type variable is entirely unused in the type of g,
+-- so we could theoretically use anything.
+-- GHC uses a magical type `GHC.Types.Any` for this. 
+-- We could do the same; the difficult part is just figuring out when to
+-- use `Any` and when to error on residual unification variables.
+g :: (forall c d. d) -> Int;
+g h = f h;
