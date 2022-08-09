@@ -1,5 +1,14 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-module Cobble.Typechecker where
+module Cobble.Typechecker (
+    typecheck
+,   TypeError(..)
+,   TypeContext(..)
+
+,   ppTC            -- TODO: Are these even strictly necessary?
+,   ppTConstraint
+
+,   TCEnv(..)
+) where
 
 import Cobble.Prelude hiding (subsume)
 import Cobble.Util
@@ -685,15 +694,15 @@ rowInsert ty rowTy = error $ "rowInsert: Trying to insert into non-row type: " <
 -- types from the first one, disregarding the first ones row variable.
 -- It therefore has the same effect as instantiating the first type variable
 -- with the second row type *IFF* the first type variable is not used anywhere else.
-rowExtend :: HasCallStack => Type -> Type -> Type
-rowExtend (TRowUnif tys1 _) (TRowVar tys2 var2)        = TRowVar (tys1 <> tys2) var2
-rowExtend (TRowUnif tys1 _) (TRowUnif tys2 var2)       = TRowUnif (tys1 <> tys2) var2
-rowExtend (TRowUnif tys1 _) (TRowClosed tys2)          = TRowClosed (tys1 <> tys2)
-rowExtend (TRowUnif tys1 _) (TRowSkol tys2 skol2 var2) = TRowSkol (tys1 <> tys2) skol2 var2
-rowExtend (TRowUnif tys1 _) (TTyVar var2)              = TRowVar tys1 var2
-rowExtend (TRowUnif tys1 _) (TUnif var2)               = TRowUnif tys1 var2
-rowExtend (TRowUnif tys1 _) (TSkol skol2 var2)         = TRowSkol tys1 skol2 var2
-rowExtend t1 t2 = error $ "rowExtend: Trying to extend invalid types:\n    t1: " <> show t1 <> "\n    t2: " <> show t2
+_rowExtend :: HasCallStack => Type -> Type -> Type
+_rowExtend (TRowUnif tys1 _) (TRowVar tys2 var2)        = TRowVar (tys1 <> tys2) var2
+_rowExtend (TRowUnif tys1 _) (TRowUnif tys2 var2)       = TRowUnif (tys1 <> tys2) var2
+_rowExtend (TRowUnif tys1 _) (TRowClosed tys2)          = TRowClosed (tys1 <> tys2)
+_rowExtend (TRowUnif tys1 _) (TRowSkol tys2 skol2 var2) = TRowSkol (tys1 <> tys2) skol2 var2
+_rowExtend (TRowUnif tys1 _) (TTyVar var2)              = TRowVar tys1 var2
+_rowExtend (TRowUnif tys1 _) (TUnif var2)               = TRowUnif tys1 var2
+_rowExtend (TRowUnif tys1 _) (TSkol skol2 var2)         = TRowSkol tys1 skol2 var2
+_rowExtend t1 t2 = error $ "rowExtend: Trying to extend invalid types:\n    t1: " <> show t1 <> "\n    t2: " <> show t2
 
 rowHead :: HasCallStack => Type -> Type
 rowHead (TRowVar (ty :<| _) _) = ty
@@ -702,8 +711,8 @@ rowHead (TRowClosed (ty :<| _)) = ty
 rowHead (TRowSkol (ty :<| _) _ _) = ty
 rowHead ty = error $ "rowHead: Not a non-empty row type: " <> show ty
 
-replaceUnif :: TVar -> Type -> Type -> Type
-replaceUnif tv ty = replaceUnifs (one (tv, ty))
+_replaceUnif :: TVar -> Type -> Type -> Type
+_replaceUnif tv ty = replaceUnifs (one (tv, ty))
 
 replaceUnifs :: HasCallStack => Map TVar Type -> Type -> Type
 replaceUnifs _ ty@TTyVar{} = ty
