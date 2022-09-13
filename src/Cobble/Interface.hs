@@ -8,6 +8,7 @@ import Data.Binary
 
 data Interface = Interface {
     interfaceModName :: Text
+,   interfaceImports :: [Text]
 ,   interfaceModSig :: ModSig
 ,   interfaceCoreModSig :: CoreModSig
 } deriving (Show, Eq, Generic, Data)

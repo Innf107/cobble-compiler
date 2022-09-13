@@ -158,9 +158,10 @@ compileContents path content = do
 
     result <- compileFromCore interfaces core
 
-    let (Module _ moduleName _) = modWithSigs
+    let (Module dependencySigs moduleName _) = modWithSigs
     let interface = Interface {
             interfaceModName = moduleName
+        ,   interfaceImports = keys dependencySigs
         ,   interfaceModSig = sig
         ,   interfaceCoreModSig = extractCoreSig core
         }

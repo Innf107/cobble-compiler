@@ -31,6 +31,8 @@ data BuildError = ProjectParseError ParseException
                 | UnknownPragma Text
                 deriving (Show, Generic)
 
+data LinkError = CyclicalDependencies [FilePath]
+
 data BuildOpts = BuildOpts {
     projectFile :: FilePath
 } deriving (Show, Eq, Generic, Data)
@@ -109,7 +111,7 @@ parseImports :: Members '[Error BuildError] r => Text -> Text -> Sem r (Text, Se
 --                                                                                | module name
 parseImports path code = do
     tokens <- mapError BuildLexicalError $ tokenize path code
-    ast@(Module _ modName sts) <- mapError BuildParseError $ fromEither $ parse module_ (toString path) tokens
+    (Module _ modName sts) <- mapError BuildParseError $ fromEither $ parse module_ (toString path) tokens
     (imports, _) <- mapError BuildModuleSolverError $ S.collectImports sts
     pure (modName, imports)
 
@@ -140,7 +142,7 @@ findFilesRecursive pred = go ""
                 if pred root then pure [takenPath] else pure []
 
 renderMakefile :: BuildOpts -> ProjectOpts -> Seq (Dependency, Seq Dependency) -> Sem r Text
-renderMakefile BuildOpts{projectFile} ProjectOpts{projectName, compiler, compilerOpts} deps
+renderMakefile BuildOpts{} ProjectOpts{projectName, compiler, compilerOpts} deps
     = pure $ all <> "\n" <> rules <> "\n" <> clean
     where
         clean :: Text
@@ -186,3 +188,6 @@ instance FromJSON ProjectOpts where
         <*> (p .: "compiler" <|> pure "cobble compile")
         <*> (p .: "compiler-options" <|> pure "")
 
+
+linkFiles :: [FilePath] -> IO ()
+linkFiles = undefined
