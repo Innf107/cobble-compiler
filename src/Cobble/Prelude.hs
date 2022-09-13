@@ -26,7 +26,6 @@ module Cobble.Prelude (
     , (\\)
     , diffEq
     , concat
-    , unstableNub
     , runOutputSeq
     , intercalate
     , state 
@@ -159,7 +158,7 @@ concatMap :: (Foldable t) => (a -> Seq b) -> t a -> Seq b
 concatMap = foldMap
 
 -- | O(nlog(n))
-(\\) :: forall a. (Eq a, Ord a) => Seq a -> Seq a -> Seq a
+(\\) :: forall a. (Ord a) => Seq a -> Seq a -> Seq a
 s1 \\ s2 = filter (`notMember` s2Set) s1
     where
         s2Set :: Set a
@@ -217,7 +216,7 @@ munion :: (Ord k, Semigroup v) => Map k v -> Map k v -> Map k v
 munion = M.unionWith (<>)
 
 lookupSeq :: Eq k => k -> Seq (k, v) -> Maybe v
-lookupSeq k Empty = Nothing
+lookupSeq _k Empty = Nothing
 lookupSeq k ((k', v) :<| rest)
     | k == k'   = Just v
     | otherwise = lookupSeq k rest

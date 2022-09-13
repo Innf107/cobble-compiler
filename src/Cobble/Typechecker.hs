@@ -181,7 +181,7 @@ typecheckStatements env (st :<| sts) = do
     traceM TraceSubst (show subst)
 
     (applySubst subst st' <|) <$> typecheckStatements env' sts
-typecheckStatements env Empty = pure Empty
+typecheckStatements _env Empty = pure Empty
 
 typecheckStatement :: (Trace, Members '[Fresh TVar TVar, Fresh Text QualifiedName, Output TConstraint, Reader (Tagged "ModName" Text), Context TypeContext] r)
                     => TCEnv
@@ -222,7 +222,7 @@ typecheckStatement env (DefInstance (classKind, methDefs, params, _isImported) l
         where
             stripConstraint c (TForall tv ty) = TForall tv (stripConstraint c ty)
             stripConstraint c (TConstraint c' ty) | c == c' = ty
-            stripConstraint c _ = error $ "typecheckStatement: non-constrained instance method at " <> show li
+            stripConstraint _c _ = error $ "typecheckStatement: non-constrained instance method at " <> show li
 
 typecheckStatement env (DefVariant k li tyName tvs constrs) = do
     let resTy = foldl' (\x y -> TApp x (TTyVar y)) (TCon tyName k) tvs
@@ -266,7 +266,7 @@ checkTopLevelDecl ::
 checkTopLevelDecl recursive env (Decl () f xs e) expectedTy = withContext (InDefinitionFor f expectedTy) do
     li <- ask
     (expectedTy', w) <- skolemize expectedTy
-    (xs', eTy, mEff, w') <- decomposeParams expectedTy' xs
+    (xs', eTy, mEff, _w') <- decomposeParams expectedTy' xs
     traceM TraceTC $ "[checkTopLevelDecl env (" <> show f <> ")]\n    expectedTy = " <> show expectedTy <> "\n    expectedTy' = " <> show expectedTy' <> "\n    xs' = " <> show xs' <> " | mEff = " <> show mEff <> " | eTy = " <> show eTy
 
     let env' = if recursive
@@ -303,7 +303,7 @@ check ::
       -> Type 
       -> Effect
       -> Sem r (Expr NextPass)
-check env e t eff | trace TraceTC ("[check]: Γ ⊢ " <> show e <> " : " <> ppType t <> " | " <> ppType eff) False = error "unreachable"
+check _env e t eff | trace TraceTC ("[check]: Γ ⊢ " <> show e <> " : " <> ppType t <> " | " <> ppType eff) False = error "unreachable"
 -- We need to 'correct' the extension field to resubstitute the skolems that were introduced by skolemize
 check env e t@TForall{} eff = runReader (getLexInfo e) do
     (t', w) <- skolemize t
@@ -322,7 +322,7 @@ check env (App () li f x) t eff = runReader li do
 
     pure $ w' (App t li (w f') x')
 
-check env (IntLit () li n) t _eff = runReader li $ do
+check _env (IntLit () li n) t _eff = runReader li $ do
     t !~ intT 
     pure (IntLit () li n)
 
@@ -332,7 +332,7 @@ check env (If () li c th el) t eff = do
     el' <- check env el t eff
     pure (If t li c' th' el')
 
-check env (Let () li decl@(Decl () f xs e1) e2) t eff = runReader li do
+check env (Let () li (Decl () f xs e1) e2) t eff = runReader li do
     xs' <- traverse (\x -> (x,) <$> freshUnif KStar) xs
 
     (e1', e1Eff) <- infer (foldr (uncurry insertType) env xs') e1
@@ -352,7 +352,7 @@ check env (Ascription () li e (coercePass -> t1)) t2 eff = runReader li do
     w <- subsume t1 t2
     pure $ w e'
 
-check env (VariantConstr (i, j) li c) t _eff = runReader li do
+check env (VariantConstr (_i, j) li c) t _eff = runReader li do
     let cTy = lookupType c env
     w <- subsume cTy t
     pure $ w (VariantConstr (t, cTy, j) li c)
@@ -377,11 +377,11 @@ check env (Lambda () li x e) t _eff = runReader li do
     pure $ w (Lambda (t, expectedArgTy, tEff) li x e')
 check env (Handle () li scrut handlers mreturnClause) t eff = runReader li do
     -- Check handlers
-    (handlerEffs, handlers') <- unzip <$> forM handlers \h@(EffHandler () li opName args e) -> runReader li do
+    (handlerEffs, handlers') <- unzip <$> forM handlers \(EffHandler () li opName args e) -> runReader li do
         let opType = lookupEffOpType opName env
 
         -- TODO: What should we do about w here?
-        (argsWithEffs', resTy, mresEff, w) <- decomposeParams opType args
+        (argsWithEffs', resTy, mresEff, _w) <- decomposeParams opType args
 
         -- _ <- error (show (w (IntLit () InternalLexInfo 5)))
 
@@ -454,26 +454,26 @@ checkPattern env pats ty = evalState mempty $ go Nothing env pats ty
            -> Pattern Typecheck
            -> Type
            -> Sem r (Pattern NextPass, TCEnv -> TCEnv)
-        go _ env (IntP () n) t = pure (IntP () n, id)
+        go _ _env (IntP () n) _t = pure (IntP () n, id)
         
-        go Nothing env (VarP () x) t = do 
+        go Nothing _env (VarP () x) t = do 
             modify (insert x t)
             pure (VarP t x, insertType x t)
         
-        go (Just orPatTys) env (VarP () x) t = case lookup x orPatTys of
+        go (Just orPatTys) _env (VarP () x) t = case lookup x orPatTys of
             Nothing -> error $ "checkPattern: variable '" <> show x <> "' not bound by or pattern. orPatTys=" <> show orPatTys
             Just ty -> do
                 t !~ ty -- TODO: Use subsumption?
                 pure (VarP t x, id)
 
         go mOrPatTys env (ConstrP (i,v) cname ps) t = do
-            (constrTy, w) <- instantiate (lookupType cname env)
-            (typedPats, resTy, _meff, w') <- decomposeParams constrTy ps
+            (constrTy, _w) <- instantiate (lookupType cname env)
+            (typedPats, resTy, _meff, _w') <- decomposeParams constrTy ps
             -- TODO: I don't know...
             resTy !~ t
             (ps', exts) <- unzip <$> forM typedPats \(p, pTy, _eff) -> go mOrPatTys env p pTy
             pure (ConstrP (t,i,v) cname ps', foldr (.) id exts)
-        go _ env (WildcardP _) t = pure (WildcardP t, id)
+        go _ _env (WildcardP _) t = pure (WildcardP t, id)
         go mOrPatTys env (OrP () (p :<| pats)) t = do
             (boundTys, (p', pWrapper)) <- runState mempty $ go mOrPatTys env p t
             
@@ -505,7 +505,7 @@ infer env (App () li f x) = runReader li do
     (t, w) <- instantiate fCodomTy
 
     pure (w (App t li (wF f') x'), fFunEff)
-infer env (IntLit () li n) = do
+infer _env (IntLit () li n) = do
     eff <- freshEffectRow
     pure (IntLit () li n, eff)
 infer env (If () li c th el) = runReader li do
@@ -532,7 +532,7 @@ infer env (If () li c th el) = runReader li do
     -- th' and el' are equivalent.
     pure (If (getType th') li c' (w1 th') (w2 el'), cEff)
 
-infer env (Let () li decl@(Decl () f xs e1) e2) = runReader li do
+infer env (Let () li (Decl () f xs e1) e2) = runReader li do
     xs' <- traverse (\x -> (x,) <$> freshUnif KStar) xs
 
     (e1', e1Eff) <- infer (foldr (uncurry insertType) env xs') e1
@@ -552,11 +552,11 @@ infer env (Var () li x) = runReader li do
 infer env (Ascription () li e t) = runReader li do
     eff <- freshEffectRow
     e' <- check env e t eff
-    (t2, w) <- instantiate t
+    (_t2, w) <- instantiate t
     pure (w e', eff)
 
 
-infer env (VariantConstr (i, j) li c) = runReader li do
+infer env (VariantConstr (_i, j) li c) = runReader li do
     let cTy = lookupType c env
     (cTy', w) <- instantiate cTy
     
@@ -564,7 +564,7 @@ infer env (VariantConstr (i, j) li c) = runReader li do
     pure (w $ VariantConstr (cTy', cTy, j) li c, eff)
 
 infer env (Case () li e branches) = runReader li do
-    (e', eEff) <- infer env e
+    (e', _eEff) <- infer env e
     branches' <- forM branches \(CaseBranch () li p brExpr) -> do
         (p', extendEnv) <- checkPattern env p (getType e')
         (brExpr', brEff) <- infer (extendEnv env) brExpr
@@ -582,8 +582,8 @@ infer env (Case () li e branches) = runReader li do
         checkEquiv Empty                = (,) <$> freshUnif KStar <*> freshEffectRow -- the case expression is empty.
         checkEquiv ((t, eff) :<| Empty) = pure (t, eff)
         checkEquiv ((t1, eff1):<|(t2, eff2):<|ts) = do
-            w1 <- subsume t1 t2 -- TODO: apply wrapping?
-            w2 <- subsume t2 t1
+            _w1 <- subsume t1 t2 -- TODO: apply wrapping?
+            _w2 <- subsume t2 t1
             eff1 !~ eff2
             checkEquiv ((t2, eff2)<|ts)
 
@@ -790,7 +790,7 @@ solveConstraints givens wanteds ((MkTConstraint (ConUnify t1 t2) li cxt) :<| con
 solveConstraints givens wanteds ((MkTConstraint (ConWanted c dictVar) li cxt) :<| constrs) = runReader li do
             solveConstraints givens ((c, dictVar, li, cxt) :<| wanteds) constrs
         
-solveConstraints givens wanteds ((MkTConstraint (ConGiven c@(MkConstraint cname k ty) dict) li cxt) :<| constrs) = runReader li do
+solveConstraints givens wanteds ((MkTConstraint (ConGiven (MkConstraint cname _k ty) dict) li _cxt) :<| constrs) = runReader li do
             let givens' = alter (<> Just [(ty, dict)]) cname givens
             solveConstraints givens' wanteds constrs
 
@@ -800,7 +800,7 @@ solveWanteds :: (Trace, Members '[Error TypeError, Fresh Text QualifiedName] r)
                 -> Seq (Constraint, QualifiedName, LexInfo, Seq TypeContext)
                 -> Sem r Substitution
 solveWanteds _givens Empty = pure mempty
-solveWanteds givens ((c@(MkConstraint cname k ty), dictVar, li, cxt) :<| wanteds) = 
+solveWanteds givens ((c@(MkConstraint cname _k ty), dictVar, li, cxt) :<| wanteds) = 
     runContextInitial cxt $ runReader li $ withContext (WhenCheckingWanted c) do
         case lookup cname givens of
             Just tys -> do

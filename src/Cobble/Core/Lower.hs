@@ -33,7 +33,7 @@ defaultLowerOptions = LowerOptions {
 }
 
 lower :: (Trace, Members '[Fresh Text QualifiedName, Reader LowerOptions] r) => CModule -> Sem r (Seq F.Decl)
-lower (C.Module _deps mname sts) = lowerStmnts sts
+lower (C.Module _deps _mname sts) = lowerStmnts sts
 
 lowerStmnts :: (Trace, Members '[Fresh Text QualifiedName, Reader LowerOptions] r) => (Seq CStatement) -> Sem r (Seq F.Decl)
 lowerStmnts Empty = pure []
@@ -43,8 +43,8 @@ lowerStmnts (C.Def _ _ (C.Decl _ x [] e) ty :<| sts) = (<|)
             <$> lowerType ty
             <*> lowerExpr e
     <*> lowerStmnts sts
-lowerStmnts (s@C.Def{} :<| sts) = error "lowerStmnts: Definition with arguments persists after typechecking"
-lowerStmnts (C.DefClass k li cname tvs methSigs :<| sts) = do
+lowerStmnts (C.Def{} :<| _sts) = error "lowerStmnts: Definition with arguments persists after typechecking"
+lowerStmnts (C.DefClass k _li cname tvs methSigs :<| sts) = do
     tvs' <- traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) tvs
     k' <- lowerKind k
 
@@ -61,7 +61,7 @@ lowerStmnts (C.DefClass k li cname tvs methSigs :<| sts) = do
 
     ((dictDef :<| methImpls) <>) <$> lowerStmnts sts
         where
-            stripConstraintAndFirstArg (C.TForall tv ty) = stripConstraintAndFirstArg ty
+            stripConstraintAndFirstArg (C.TForall _tv ty) = stripConstraintAndFirstArg ty
             stripConstraintAndFirstArg (C.TConstraint _ ty) = ty
             stripConstraintAndFirstArg ty = ty
 
@@ -73,7 +73,7 @@ lowerStmnts (C.DefClass k li cname tvs methSigs :<| sts) = do
             tyAppsFor n (F.TForall _ _ ty) = tyAppsFor (n - 1) ty
             tyAppsFor _ _ = id
 
-lowerStmnts (C.DefInstance (classKind, _, tyParams, dictVar) li className tyArg methDecls :<| sts) = do
+lowerStmnts (C.DefInstance (classKind, _, _tyParams, dictVar) _li className tyArg methDecls :<| sts) = do
     tyArg' <- lowerType tyArg
 
     dictKind <- lowerKind classKind
@@ -89,7 +89,7 @@ lowerStmnts (C.DefVariant _ _ x args clauses :<| sts) = do
             <$> traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) args
             <*> traverse (\(x, tys, _) -> (x,) <$> traverse lowerType tys) clauses
     (def<|) <$> lowerStmnts sts
-lowerStmnts (C.DefEffect k li effName tvs ops :<| sts) = do
+lowerStmnts (C.DefEffect _k _li effName tvs ops :<| sts) = do
     tvs' <- traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) tvs
     let addForalls ty = foldr (uncurry F.TForall) ty tvs'
 
@@ -116,11 +116,11 @@ lowerExpr :: (Trace, Members '[Fresh Text QualifiedName, Reader LowerOptions] r)
 lowerExpr (C.VariantConstr (_ty, constrTy, ix) _ constrName) = do
     ty <- lowerType constrTy 
     lowerSaturated ty (F.VariantConstr constrName ix)
-lowerExpr (C.App ty _ e1 e2) = F.App
+lowerExpr (C.App _ty _ e1 e2) = F.App
                                <$> lowerExpr e1
                                <*> lowerExpr e2
 lowerExpr (C.IntLit () _ n) = pure $ F.IntLit n
-lowerExpr (C.If ty _ c th el) = F.If 
+lowerExpr (C.If _ty _ c th el) = F.If 
                                 <$> lowerExpr c
                                 <*> lowerExpr th
                                 <*> lowerExpr el
@@ -132,9 +132,9 @@ lowerExpr (C.Let () _ (C.Decl ty f xs e1) e2) = do
         <*> lowerExpr e2
 lowerExpr (C.Var _ _ x) = pure $ F.Var x
 
-lowerExpr (C.Case t li e branches) = lowerCase t e branches
-lowerExpr (C.Lambda (ty, argTy, eff) _ x e) = F.Abs x <$> lowerType eff <*> lowerType argTy <*> lowerExpr e
-lowerExpr (C.Handle (ty, eff) li e handlers mretClause) = do
+lowerExpr (C.Case t _li e branches) = lowerCase t e branches
+lowerExpr (C.Lambda (_ty, argTy, eff) _ x e) = F.Abs x <$> lowerType eff <*> lowerType argTy <*> lowerExpr e
+lowerExpr (C.Handle (_ty, eff) _li e handlers mretClause) = do
     handlers' <- forM handlers \(C.EffHandler _ _ con params expr) -> do
         (con, map fst params,) <$> lowerExpr expr
 
@@ -150,7 +150,7 @@ lowerExpr (C.Handle (ty, eff) li e handlers mretClause) = do
 
     pure (F.Handle e' eff' handlers' retClause')
 
-lowerExpr (C.Resume ty li expr) = F.Resume <$> lowerExpr expr
+lowerExpr (C.Resume _ty _li expr) = F.Resume <$> lowerExpr expr
 lowerExpr (C.TyApp _ ty e) = do
     traceM TraceLower $ "[lowerExpr (TyApp _ " <> show ty <> " " <> show e <> ")]"
     F.TyApp <$> lowerExpr e <*> lowerType ty
@@ -171,7 +171,7 @@ lowerSaturated (F.TForall a k ty) cont = do
 lowerSaturated (F.TFun t1 eff t2) cont = do
     x <- freshVar "x"
     F.Abs x eff t1 <$> lowerSaturated t2 (\tyArgs valArgs -> cont tyArgs (F.Var x <| valArgs))
-lowerSaturated ty cont = pure $ cont [] []
+lowerSaturated _ty cont = pure $ cont [] []
 
 
             
@@ -219,7 +219,7 @@ findAndBindFirstColFullWildcards :: Seq QualifiedName -> PatternMatrix -> Maybe 
 findAndBindFirstColFullWildcards occs (MkPatternMatrix rows) = MkPatternMatrix <$> zipWithM asFirstMaybeWildcard occs rows
     where
         asFirstMaybeWildcard occ (C.VarP{} :<| xs, e) = Just (xs, \es -> e (F.Var occ <| es))
-        asFirstMaybeWildcard occ (C.WildcardP{} :<| xs, e) = Just (xs, e)
+        asFirstMaybeWildcard _occ (C.WildcardP{} :<| xs, e) = Just (xs, e)
         asFirstMaybeWildcard _ _ = Nothing
 
 findHeadConstrs :: PatternMatrix -> Seq HeadConstr
@@ -238,8 +238,8 @@ deconstructPM occ pat (MkPatternMatrix rows) = MkPatternMatrix . fold <$> traver
         go :: HeadConstr -> PMatrixRow -> Sem r (Seq PMatrixRow)
         go (IntHead i) (C.IntP _ j :<| pats, e)
             | i == j = pure [(pats, e)]
-        go (IntHead i) ((C.VarP _ v) :<| pats, e) = pure [(pats, \es -> e (F.IntLit i <| es))]
-        go (IntHead i) ((C.WildcardP _) :<| pats, e) = pure [(pats, e)]
+        go (IntHead i) ((C.VarP _ _v) :<| pats, e) = pure [(pats, \es -> e (F.IntLit i <| es))]
+        go (IntHead _i) ((C.WildcardP _) :<| pats, e) = pure [(pats, e)]
         go (ConstrHead c _ _ _) (C.ConstrP _ c' subPats :<| pats, e)
             | c == c' = pure [(subPats <> pats, e)]
         go (ConstrHead _ _ constrArgs _) (C.VarP{} :<| pats, e) = do
@@ -253,7 +253,7 @@ deconstructPM occ pat (MkPatternMatrix rows) = MkPatternMatrix . fold <$> traver
             (<>)
                 <$> go h (sp1 :<| pats, e)
                 <*> (fold <$> traverse (\p -> go h (p :<| pats, e . (boundVars p `reorderBy` sp1Vars))) subPats)
-        go h (C.OrP _ Empty :<| _, _) = error "lowerCase: deconstructPM: empty or pattern"    
+        go _h (C.OrP _ Empty :<| _, _) = error "lowerCase: deconstructPM: empty or pattern"    
         go _ _ = pure []
 
 defaultMatrix :: QualifiedName -> PatternMatrix -> PatternMatrix
@@ -261,7 +261,7 @@ defaultMatrix occ (MkPatternMatrix rows) = MkPatternMatrix $ go =<< rows
     where
         go (C.ConstrP{} :<| _, _) = []
         go (C.IntP{} :<| _, _) = []
-        go (C.VarP _ x :<| ps, e) = [(ps, \es -> e (F.Var occ <| es))]
+        go (C.VarP _ _x :<| ps, e) = [(ps, \es -> e (F.Var occ <| es))]
         go (C.WildcardP _ :<| ps, e) = [(ps, e)]
         go (C.OrP _ (sp1 :<| subPats) :<| ps, e) =
             go (sp1 :<| subPats, e)
@@ -295,7 +295,7 @@ reorderBy _ Empty _ = Empty
 
 compilePMatrix :: forall r. (Trace, Members '[Fresh Text QualifiedName, Reader LowerOptions] r) => Seq QualifiedName -> PatternMatrix -> Sem r F.Expr
 compilePMatrix occs m | trace TraceLower ("compiling pattern matrix with args " <> show occs <> ":\n" <> show m) False = error "unreachable"
-compilePMatrix occs (MkPatternMatrix Empty) = error "Non-exhaustive patterns. (This should not be a panic)"
+compilePMatrix _occs (MkPatternMatrix Empty) = error "Non-exhaustive patterns. (This should not be a panic)"
 compilePMatrix occs (MkPatternMatrix ((row, expr) :<| _))
     | all isWildcardLike row = pure $ expr (catMaybes $ zipWith (\occ pat -> if isVar pat then Just (F.Var occ) else Nothing) occs row)
 compilePMatrix (occ :<| occs) m
@@ -346,7 +346,7 @@ lowerCase :: forall r. (Trace, Members '[Fresh Text QualifiedName, Reader LowerO
           -> C.Expr C.Codegen 
           -> Seq (C.CaseBranch C.Codegen)
           -> Sem r F.Expr
-lowerCase ty expr branches = do
+lowerCase _ty expr branches = do
     (jpDefs, possibleBranches) <- unzip <$> forM branches \(C.CaseBranch () _ p e) -> do
         jpName <- freshVar "j"
         e' <- lowerExpr e

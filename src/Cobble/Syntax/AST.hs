@@ -236,7 +236,7 @@ ppType (TFun a effs b)               = "(" <> ppType a <> " -{" <> ppType effs <
 ppType (TTyVar (MkTVar v _))         = show v
 ppType (TUnif (MkTVar v _))          = "$" <> show v
 ppType (TSkol v _)                   = "#" <> show v
-ppType (TCon v k)                    = show v
+ppType (TCon v _k)                    = show v
 ppType (TApp a b)                    = "(" <> ppType a <> " " <> ppType b <> ")"
 ppType (TForall tv t)                = "(∀" <> show tv <> ". " <> ppType t <> ")"
 ppType (TConstraint c t)             = ppConstraint c <> " => " <> ppType t
@@ -264,13 +264,13 @@ type family XType (p :: Pass) :: HSType
 freeTVars :: Type -> Set TVar
 freeTVars = go mempty
     where
-        go bound (TCon _ _)         = mempty
+        go _bound (TCon _ _)         = mempty
         go bound (TApp a b)         = go bound a <> go bound b
         go bound (TTyVar tv) 
             | tv `Set.member` bound = mempty
             | otherwise             = one tv
-        go bound (TUnif _)          = mempty
-        go bound (TSkol _ _)        = mempty
+        go _bound (TUnif _)          = mempty
+        go _bound (TSkol _ _)        = mempty
         go bound (TForall tv ty)   = go (bound <> one tv) ty
         go bound (TFun a eff b)     = go bound a <> go bound eff <> go bound b 
         go bound (TConstraint (MkConstraint _ _ t1) t2) = go bound t1 <> go bound t2
@@ -283,13 +283,13 @@ freeTVars = go mempty
 freeTyVarsOrdered :: Type -> Seq TVar
 freeTyVarsOrdered = ordNub . go mempty
     where
-        go bound (TCon _ _)         = mempty
+        go _bound (TCon _ _)         = mempty
         go bound (TApp a b)         = go bound a <> go bound b
         go bound (TTyVar tv) 
             | tv `Set.member` bound = mempty
             | otherwise             = one tv
-        go bound (TUnif _)          = mempty
-        go bound (TSkol _ _)        = mempty
+        go _bound (TUnif _)          = mempty
+        go _bound (TSkol _ _)        = mempty
         go bound (TForall tv ty)   = go (bound <> one tv) ty
         go bound (TFun a effs b)    = go bound a <> go bound effs <> go bound b 
         go bound (TConstraint (MkConstraint _ _ t1) t2) = go bound t1 <> go bound t2
@@ -301,13 +301,13 @@ freeTyVarsOrdered = ordNub . go mempty
 freeUnifs :: Type -> Set TVar
 freeUnifs = go mempty
     where
-        go bound (TCon _ _)         = mempty
+        go _bound (TCon _ _)         = mempty
         go bound (TApp a b)         = go bound a <> go bound b
-        go bound (TTyVar _)         = mempty
+        go _bound (TTyVar _)         = mempty
         go bound (TUnif tv) 
             | tv `Set.member` bound = mempty
             | otherwise             = one tv
-        go bound (TSkol _ _)        = mempty
+        go _bound (TSkol _ _)        = mempty
         go bound (TForall tv ty)   = go (bound <> one tv) ty
         go bound (TFun a eff b)     = go bound a <> go bound eff <> go bound b 
         go bound (TConstraint (MkConstraint _ _ t1) t2) = go bound t1 <> go bound t2
@@ -320,13 +320,13 @@ freeUnifs = go mempty
 freeUnifsOrdered :: Type -> Seq TVar
 freeUnifsOrdered = ordNub . go mempty
     where
-        go bound (TCon _ _)         = mempty
+        go _bound (TCon _ _)         = mempty
         go bound (TApp a b)         = go bound a <> go bound b
-        go bound (TTyVar _)         = mempty
+        go _bound (TTyVar _)         = mempty
         go bound (TUnif tv) 
             | tv `Set.member` bound = mempty
             | otherwise             = one tv
-        go bound (TSkol _ _)        = mempty
+        go _bound (TSkol _ _)        = mempty
         go bound (TForall tv ty)   = go (bound <> one tv) ty
         go bound (TFun a effs b)    = go bound a <> go bound effs <> go bound b 
         go bound (TConstraint (MkConstraint _ _ t1) t2) = go bound t1 <> go bound t2
@@ -438,7 +438,7 @@ instance HasKind Type where
             (KFun kp kr, ka)
                 | kp == ka -> pure kr
             (k1, k2) -> Left (k1, k2)
-        TFun t1 effs t2 -> pure KStar
+        TFun _t1 _effs _t2 -> pure KStar
         TForall _ t -> kind t
         TConstraint _ t -> kind t 
         TRowClosed _   -> Right KEffect -- TODO: Should we really hardcode row kinds to be effects here?
