@@ -66,6 +66,7 @@ library
       Cobble.Util.Polysemy.StackState
       Cobble.Util.Polysemy.Time
       Cobble.Util.Prettyprinter
+      Cobble.Util.TH
       Cobble.Util.Trace
       Cobble.Util.TypeUtils
   other-modules:
@@ -128,6 +129,7 @@ library
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wno-name-shadowing -Wredundant-constraints -Werror=incomplete-patterns -Werror=incomplete-record-updates -Werror=missing-fields -Werror=missing-methods -Werror=unused-do-bind
   build-depends:
       aeson
+    , async
     , base >=4.7 && <5
     , binary
     , bytestring
@@ -216,6 +218,7 @@ executable cobble
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wno-name-shadowing -Wredundant-constraints -Werror=incomplete-patterns -Werror=incomplete-record-updates -Werror=missing-fields -Werror=missing-methods -Werror=unused-do-bind -fplugin=Polysemy.Plugin -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
+    , async
     , base >=4.7 && <5
     , binary
     , bytestring
@@ -307,6 +310,7 @@ test-suite cobble-test
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wno-name-shadowing -Wredundant-constraints -Werror=incomplete-patterns -Werror=incomplete-record-updates -Werror=missing-fields -Werror=missing-methods -Werror=unused-do-bind -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
+    , async
     , base >=4.7 && <5
     , binary
     , bytestring

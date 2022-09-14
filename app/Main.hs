@@ -27,6 +27,7 @@ main = runCobble =<< execParser (info (mainOpts <**> helper) mainInfo)
         mainOpts = hsubparser (
                 command "compile" (Compile <$> info compileOpts (progDesc "Compile source files to interfaces and object files"))
             <>  command "build" (Build <$> info buildOpts (progDesc "Build a project"))
+            <>  command "link" (Link <$> info linkOpts (progDesc "Link generated object files into an executable"))
             )
         mainInfo = idm
 
@@ -37,6 +38,7 @@ runCobble :: CobbleAction -> IO ()
 runCobble = \case
     Compile co -> runCompile co
     Build buildOpts -> runBuild buildOpts
+    Link linkOpts -> runLink linkOpts
 
 runCompile :: CompileCmdOpts -> IO ()
 runCompile CompileCmdOpts{compFile, interfaceFiles, output, target, traceTypes, ddumpRenamed, ddumpPostProcessed, ddumpTC, ddumpCore, skipCoreLint, lintAsError, keepCoreResiduals} = do
@@ -72,6 +74,11 @@ runBuild BuildCmdOpts{projectFile, makeCommand, makeOptions} = do
     case emakeWorkingDirectory of
         Left err -> failWithBuildError err
         Right makeWorkingDirectory -> callProcess (toString makeCommand) (fmap toString makeOptions <> ["-C", makeWorkingDirectory])
+
+runLink :: LinkCmdOpts -> IO ()
+runLink LinkCmdOpts{files, outFile} = do
+    IO.putStrLn "Linking..."
+    linkFiles files outFile
 
 runTracePretty :: Seq TraceType -> (Trace => a) -> a
 runTracePretty traceTys = runTraceStderrWith pred pretty
@@ -224,6 +231,7 @@ failWithBuildError e = do
 
 data CobbleAction = Compile CompileCmdOpts 
                   | Build BuildCmdOpts
+                  | Link LinkCmdOpts
                   deriving (Show, Eq)
 
 data CompileCmdOpts = CompileCmdOpts {
@@ -267,3 +275,13 @@ buildOpts = BuildCmdOpts
     <$> option str (long "project-file" <> metavar "FILE" <> value "cobble.yaml" <> help "Use FILE for configuration instead of cobble.yaml")
     <*> option str (long "make-command" <> metavar "COMMAND" <> value "make" <> help "Use a custom command to run makefiles. Default: make")
     <*> option (words <$> str) (long "make-options" <> metavar "OPTIONS" <> value [] <> help "Pass additional options to make")
+
+data LinkCmdOpts = LinkCmdOpts {
+    files :: Seq FilePath
+,   outFile :: FilePath
+} deriving (Show, Eq)
+
+linkOpts :: Parser LinkCmdOpts
+linkOpts = LinkCmdOpts
+    <$> (fromList <$> many (argument str (metavar "FILES")))
+    <*> (option str (long "out" <> short 'o' <> metavar "OUTFILE" <> value "a.out"))

@@ -1,4 +1,4 @@
-{-#LANGUAGE NoOverloadedLists#-}
+{-# LANGUAGE NoOverloadedLists #-}
 module Cobble.Util where
 
 import Cobble.Prelude

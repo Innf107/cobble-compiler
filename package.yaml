@@ -45,6 +45,7 @@ dependencies:
 - process
 - aeson
 - yaml
+- async
 
 library:
   source-dirs: src
