@@ -25,6 +25,9 @@ import Cobble.ModuleSolver qualified as S
 import Control.Concurrent.Async (mapConcurrently)
 
 import Cobble.Util.TH 
+import Data.Graph
+
+import Data.List qualified as List
 
 data BuildError = ProjectParseError ParseException
                 | DependencyProjectParseError FilePath ParseException
@@ -108,7 +111,7 @@ data Dependency = MkDependency {
         depSourceDir    :: FilePath
     ,   depRelPath      :: FilePath
     ,   depOptions      :: Seq Text
-    } deriving (Show, Eq, Generic, Data)
+    } deriving (Show, Eq, Ord, Generic, Data)
 
 parseImports :: Members '[Error BuildError] r => Text -> Text -> Sem r (Text, Seq Text)
 --                                                                                ^     ^ imports (as modules)
@@ -146,7 +149,7 @@ findFilesRecursive pred = go ""
                 if pred root then pure [takenPath] else pure []
 
 renderMakefile :: BuildOpts -> ProjectOpts -> Seq (Dependency, Seq Dependency) -> Sem r Text
-renderMakefile BuildOpts{} ProjectOpts{projectName, compiler, compilerOpts} deps
+renderMakefile BuildOpts{} ProjectOpts{linker, linkerOpts, compiler, compilerOpts, outFile, projectName} deps
     = pure $ all <> "\n" <> rules <> "\n" <> clean
     where
         clean :: Text
@@ -160,7 +163,8 @@ renderMakefile BuildOpts{} ProjectOpts{projectName, compiler, compilerOpts} deps
         all = unlines [
                 ".PHONY: all"
             ,   "all: " <> unwords (toList $ map (sigFileAt . fst) deps)
-                -- TODO: add racket link command
+            ,   "\t" <> linker <> " " <> linkerOpts <> " -o '" <> outFilePath <> "' " <> unwords (fmap outputFileAt linkOrderedDeps)
+            ,   "\tchmod +x '" <> outFilePath <> "'"
             ]
         rules = unlines $ toList deps <&> \(dep, depDependencies) -> unlines [
                 sigFileAt dep <> ": " <> unwords (sourceFileAt dep : toList (map sigFileAt depDependencies))
@@ -169,10 +173,18 @@ renderMakefile BuildOpts{} ProjectOpts{projectName, compiler, compilerOpts} deps
                     <> " " <> unwords (sourceFileAt dep : toList (map sigFileAt depDependencies))
                     <> " -o " <> outputFileAt dep
             ]
+        linkOrderedDeps =
+            let (graph, vertexToDep) = graphFromEdges' (fmap (\(x, deps) -> (x, x, toList deps)) (toList deps)) in
+            List.reverse (fmap ((\(x, _, _) -> x) . vertexToDep) (topSort graph))
+        outFilePath = fromMaybe projectName outFile
 
-        outputFileAt (MkDependency{depRelPath}) = toText $ ".cobble/out" </> dropExtension depRelPath <.> "rkt" 
-        sigFileAt    (MkDependency{depRelPath}) = toText $ ".cobble/out" </> dropExtension depRelPath <.> "cbi"
-        sourceFileAt (MkDependency{depRelPath, depSourceDir}) = toText $ depSourceDir </> depRelPath
+
+outputFileAt :: Dependency -> Text
+outputFileAt (MkDependency{depRelPath}) = toText $ ".cobble/out" </> dropExtension depRelPath <.> "rkt" 
+sigFileAt :: Dependency -> Text
+sigFileAt    (MkDependency{depRelPath}) = toText $ ".cobble/out" </> dropExtension depRelPath <.> "cbi"
+sourceFileAt :: Dependency -> Text
+sourceFileAt (MkDependency{depRelPath, depSourceDir}) = toText $ depSourceDir </> depRelPath
 
 
 
@@ -182,6 +194,9 @@ data ProjectOpts = ProjectOpts {
 ,   dependencies :: Seq FilePath
 ,   compiler :: Text
 ,   compilerOpts :: Text
+,   linker :: Text
+,   linkerOpts :: Text
+,   outFile :: Maybe Text
 } deriving (Show, Eq, Generic, Data)
 
 instance FromJSON ProjectOpts where
@@ -191,6 +206,11 @@ instance FromJSON ProjectOpts where
         <*> p .: "dependencies"
         <*> (p .: "compiler" <|> pure "cobble compile")
         <*> (p .: "compiler-options" <|> pure "")
+        <*> (p .: "linker" <|> pure "cobble link")
+        <*> (p .: "linker-options" <|> pure "")
+        <*> (p .:? "out-file")
+
+
 
 -- IMPORTANT: If rts/cobble.rkt changes, this module needs to be rebuilt!
 rts :: Text
