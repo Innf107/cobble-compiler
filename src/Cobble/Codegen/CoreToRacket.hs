@@ -1,4 +1,4 @@
-module Cobble.Codegen.CoreToRacket where
+module Cobble.Codegen.CoreToRacket (compile) where
 
 import Cobble.Prelude hiding (EQ)
 import Cobble.Core.Syntax as F
@@ -12,7 +12,7 @@ import Cobble.Util.Polysemy.Fresh
 
 import Cobble.Codegen.PrimOp
 
-compile :: Members '[Fresh Text QualifiedName] r =>  Seq Interface -> Seq Decl -> Sem r (Seq RacketExpr) 
+compile :: Members '[Fresh Unique] r =>  Seq Interface -> Seq Decl -> Sem r (Seq RacketExpr) 
 compile interfaces = evalState initialState . compile'
     where
         initialState = foldr insertInterface (CompState mempty mempty) interfaces
@@ -44,7 +44,7 @@ lookupDictFieldNames x = gets \CompState{dictFieldNames} -> case lookup x dictFi
     _ -> error $ "lookupDictFieldNames: core dictionary '" <> show x <> "' not found."
 
 
-compile' :: Members '[Fresh Text QualifiedName, State CompState] r => Seq Decl -> Sem r (Seq RacketExpr)
+compile' :: Members '[Fresh Unique, State CompState] r => Seq Decl -> Sem r (Seq RacketExpr)
 compile' Empty = pure []
 compile' (Def x _ty e :<| ds) = (<|) 
     <$> (RDefine x <$> compileExpr e) 
@@ -57,7 +57,7 @@ compile' (DefDict x args fields :<| ds) = do
 compile' (DefEffect x args fields :<| ds) = do
     compile' ds
 
-compileExpr :: Members '[Fresh Text QualifiedName, State CompState] r => Expr -> Sem r RacketExpr
+compileExpr :: Members '[Fresh Unique, State CompState] r => Expr -> Sem r RacketExpr
 compileExpr e@Var{} = compileApp e []
 compileExpr (App e1 e2) = do
     e2' <- compileExpr e2
@@ -135,7 +135,7 @@ resumptionVar :: QualifiedName
 resumptionVar = internalQName "resumption"
 
 
-compileApp :: Members '[Fresh Text QualifiedName, State CompState] r => Expr -> Seq RacketExpr -> Sem r RacketExpr
+compileApp :: Members '[Fresh Unique, State CompState] r => Expr -> Seq RacketExpr -> Sem r RacketExpr
 compileApp (App e1 e2) args = do
     e2' <- compileExpr e2
     compileApp e1 (e2' <| args)
@@ -177,3 +177,6 @@ compilePrimOp EQ [x, y]     = REQ [x, y]
 compilePrimOp EQ xs         = error $ "compilePrimOp: wrong arguments for 'eq#': " <> show xs
 compilePrimOp Debug [x]     = RDisplayln x
 compilePrimOp Debug xs      = error $ "compilePrimOp: wrong arguments for 'debug#': " <> show xs
+
+freshVar :: Members '[Fresh Unique] r => Text -> Sem r QualifiedName
+freshVar = freshGenerated

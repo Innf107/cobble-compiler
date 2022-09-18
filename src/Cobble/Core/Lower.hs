@@ -32,10 +32,10 @@ defaultLowerOptions = LowerOptions {
     keepCoreResiduals = False
 }
 
-lower :: (Trace, Members '[Fresh Text QualifiedName, Reader LowerOptions] r) => CModule -> Sem r (Seq F.Decl)
+lower :: (Trace, Members '[Fresh Unique, Reader LowerOptions] r) => CModule -> Sem r (Seq F.Decl)
 lower (C.Module _deps _mname sts) = lowerStmnts sts
 
-lowerStmnts :: (Trace, Members '[Fresh Text QualifiedName, Reader LowerOptions] r) => (Seq CStatement) -> Sem r (Seq F.Decl)
+lowerStmnts :: (Trace, Members '[Fresh Unique, Reader LowerOptions] r) => (Seq CStatement) -> Sem r (Seq F.Decl)
 lowerStmnts Empty = pure []
 lowerStmnts (C.Def _ _ (C.Decl _ x [] e) ty :<| sts) = (<|)
     <$> do
@@ -112,7 +112,7 @@ decomposeFunTy (F.TForall tv k ty) = let (tvs, dom, eff, cod) = decomposeFunTy t
                                    in ((tv, k) <| tvs, dom, eff, cod)
 decomposeFunTy ty = error $ "decomposeFunTy: Not a function or forall type: " <> show ty
 
-lowerExpr :: (Trace, Members '[Fresh Text QualifiedName, Reader LowerOptions] r) => CExpr -> Sem r F.Expr
+lowerExpr :: (Trace, Members '[Fresh Unique, Reader LowerOptions] r) => CExpr -> Sem r F.Expr
 lowerExpr (C.VariantConstr (_ty, constrTy, ix) _ constrName) = do
     ty <- lowerType constrTy 
     lowerSaturated ty (F.VariantConstr constrName ix)
@@ -159,7 +159,7 @@ lowerExpr (C.DictAbs _ x c e) = F.Abs x F.TEffUR <$> lowerConstraint c <*> lower
 lowerExpr (C.DictVarApp li e dv) = error $ "Invalid unsubstituted dictionary variable application during lowering at " <> show li <> ".\nApplication of dict variable '" <> show dv <> "'\nOn Expression: " <> show e
 lowerExpr (C.DictApp _ e dict) = F.App <$> lowerExpr e <*> pure (F.Var dict)
 
-lowerSaturated :: Members '[Fresh Text QualifiedName] r => F.Type -> (Seq F.Type -> Seq F.Expr -> F.Expr) -> Sem r F.Expr
+lowerSaturated :: Members '[Fresh Unique] r => F.Type -> (Seq F.Type -> Seq F.Expr -> F.Expr) -> Sem r F.Expr
 -- We simply don't apply effect variables for saturated types, since those should only have effect ✶ anyway.
 -- I hope this is sound...
 lowerSaturated (F.TForall a k@(F.KRow F.KEffect) ty) cont = do
@@ -293,7 +293,7 @@ reorderBy xs (y :<| ys) zs = runWithError $ do
             runWithError (Just r) = r
 reorderBy _ Empty _ = Empty
 
-compilePMatrix :: forall r. (Trace, Members '[Fresh Text QualifiedName, Reader LowerOptions] r) => Seq QualifiedName -> PatternMatrix -> Sem r F.Expr
+compilePMatrix :: forall r. (Trace, Members '[Fresh Unique, Reader LowerOptions] r) => Seq QualifiedName -> PatternMatrix -> Sem r F.Expr
 compilePMatrix occs m | trace TraceLower ("compiling pattern matrix with args " <> show occs <> ":\n" <> show m) False = error "unreachable"
 compilePMatrix _occs (MkPatternMatrix Empty) = error "Non-exhaustive patterns. (This should not be a panic)"
 compilePMatrix occs (MkPatternMatrix ((row, expr) :<| _))
@@ -309,7 +309,7 @@ compilePMatrix (occ :<| occs) m = do
         compileHeadConstr h@(IntHead i) = fmap (F.PInt i,) $ compilePMatrix occs =<< deconstructPM occ h m
         compileHeadConstr h@(ConstrHead c i argTys _) = do
             traceM TraceLower $ "compiling pattern matrix with head constructor: " <> show c
-            argVars <- traverse (\ty -> (,) <$> freshVar @_ @_ @r "c" <*> lowerType ty) argTys
+            argVars <- traverse (\ty -> (,) <$> freshVar @r "c" <*> lowerType ty) argTys
             fmap (F.PConstr c (argVars) i,) $ compilePMatrix (fmap fst argVars <> occs) =<< deconstructPM occ h m
         
         addDefaultIfIncomplete :: Seq HeadConstr -> Seq (F.Pattern, F.Expr) -> Sem r (Seq (F.Pattern, F.Expr)) 
@@ -341,7 +341,7 @@ collectVarPatTypes (C.OrP _ (p :<| _)) = collectVarPatTypes p
 collectVarPatTypes (C.OrP _ Empty) = error "collectVarPatTypes: empty or pattern"
 
 -- Case desugaring is based on https://www.cs.tufts.edu/~nr/cs257/archive/luc-maranget/jun08.pdf
-lowerCase :: forall r. (Trace, Members '[Fresh Text QualifiedName, Reader LowerOptions] r)
+lowerCase :: forall r. (Trace, Members '[Fresh Unique, Reader LowerOptions] r)
           => C.Type 
           -> C.Expr C.Codegen 
           -> Seq (C.CaseBranch C.Codegen)
@@ -400,3 +400,8 @@ lowerKind (C.KFun a b)= F.KFun <$> lowerKind a <*> lowerKind b
 lowerKind C.KConstraint = pure F.KType -- Constraints are desugared to dictionary applications
 lowerKind C.KEffect = pure F.KEffect
 lowerKind (C.KRow k) = F.KRow <$> lowerKind k
+
+freshVar :: Members '[Fresh Unique] r => Text -> Sem r QualifiedName
+freshVar x = do
+    u <- fresh
+    pure (C.UnsafeQualifiedName x (C.GeneratedQName u))

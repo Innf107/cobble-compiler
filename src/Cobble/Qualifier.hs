@@ -1,5 +1,8 @@
 {-#LANGUAGE TemplateHaskell#-}
-module Cobble.Qualifier where
+module Cobble.Qualifier (
+        qualify
+    ,   Scope(..) 
+    ,   QualificationError(..)) where
 
 import Cobble.Prelude
 import Cobble.Syntax
@@ -49,12 +52,12 @@ instance Monoid Scope where
 
 makeLenses ''Scope
 
-qualify :: (Trace, Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError] r)
+qualify :: (Trace, Members '[StackState Scope, Fresh Unique, Error QualificationError] r)
         => Module QualifyNames 
         -> Sem r (Module NextPass)
 qualify (Module deps name stmnts) = runReader (MkTagged name) $ Module deps name <$> traverse qualifyStmnt stmnts
 
-qualifyStmnt :: (Trace, Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader (Tagged "ModName" Text)] r)
+qualifyStmnt :: (Trace, Members '[StackState Scope, Fresh Unique, Error QualificationError, Reader (Tagged "ModName" Text)] r)
              => Statement QualifyNames
              -> Sem r (Statement NextPass)
 qualifyStmnt (Def mfixity li d@(Decl _ n _ _) ty) = runReader li do 
@@ -141,7 +144,7 @@ qualifyStmnt (DefEffect () li effName tvs ops) = runReader li do
 
 -- | Same as qualifyDecl, but takes the already qualified name as an argument
 -- instead of recomputing it
-qualifyDeclWithName :: (Trace, Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r)
+qualifyDeclWithName :: (Trace, Members '[StackState Scope, Fresh Unique, Error QualificationError, Reader LexInfo] r)
             => QualifiedName
             -> Decl 'QualifyNames 
             -> Sem r (Decl NextPass)
@@ -152,7 +155,7 @@ qualifyDeclWithName n' (Decl () _ ps e) = withFrame do
     e' <- qualifyExpr e
     pure (Decl () n' ps' e')
 
-qualifyRecursiveLocalDecl :: (Trace, Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r)
+qualifyRecursiveLocalDecl :: (Trace, Members '[StackState Scope, Fresh Unique, Error QualificationError, Reader LexInfo] r)
                      => Decl 'QualifyNames 
                      -> Sem r (Decl NextPass)
 qualifyRecursiveLocalDecl d@(Decl _ n _ _) = do
@@ -161,7 +164,7 @@ qualifyRecursiveLocalDecl d@(Decl _ n _ _) = do
     addVar n n'
     qualifyDeclWithName n' d
 
-qualifyExpr :: (Trace, Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError] r)
+qualifyExpr :: (Trace, Members '[StackState Scope, Fresh Unique, Error QualificationError] r)
             => Expr QualifyNames
             -> Sem r (Expr NextPass)
 qualifyExpr (App () li f e) =
@@ -202,13 +205,13 @@ qualifyExpr (Handle () li expr cases mreturnClause) = runReader li $
     <*> traverse qualifyEffHandler cases
     <*> qualifiedReturnClause
     where
-        qualifyEffHandler :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r
+        qualifyEffHandler :: Members '[StackState Scope, Fresh Unique, Error QualificationError, Reader LexInfo] r
                           => EffHandler QualifyNames
                           -> Sem r (EffHandler NextPass)
         qualifyEffHandler (EffHandler () li op args expr) =
             withFrame do
                 op' <- lookupEffOp op
-                args' <- traverse (freshVar @Text @QualifiedName) args
+                args' <- traverse freshVar args
                 zipWithM addVar args args'
                 expr' <- qualifyExpr expr
                 pure (EffHandler () li op' args' expr')
@@ -224,7 +227,7 @@ qualifyExpr (Resume () li expr) = Resume () li <$> qualifyExpr expr
 qualifyExpr (ExprX (Right UnitLit) li) = pure $ VariantConstr (0, 0) li (UnsafeQualifiedName "Unit" (GlobalQName "Data.Unit"))
 qualifyExpr (ExprX (Left opGroup) li) = runReader li $ replaceOpGroup . reorderByFixity <$> qualifyWithFixity opGroup
     where
-        qualifyWithFixity :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r
+        qualifyWithFixity :: Members '[StackState Scope, Fresh Unique, Error QualificationError, Reader LexInfo] r
                           => OperatorGroup QualifyNames NoFixity 
                           -> Sem r (OperatorGroup NextPass WithFixity)
         qualifyWithFixity (OpLeaf e)            = OpLeaf <$> qualifyExpr e
@@ -251,7 +254,7 @@ qualifyExpr (ExprX (Left opGroup) li) = runReader li $ replaceOpGroup . reorderB
             | otherwise                        = OpNode l op (OpNode l' op' r')
         reorderByFixity _ = error "unreachable"
 
-qualifyCaseBranch :: (Trace, Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError] r)
+qualifyCaseBranch :: (Trace, Members '[StackState Scope, Fresh Unique, Error QualificationError] r)
                   => CaseBranch QualifyNames
                   -> Sem r (CaseBranch NextPass)
 qualifyCaseBranch (CaseBranch () li pat expr) = runReader li $
@@ -260,12 +263,12 @@ qualifyCaseBranch (CaseBranch () li pat expr) = runReader li $
         <*> qualifyExpr expr
 
 
-qualifyPattern :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r
+qualifyPattern :: Members '[StackState Scope, Fresh Unique, Error QualificationError, Reader LexInfo] r
                => Pattern QualifyNames
                -> Sem r (Pattern NextPass)
 qualifyPattern = evalState mempty . go Nothing
     where
-        go :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo, State (Map Text QualifiedName)] r
+        go :: Members '[StackState Scope, Fresh Unique, Error QualificationError, Reader LexInfo, State (Map Text QualifiedName)] r
            => Maybe (Map Text QualifiedName) -> Pattern QualifyNames -> Sem r (Pattern NextPass)
         go _ (IntP () n) = pure (IntP () n)
 
@@ -294,7 +297,7 @@ qualifyPattern = evalState mempty . go Nothing
 
         go _ (WildcardP ()) = pure (WildcardP ())
 
-qualifyType :: forall r. (Trace, Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r)
+qualifyType :: forall r. (Trace, Members '[StackState Scope, Fresh Unique, Error QualificationError, Reader LexInfo] r)
             => Bool
             -> UType
             -> Sem r Type
@@ -342,14 +345,14 @@ qualifyType allowFreeVars uty = do
             pure (TConstraint constr' ty', conEffs <> tyEffs, conVars <> tyVars)
 
         go (UTRowClosed Empty) = do
-            tvar <- MkTVar <$> freshVar "μ" <*> pure (KRow KEffect)
+            tvar <- MkTVar <$> freshGenerated "μ" <*> pure (KRow KEffect)
             pure (TTyVar tvar, [tvar], Empty)
 
         go (UTRowClosed tys) = do
             -- TODO: We currently open *all* closed rows. If we ever use row polymorphism
             -- for anything other than effects (e.g. for extensible records), we have to make sure 
             -- to only do this if the row is part of a function type.
-            tvar <- MkTVar <$> freshVar "μ" <*> pure (KRow KEffect)
+            tvar <- MkTVar <$> freshGenerated "μ" <*> pure (KRow KEffect)
             (tys', tyEffs, tyVars) <- goAll tys
             
             pure (TRowVar tys' tvar, (tvar :<| tyEffs), tyVars)
@@ -377,7 +380,7 @@ qualifyType allowFreeVars uty = do
             (className', k, tv, _) -> ask >>= \li -> throw $ NonClassInConstraint li className' k tv
 
 
-qualifyTVar :: Members '[StackState Scope, Fresh Text QualifiedName, Error QualificationError, Reader LexInfo] r 
+qualifyTVar :: Members '[StackState Scope, Fresh Unique, Error QualificationError, Reader LexInfo] r 
             => UnqualifiedName
             -> Maybe Kind
             -> Sem r TVar
@@ -445,3 +448,7 @@ getTyConKind = foldr (\(MkTVar _ k) r -> k `KFun` r) KStar
 
 forM2 :: (Applicative f, ListLike l, Traversable l) => l a -> l b -> (a -> b -> f c) -> f (l c)
 forM2 xs ys f = zipWithM f xs ys
+
+
+freshVar :: Members '[Fresh Unique] r => Text -> Sem r QualifiedName
+freshVar = freshLocal

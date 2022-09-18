@@ -70,11 +70,11 @@ type ControllerC r = Members '[Reader CompileOpts, Error CompilationError, FileS
 
 
 runControllerC :: CompileOpts 
-               -> Sem '[Error CompilationError, Reader CompileOpts, FileSystem FilePath LByteString, FileSystem FilePath Text, Fresh Text QualifiedName, Embed IO] a
+               -> Sem '[Error CompilationError, Reader CompileOpts, FileSystem FilePath LByteString, FileSystem FilePath Text, Fresh Unique, Embed IO] a
                -> IO (Either CompilationError a)
 runControllerC opts r = handle
                       $ runM 
-                      $ runFreshQNamesState 
+                      $ runFreshInt 
                       $ runFileSystemGenericStringIO
                       $ runFileSystemLByteStringIO 
                       $ runReader opts 
@@ -101,7 +101,7 @@ instance R.Read Target where
     readsPrec _ _ = []
 
 class Compiled m where
-    compileFromCore :: forall r. (ControllerC r, Members '[Fresh Text QualifiedName] r) 
+    compileFromCore :: forall r. (ControllerC r, Members '[Fresh Unique] r) 
                     => Seq Interface 
                     -> Seq Core.Decl 
                     -> Sem r m
@@ -109,17 +109,17 @@ class Compiled m where
 instance Compiled (Seq RacketExpr) where
     compileFromCore = CoreToRacket.compile
 
-compileToRacketFile :: (Trace, ControllerC r, Members '[Fresh Text QualifiedName, FileSystem FilePath LByteString] r) 
+compileToRacketFile :: (Trace, ControllerC r, Members '[Fresh Unique, FileSystem FilePath LByteString] r) 
                     => FilePath 
                     -> Sem r (Text, Interface)
 compileToRacketFile files = bimap (show . prettyRacketExprs) id <$> compileAll files
 
-compileAll :: (Trace, ControllerC r, Members '[Fresh Text QualifiedName, FileSystem FilePath LByteString] r, Compiled m) 
+compileAll :: (Trace, ControllerC r, Members '[Fresh Unique, FileSystem FilePath LByteString] r, Compiled m) 
            => FilePath 
            -> Sem r (m, Interface)
 compileAll file = compileContents file =<< readFile file
 
-compileContents :: (Trace, ControllerC r, Members '[Fresh Text QualifiedName, FileSystem FilePath LByteString] r, Compiled m) 
+compileContents :: (Trace, ControllerC r, Members '[Fresh Unique, FileSystem FilePath LByteString] r, Compiled m) 
                 => FilePath
                 -> Text
                 -> Sem r (m, Interface)
@@ -167,7 +167,7 @@ compileContents path content = do
 
     pure (result, interface)
 
-compileWithSig :: (Trace, ControllerC r, Members '[Fresh Text QualifiedName] r)
+compileWithSig :: (Trace, ControllerC r, Members '[Fresh Unique] r)
                => S.Module 'QualifyNames
                -> Sem r (Seq Core.Decl, ModSig)
 compileWithSig m = do
@@ -193,8 +193,7 @@ compileWithSig m = do
     tcMod <- dumpWhenWithM (asks ddumpTC) ppTC "dump-tc" 
            $ mapError TypeError 
            $ runContext
-           $ runFreshM (\(MkTVar n k) -> freshVar (originalName n) <&> \n' -> MkTVar n' k)
-           $ typecheck tcEnv saMod -- TODO: provide environment from other modules
+           $ typecheck tcEnv saMod
 
     keepCoreResiduals <- asks Cobble.keepCoreResiduals
     core <- runReader LowerOptions{ Lower.keepCoreResiduals = keepCoreResiduals } $ lower tcMod
