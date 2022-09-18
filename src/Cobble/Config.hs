@@ -20,6 +20,7 @@ data Config = Config
     { disambiguateNames :: Bool
     , disambiguateModules :: Bool
     , printKinds :: Bool
+    , printConstructorKinds :: Bool
     }
     deriving (Show)
 
@@ -29,6 +30,7 @@ defaultConfig =
         { disambiguateNames = False
         , disambiguateModules = False
         , printKinds = False
+        , printConstructorKinds = False
         }
 
 configRef :: IORef Config

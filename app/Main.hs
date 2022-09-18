@@ -350,4 +350,5 @@ globalConfig =
     Config.Config
         <$> switch (long "disambiguate-names" <> help "Disambiguate different uses of the same name by appending a unique number")
         <*> switch (long "disambiguate-modules" <> help "Include the full module path in names")
-        <*> switch (long "print-kinds" <> help "Print the kinds of type constructors")
+        <*> switch (long "print-kinds" <> help "Print kinds in ∀ and (in core) Λ bindings")
+        <*> switch (long "print-constructor-kinds" <> help "Print the kinds of type constructors")

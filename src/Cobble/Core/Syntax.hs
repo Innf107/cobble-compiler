@@ -2,6 +2,7 @@ module Cobble.Core.Syntax where
 
 import Cobble.Prelude
 import Cobble.Syntax.QualifiedName
+import Cobble.Config(Config(..), getConfig)
 
 import Cobble.Codegen.PrimOp
 
@@ -199,7 +200,12 @@ instance Pretty Kind where
 
 prettyWithKind :: Doc ann -> Kind -> Doc ann
 prettyWithKind name KType = name
-prettyWithKind name k = "(" <> name <+> ":" <+> pretty k <> ")"
+prettyWithKind name k = 
+    let Config { printKinds } = getConfig () in
+    if printKinds then
+        "(" <> name <+> ":" <+> pretty k <> ")"
+    else
+        name
 
 instance S.Show Decl where
     show = show . pretty
