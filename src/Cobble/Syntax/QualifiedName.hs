@@ -35,6 +35,7 @@ instance Binary QualifiedName
 data QNameSpecifier
     = GlobalQName Text -- Module
     | LocalQName Int
+    | GeneratedQName Int
     deriving (Show, Eq, Ord, Generic, Data)
 instance Hashable QNameSpecifier
 instance Binary QNameSpecifier
@@ -58,6 +59,8 @@ renderDebug (UnsafeQualifiedName name (GlobalQName mod)) =
      in if disambiguateModules
             then mod <> "." <> name
             else name
+renderDebug (UnsafeQualifiedName name (GeneratedQName ix)) =
+    name <> "_" <> show ix
 
 renderMinecraft :: QualifiedName -> Text
 renderMinecraft = renameUpper . renameStandardChars . renderDebug

@@ -7,7 +7,7 @@ import Cobble.Prelude
 
 import Prettyprinter qualified as P
 import Prettyprinter as Export hiding (
-        vsep, sep, encloseSep
+        vsep, sep, encloseSep, Pretty(..)
     )
 
 vsep :: Seq (Doc ann) -> Doc ann

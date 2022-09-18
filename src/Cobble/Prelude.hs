@@ -39,6 +39,9 @@ module Cobble.Prelude (
     , Binary
     , lookupSeq
     , unzip3
+    , Pretty(..)
+    , Prec(..)
+    , prettyParen
     ) where
 
 import qualified Relude
@@ -144,9 +147,10 @@ import Data.Sequence hiding (
     )
 import Witherable
 
-import Prettyprinter (Pretty(..))
-
 import Data.Binary (Binary)
+
+import Prettyprinter (Doc)
+import Prettyprinter qualified as P
 
 (|:) :: a -> NonEmpty a -> NonEmpty a
 a |: (x :| xs) = a :| (x : xs)
@@ -226,3 +230,19 @@ unzip3 Empty = ([], [], [])
 unzip3 ((x, y, z) :<| ts) = let (xs, ys, zs) = unzip3 ts in
                             (x <| xs, y <| ys, z <| zs)
 
+
+data Prec = AtomPrec | AppPrec | FunPrec | SigPrec | LetPrec deriving (Show, Eq, Enum, Ord, Bounded)
+
+class Pretty a where
+    prettyPrec :: Prec -> a -> Doc ann
+    pretty :: a -> Doc ann
+    pretty = prettyPrec LetPrec
+
+prettyParen :: Prec -> Prec -> Doc ann -> Doc ann
+prettyParen p1 p2 x
+    | p1 < p2   = "(" <> x <> ")"
+    | otherwise = x
+
+instance Pretty Int where prettyPrec _ = P.pretty
+instance Pretty Text where prettyPrec _ = P.pretty
+instance Pretty Bool where prettyPrec _ = P.pretty

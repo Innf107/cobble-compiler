@@ -18,7 +18,9 @@ import Cobble.Syntax.Instances as Export
 import Cobble.Syntax.QualifiedName as Export
 import Cobble.Syntax.LexInfo as Export
 
+
 import Cobble.Prelude
+import Cobble.Config (Config(..), getConfig)
 
 import Cobble.Util.Prettyprinter as P
 
@@ -91,11 +93,12 @@ indent_ :: Doc ann -> Doc ann
 indent_ = indent 4
 
 instance Pretty (Module SemAnalysis) where
-    pretty (Module _ name statements) = "module" <+> pretty name <> ";" <> line_
+    prettyPrec _ (Module _ name statements) = "module" <+> pretty name <> ";" <> line_
                                     <> vsep (map ((line_ <>) . pretty) statements)
 
+-- TODO: Actually use the precedence here
 instance Pretty (Statement SemAnalysis) where
-    pretty (Def fixity _ d@(Decl _ f xs e) ty) = 
+    prettyPrec _ (Def fixity _ d@(Decl _ f xs e) ty) = 
             prettyFixity fixity <> ppQName f <+> "::" <+> pretty ty <> line_
         <>  prettyDecl d
         where
@@ -103,12 +106,12 @@ instance Pretty (Statement SemAnalysis) where
             prettyFixity (Just (LeftFix f))  = "infixl" <+> pretty f <> line_
             prettyFixity (Just (RightFix f)) = "infixr" <+> pretty f <> line_
 
-    pretty (DefClass k _ cname tvs meths) = 
+    prettyPrec _ (DefClass k _ cname tvs meths) = 
         "class (" <> ppQName cname <+> "::" <+> pretty k <> ")" <+> encloseSep "" "" " " (map pretty tvs) <+> "{" <> line_
         <> indent_ (
             vsep (map (\(x, ty) -> ppQName x <> " :: " <> pretty ty) meths)
         ) <> line_ <> "}"
-    pretty (DefInstance (k, defMeths, defTVs, isImported) _ cname ty decls) =
+    prettyPrec _ (DefInstance (k, defMeths, defTVs, isImported) _ cname ty decls) =
         "{-" <> line_ <> indent_ (
            "[is imported]:" <+> pretty isImported <> line_
         <> "[Definition]: class" <+> ppQName cname <+> encloseSep "" "" " " (map pretty defTVs) <+> "{" <> line_
@@ -120,14 +123,14 @@ instance Pretty (Statement SemAnalysis) where
         <> indent_ (
             vsep (map prettyDecl decls)
         ) <> line_ <> "}"
-    pretty (DefVariant k _ vname tvs constrs) =
+    prettyPrec _ (DefVariant k _ vname tvs constrs) =
         "variant (" <> ppQName vname <+> "::" <+> pretty k <> ")" <+> encloseSep "" "" " " (map pretty tvs) <+> "{" <> line_ 
         <> indent_ (
             vsep (map (\(cname, ctys, (i, j)) -> 
                 ppQName cname <> "[" <> pretty i <> ", " <> pretty j <> "]" 
                 <+> encloseSep "" "" " " (map pretty ctys)) constrs)
         ) <> "}"
-    pretty (DefEffect k _ effName tvs ops) =
+    prettyPrec _ (DefEffect k _ effName tvs ops) =
         "effect (" <> ppQName effName <+> "::" <+> pretty k <> ")" <+> encloseSep "" "" " " (map pretty tvs) <+> "{" <> line_
         <> indent_ (
             vsep (map (\(x, ty) -> ppQName x <> " :: " <> pretty ty) ops)
@@ -139,21 +142,27 @@ prettyDecl (Decl _ f xs e) = ppQName f <+> encloseSep "" "" " " (map ppQName xs)
 
 
 instance Pretty TVar where
-    pretty (MkTVar var k) = "(" <> ppQName var <+> "::" <+> pretty k <> ")"
+    prettyPrec p (MkTVar var k) =
+        let Config { printKinds } = getConfig () in
+        if printKinds then
+            prettyParen p SigPrec $ ppQName var <+> "::" <+> pretty k
+        else
+            ppQName var
 
 instance Pretty (Expr SemAnalysis) where
-    pretty _ = "{TODO: Prettyprint expresions}"
+    prettyPrec _ _ = "{TODO: Prettyprint expresions}"
 
 instance Pretty Type where
-    pretty = pretty . ppType
+    -- TODO
+    prettyPrec _ = pretty . ppType
 
 instance Pretty Kind where
-    pretty KStar = "*"
-    pretty KConstraint = "Constraint"
-    pretty KEffect = "Effect"
-    pretty (KRow k) = "KRow (" <> pretty k <> ")" 
-    pretty (KFun k1 k2) = "(" <> pretty k1 <> ") -> " <> pretty k2
+    prettyPrec _ KStar = "*"
+    prettyPrec _ KConstraint = "Constraint"
+    prettyPrec _ KEffect = "Effect"
+    prettyPrec p (KRow k) = prettyParen p AppPrec $ "KRow" <+> prettyPrec AtomPrec k 
+    prettyPrec p (KFun k1 k2) = prettyParen p FunPrec $ prettyPrec AppPrec k1 <+> "->" <> prettyPrec FunPrec k2
 
 instance Pretty (Module Typecheck) where
-    pretty m = pretty (coercePass @(Module Typecheck) @(Module SemAnalysis) m)
+    prettyPrec _ m = pretty (coercePass @(Module Typecheck) @(Module SemAnalysis) m)
 

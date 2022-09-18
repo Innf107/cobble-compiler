@@ -109,101 +109,155 @@ prettyDecls :: Seq Decl -> Doc ann
 prettyDecls ds = vsep (map ((<> line) . pretty) ds)
 
 instance Pretty Decl where
-    pretty (Def x ty e) = ppQName x <+> ":" <+> pretty ty <> line <> ppQName x <+> "=" <+> align (pretty e)
-    pretty (DefVariant x args clauses) = "variant" <+> ppQName x <+> sep (map (\(x, k) -> prettyWithKind (ppQName x) k) args) <+> align ("="
+    prettyPrec _ (Def x ty e) = ppQName x <+> ":" <+> pretty ty <> line <> ppQName x <+> "=" <+> align (pretty e)
+    prettyPrec _ (DefVariant x args clauses) = "variant" <+> ppQName x <+> sep (map (\(x, k) -> prettyWithKind (ppQName x) k) args) <+> align ("="
                                     <+> (vsep (mapAfter1 False True (\bar (c, args) -> (if bar then ("|" <+>) else id) (ppQName c) <+> sep (map pretty args)) clauses)))
         where
             mapAfter1 :: a -> a -> (a -> b -> c) -> Seq b -> Seq c
             mapAfter1 a1 a2 f Empty = Empty
             mapAfter1 a1 a2 f (x :<| xs) = f a1 x :<| map (f a2) xs
-    pretty (DefDict x args fields) = "dictionary" <+> ppQName x <+> sep (map (parens . prettyTyped) args) <+> "=" <+>
+    prettyPrec _ (DefDict x args fields) = "dictionary" <+> ppQName x <+> sep (map (parens . prettyTyped) args) <+> "=" <+>
         align ("{" <> vsep (map prettyTyped fields) <> "}")
-    pretty (DefEffect x args ops) = "effect" <+> ppQName x <+> sep (map (parens . prettyTyped) args) 
+    prettyPrec _ (DefEffect x args ops) = "effect" <+> ppQName x <+> sep (map (parens . prettyTyped) args) 
         <+> align ("{" <> vsep (map prettyTyped ops) <> "}")
 
 instance Pretty Expr where
-    pretty (Var x) = ppQName x
-    pretty (App e1 e2) = "(" <> pretty e1 <+> pretty e2 <> ")"
-    pretty (TyAbs tv k e) = "(Λ" <> prettyWithKind (ppQName tv) k <> "." <> softline <> align (pretty e) <> ")"
-    pretty (TyApp e ty) = "(" <> pretty e <+> "@" <> pretty ty <> ")"
-    pretty (Abs x eff ty e) = "(λ[" <> pretty eff <> "](" <> ppQName x <+> ":" <+> pretty ty <> ")." <> softline <> align (pretty e) <> ")"
-    pretty (IntLit n) = pretty n
-    pretty (Let x ty e1 e2) = "(let" <+> ppQName x <+> ":" <+> pretty ty <+> "=" <+> align (softline' <> pretty e1) <+> "in" <> line <> pretty e2 <> ")"
-    pretty (If c th el) = "(if" <+> pretty c <> softline <> "then" <+> pretty th <> softline <> "else" <+> pretty el <> ")"
-    pretty (VariantConstr x _ tys es) = ppQName x <> tyApps <> valApps
+    prettyPrec _ (Var x) = ppQName x
+    prettyPrec p (App e1 e2) = 
+        prettyParen p AppPrec $ prettyPrec AppPrec e1 <+> prettyPrec AtomPrec e2
+    prettyPrec p (TyAbs tv k e) = 
+        prettyParen p LetPrec $
+            "Λ" <> prettyWithKind (ppQName tv) k <> "." <> softline <> align (prettyPrec LetPrec e)
+    prettyPrec p (TyApp e ty) = 
+        prettyParen p AppPrec $
+            prettyPrec AppPrec e <+> "@" <> prettyPrec AtomPrec ty
+    prettyPrec p (Abs x eff ty e) = 
+        prettyParen p LetPrec $
+            "λ[" <> prettyPrec LetPrec eff <> "](" <> ppQName x <+> ":" <+> prettyPrec FunPrec ty <> ")." <> softline 
+            <> align (prettyPrec LetPrec e)
+    prettyPrec _ (IntLit n) = pretty n
+    prettyPrec p (Let x ty e1 e2) =
+        prettyParen p LetPrec $
+            "let" <+> ppQName x <+> ":" <+> prettyPrec FunPrec ty <+> "=" 
+                <+> align (softline' <> prettyPrec FunPrec e1) <+> "in" 
+                <> line <> prettyPrec LetPrec e2
+    prettyPrec p (If c th el) = 
+        prettyParen p LetPrec $
+            "if" <+> prettyPrec AppPrec c <> softline <> "then" 
+                <+> prettyPrec LetPrec th <> softline <> "else" 
+                <+> prettyPrec LetPrec el
+    prettyPrec p (VariantConstr x _ tys es) = 
+        prettyParen p AppPrec $
+            ppQName x <> tyApps <> valApps
         where
             tyApps = case tys of
                 Empty -> ""
-                (tys :|> ty) -> "[" <> foldl' (\r ty -> pretty ty <> "," <+> r) (pretty ty) tys <> "]"
+                (tys :|> ty) -> "[" <> foldl' (\r ty -> prettyPrec FunPrec ty <> "," <+> r) (prettyPrec FunPrec ty) tys <> "]"
             valApps = case es of
                 Empty -> ""
-                (es :|> e) -> "{" <> foldl' (\r e -> pretty e <> "," <+> r) (pretty e) es <> "}"
+                (es :|> e) -> "{" <> foldl' (\r e -> prettyPrec FunPrec e <> "," <+> r) (prettyPrec FunPrec e) es <> "}"
 
-    pretty (Case scrut branches) = "(case" <+> ppQName scrut <+> "of" <> 
-                                    align (line <> vsep (map (\(p, e) -> pretty p <+> "->" <+> pretty e) branches))
-                                    <> ")"
+    prettyPrec p (Case scrut branches) = 
+        prettyParen p LetPrec $
+            "case" <+> ppQName scrut <+> "of" 
+                    <> align (line <> vsep (map (\(p, e) -> prettyPrec AppPrec p <+> "->" <+> prettyPrec LetPrec e) branches))
 
 
-    pretty (Join j tyParams valParams body e) = "(join" <+> ppQName j 
-                                                        <+> encloseSep "[" "]" ", " (map prettyTyped tyParams)
-                                                        <+> encloseSep "{" "}" ", " (map prettyTyped valParams)
-                                                        <+> "="
-                                                        <+> align (softline' <> pretty body)
-                                                        <+> "in"
-                                                        <> line
-                                                        <> pretty e
-                                                        <> ")"
-    pretty (Jump j tyArgs valArgs retTy) = "(jump" <+> ppQName j <+> encloseSep "[" "]" ", " (map pretty tyArgs)
-                                                                 <+> encloseSep "{" "}" ", " (map pretty valArgs)
-                                                                 <+> pretty retTy
-                                                                 <> ")"
+    prettyPrec p (Join j tyParams valParams body e) = 
+        prettyParen p LetPrec $
+            "join" <+> ppQName j 
+                   <+> encloseSep "[" "]" ", " (map prettyTyped tyParams)
+                   <+> encloseSep "{" "}" ", " (map prettyTyped valParams)
+                   <+> "="
+                   <+> align (softline' <> prettyPrec FunPrec body)
+                   <+> "in"
+                   <> line
+                   <> prettyPrec LetPrec e
+                   
+    prettyPrec p (Jump j tyArgs valArgs retTy) = 
+        prettyParen p AppPrec $ 
+            "jump" <+> ppQName j 
+                   <+> encloseSep "[" "]" ", " (map (prettyPrec FunPrec) tyArgs)
+                   <+> encloseSep "{" "}" ", " (map (prettyPrec FunPrec) valArgs)
+                   <+> prettyPrec AppPrec retTy
                                                                  
-    pretty (DictConstruct cname args fields) = ppQName cname <> encloseSep "[" "]" ", " (map pretty args)
-                                                             <> encloseSep "{" "}" (line <> ", ") (map pretty fields)
+    prettyPrec p (DictConstruct cname args fields) = 
+        prettyParen p AppPrec $
+            ppQName cname <> encloseSep "[" "]" ", " (map (prettyPrec FunPrec) args)
+                          <> encloseSep "{" "}" (line <> ", ") (map (prettyPrec FunPrec) fields)
 
-    pretty (DictAccess e cname args field) = pretty e <> encloseSep ".[" "]." " " (ppQName cname :<| map pretty args) 
-                                                      <> show field
-    pretty (Perform effect op tyArgs valArgs) = "perform[" <> ppQName effect <> "]" <+> ppQName op <+> encloseSep "[" "]" ", " (map pretty tyArgs)
-                                                   <> encloseSep "{" "}" ", " (map pretty valArgs)
-    pretty (Handle e eff handlers (retVar, retExpr)) = "(handle[" <> pretty eff <> "]" <+> pretty e <+> "with" 
+    prettyPrec p (DictAccess e cname args field) = 
+        prettyParen p AppPrec $
+        pretty e <> encloseSep ".[" "]." " " (ppQName cname :<| map (prettyPrec FunPrec) args) <> ppQName field
+
+    prettyPrec p (Perform effect op tyArgs valArgs) = 
+        prettyParen p AppPrec $
+            "perform[" <> ppQName effect <> "]" <+> ppQName op <+> encloseSep "[" "]" ", " (map (prettyPrec FunPrec) tyArgs)
+                    <> encloseSep "{" "}" ", " (map (prettyPrec FunPrec) valArgs)
+    prettyPrec p (Handle e eff handlers (retVar, retExpr)) = 
+        prettyParen p LetPrec $
+            "handle[" <> pretty eff <> "]" <+> pretty e <+> "with" 
                                     <> line <> align (indent 4 (
                                             vsep (map prettyHandler handlers)
-                                        <>  line <> "return" <+> ppQName retVar <+> "->" <> pretty retExpr
-                                    )) <> ")" 
+                                        <>  line <> "return" <+> ppQName retVar <+> "->" <> prettyPrec LetPrec retExpr
+                                    ))
                                     where
                                         prettyHandler (op, args, expr) = 
                                             ppQName op <+> encloseSep "" "" " " (map ppQName args)
-                                            <+> "->" <+> pretty expr
-    pretty (Resume expr) = "(resume" <+> pretty expr <> ")"
+                                            <+> "->" <+> prettyPrec LetPrec expr
+    prettyPrec p (Resume expr) = 
+        prettyParen p AppPrec $
+            "resume" <+> pretty expr
 
 
 instance Pretty Pattern where
-    pretty (PInt i) = pretty i
-    pretty PWildcard = "_"
-    pretty (PConstr cname args i) = encloseSep "(" ")" " " (ppQName cname :<| (map (parens . prettyTyped) args))
+    prettyPrec _ (PInt i) = pretty i
+    prettyPrec _ PWildcard = "_"
+    prettyPrec _ (PConstr cname [] _) = ppQName cname 
+    prettyPrec p (PConstr cname args _) = 
+        prettyParen p AppPrec $ sep (ppQName cname :<| (map (parens . prettyTyped) args))
 
 instance Pretty Type where
-    pretty (TVar x k) = ppQName x
-    pretty (TCon x k) = ppQName x -- We don't currently display the kinds of type constructors
-    pretty (TFun t1 eff t2) = "(" <> pretty t1 <+> "-{" <> show eff <> "}>" <+> pretty t2 <> ")"
-    pretty (TApp t1 t2) = "(" <> pretty t1 <+> pretty t2 <> ")"
-    pretty (TForall x k ty) = "(∀" <> prettyWithKind (ppQName x) k <> "." <+> pretty ty <> ")"
-    pretty (TRowNil) = "{}"
-    pretty (TRowExtend tys row) = "{" <> fold (intersperse ", " (map pretty tys)) <> " | " <> pretty row <> "}"
-    pretty TEffUR = "∞"
+    prettyPrec p (TVar x k) = 
+        let Config { printConstructorKinds } = getConfig () in
+        if printConstructorKinds then
+            prettyParen p SigPrec $ ppQName x <+> ":" <+> prettyPrec FunPrec k
+        else
+            ppQName x
+    prettyPrec p (TCon x k) =
+        let Config { printConstructorKinds } = getConfig () in
+        if printConstructorKinds then
+            prettyParen p SigPrec $ ppQName x <+> ":" <+> prettyPrec FunPrec k
+        else
+            ppQName x
+    prettyPrec p (TFun t1 TRowNil t2) =
+        prettyParen p FunPrec $ prettyPrec AppPrec t1 <+> "->" <+> prettyPrec FunPrec t2
+    prettyPrec p (TFun t1 eff t2) = 
+        prettyParen p FunPrec $ prettyPrec AppPrec t1 <+> "-{" <> prettyPrec LetPrec eff <> "}>" <+> prettyPrec FunPrec t2
+    prettyPrec p (TApp t1 t2) = 
+        prettyParen p AppPrec $ prettyPrec AppPrec t1 <+> prettyPrec AtomPrec t2
+    prettyPrec p ty@TForall{} = do
+        let go = \case
+                (TForall x k ty) -> first ((x, k) <|) $ go ty
+                ty -> ([], ty)
+        let (consecutiveForalls, resultTy) = go ty
+        prettyParen p FunPrec $ "∀" <> sep (map (\(x, k) -> prettyWithKind (ppQName x) k) consecutiveForalls) 
+            <> "." <+> prettyPrec FunPrec resultTy
+    prettyPrec _ TRowNil = "{}"
+    prettyPrec _ (TRowExtend tys row) = "{" <> fold (intersperse ", " (map pretty tys)) <> " | " <> pretty row <> "}"
+    prettyPrec _ TEffUR = "∞"
 instance Pretty Kind where
-    pretty KType = "*"
-    pretty KEffect = "Effect"
-    pretty (KRow k) = "(Row" <+> pretty k <> ")"
-    pretty (KFun KType t2) = "*" <+> "->" <+> pretty t2
-    pretty (KFun t1 t2) = "(" <> pretty t1 <> ")" <+> "->" <+> pretty t2
+    prettyPrec _ KType = "*"
+    prettyPrec _ KEffect = "Effect"
+    prettyPrec p (KRow k) = prettyParen p AppPrec $ "Row" <+> prettyPrec AtomPrec k
+    prettyPrec p  (KFun t1 t2) = prettyParen p FunPrec $ prettyPrec AppPrec t1 <+> "->" <+> prettyPrec LetPrec t2
 
 prettyWithKind :: Doc ann -> Kind -> Doc ann
 prettyWithKind name KType = name
 prettyWithKind name k = 
     let Config { printKinds } = getConfig () in
     if printKinds then
-        "(" <> name <+> ":" <+> pretty k <> ")"
+        "(" <> name <+> ":" <+> prettyPrec AppPrec k <> ")"
     else
         name
 
