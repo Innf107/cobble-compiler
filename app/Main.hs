@@ -76,9 +76,7 @@ runBuild BuildCmdOpts{projectFile, makeCommand, makeOptions} = do
         Right makeWorkingDirectory -> callProcess (toString makeCommand) (fmap toString makeOptions <> ["-C", makeWorkingDirectory])
 
 runLink :: LinkCmdOpts -> IO ()
-runLink LinkCmdOpts{files, outFile} = do
-    IO.putStrLn "Linking..."
-    linkFiles files outFile
+runLink LinkCmdOpts{files, outFile} = linkFiles files outFile
 
 runTracePretty :: Seq TraceType -> (Trace => a) -> a
 runTracePretty traceTys = runTraceStderrWith pred pretty

@@ -41,6 +41,7 @@ library
       Cobble.Qualifier
       Cobble.Racket.Types
       Cobble.SemAnalysis
+      Cobble.Serialize
       Cobble.Syntax
       Cobble.Syntax.AST
       Cobble.Syntax.AST.Codegen
