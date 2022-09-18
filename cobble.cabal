@@ -29,6 +29,7 @@ library
       Cobble.Build
       Cobble.Codegen.CoreToRacket
       Cobble.Codegen.PrimOp
+      Cobble.Config
       Cobble.Core.Lint
       Cobble.Core.Lower
       Cobble.Core.Syntax

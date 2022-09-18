@@ -1,38 +1,41 @@
-{-#LANGUAGE TemplateHaskell#-}
-module Cobble.Syntax.QualifiedName (
-    QualifiedName (..)
-,   QNameSpecifier(..)
-,   UnqualifiedName
-,   renderDebug
-,   renderMinecraft
-,   renderLua
-,   renderRacket
+{-# LANGUAGE TemplateHaskell #-}
 
-,   internalQName
+module Cobble.Syntax.QualifiedName (
+    QualifiedName (..),
+    QNameSpecifier (..),
+    UnqualifiedName,
+    renderDebug,
+    renderMinecraft,
+    renderLua,
+    renderRacket,
+    internalQName,
 ) where
 
+import Cobble.Config (Config (Config), disambiguateModules, disambiguateNames, getConfig)
 import Cobble.Prelude
 
 import Cobble.Syntax.LexInfo
 
-import Data.Data
 import Data.Char
+import Data.Data
 import Data.Generics.Uniplate.Data
 
-import qualified Data.Text as T
+import Data.Text qualified as T
 
-import qualified GHC.Show as S
+import GHC.Show qualified as S
 
-data QualifiedName = UnsafeQualifiedName {
-        originalName :: Text
-    ,   qnameSpecifier :: QNameSpecifier
-    } deriving (Eq, Ord, Generic, Data)
+data QualifiedName = UnsafeQualifiedName
+    { originalName :: Text
+    , qnameSpecifier :: QNameSpecifier
+    }
+    deriving (Eq, Ord, Generic, Data)
 instance Hashable QualifiedName
 instance Binary QualifiedName
 
-data QNameSpecifier = GlobalQName Text -- Module
-                    | LocalQName Int
-                    deriving (Show, Eq, Ord, Generic, Data)
+data QNameSpecifier
+    = GlobalQName Text -- Module
+    | LocalQName Int
+    deriving (Show, Eq, Ord, Generic, Data)
 instance Hashable QNameSpecifier
 instance Binary QNameSpecifier
 
@@ -45,35 +48,42 @@ instance S.Show QualifiedName where
     show = toString . renderDebug
 
 renderDebug :: QualifiedName -> Text
-renderDebug (UnsafeQualifiedName name (LocalQName ix)) = name <> "_" <> show ix
-renderDebug (UnsafeQualifiedName name (GlobalQName mod)) = mod <> "." <> name
+renderDebug (UnsafeQualifiedName name (LocalQName ix)) =
+    let Config{disambiguateNames} = getConfig ()
+     in if disambiguateNames
+            then name <> "_" <> show ix
+            else name
+renderDebug (UnsafeQualifiedName name (GlobalQName mod)) =
+    let Config{disambiguateModules} = getConfig ()
+     in if disambiguateModules
+            then mod <> "." <> name
+            else name
 
 renderMinecraft :: QualifiedName -> Text
 renderMinecraft = renameUpper . renameStandardChars . renderDebug
-    where
-        renameUpper = T.concatMap \case
-            c | isUpper c -> "-" <> one (toLower c)
-              | otherwise -> one c
+  where
+    renameUpper = T.concatMap \case
+        c
+            | isUpper c -> "-" <> one (toLower c)
+            | otherwise -> one c
 
 renderLua :: QualifiedName -> Text
 renderLua = renameMinus . renameStandardChars . renderDebug
-    where
-        renameMinus = T.concatMap \case
-            '-' -> "__"
-            x -> one x
+  where
+    renameMinus = T.concatMap \case
+        '-' -> "__"
+        x -> one x
 
 renderRacket :: QualifiedName -> Text
 renderRacket = renameRacketChars . renderDebug
-    where
-        renameRacketChars = T.concatMap \case
-            '|' -> "?pipe?"
-            '#' -> "?hash?"
-            ';' -> "?semi?"
-            ',' -> "?comma?"
-            '\''-> "?prime?"
-            x   -> one x
-
-
+  where
+    renameRacketChars = T.concatMap \case
+        '|' -> "?pipe?"
+        '#' -> "?hash?"
+        ';' -> "?semi?"
+        ',' -> "?comma?"
+        '\'' -> "?prime?"
+        x -> one x
 
 renameStandardChars :: Text -> Text
 renameStandardChars = T.concatMap \case
@@ -97,4 +107,3 @@ renameStandardChars = T.concatMap \case
     ';' -> "-semi"
     ',' -> "-comma"
     x -> one x
-
