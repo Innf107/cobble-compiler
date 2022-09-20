@@ -1,0 +1,7 @@
+module Test;
+
+variant B = F | T;
+
+class Eq a {
+    eq :: a -> a -> B;
+};

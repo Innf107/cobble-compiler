@@ -205,8 +205,8 @@ typecheckStatement env (DefClass k li cname tvs methSigs) = do
 
 typecheckStatement env (DefInstance (classKind, methDefs, params, _isImported) li cname ty meths) = runReader li do
     freshIX <- freshVar "" <&> \case
-        UnsafeQualifiedName _ (LocalQName ix) -> ix
-        qn -> error $ "freshVar returned non-local qname: " <> show qn
+        UnsafeQualifiedName _ (GeneratedQName ix) -> ix
+        qn -> error $ "freshVar returned non-generated qname: " <> show qn
 
     dictName <- UnsafeQualifiedName ("d_" <> (originalName cname) <> "_" <> show freshIX) . GlobalQName <$> asks unTagged
     let env' = insertInstance cname ty dictName env
@@ -216,10 +216,7 @@ typecheckStatement env (DefInstance (classKind, methDefs, params, _isImported) l
         when (methName /= declName) $ error $ "typecheckStatement: instance methods were not properly reordered at " <> show li <> "."
         
         let methTy' = case params of
-                [p] -> case methTy of
-                    TForall p' actualMethTy
-                        | p == p' -> stripConstraint (MkConstraint cname classKind ty) $ replaceTyVar p ty actualMethTy
-                    _ -> error $ "typecheckStatement: foralls were not properly inserted in instance method type. methTy: " <> show methTy
+                [p] -> replaceTyVar p ty methTy
                 _ -> error "typecheckStatement: multi parameter typeclasses NYI"
 
         traceM TraceTC $ "[typecheckStatement (instance " <> show cname <> " " <> show ty <> ")]: Γ ⊢ " <> show methName <> " : " <> show methTy <> " ====> " <> show methTy'
