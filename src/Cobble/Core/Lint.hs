@@ -346,7 +346,7 @@ lintSaturated env x source ty tyArgs valArgs eff = go ty tyArgs valArgs
             go ty' tyArgs valArgs
         go (TForall a k ty) Empty valArgs = throwLint $ source <> " '" <> x <> "' is missing type arguments.\n    Remaining type: " <> show (TForall a k ty) <> "\n    Not yet applied value arguments: " <> show valArgs <> "\n    Applied type arguments: " <> show tyArgs
         go ty Empty Empty = pure ty
-        go ty tyArgs valArgs = throwLint $ "Excessive arguments for " <> source <> " '" <> x <> "'.\n    Remaining type: " <> show ty <> "\n    Not yet applied type arguments: " <> show tyArgs <> "\n    Mpt yet applied value arguments: " <> show valArgs
+        go ty tyArgs valArgs = throwLint $ "Excessive arguments for " <> source <> " '" <> x <> "'.\n    Remaining type: " <> show ty <> "\n    Not yet applied type arguments: " <> show tyArgs <> "\n    Not yet applied value arguments: " <> show valArgs
 
 {- note [clearJPs for App]
 In 'Compiling without continuations'[1], the rule for applications clearly states

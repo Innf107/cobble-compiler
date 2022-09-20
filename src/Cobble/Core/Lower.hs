@@ -98,8 +98,7 @@ lowerStmnts (C.DefEffect _k _li effName tvs ops :<| sts) = do
     tvs' <- traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) tvs
     let addForalls ty = foldr (uncurry F.TForall) ty tvs'
 
-    def <- F.DefEffect effName tvs'
-            <$> traverse (secondM (fmap addForalls . lowerType)) ops
+    def <- F.DefEffect effName tvs' <$> traverse (secondM lowerType) ops
             
     opDefs <- forM ops \(opName, opTy) -> do
         opTy' <- addForalls <$> lowerType opTy

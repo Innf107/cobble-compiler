@@ -1,0 +1,17 @@
+module Data.Bool;
+
+variant Bool = False | True;
+
+class Eq a {
+    eq :: a -> a -> Bool;
+};
+
+instance Eq Int {
+    eq x y = eq# x y;
+};
+
+refl :: Eq a => a -> Bool;
+refl x = eq x x;
+
+reflInt :: Bool;
+reflInt = refl 5;

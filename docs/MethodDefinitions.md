@@ -10,9 +10,9 @@ class Eq a {
 
 When type checking and lowering `eq`, it's type has to be extended to 
 ```hs
-eq :: ∀ μ1 μ2 a. a -{μ1}> a -{μ2}> Bool
+eq :: ∀a μ1 μ2. Eq a => a -{μ1}> a -{μ2}> Bool
 ```
-The interesting question is now: Should `a` be part of the `∀` in the method definition? In other words: Should the **renamer** insert the `∀a` or should the **type checker** do this when collecting the type for `eq`?
+The interesting question is now: Should `a` and `Eq a` be part of the `∀` in the method definition? In other words: Should the **renamer** insert the `∀a` or should the **type checker** do this when collecting the type for `eq`?
 
 In Cobble, these constraints are inserted by the **type checker**, so the renamer **does not** insert any types.
 This is done to preserve the relationship between the `a` in the class definition and the `a` in the method.
