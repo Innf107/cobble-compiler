@@ -48,11 +48,13 @@ lowerStmnts (C.DefClass k _li cname tvs methSigs :<| sts) = do
     tvs' <- traverse (\(C.MkTVar x k) -> (x,) <$> lowerKind k) tvs
     k' <- lowerKind k
 
-    dictDef <- F.DefDict cname tvs' <$> traverse (secondM (lowerType . stripConstraintAndFirstArg)) methSigs
+    dictDef <- F.DefDict cname tvs' <$> traverse (secondM lowerType) methSigs
 
     methImpls <- forM methSigs \(methName, methTy) -> do
         dictName <- freshVar "d"
-        methTy' <- lowerType methTy
+        -- We have to include the constraint and class bound ty vars in
+        -- the method implementation, but not in the dictionary definition
+        methTy' <- lowerType (C.TForall tv (addConstraint methTy))
 
         let tvAbs e = foldr (uncurry F.TyAbs) e tvs'
         let dictTy = foldl' (\r (x, k) -> F.TApp r (F.TVar x k)) (F.TCon cname k') tvs'
@@ -61,9 +63,12 @@ lowerStmnts (C.DefClass k _li cname tvs methSigs :<| sts) = do
 
     ((dictDef :<| methImpls) <>) <$> lowerStmnts sts
         where
-            stripConstraintAndFirstArg (C.TForall _tv ty) = stripConstraintAndFirstArg ty
-            stripConstraintAndFirstArg (C.TConstraint _ ty) = ty
-            stripConstraintAndFirstArg ty = ty
+            addConstraint (C.TForall tv ty) = C.TForall tv (addConstraint ty)
+            addConstraint ty = C.TConstraint (C.MkConstraint cname k (C.TTyVar tv)) ty
+
+            tv = case tvs of
+                [tv] -> tv
+                _ -> error "Multiparam type classes NYI" 
 
             tyAbsFor (0 :: Int) (F.TForall tv k ty) = F.TyAbs tv k . tyAbsFor 0 ty
             tyAbsFor n (F.TForall _ _ ty) = tyAbsFor (n - 1) ty

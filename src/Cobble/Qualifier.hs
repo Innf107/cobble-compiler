@@ -100,15 +100,14 @@ qualifyStmnt (DefClass () li className tvs meths) = runReader li $ do
         zipWithM_ addTVar (map fst tvs) tvs'
         forM meths \(mn, mty) -> withFrame do
             mn' <- freshGlobal mn
-            methTy' <- qualifyType True (addConstraint mty) -- Type class methods *are* allowed to introduce new tyvars
-            pure (mn', foldr TForall methTy' tvs')
+            -- We don't introduce the constraint and class bound ty vars yet.
+            -- The typechecker adds it when collecting method types, but we don't want to keep it around when
+            -- lowering dictionary types.
+            methTy' <- qualifyType True mty -- Type class methods *are* allowed to introduce new tyvars
+            pure (mn', methTy')
     addType className className' k (TyClass tvs' meths')
     zipWithM_ (\(methName,_) (methName',_) -> addVar methName methName') meths meths'
     pure (DefClass k li className' tvs' meths')
-        where
-            addConstraint ty = case tvs of
-                [(utv, _)] -> UTConstraint (MkUConstraint className (UTTyVar utv)) ty
-                _ -> error "qualifyStmnt: Multiparam typeclasses NYI"
 
 qualifyStmnt (DefInstance () li cname ty meths) = runReader li $ lookupType cname >>= \case
     (cname', k, TyClass tvs classMeths, isImported) -> withFrame do

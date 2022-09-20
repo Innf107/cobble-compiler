@@ -192,8 +192,16 @@ typecheckStatement env (Def fixity li decl expectedTy) = runReader li do
     pure (Def fixity li decl' expectedTy, env')
 
 typecheckStatement env (DefClass k li cname tvs methSigs) = do
-    let env' = foldr (uncurry insertType) env methSigs
+    -- We include the constraint and class bound tyvars on methods in the environment, 
+    -- but not in the class definition since we shouldn't keep them around when lowering dictionary types.
+    let env' = foldr (\(x, ty) env -> insertType x (TForall tv (addConstraint ty)) env) env methSigs
     pure (DefClass k li cname tvs methSigs, env')
+        where 
+            tv = case tvs of
+                [tv] -> tv
+                _ -> error "Multiparam type classes are NYI" 
+            addConstraint (TForall tv ty) = TForall tv (addConstraint ty)
+            addConstraint ty = TConstraint (MkConstraint cname k (TTyVar tv)) ty
 
 typecheckStatement env (DefInstance (classKind, methDefs, params, _isImported) li cname ty meths) = runReader li do
     freshIX <- freshVar "" <&> \case
