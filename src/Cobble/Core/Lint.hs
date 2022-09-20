@@ -76,16 +76,25 @@ insertDictTy dictName tvs fields env@LintEnv{dictTyDefs} =
         dictTyDefs = insert dictName (tvs, fields) dictTyDefs
     }
 
-insertEff :: QualifiedName
+insertEff :: HasCallStack
+          => QualifiedName
           -> Seq (QualifiedName, Kind)
           -> Seq (QualifiedName, Type)
           -> LintEnv
           -> LintEnv
 insertEff effName tvs ops env@LintEnv{effDefs, opEffs} =
     env {
-        effDefs = insert effName (tvs, ops) effDefs
+        effDefs = insert effName (tvs, map (second (addForalls . addEff)) ops) effDefs
     ,   opEffs = foldr (\(op, _) r -> insert op effName r) opEffs ops
     }
+    where
+        addForalls ty = foldr (uncurry TForall) ty tvs
+
+        addEff (TForall tv k ty) = TForall tv k (addEff ty)
+        addEff (TFun dom eff cod) = TFun dom (assertNoError $ insertRow (foldl' (\ty (x, k)-> TApp ty (TVar x k)) effCon tvs) eff) cod
+        addEff ty = error $ "Effect operation with non-function type for effect '" <> show effName <> "'"
+
+        effCon = TCon effName (foldr (KFun . snd) KEffect tvs)
 
 lookupOp :: Members '[Error CoreLintError] r
           => QualifiedName
@@ -471,3 +480,8 @@ insertRow ty (TRowExtend tys row) = pure $ TRowExtend (ty <| tys) row
 insertRow ty TRowNil = pure $ TRowExtend [ty] TRowNil
 insertRow ty row@TVar{} = pure $ TRowExtend [ty] row
 insertRow ty rowTy = throwLint $ "insertRow: Trying to insert into no-row type: " <> show rowTy <> "\n    Type: " <> show ty 
+
+assertNoError :: HasCallStack => Sem '[Error CoreLintError] a -> a
+assertNoError act = case run (runError act) of
+    Right x -> x
+    Left (MkCoreLintError err) -> error ("Lint assertion failed: " <> err) 
