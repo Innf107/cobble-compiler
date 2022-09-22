@@ -1,0 +1,10 @@
+module Test;
+
+variant U = U;
+
+effect Reader a {
+    ask :: U -> a;
+};
+
+f :: Int -{Reader Int}> Int;
+f x = ask U;
